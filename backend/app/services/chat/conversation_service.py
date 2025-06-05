@@ -299,12 +299,12 @@ class ConversationService:
             if not conversation:
                 raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
             
-            # Soft delete by marking as inactive
+            # Soft delete by marking as deleted
             query = update(Conversation).where(
                 Conversation.conversation_id == conversation_id,
                 Conversation.user_id == self.user_id
             ).values(
-                is_active=False,
+                status="deleted",
                 updated_at=datetime.utcnow()
             )
             
@@ -371,7 +371,7 @@ class ConversationService:
             # Total conversations
             total_query = select(func.count(Conversation.id)).where(
                 Conversation.user_id == self.user_id,
-                Conversation.is_active == True
+                Conversation.status == "active"
             )
             total_result = await self.db.execute(total_query)
             total_conversations = total_result.scalar()
@@ -381,7 +381,7 @@ class ConversationService:
             week_ago = datetime.utcnow() - timedelta(days=7)
             recent_query = select(func.count(Conversation.id)).where(
                 Conversation.user_id == self.user_id,
-                Conversation.is_active == True,
+                Conversation.status == "active",
                 Conversation.created_at >= week_ago
             )
             recent_result = await self.db.execute(recent_query)
@@ -395,7 +395,7 @@ class ConversationService:
                 Conversation
             ).outerjoin(Message).where(
                 Conversation.user_id == self.user_id,
-                Conversation.is_active == True
+                Conversation.status == "active"
             ).group_by(Conversation.id)
             
             avg_result = await self.db.execute(avg_query)

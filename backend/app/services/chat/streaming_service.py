@@ -273,7 +273,7 @@ class StreamingService:
                         "created_at": conversation.created_at.isoformat(),
                         "updated_at": conversation.updated_at.isoformat(),
                         "message_count": conversation.message_count,
-                        "is_active": conversation.is_active
+                        "status": conversation.status
                     },
                     "index": i,
                     "total": len(conversations)
