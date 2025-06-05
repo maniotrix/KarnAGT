@@ -9,10 +9,12 @@ management consistent across the application.
 
 import os
 import sys
+from pathlib import Path
 
-# Get the absolute path of the project root directory
-# Navigate up two levels from chat_system directory to get to the project root
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+
+current_dir = Path(__file__).parent
+
+ROOT_DIR = current_dir
 
 # Main directories
 WORKSPACE_DIR = ROOT_DIR
@@ -21,7 +23,7 @@ LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 CONFIG_DIR = os.path.join(ROOT_DIR, "config")
 
 # Chat system directories
-CHAT_SYSTEM_DIR = os.path.join(ROOT_DIR, "agent_meet", "chat_system")
+CHAT_SYSTEM_DIR = ROOT_DIR
 CODE_EXECUTOR_DIR = os.path.join(CHAT_SYSTEM_DIR, "code_executor")
 
 # Output directories

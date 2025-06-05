@@ -20,7 +20,7 @@ LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # Set up log file with timestamp
-LOG_FILE = os.path.join(LOG_DIR, f"agent_meet_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+LOG_FILE = os.path.join(LOG_DIR, f"aicore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 
 # Keep track of loggers
 _loggers = {}
