@@ -224,8 +224,19 @@ class ChatApiService {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
+              if (line.trim() === '') {
+                // Skip empty lines
+                continue;
+              }
+              
+              if (line.startsWith('event: ')) {
+                // Skip event type lines - we get the type from data
+                continue;
+              }
+              
               if (line.startsWith('data: ')) {
                 const data = line.slice(6);
+                console.log('Processing data line:', data);
                 
                 if (data === '[DONE]') {
                   controller.close();
@@ -234,16 +245,19 @@ class ChatApiService {
 
                 try {
                   const event: StreamEvent = JSON.parse(data);
+                  console.log('SSE Event received:', event);
                   
                   // Transform backend events to AI SDK format
                   let aiSDKData: string;
                   
-                  switch (event.event) {
+                  // The backend sends events in format: {"type": event_type, "data": {...}}
+                  switch (event.type) {
                     case 'token':
                       // AI SDK expects: data: {"type":"text","value":"token_content"}
+                      // Backend format: {"type": "token", "data": {"content": "...", ...}}
                       aiSDKData = JSON.stringify({
                         type: 'text',
-                        value: event.data.content || '',
+                        value: event.data?.content || '',
                       });
                       break;
                       
@@ -256,25 +270,35 @@ class ChatApiService {
                       break;
                       
                     case 'end':
+                    case 'completion':
+                    case 'stream_end':
+                      // Stream completed - send [DONE] to close AI SDK stream
                       aiSDKData = '[DONE]';
                       break;
                       
                     case 'error':
                       aiSDKData = JSON.stringify({
                         type: 'error',
-                        error: event.data.error || 'Stream error',
+                        error: event.data?.error || 'Stream error',
                       });
                       break;
                       
+                    case 'stream_start':
+                    case 'heartbeat':
+                      // Skip these events
+                      continue;
+                      
                     default:
+                      console.log('Unknown SSE event type:', event.type, event);
                       continue;
                   }
 
                   const sseData = `data: ${aiSDKData}\n\n`;
+                  console.log('Sending to AI SDK:', aiSDKData);
                   controller.enqueue(new TextEncoder().encode(sseData));
                   
                 } catch (parseError) {
-                  console.error('Failed to parse SSE data:', parseError);
+                  console.error('Failed to parse SSE data:', parseError, 'Raw data:', data);
                 }
               }
             }

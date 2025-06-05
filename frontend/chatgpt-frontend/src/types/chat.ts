@@ -80,7 +80,7 @@ export interface StreamMessage {
 
 // SSE Event types from your backend streaming
 export interface StreamEvent {
-  event: 'message' | 'token' | 'end' | 'error' | 'metadata';
+  type: 'message' | 'token' | 'end' | 'error' | 'metadata' | 'completion' | 'stream_end' | 'stream_start' | 'heartbeat';
   data: any;
   id?: string;
 }
