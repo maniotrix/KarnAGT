@@ -1,0 +1,86 @@
+"""
+ChatGPT Clone Backend - FastAPI Application Entry Point
+"""
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from contextlib import asynccontextmanager
+import uvicorn
+
+from app.core.config import settings
+from app.api.router import api_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    print("🚀 ChatGPT Clone Backend starting up...")
+    print(f"🔧 Environment: {settings.ENVIRONMENT}")
+    print(f"🔒 Debug mode: {settings.DEBUG}")
+    
+    yield
+    
+    # Shutdown
+    print("📴 ChatGPT Clone Backend shutting down...")
+
+
+# Create FastAPI application
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description="Advanced ChatGPT Clone with Memory Management and Knowledge Integration",
+    version=settings.VERSION,
+    debug=settings.DEBUG,
+    lifespan=lifespan,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+)
+
+# Security middleware
+app.add_middleware(
+    TrustedHostMiddleware, 
+    allowed_hosts=settings.ALLOWED_HOSTS
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API router
+app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "ChatGPT Clone Backend API",
+        "version": settings.VERSION,
+        "environment": settings.ENVIRONMENT,
+        "docs": "/docs" if settings.DEBUG else "disabled",
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "version": settings.VERSION,
+        "environment": settings.ENVIRONMENT,
+    }
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_level="info" if not settings.DEBUG else "debug",
+    ) 
