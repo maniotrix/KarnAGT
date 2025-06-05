@@ -84,7 +84,6 @@ class MessageCreate(BaseSchema):
     """Create message request schema"""
     content: str = Field(..., min_length=1, max_length=32000, description="Message content")
     role: MessageRole = Field(MessageRole.USER, description="Message role")
-    conversation_id: Optional[int] = Field(None, description="Conversation ID (integer foreign key)")
     parent_message_id: Optional[int] = Field(None, description="Parent message for threading")
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="File attachments")
 
