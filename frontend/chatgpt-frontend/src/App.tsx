@@ -408,9 +408,9 @@ const AppContent: React.FC = () => {
           <div className="spinner"></div>
           <p>Initializing...</p>
         </div>
-      </div>
-    );
-  }
+    </div>
+  );
+}
 
   return isAuthenticated ? <ChatApp /> : <AuthForm />;
 };
