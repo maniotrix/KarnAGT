@@ -186,6 +186,8 @@ class ChatService:
             )
             
             user_message = await self.message_service.create_message(conversation_id, user_message_data)
+            # Capture message ID immediately to avoid lazy loading later
+            user_message_id = user_message.message_id
             
             # Get conversation context
             conversation_history = await self.message_service.get_conversation_messages(
@@ -210,7 +212,7 @@ class ChatService:
                 message_type=message_type,
                 metadata={
                     "conversation_id": conversation_id,
-                    "user_message_id": user_message.message_id,
+                    "user_message_id": user_message_id,
                     "model": model_name
                 }
             )
@@ -222,6 +224,14 @@ class ChatService:
             )
             
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
+            # Capture all needed values immediately to avoid lazy loading later
+            ai_message_db_id = ai_message.id
+            ai_message_id = ai_message.message_id
+            ai_message_conversation_id = ai_message.conversation_id
+            ai_message_role = ai_message.role
+            ai_message_content = ai_message.content
+            ai_message_extra_metadata = ai_message.extra_metadata or {}
+            ai_message_created_at = ai_message.created_at
             
             # Track costs (temporarily disabled to test other functionality)
             try:
@@ -233,8 +243,8 @@ class ChatService:
                     output_text=ai_response_data["content"],
                     conversation_id=conversation_id,
                     additional_metadata={
-                        "user_message_id": user_message.message_id,
-                        "ai_message_id": ai_message.message_id,
+                        "user_message_id": user_message_id,
+                        "ai_message_id": ai_message_id,
                         "plots": ai_response_data.get("plots", [])
                     }
                 )
@@ -248,17 +258,17 @@ class ChatService:
             logger.info(f"Message processed successfully for conversation {conversation_id}")
             
             return MessageResponse(
-                id=ai_message.id,
-                message_id=ai_message.message_id,
-                conversation_id=ai_message.conversation_id,
-                role=ai_message.role,
-                content=ai_message.content,
+                id=ai_message_db_id,
+                message_id=ai_message_id,
+                conversation_id=ai_message_conversation_id,
+                role=ai_message_role,
+                content=ai_message_content,
                 total_tokens=ai_response_data.get("total_tokens", 0),
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
-                extra_metadata=ai_message.extra_metadata or {},
-                created_at=ai_message.created_at
+                extra_metadata=ai_message_extra_metadata,
+                created_at=ai_message_created_at
             )
             
         except Exception as e:
@@ -309,6 +319,8 @@ class ChatService:
             )
             
             user_message = await self.message_service.create_message(conversation_id, user_message_data)
+            # Capture message ID immediately to avoid lazy loading later
+            user_message_id = user_message.message_id
             
             # Get conversation context
             conversation_history = await self.message_service.get_conversation_messages(
@@ -334,7 +346,7 @@ class ChatService:
                 message_type=message_type,
                 metadata={
                     "conversation_id": conversation_id,
-                    "user_message_id": user_message.message_id,
+                    "user_message_id": user_message_id,
                     "model": model or conversation.model
                 }
             )
@@ -346,6 +358,14 @@ class ChatService:
             )
             
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
+            # Capture all needed values immediately to avoid lazy loading later
+            ai_message_db_id = ai_message.id
+            ai_message_id = ai_message.message_id
+            ai_message_conversation_id = ai_message.conversation_id
+            ai_message_role = ai_message.role
+            ai_message_content = ai_message.content
+            ai_message_extra_metadata = ai_message.extra_metadata or {}
+            ai_message_created_at = ai_message.created_at
             
             # Track costs
             await self.cost_tracker.track_usage(
@@ -356,8 +376,8 @@ class ChatService:
                 output_text=ai_response_data["content"],
                 conversation_id=conversation_id,
                 additional_metadata={
-                    "user_message_id": user_message.message_id,
-                    "ai_message_id": ai_message.message_id,
+                    "user_message_id": user_message_id,
+                    "ai_message_id": ai_message_id,
                     "streaming": True,
                     "plots": ai_response_data.get("plots", [])
                 }
@@ -369,17 +389,17 @@ class ChatService:
             logger.info(f"Streaming message processed successfully for conversation {conversation_id}")
             
             return MessageResponse(
-                id=ai_message.id,
-                message_id=ai_message.message_id,
-                conversation_id=ai_message.conversation_id,
-                role=ai_message.role,
-                content=ai_message.content,
+                id=ai_message_db_id,
+                message_id=ai_message_id,
+                conversation_id=ai_message_conversation_id,
+                role=ai_message_role,
+                content=ai_message_content,
                 total_tokens=ai_response_data.get("total_tokens", 0),
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model or conversation.model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
-                extra_metadata=ai_message.extra_metadata or {},
-                created_at=ai_message.created_at
+                extra_metadata=ai_message_extra_metadata,
+                created_at=ai_message_created_at
             )
             
         except Exception as e:
@@ -422,11 +442,11 @@ class ChatService:
                     conversation_id=msg.conversation_id,
                     role=msg.role,
                     content=msg.content,
-                    tokens_used=msg.tokens_used or 0,
+                    total_tokens=msg.total_tokens or 0,
                     cost_usd=msg.cost_usd or 0.0,
-                    model_used=msg.model_used,
-                    finish_reason=msg.finish_reason,
-                    metadata=msg.metadata or {},
+                    model_name=msg.model_name,
+                    finish_reason=None,  # Not stored in database
+                    extra_metadata=msg.extra_metadata or {},
                     created_at=msg.created_at
                 )
                 for msg in messages
