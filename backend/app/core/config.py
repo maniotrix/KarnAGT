@@ -2,7 +2,8 @@
 Core Configuration Settings
 """
 from typing import List, Optional, Union
-from pydantic import BaseSettings, validator, AnyHttpUrl
+from pydantic import validator, AnyHttpUrl
+from pydantic_settings import BaseSettings
 from functools import lru_cache
 import os
 from pathlib import Path
@@ -28,13 +29,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days
     
     # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001", 
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ]
-    ALLOWED_HOSTS: List[str] = ["*"]
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+    ALLOWED_HOSTS: str = "*"
     
     # Database URLs
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/chatgpt_clone"
@@ -72,7 +68,7 @@ class Settings(BaseSettings):
     # File Storage
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
-    ALLOWED_FILE_TYPES: List[str] = [".pdf", ".docx", ".txt", ".md"]
+    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.txt,.md"
     
     # Memory Management
     MEMORY_IMPORTANCE_THRESHOLD: float = 0.6
@@ -90,12 +86,36 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     
     @validator("CORS_ORIGINS", pre=True)
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> str:
+        if isinstance(v, list):
+            # Convert list back to comma-separated string
+            return ",".join(v)
+        elif isinstance(v, str):
+            # Return as-is if already string
             return v
-        raise ValueError(v)
+        else:
+            # Return default as string
+            return "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+    
+    def get_cors_origins(self) -> List[str]:
+        """Get CORS origins as a list"""
+        if isinstance(self.CORS_ORIGINS, str):
+            return [i.strip() for i in self.CORS_ORIGINS.split(",") if i.strip()]
+        return self.CORS_ORIGINS
+    
+    def get_allowed_hosts(self) -> List[str]:
+        """Get allowed hosts as a list"""
+        if isinstance(self.ALLOWED_HOSTS, str):
+            if self.ALLOWED_HOSTS == "*":
+                return ["*"]
+            return [i.strip() for i in self.ALLOWED_HOSTS.split(",") if i.strip()]
+        return self.ALLOWED_HOSTS
+    
+    def get_allowed_file_types(self) -> List[str]:
+        """Get allowed file types as a list"""
+        if isinstance(self.ALLOWED_FILE_TYPES, str):
+            return [i.strip() for i in self.ALLOWED_FILE_TYPES.split(",") if i.strip()]
+        return self.ALLOWED_FILE_TYPES
     
     @validator("DATABASE_URL", pre=True)
     def validate_database_url(cls, v: str) -> str:
@@ -117,7 +137,9 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = True
+        env_ignore_empty = True
 
 
 @lru_cache()
