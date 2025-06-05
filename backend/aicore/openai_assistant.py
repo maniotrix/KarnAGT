@@ -14,11 +14,11 @@ from pydantic import BaseModel
 from openai.types.responses import ResponseTextDeltaEvent
 
 # Use absolute imports instead of relative
-from aicore.agents.code_executor.utils import execution_cleanup
-from aicore.agents.logger import get_logger
+from aicore.code_executor.utils import execution_cleanup
+from aicore.logger import get_logger
 
-from aicore.agents.code_executor.code_agent import CodeExecutorAgent
-from aicore.agents.path_config import PLOTS_DIR
+from aicore.code_executor.code_agent import CodeExecutorAgent
+from aicore.path_config import PLOTS_DIR
 
 # Define a fixed directory for plot outputs
 os.makedirs(PLOTS_DIR, exist_ok=True)

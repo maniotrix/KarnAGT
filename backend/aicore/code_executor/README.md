@@ -331,11 +331,11 @@ The module includes comprehensive logging through the `logger.py` module:
 
 ```python
 # Get the logger
-from aicore.agents.code_executor.logger import get_logger
+from aicore.code_executor.logger import get_logger
 logger = get_logger()
 
 # Set log level
-from aicore.agents.code_executor.logger import set_log_level
+from aicore.code_executor.logger import set_log_level
 import logging
 set_log_level(logging.DEBUG)
 

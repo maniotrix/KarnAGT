@@ -11,8 +11,8 @@ import sys
 from typing import Any, Dict, Optional, List
 from pydantic import BaseModel
 from agents import function_tool
-from aicore.agents.code_executor.code_executor import execute_code_string, CodeExecutionResult
-from aicore.agents.code_executor.logger import get_logger
+from aicore.code_executor.code_executor import execute_code_string, CodeExecutionResult
+from aicore.code_executor.logger import get_logger
 
 # Get logger
 logger = get_logger()

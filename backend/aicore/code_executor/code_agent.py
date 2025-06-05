@@ -3,12 +3,12 @@ import glob
 import uuid
 from typing import Dict, List
 from agents import Agent, RunContextWrapper, WebSearchTool
-from aicore.agents.code_executor.code_tool import execute_code, execute_system_command
-from aicore.agents.code_executor.logger import get_logger
+from aicore.code_executor.code_tool import execute_code, execute_system_command
+from aicore.code_executor.logger import get_logger
 # Get logger
 logger = get_logger()
 
-from aicore.agents.prompt_utils import get_instructions_template, INITIAL_CORE_PROMPT
+from aicore.prompt_utils import get_instructions_template, INITIAL_CORE_PROMPT
 class CodeExecutorAgent(Agent):
     """
     A specialized Agent subclass for executing code with managed message IDs.

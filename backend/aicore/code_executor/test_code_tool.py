@@ -19,10 +19,10 @@ import tempfile
 import gc
 import shutil  # Force non-interactive backend to prevent GUI errors
 from agents import Runner
-from aicore.agents.code_executor.logger import get_logger, set_log_level
-from aicore.agents.code_executor.code_agent import CodeExecutorAgent
-from aicore.agents.path_config import PLOTS_DIR
-from aicore.agents.code_executor.utils import execution_cleanup
+from aicore.code_executor.logger import get_logger, set_log_level
+from aicore.code_executor.code_agent import CodeExecutorAgent
+from aicore.path_config import PLOTS_DIR
+from aicore.code_executor.utils import execution_cleanup
 
 # Get logger
 logger = get_logger()

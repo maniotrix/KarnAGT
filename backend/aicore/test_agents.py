@@ -10,14 +10,16 @@ import sys
 import logging
 import argparse
 from typing import List, Dict
+from pathlib import Path
 
 # Add the project root to Python path to ensure imports work
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
 
 # Use absolute imports
-from aicore.agents.openai_assistant import OpenAIAssistant 
-from aicore.agents.config import validate_api_keys
-from aicore.agents.logger import get_logger, set_log_level
+from aicore.openai_assistant import OpenAIAssistant 
+from aicore.config import validate_api_keys
+from aicore.logger import get_logger, set_log_level
 
 # Set up logger with INFO level as default
 logger = get_logger(__name__, logging.INFO)

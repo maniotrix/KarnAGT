@@ -15,8 +15,8 @@ import logging
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, project_root)
 
-from aicore.agents.code_executor.code_executor import execute_code_string, DEFAULT_TIMEOUT
-from aicore.agents.code_executor.logger import get_logger, set_log_level
+from aicore.code_executor.code_executor import execute_code_string, DEFAULT_TIMEOUT
+from aicore.code_executor.logger import get_logger, set_log_level
 
 # Set up logging
 logger = get_logger()

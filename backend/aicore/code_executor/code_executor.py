@@ -16,7 +16,7 @@ import traceback
 import time
 
 # Import the logger
-from aicore.agents.code_executor.logger import get_logger
+from aicore.code_executor.logger import get_logger
 
 # Get logger for this module
 logger = get_logger()

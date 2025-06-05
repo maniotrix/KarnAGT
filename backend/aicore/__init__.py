@@ -7,7 +7,7 @@ OpenAI Chat System
 Provides a chat interface using the OpenAI Agents SDK
 """
 
-from aicore.agents.openai_assistant import OpenAIAssistant
+from aicore.openai_assistant import OpenAIAssistant
 
 __all__ = ['OpenAIAssistant']
 

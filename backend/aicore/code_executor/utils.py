@@ -5,7 +5,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 
-from aicore.agents.code_executor.logger import get_logger
+from aicore.code_executor.logger import get_logger
 
 # Get logger
 logger = get_logger()
