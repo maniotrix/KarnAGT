@@ -135,16 +135,19 @@ class MessageService:
         role_filter: Optional[str] = None
     ) -> List[Message]:
         """
-        Get messages for a conversation with pagination (returns latest messages first)
+        Get messages for a conversation with pagination
+        
+        For initial load (offset=0): Returns the latest messages in chronological order
+        For pagination (offset>0): Returns older messages in chronological order
         
         Args:
             conversation_id: The conversation ID (UUID string)
             limit: Number of messages to retrieve
-            offset: Offset for pagination
+            offset: Offset for pagination (0 = latest messages)
             role_filter: Optional role filter (user, assistant, system)
             
         Returns:
-            List of Message instances ordered by creation time (newest first, then reversed to chronological)
+            List of Message instances in chronological order (oldest to newest)
         """
         try:
             # Get the conversation's integer ID
@@ -165,17 +168,18 @@ class MessageService:
             if role_filter:
                 query = query.where(Message.role == role_filter)
             
-            # Order by newest first, then reverse to get chronological order
+            # For pagination: Order by newest first, apply offset/limit, then reverse
+            # This ensures we get the correct "page" of older messages
             query = query.order_by(desc(Message.created_at))
             query = query.limit(limit).offset(offset)
             
             result = await self.db.execute(query)
             messages = result.scalars().all()
             
-            # Reverse to get chronological order (oldest to newest)
+            # Always reverse to get chronological order (oldest to newest within the page)
             messages = list(reversed(list(messages)))
             
-            logger.info(f"Retrieved {len(messages)} messages for conversation {conversation_id}")
+            logger.info(f"Retrieved {len(messages)} messages for conversation {conversation_id} (offset={offset}, limit={limit})")
             return messages
             
         except Exception as e:
