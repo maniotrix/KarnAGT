@@ -29,6 +29,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   // Use refs to avoid recreating handleScroll on every render
   const messagesLengthRef = useRef(messages.length);
   const isLoadingMoreRef = useRef(isLoadingMore);
+  const loadingRequestRef = useRef(false); // Immediate synchronous loading flag
   
   // Update refs when values change
   useEffect(() => {
@@ -37,6 +38,10 @@ export const MessageList: React.FC<MessageListProps> = ({
   
   useEffect(() => {
     isLoadingMoreRef.current = isLoadingMore;
+    // Also sync the immediate loading flag with state
+    if (!isLoadingMore) {
+      loadingRequestRef.current = false;
+    }
   }, [isLoadingMore]);
 
   // Handle initial load - auto scroll to bottom and disable load more during initial scroll
@@ -65,7 +70,12 @@ export const MessageList: React.FC<MessageListProps> = ({
     const currentlyLoading = isLoadingMoreRef.current;
     
     // ONLY trigger when user explicitly scrolls to the VERY TOP (within 5px)
-    if (container.scrollTop <= 5 && !currentlyLoading) {
+    // Use synchronous ref check to prevent race conditions
+    if (container.scrollTop <= 5 && !currentlyLoading && !loadingRequestRef.current) {
+      console.log('Scroll triggered loadMore with offset:', currentMessageCount);
+      
+      // Set synchronous flag immediately to prevent duplicate calls
+      loadingRequestRef.current = true;
       setIsLoadingMore(true);
       
       try {
@@ -87,7 +97,9 @@ export const MessageList: React.FC<MessageListProps> = ({
       } catch (error) {
         console.error('Failed to load more messages:', error);
       } finally {
+        // Reset both state and synchronous flag
         setIsLoadingMore(false);
+        loadingRequestRef.current = false;
       }
     }
     
