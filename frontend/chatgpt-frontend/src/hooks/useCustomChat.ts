@@ -142,6 +142,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
         return [...aiMessages, ...prev];
       });
       
+      // Return the count of NEW messages loaded
       return aiMessages.length;
     } catch (error) {
       console.error('loadMoreMessages error:', error);

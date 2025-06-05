@@ -23,6 +23,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [noMoreMessages, setNoMoreMessages] = useState(false);
   
   // Use refs to avoid recreating handleScroll on every render
   const messagesLengthRef = useRef(messages.length);
@@ -39,7 +40,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   // Handle scroll for pagination
   const handleScroll = useCallback(async () => {
-    if (!messagesContainerRef.current || !onLoadMore || !conversationId || !hasMoreMessages) {
+    if (!messagesContainerRef.current || !onLoadMore || !conversationId || !hasMoreMessages || noMoreMessages) {
       return;
     }
     
@@ -47,17 +48,27 @@ export const MessageList: React.FC<MessageListProps> = ({
     const currentMessageCount = messagesLengthRef.current;
     const currentlyLoading = isLoadingMoreRef.current;
     
-    // If user scrolled to top (within 100px), load more messages
-    if (container.scrollTop <= 100 && !currentlyLoading) {
+    // ONLY trigger when user explicitly scrolls to the VERY TOP (within 5px)
+    if (container.scrollTop <= 5 && !currentlyLoading) {
       setIsLoadingMore(true);
       
       try {
         const loadedCount = await onLoadMore(currentMessageCount);
         
-        // If no new messages loaded, we've reached the end
         if (loadedCount === 0) {
-          // hasMoreMessages should be managed by parent component
+          // No more messages available - stop future requests
+          console.log('No more messages available - disabling pagination');
+          setNoMoreMessages(true);
+        } else {
+          // Maintain scroll position after loading older messages
+          // Move scroll down a bit so user doesn't immediately trigger again
+          setTimeout(() => {
+            if (messagesContainerRef.current) {
+              messagesContainerRef.current.scrollTop = 50;
+            }
+          }, 100);
         }
+        
       } catch (error) {
         console.error('Failed to load more messages:', error);
       } finally {
@@ -68,7 +79,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     // Determine if we should auto-scroll when new messages arrive
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
     setShouldAutoScroll(isNearBottom);
-  }, [onLoadMore, conversationId, hasMoreMessages]);
+  }, [onLoadMore, conversationId, hasMoreMessages, noMoreMessages]);
 
   // Add scroll listener
   useEffect(() => {
