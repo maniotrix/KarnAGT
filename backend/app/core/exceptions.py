@@ -103,6 +103,17 @@ class EmailNotVerifiedException(BaseAPIException):
         )
 
 
+class EmailAlreadyExistsException(BaseAPIException):
+    """Email address already exists"""
+    def __init__(self, detail: str = "Email address already registered"):
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=detail,
+            error_code="AUTH_008",
+            error_type="email_already_exists"
+        )
+
+
 # Resource Exceptions
 class ResourceNotFoundException(BaseAPIException):
     """Resource not found"""
