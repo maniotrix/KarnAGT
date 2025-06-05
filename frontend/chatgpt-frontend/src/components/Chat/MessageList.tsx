@@ -24,6 +24,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [noMoreMessages, setNoMoreMessages] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   // Use refs to avoid recreating handleScroll on every render
   const messagesLengthRef = useRef(messages.length);
@@ -38,9 +39,24 @@ export const MessageList: React.FC<MessageListProps> = ({
     isLoadingMoreRef.current = isLoadingMore;
   }, [isLoadingMore]);
 
+  // Handle initial load - auto scroll to bottom and disable load more during initial scroll
+  useEffect(() => {
+    if (messages.length > 0 && isInitialLoad) {
+      // Auto-scroll to bottom on initial load
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // Allow load more after initial scroll is complete
+        setTimeout(() => {
+          setIsInitialLoad(false);
+        }, 1000);
+      }, 100);
+    }
+  }, [messages.length, isInitialLoad]);
+
   // Handle scroll for pagination
   const handleScroll = useCallback(async () => {
-    if (!messagesContainerRef.current || !onLoadMore || !conversationId || !hasMoreMessages || noMoreMessages) {
+    // BLOCK all load more logic during initial load/auto-scroll
+    if (isInitialLoad || !messagesContainerRef.current || !onLoadMore || !conversationId || !hasMoreMessages || noMoreMessages) {
       return;
     }
     
@@ -57,7 +73,6 @@ export const MessageList: React.FC<MessageListProps> = ({
         
         if (loadedCount === 0) {
           // No more messages available - stop future requests
-          console.log('No more messages available - disabling pagination');
           setNoMoreMessages(true);
         } else {
           // Maintain scroll position after loading older messages
@@ -76,10 +91,10 @@ export const MessageList: React.FC<MessageListProps> = ({
       }
     }
     
-    // Determine if we should auto-scroll when new messages arrive
+    // Determine if we should auto-scroll when new messages arrive (only after initial load)
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
     setShouldAutoScroll(isNearBottom);
-  }, [onLoadMore, conversationId, hasMoreMessages, noMoreMessages]);
+  }, [onLoadMore, conversationId, hasMoreMessages, noMoreMessages, isInitialLoad]);
 
   // Add scroll listener
   useEffect(() => {
