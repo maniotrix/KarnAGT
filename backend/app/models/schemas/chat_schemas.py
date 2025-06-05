@@ -32,6 +32,7 @@ class ConversationUpdate(BaseSchema):
     """Update conversation request schema"""
     title: Optional[str] = Field(None, max_length=500, description="Conversation title")
     description: Optional[str] = Field(None, max_length=1000, description="Conversation description")
+    model_name: Optional[ModelName] = Field(None, description="AI model to use")
     status: Optional[ConversationStatus] = Field(None, description="Conversation status")
     is_pinned: Optional[bool] = Field(None, description="Pin conversation")
     tags: Optional[List[str]] = Field(None, description="Conversation tags")
@@ -83,28 +84,49 @@ class MessageCreate(BaseSchema):
     """Create message request schema"""
     content: str = Field(..., min_length=1, max_length=32000, description="Message content")
     role: MessageRole = Field(MessageRole.USER, description="Message role")
+    conversation_id: Optional[int] = Field(None, description="Conversation ID (integer foreign key)")
     parent_message_id: Optional[int] = Field(None, description="Parent message for threading")
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="File attachments")
+
+
+class MessageUpdate(BaseSchema):
+    """Update message request schema"""
+    content: Optional[str] = Field(None, min_length=1, max_length=32000, description="Message content")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Message metadata")
 
 
 class MessageResponse(BaseSchema):
     """Message response schema"""
     id: int
     message_id: str
-    conversation_id: str
+    conversation_id: int  # Changed to int to match database foreign key
     role: MessageRole
     content: str
-    tokens_used: int
+    total_tokens: int  # Changed from tokens_used to match database field
     cost_usd: float
-    model_used: Optional[str] = None
+    model_name: Optional[str] = None  # Changed from model_used to match database field
     finish_reason: Optional[str] = None
     parent_message_id: Optional[int] = None
     has_children: bool = False
-    metadata: Dict[str, Any] = {}
+    extra_metadata: Dict[str, Any] = {}  # Changed from metadata to match database field
     created_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class MessageStreamResponse(BaseSchema):
+    """Streaming message response schema (for SSE, not DB storage)"""
+    message_id: str
+    conversation_id: str
+    content: str
+    role: MessageRole
+    tokens_used: int
+    cost_usd: float
+    model_used: str
+    finish_reason: Optional[str] = None
+    metadata: Dict[str, Any] = {}
+    created_at: datetime
 
 
 class MessageListResponse(PaginatedResponse[MessageResponse]):

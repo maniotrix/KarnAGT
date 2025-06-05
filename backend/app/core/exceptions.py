@@ -294,4 +294,35 @@ class EmbeddingGenerationException(ProcessingException):
 class MemoryProcessingException(ProcessingException):
     """Memory processing error"""
     def __init__(self, detail: str = "Memory processing error"):
+        super().__init__(detail=detail)
+
+
+# Chat/Conversation Exceptions
+class ConversationNotFoundException(ResourceNotFoundException):
+    """Conversation not found"""
+    def __init__(self, conversation_id: str = None):
+        detail = "Conversation not found"
+        if conversation_id:
+            detail = f"Conversation {conversation_id} not found"
+        super().__init__(resource="Conversation", detail=detail)
+
+
+class MessageNotFoundException(ResourceNotFoundException):
+    """Message not found"""
+    def __init__(self, message_id: str = None):
+        detail = "Message not found"
+        if message_id:
+            detail = f"Message {message_id} not found"
+        super().__init__(resource="Message", detail=detail)
+
+
+class ConversationAccessException(ResourceOwnershipException):
+    """User doesn't have access to conversation"""
+    def __init__(self, detail: str = "You don't have access to this conversation"):
+        super().__init__(detail=detail)
+
+
+class MessageProcessingException(ProcessingException):
+    """Message processing error"""
+    def __init__(self, detail: str = "Message processing error"):
         super().__init__(detail=detail) 

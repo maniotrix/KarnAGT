@@ -14,7 +14,7 @@ class CostTracking(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tracking_id = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
     
-    # User relationship
+    # User relationship (using integer id, not string user_id)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     
     # Request identification
