@@ -354,5 +354,5 @@ To run the tests:
 pip install -r requirements.txt
 
 # Run the test script
-python agent_meet/chat_system/code_executor/test_code_tool.py
+python code_executor/test_code_tool.py
 ``` 
