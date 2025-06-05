@@ -183,7 +183,7 @@ export const Chat: React.FC<ChatProps> = ({
         className="chat-messages"
         onLoadMore={handleLoadMore}
         conversationId={conversation?.conversation_id}
-        hasMoreMessages={true} // TODO: Implement proper logic based on total message count
+        hasMoreMessages={true}
       />
 
       {/* Chat Actions */}

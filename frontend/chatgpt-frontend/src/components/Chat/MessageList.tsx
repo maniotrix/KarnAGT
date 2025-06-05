@@ -23,22 +23,36 @@ export const MessageList: React.FC<MessageListProps> = ({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  
+  // Use refs to avoid recreating handleScroll on every render
+  const messagesLengthRef = useRef(messages.length);
+  const isLoadingMoreRef = useRef(isLoadingMore);
+  
+  // Update refs when values change
+  useEffect(() => {
+    messagesLengthRef.current = messages.length;
+  }, [messages.length]);
+  
+  useEffect(() => {
+    isLoadingMoreRef.current = isLoadingMore;
+  }, [isLoadingMore]);
 
   // Handle scroll for pagination
   const handleScroll = useCallback(async () => {
-    if (!messagesContainerRef.current || !onLoadMore || !conversationId || !hasMoreMessages) return;
+    if (!messagesContainerRef.current || !onLoadMore || !conversationId || !hasMoreMessages) {
+      return;
+    }
     
     const container = messagesContainerRef.current;
+    const currentMessageCount = messagesLengthRef.current;
+    const currentlyLoading = isLoadingMoreRef.current;
     
     // If user scrolled to top (within 100px), load more messages
-    if (container.scrollTop <= 100 && !isLoadingMore) {
+    if (container.scrollTop <= 100 && !currentlyLoading) {
       setIsLoadingMore(true);
       
-      // Calculate current offset
-      const currentOffset = messages.length;
-      
       try {
-        const loadedCount = await onLoadMore(currentOffset);
+        const loadedCount = await onLoadMore(currentMessageCount);
         
         // If no new messages loaded, we've reached the end
         if (loadedCount === 0) {
@@ -54,14 +68,16 @@ export const MessageList: React.FC<MessageListProps> = ({
     // Determine if we should auto-scroll when new messages arrive
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
     setShouldAutoScroll(isNearBottom);
-  }, [onLoadMore, conversationId, hasMoreMessages, isLoadingMore, messages.length]);
+  }, [onLoadMore, conversationId, hasMoreMessages]);
 
   // Add scroll listener
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (container) {
       container.addEventListener('scroll', handleScroll);
-      return () => container.removeEventListener('scroll', handleScroll);
+      return () => {
+        container.removeEventListener('scroll', handleScroll);
+      };
     }
   }, [handleScroll]);
 
@@ -90,8 +106,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className={className}>
-      <div className="messages-list" ref={messagesContainerRef}>
+    <div className={className} ref={messagesContainerRef}>
+      <div className="messages-list">
         {/* Loading indicator for loading more messages */}
         {isLoadingMore && (
           <div className="loading-more-indicator">
