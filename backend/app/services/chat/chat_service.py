@@ -347,7 +347,7 @@ class ChatService:
                 metadata={
                     "conversation_id": conversation_id,
                     "user_message_id": user_message_id,
-                    "model": model or conversation.model
+                    "model": model or conversation.model_name
                 }
             )
             

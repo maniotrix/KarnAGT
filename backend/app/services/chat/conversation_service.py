@@ -165,6 +165,38 @@ class ConversationService:
             logger.error(f"Error retrieving conversations for user {self.user_id}: {e}")
             raise
     
+    async def count_user_conversations(
+        self,
+        include_inactive: bool = False
+    ) -> int:
+        """
+        Count user's conversations
+        
+        Args:
+            include_inactive: Whether to include inactive conversations
+            
+        Returns:
+            Total count of conversations
+        """
+        try:
+            query = select(func.count(Conversation.id)).where(
+                Conversation.user_id == self.user_id
+            )
+            
+            if not include_inactive:
+                query = query.where(Conversation.status == "active")
+            
+            result = await self.db.execute(query)
+            count = result.scalar() or 0
+            
+            logger.info(f"Found {count} conversations for user {self.user_id}")
+            return count
+            
+        except Exception as e:
+            logger.error(f"Error counting conversations for user {self.user_id}: {e}")
+            raise
+
+    
     async def update_conversation(
         self,
         conversation_id: str,

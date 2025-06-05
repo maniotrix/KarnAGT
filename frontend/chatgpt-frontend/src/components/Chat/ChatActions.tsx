@@ -1,68 +1,73 @@
 import React from 'react';
 
 interface ChatActionsProps {
-  messageCount: number;
-  onClearChat: () => void;
-  onReload?: () => void;
-  status: 'ready' | 'submitted' | 'streaming' | 'error';
-  error?: Error | null;
+  onShare: () => void;
+  onDelete: () => void;
+  onStop: () => void;
+  onRegenerate: () => void;
+  isStreaming: boolean;
+  canShare: boolean;
+  canDelete: boolean;
 }
 
 export const ChatActions: React.FC<ChatActionsProps> = ({
-  messageCount,
-  onClearChat,
-  onReload,
-  status,
-  error
+  onShare,
+  onDelete,
+  onStop,
+  onRegenerate,
+  isStreaming,
+  canShare,
+  canDelete,
 }) => {
   return (
     <div className="chat-actions">
-      {/* Error Display */}
-      {error && (
-        <div className="error-container">
-          <div className="error-message">
-            ❌ Error: {error.message}
-          </div>
-          {onReload && (
-            <button onClick={onReload} className="retry-button">
-              🔄 Retry
-            </button>
-          )}
-        </div>
+      {/* Stop streaming button (only show when streaming) */}
+      {isStreaming && (
+        <button
+          onClick={onStop}
+          className="action-button stop-button"
+          title="Stop generation"
+        >
+          <span className="action-icon">⏹️</span>
+          Stop
+        </button>
       )}
-
-      {/* Status and Actions */}
-      <div className="actions-row">
-        <div className="status-info">
-          <span className={`status-indicator ${status}`}>
-            {status === 'ready' && '✅'}
-            {status === 'submitted' && '⏳'}
-            {status === 'streaming' && '🔄'}
-            {status === 'error' && '❌'}
-          </span>
-          <span className="status-text">
-            {status === 'ready' && 'Ready'}
-            {status === 'submitted' && 'Sending...'}
-            {status === 'streaming' && 'Streaming...'}
-            {status === 'error' && 'Error'}
-          </span>
-        </div>
-
-        <div className="action-buttons">
-          <span className="message-count">
-            {messageCount} message{messageCount !== 1 ? 's' : ''}
-          </span>
-          
-          <button
-            onClick={onClearChat}
-            className="clear-button"
-            disabled={messageCount === 0}
-            title="Clear all messages"
-          >
-            🗑️ Clear Chat
-          </button>
-        </div>
-      </div>
+      
+      {/* Regenerate button (only when not streaming) */}
+      {!isStreaming && (
+        <button
+          onClick={onRegenerate}
+          className="action-button regenerate-button"
+          title="Regenerate response"
+        >
+          <span className="action-icon">🔄</span>
+          Regenerate
+        </button>
+      )}
+      
+      {/* Share button */}
+      {canShare && (
+        <button
+          onClick={onShare}
+          className="action-button share-button"
+          title="Share conversation"
+        >
+          <span className="action-icon">📤</span>
+          Share
+        </button>
+      )}
+      
+      {/* Delete button */}
+      {canDelete && (
+        <button
+          onClick={onDelete}
+          className="action-button delete-button"
+          title="Delete conversation"
+        >
+          <span className="action-icon">🗑️</span>
+          Delete
+        </button>
+      )}
     </div>
   );
 }; 

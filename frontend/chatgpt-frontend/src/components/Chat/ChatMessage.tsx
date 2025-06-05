@@ -1,8 +1,8 @@
 import React from 'react';
-import { ChatMessage as ChatMessageType } from '../../types/chat';
+import { AISDKMessage } from '../../types/chat';
 
 interface ChatMessageProps {
-  message: ChatMessageType;
+  message: AISDKMessage;
   isStreaming?: boolean;
 }
 
@@ -10,45 +10,52 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   message, 
   isStreaming = false 
 }) => {
+  const formatTime = (date: Date | string) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
-  
+
   return (
     <div className={`message ${message.role}`}>
-      <div className="message-header">
-        <div className="message-role">
-          {isUser ? '👤 You' : '🤖 Assistant'}
-        </div>
-        {message.createdAt && (
-          <div className="message-timestamp">
-            {new Date(message.createdAt).toLocaleTimeString()}
-          </div>
-        )}
+      <div className="message-avatar">
+        {isUser ? '👤' : '🤖'}
       </div>
       
       <div className="message-content">
-        {message.content}
-        {isStreaming && isAssistant && (
-          <span className="streaming-cursor">|</span>
-        )}
-      </div>
-      
-      {/* Additional metadata for assistant messages */}
-      {isAssistant && (message.cost || message.tokenUsage) && (
-        <div className="message-metadata">
-          {message.cost && (
-            <span className="cost-info">💰 ${message.cost.toFixed(4)}</span>
-          )}
-          {message.tokenUsage && (
-            <span className="token-info">
-              🔢 {message.tokenUsage.total} tokens
-            </span>
-          )}
-          {message.model && (
-            <span className="model-info">🤖 {message.model}</span>
+        <div className="message-header">
+          <span className="message-role">
+            {isUser ? 'You' : 'Assistant'}
+          </span>
+          <span className="message-time">
+            {formatTime(message.createdAt || new Date())}
+          </span>
+          {isStreaming && isAssistant && (
+            <span className="streaming-indicator">●</span>
           )}
         </div>
-      )}
+        
+        <div className="message-text">
+          {message.content}
+        </div>
+        
+        {/* Backend-specific metadata */}
+        {(message.total_tokens || message.cost_usd || message.model_name) && (
+          <div className="message-meta">
+            {message.model_name && (
+              <span className="model">Model: {message.model_name}</span>
+            )}
+            {message.total_tokens && (
+              <span className="tokens">Tokens: {message.total_tokens}</span>
+            )}
+            {message.cost_usd && (
+              <span className="cost">Cost: ${message.cost_usd.toFixed(4)}</span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }; 

@@ -114,13 +114,27 @@ async def list_conversations(
         conversation_service = ConversationService(db, current_user)
         total = await conversation_service.count_user_conversations()
         
+        # Calculate pagination metadata
+        from app.models.schemas.common_schemas import PaginationMeta
+        import math
+        
+        pages = math.ceil(total / limit) if total > 0 else 0
+        current_page = (offset // limit) + 1
+        
+        pagination = PaginationMeta(
+            page=current_page,
+            size=limit,
+            total=total,
+            pages=pages,
+            has_next=offset + limit < total,
+            has_prev=offset > 0
+        )
+        
         return ConversationListResponse(
             success=True,
             message="Conversations retrieved successfully",
             data=conversations,
-            total=total,
-            limit=limit,
-            offset=offset
+            pagination=pagination
         )
         
     except Exception as e:
@@ -350,13 +364,27 @@ async def get_conversation_messages(
             offset=offset
         )
         
+        # Calculate pagination metadata for messages
+        import math
+        from app.models.schemas.common_schemas import PaginationMeta
+        
+        pages = math.ceil(conversation.message_count / limit) if conversation.message_count > 0 else 0
+        current_page = (offset // limit) + 1
+        
+        pagination = PaginationMeta(
+            page=current_page,
+            size=limit,
+            total=conversation.message_count,
+            pages=pages,
+            has_next=offset + limit < conversation.message_count,
+            has_prev=offset > 0
+        )
+        
         return MessageListResponse(
             success=True,
             message="Messages retrieved successfully",
             data=messages,
-            total=conversation.message_count,
-            limit=limit,
-            offset=offset
+            pagination=pagination
         )
         
     except ConversationNotFoundException as e:

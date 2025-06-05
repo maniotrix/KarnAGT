@@ -1,17 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { ChatMessage } from './ChatMessage';
-import { ChatMessage as ChatMessageType } from '../../types/chat';
+import { AISDKMessage } from '../../types/chat';
 
 interface MessageListProps {
-  messages: ChatMessageType[];
+  messages: AISDKMessage[];
   isLoading: boolean;
-  status: 'ready' | 'submitted' | 'streaming' | 'error';
+  className?: string;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   isLoading,
-  status
+  className = 'message-list'
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +38,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className="messages-container">
+    <div className={className}>
       <div className="messages-list">
         {messages.map((message, index) => (
           <ChatMessage
@@ -47,24 +47,20 @@ export const MessageList: React.FC<MessageListProps> = ({
             isStreaming={
               index === messages.length - 1 && 
               message.role === 'assistant' && 
-              (status === 'streaming' || status === 'submitted')
+              isLoading
             }
           />
         ))}
         
         {/* Loading indicator for new assistant message */}
-        {isLoading && status === 'submitted' && (
-          <div className="message assistant loading">
-            <div className="message-header">
-              <div className="message-role">🤖 Assistant</div>
+        {isLoading && (
+          <div className="typing-indicator">
+            <div className="typing-dots">
+              <span></span>
+              <span></span>
+              <span></span>
             </div>
-            <div className="message-content">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
+            <span className="typing-text">AI is typing...</span>
           </div>
         )}
         

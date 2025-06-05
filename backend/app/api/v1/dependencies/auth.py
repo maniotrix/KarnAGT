@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.security import security
+from app.core.config import get_settings
 from app.core.exceptions import (
     AuthenticationException,
     InvalidTokenException,
@@ -63,7 +64,19 @@ async def get_current_active_user(
 async def get_current_verified_user(
     current_user: User = Depends(get_current_active_user)
 ) -> User:
-    """Get current verified user (email must be verified)"""
+    """Get current verified user (email must be verified if required by config)"""
+    settings = get_settings()
+    
+    # Only check email verification if it's required in settings
+    if settings.REQUIRE_EMAIL_VERIFICATION and not current_user.is_verified:
+        raise EmailNotVerifiedException("Email address not verified")
+    
+    return current_user
+
+async def get_current_verified_user_strict(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Get current verified user (email must ALWAYS be verified, ignores config)"""
     if not current_user.is_verified:
         raise EmailNotVerifiedException("Email address not verified")
     
