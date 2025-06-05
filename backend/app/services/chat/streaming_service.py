@@ -93,14 +93,7 @@ class StreamingService:
             # Wait for message processing to complete and get the result
             try:
                 final_response = await message_task
-                
-                # Send completion event with final response
-                completion_event = stream_handler._format_sse_event("completion", {
-                    "message": final_response.dict() if final_response else None,
-                    "stream_id": stream_handler.stream_id,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                yield completion_event
+                logger.info(f"Message task completed with response: {type(final_response)}")
                 
             except Exception as e:
                 logger.error(f"Error in message processing task: {e}")
@@ -159,6 +152,11 @@ class StreamingService:
             )
             
             logger.info(f"Streaming message processing completed for conversation {conversation_id}")
+            
+            # Stop streaming first to ensure database operations complete
+            stream_handler.stop_streaming()
+            logger.info(f"Streaming stopped for conversation {conversation_id}")
+            
             return response
             
         except Exception as e:
