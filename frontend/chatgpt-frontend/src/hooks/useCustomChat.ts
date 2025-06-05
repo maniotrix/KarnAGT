@@ -137,13 +137,25 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       }));
       
       // Prepend older messages to the beginning of the current messages
+      // Ensure no duplicates by filtering out messages that already exist
+      let uniqueMessagesCount = 0;
       setMessages(prev => {
         console.log('Adding messages:', { oldCount: prev.length, newCount: aiMessages.length });
-        return [...aiMessages, ...prev];
+        
+        // Create a Set of existing message IDs for fast lookup
+        const existingIds = new Set(prev.map(msg => msg.id));
+        
+        // Filter out any duplicates from the new messages
+        const uniqueNewMessages = aiMessages.filter(msg => !existingIds.has(msg.id));
+        uniqueMessagesCount = uniqueNewMessages.length;
+        
+        console.log('After deduplication:', { uniqueNewCount: uniqueNewMessages.length, duplicatesFiltered: aiMessages.length - uniqueNewMessages.length });
+        
+        return [...uniqueNewMessages, ...prev];
       });
       
-      // Return the count of NEW messages loaded
-      return aiMessages.length;
+      // Return the count of NEW unique messages loaded
+      return uniqueMessagesCount;
     } catch (error) {
       console.error('loadMoreMessages error:', error);
       setBackendError(error instanceof Error ? error.message : 'Failed to load more messages');
