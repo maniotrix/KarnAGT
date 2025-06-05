@@ -247,40 +247,50 @@ class ChatApiService {
                   const event: StreamEvent = JSON.parse(data);
                   console.log('SSE Event received:', event);
                   
-                  // Transform backend events to AI SDK format
+                  // Transform backend events to AI SDK data stream format
                   let aiSDKData: string;
                   
                   // The backend sends events in format: {"type": event_type, "data": {...}}
                   switch (event.type) {
                     case 'token':
-                      // AI SDK expects: data: {"type":"text","value":"token_content"}
+                      // AI SDK data stream format for text: 0:"content"\n
                       // Backend format: {"type": "token", "data": {"content": "...", ...}}
-                      aiSDKData = JSON.stringify({
-                        type: 'text',
-                        value: event.data?.content || '',
-                      });
+                      aiSDKData = `0:${JSON.stringify(event.data?.content || '')}\n`;
                       break;
                       
-                    case 'message':
-                      // Message completed
-                      aiSDKData = JSON.stringify({
-                        type: 'message',
-                        message: transformMessage(event.data),
-                      });
-                      break;
+                    case 'completion':
+                      // AI SDK data stream format for finish: d:{"finishReason":"stop","usage":{...}}\n
+                      const finishData: any = {
+                        finishReason: 'stop'
+                      };
+                      
+                      // Add usage if available
+                      if (event.data?.usage) {
+                        finishData.usage = {
+                          promptTokens: event.data.usage.prompt_tokens || 0,
+                          completionTokens: event.data.usage.completion_tokens || 0
+                        };
+                      }
+                      
+                      // Send finish message and then close stream
+                      console.log('Sending finish message:', finishData);
+                      const finishLine = `d:${JSON.stringify(finishData)}\n`;
+                      controller.enqueue(new TextEncoder().encode(finishLine));
+                      
+                      // Close the stream
+                      controller.close();
+                      return;
                       
                     case 'end':
-                    case 'completion':
                     case 'stream_end':
-                      // Stream completed - send [DONE] to close AI SDK stream
-                      aiSDKData = '[DONE]';
-                      break;
+                      // Stream completed - close immediately
+                      console.log('Stream end received, closing...');
+                      controller.close();
+                      return;
                       
                     case 'error':
-                      aiSDKData = JSON.stringify({
-                        type: 'error',
-                        error: event.data?.error || 'Stream error',
-                      });
+                      // AI SDK data stream format for error: 3:"error message"\n
+                      aiSDKData = `3:${JSON.stringify(event.data?.error || 'Stream error')}\n`;
                       break;
                       
                     case 'stream_start':
@@ -293,9 +303,9 @@ class ChatApiService {
                       continue;
                   }
 
-                  const sseData = `data: ${aiSDKData}\n\n`;
-                  console.log('Sending to AI SDK:', aiSDKData);
-                  controller.enqueue(new TextEncoder().encode(sseData));
+                  // Send data stream format directly (already includes \n)
+                  console.log('Sending to AI SDK:', aiSDKData.trim());
+                  controller.enqueue(new TextEncoder().encode(aiSDKData));
                   
                 } catch (parseError) {
                   console.error('Failed to parse SSE data:', parseError, 'Raw data:', data);
