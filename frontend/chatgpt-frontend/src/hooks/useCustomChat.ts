@@ -74,31 +74,35 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       const conv = await chatApi.getConversation(conversationId);
       setConversation(conv);
       
+      // Load the latest messages using the dedicated messages endpoint
+      const { messages: recentMessages } = await chatApi.getMessages(conversationId, { 
+        limit: 20, 
+        offset: 0 
+      });
+      
       // Transform backend messages to AI SDK format
-      if (conv.messages) {
-        const aiMessages: AISDKMessage[] = conv.messages.map(msg => ({
-          id: msg.message_id,
-          role: msg.role,
-          content: msg.content,
-          createdAt: new Date(msg.created_at),
-          // Backend-specific fields
-          message_id: msg.message_id,
-          parent_message_id: msg.parent_message_id,
-          total_tokens: msg.total_tokens,
-          cost_usd: msg.cost_usd,
-          model_name: msg.model_name,
-          attachments: msg.attachments,
-          metadata: msg.metadata,
-        }));
-        
-        // Set initial messages in AI SDK
-        setMessages(aiMessages);
-      }
+      const aiMessages: AISDKMessage[] = recentMessages.map(msg => ({
+        id: msg.message_id,
+        role: msg.role,
+        content: msg.content,
+        createdAt: new Date(msg.created_at),
+        // Backend-specific fields
+        message_id: msg.message_id,
+        parent_message_id: msg.parent_message_id,
+        total_tokens: msg.total_tokens,
+        cost_usd: msg.cost_usd,
+        model_name: msg.model_name,
+        attachments: msg.attachments,
+        metadata: msg.metadata,
+      }));
+      
+      // Set initial messages in AI SDK
+      setMessages(aiMessages);
       
       setTokenUsage({
         total: conv.total_tokens_used,
         cost: conv.total_cost_usd,
-        model: conv.messages?.[0]?.model_name || 'gpt-4',
+        model: recentMessages[0]?.model_name || 'gpt-4',
       });
     } catch (error) {
       setBackendError(error instanceof Error ? error.message : 'Failed to load conversation');
@@ -107,11 +111,14 @@ export function useCustomChat(options: CustomChatOptions = {}) {
 
   // Load more messages (for pagination)
   const loadMoreMessages = useCallback(async (conversationId: string, offset: number = 0) => {
+    console.log('loadMoreMessages called:', { conversationId, offset });
     try {
       const { messages: newMessages } = await chatApi.getMessages(conversationId, { 
         limit: 20, 
         offset 
       });
+      
+      console.log('API returned messages:', newMessages.length);
       
       // Transform backend messages to AI SDK format
       const aiMessages: AISDKMessage[] = newMessages.map(msg => ({
@@ -130,10 +137,14 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       }));
       
       // Prepend older messages to the beginning of the current messages
-      setMessages(prev => [...aiMessages, ...prev]);
+      setMessages(prev => {
+        console.log('Adding messages:', { oldCount: prev.length, newCount: aiMessages.length });
+        return [...aiMessages, ...prev];
+      });
       
       return aiMessages.length;
     } catch (error) {
+      console.error('loadMoreMessages error:', error);
       setBackendError(error instanceof Error ? error.message : 'Failed to load more messages');
       return 0;
     }
