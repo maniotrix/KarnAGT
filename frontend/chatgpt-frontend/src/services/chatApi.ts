@@ -73,22 +73,30 @@ class ChatApiService {
   }
 
   // GET /api/v1/chat/conversations/{id}/messages
-  async getMessages(conversationId: string): Promise<MessageResponse[]> {
-    const response = await fetch(
-      buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATION_MESSAGES(conversationId)),
-      {
-        method: 'GET',
-        headers: this.getAuthHeaders(),
-      }
-    );
+  async getMessages(
+    conversationId: string, 
+    options: { limit?: number; offset?: number } = {}
+  ): Promise<{ messages: MessageResponse[]; pagination: any }> {
+    const { limit = 20, offset = 0 } = options;
+    
+    const url = new URL(buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATION_MESSAGES(conversationId)));
+    url.searchParams.set('limit', limit.toString());
+    url.searchParams.set('offset', offset.toString());
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
 
     if (!response.ok) {
       throw new Error('Failed to fetch messages');
     }
 
     const result = await response.json();
-    // Extract data array from paginated response
-    return result.data || [];
+    return {
+      messages: result.data || [],
+      pagination: result.pagination || {}
+    };
   }
 
   // POST /api/v1/chat/conversations/{id}/messages

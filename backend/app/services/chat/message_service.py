@@ -135,7 +135,7 @@ class MessageService:
         role_filter: Optional[str] = None
     ) -> List[Message]:
         """
-        Get messages for a conversation with pagination
+        Get messages for a conversation with pagination (returns latest messages first)
         
         Args:
             conversation_id: The conversation ID (UUID string)
@@ -144,7 +144,7 @@ class MessageService:
             role_filter: Optional role filter (user, assistant, system)
             
         Returns:
-            List of Message instances ordered by creation time
+            List of Message instances ordered by creation time (newest first, then reversed to chronological)
         """
         try:
             # Get the conversation's integer ID
@@ -165,14 +165,18 @@ class MessageService:
             if role_filter:
                 query = query.where(Message.role == role_filter)
             
-            query = query.order_by(Message.created_at.asc())
+            # Order by newest first, then reverse to get chronological order
+            query = query.order_by(desc(Message.created_at))
             query = query.limit(limit).offset(offset)
             
             result = await self.db.execute(query)
             messages = result.scalars().all()
             
+            # Reverse to get chronological order (oldest to newest)
+            messages = list(reversed(list(messages)))
+            
             logger.info(f"Retrieved {len(messages)} messages for conversation {conversation_id}")
-            return list(messages)
+            return messages
             
         except Exception as e:
             logger.error(f"Error retrieving messages for conversation {conversation_id}: {e}")

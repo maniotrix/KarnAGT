@@ -35,6 +35,7 @@ export const Chat: React.FC<ChatProps> = ({
     stop,
     clearError,
     hasConversation,
+    loadMoreMessages,
   } = useCustomChat({
     conversationId,
     memoryEnabled: true,
@@ -102,6 +103,12 @@ export const Chat: React.FC<ChatProps> = ({
         onConversationChange(null);
       }
     }
+  };
+
+  // Handle load more messages
+  const handleLoadMore = async (offset: number): Promise<number> => {
+    if (!conversation?.conversation_id) return 0;
+    return await loadMoreMessages(conversation.conversation_id, offset);
   };
 
   // Show loading state during auth check
@@ -174,6 +181,9 @@ export const Chat: React.FC<ChatProps> = ({
         messages={messages} 
         isLoading={isLoading}
         className="chat-messages"
+        onLoadMore={handleLoadMore}
+        conversationId={conversation?.conversation_id}
+        hasMoreMessages={true} // TODO: Implement proper logic based on total message count
       />
 
       {/* Chat Actions */}
