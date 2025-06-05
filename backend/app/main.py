@@ -51,6 +51,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Custom middleware (order matters - applied in reverse order)
+from app.api.v1.middleware.auth import (
+    AuthenticationMiddleware,
+    SecurityHeadersMiddleware,
+    UserContextMiddleware
+)
+from app.api.v1.middleware.rate_limit import RateLimitMiddleware
+
+# Add custom middleware
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(UserContextMiddleware) 
+app.add_middleware(AuthenticationMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
