@@ -6,10 +6,14 @@ import {
   AISDKMessage
 } from '../types/chat';
 import { chatApi } from '../services/chatApi';
-import { useAuth } from '../contexts/AuthContext';
+import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
 
 export function useCustomChat(options: CustomChatOptions = {}) {
-  const { isAuthenticated, accessToken } = useAuth();
+  // Clean Architecture Integration
+  const userQuery = useCurrentUser();
+  const authStatus = useAuthStatus();
+  const isAuthenticated = authStatus.data?.authenticated ?? false;
+  const accessToken = userQuery.data ? 'mock-token' : null; // TODO: Implement proper token management
   const [conversation, setConversation] = useState<ConversationResponse | null>(null);
   const [tokenUsage, setTokenUsage] = useState({ total: 0, cost: 0, model: '' });
   const [backendError, setBackendError] = useState<string | null>(null);
