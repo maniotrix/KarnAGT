@@ -1,8 +1,8 @@
 // Environment configuration based on backend structure
 export const ENV = {
   // Backend API Configuration
-  API_BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
-  API_VERSION: process.env.REACT_APP_API_VERSION || 'v1',
+  API_BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  API_VERSION: import.meta.env.VITE_API_VERSION || 'v1',
   
   // Storage Keys
   ACCESS_TOKEN_KEY: 'chat_access_token',
@@ -10,10 +10,10 @@ export const ENV = {
   USER_PROFILE_KEY: 'chat_user_profile',
   
   // Feature Flags
-  ENABLE_ANALYTICS: process.env.REACT_APP_ENABLE_ANALYTICS === 'true',
-  ENABLE_MEMORY: process.env.REACT_APP_ENABLE_MEMORY === 'true',
-  ENABLE_FILES: process.env.REACT_APP_ENABLE_FILES === 'true',
-  DEBUG_MODE: process.env.REACT_APP_DEBUG_MODE === 'true',
+  ENABLE_ANALYTICS: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
+  ENABLE_MEMORY: import.meta.env.VITE_ENABLE_MEMORY === 'true',
+  ENABLE_FILES: import.meta.env.VITE_ENABLE_FILES === 'true',
+  DEBUG_MODE: import.meta.env.VITE_DEBUG_MODE === 'true',
 } as const;
 
 // API Endpoints matching your backend structure
