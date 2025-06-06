@@ -30,4 +30,8 @@ export interface IAuthRepository {
   // Session management
   isAuthenticated(): boolean;
   getAuthHeaders(): Record<string, string>;
+  
+  // Legacy compatibility methods
+  storeTokenResponse(tokenResponse: TokenResponse): void;
+  getAuthStatus(): Promise<{ authenticated: boolean; user?: User }>;
 } 

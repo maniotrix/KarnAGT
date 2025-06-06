@@ -1,0 +1,274 @@
+// ChatApp - Modern Chat Component using Clean Architecture
+import React, { useState } from 'react';
+import { 
+  useConversations, 
+  useDeleteConversation, 
+  useCreateConversation 
+} from '../../app/hooks/chat';
+import { useCurrentUser, useLogout } from '../../app/hooks/auth';
+import { useUiStore } from '../../app/stores/uiStore';
+import { Chat } from '../Chat/Chat';
+import { 
+  Menu, 
+  X, 
+  Plus, 
+  Trash2, 
+  User, 
+  LogOut,
+  MessageSquare,
+  Crown 
+} from 'lucide-react';
+
+export const ChatApp: React.FC = () => {
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+
+  // Clean Architecture Hooks
+  const { data: conversations, isLoading: conversationsLoading } = useConversations();
+  const { data: user } = useCurrentUser();
+  const deleteConversationMutation = useDeleteConversation();
+  const createConversationMutation = useCreateConversation();
+  const logoutMutation = useLogout();
+
+  // UI State from Zustand
+  const sidebarOpen = useUiStore(state => state.sidebarOpen);
+  const setSidebarOpen = useUiStore(state => state.setSidebarOpen);
+  const toggleSidebar = useUiStore(state => state.toggleSidebar);
+
+  // Find current conversation
+  const currentConversation = conversations?.find(
+    conv => conv.id === currentConversationId
+  );
+
+  const handleNewChat = async () => {
+    try {
+      const newConv = await createConversationMutation.mutateAsync({
+        title: 'New Conversation'
+      });
+      setCurrentConversationId(newConv.id);
+      setSidebarOpen(false);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    }
+  };
+
+  const handleSelectConversation = (conversationId: string) => {
+    setCurrentConversationId(conversationId);
+    setSidebarOpen(false);
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    if (window.confirm('Are you sure you want to delete this conversation?')) {
+      try {
+        await deleteConversationMutation.mutateAsync(conversationId);
+        if (currentConversationId === conversationId) {
+          setCurrentConversationId(null);
+        }
+      } catch (error) {
+        console.error('Failed to delete conversation:', error);
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutMutation.mutateAsync();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  const handleConversationChange = (conversation: any) => {
+    if (conversation) {
+      setCurrentConversationId(conversation.id);
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
+        lg:translate-x-0 lg:static lg:inset-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="flex flex-col h-full">
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <MessageSquare className="h-5 w-5 mr-2" />
+              Conversations
+            </h2>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-1 rounded-md hover:bg-gray-100 transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* New Chat Button */}
+          <div className="p-4 border-b border-gray-200">
+            <button
+              onClick={handleNewChat}
+              disabled={createConversationMutation.isPending}
+              className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {createConversationMutation.isPending ? 'Creating...' : 'New Chat'}
+            </button>
+          </div>
+
+          {/* Conversations List */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {conversationsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : conversations && conversations.length > 0 ? (
+              <div className="space-y-2">
+                {conversations.map(conv => (
+                  <div
+                    key={conv.id}
+                    className={`
+                      group relative flex items-center p-3 rounded-lg cursor-pointer transition-colors
+                      ${currentConversationId === conv.id 
+                        ? 'bg-blue-50 border border-blue-200' 
+                        : 'hover:bg-gray-50 border border-transparent'
+                      }
+                    `}
+                  >
+                    <div
+                      className="flex-1 min-w-0"
+                      onClick={() => handleSelectConversation(conv.id)}
+                    >
+                      <div className="font-medium text-gray-900 truncate">
+                        {conv.title}
+                      </div>
+                                             <div className="text-sm text-gray-500 mt-1">
+                         {conv.messageCount} messages • {conv.totalTokensUsed} tokens
+                       </div>
+                       <div className="text-xs text-gray-400 mt-1">
+                         {conv.updatedAt.toLocaleDateString()}
+                       </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteConversation(conv.id);
+                      }}
+                      disabled={deleteConversationMutation.isPending}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-100 text-red-600 transition-opacity disabled:opacity-50"
+                      title="Delete conversation"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No conversations yet</p>
+                <p className="text-sm">Start a new chat to begin</p>
+              </div>
+            )}
+          </div>
+
+          {/* User Info & Logout */}
+          <div className="border-t border-gray-200 p-4">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="flex-shrink-0">
+                {user?.hasAvatar() ? (
+                  <img
+                    className="h-8 w-8 rounded-full"
+                    src={user.avatarUrl}
+                    alt={user.getDisplayName()}
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">
+                      {user?.getInitials()}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-900 truncate">
+                  {user?.getDisplayName()}
+                </div>
+                <div className="flex items-center text-xs text-gray-500">
+                  {user?.isPremium() && (
+                    <Crown className="h-3 w-3 mr-1 text-yellow-500" />
+                  )}
+                  {user?.subscriptionTier} plan
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              disabled={logoutMutation.isPending}
+              className="w-full flex items-center justify-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              {logoutMutation.isPending ? 'Signing out...' : 'Sign Out'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col lg:ml-0">
+        {/* Top Bar */}
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={toggleSidebar}
+              className="lg:hidden p-2 rounded-md hover:bg-gray-100 transition-colors"
+            >
+              <Menu className="h-5 w-5 text-gray-500" />
+            </button>
+            <h1 className="text-xl font-semibold text-gray-900">
+              ChatGPT Clone
+            </h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-600">
+              Hello, {user?.getDisplayName()}
+            </span>
+            <div className="hidden lg:flex items-center space-x-2">
+              {user?.hasAvatar() ? (
+                <img
+                  className="h-8 w-8 rounded-full"
+                  src={user.avatarUrl}
+                  alt={user.getDisplayName()}
+                />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {user?.getInitials()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Chat Component */}
+        <div className="flex-1 overflow-hidden">
+                     <Chat
+             conversationId={currentConversationId || undefined}
+             onConversationChange={handleConversationChange}
+           />
+        </div>
+      </div>
+
+      {/* Sidebar Overlay for Mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+    </div>
+  );
+}; 
