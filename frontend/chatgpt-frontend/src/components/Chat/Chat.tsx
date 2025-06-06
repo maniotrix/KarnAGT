@@ -5,7 +5,29 @@ import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ChatActions } from './ChatActions';
-import './Chat.css';
+
+// Modern UI Libraries
+import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
+import { Progress } from '@radix-ui/react-progress';
+import { ScrollArea } from '@radix-ui/react-scroll-area';
+import { Separator } from '@radix-ui/react-separator';
+
+import { 
+  User, 
+  Bot, 
+  Settings, 
+  X, 
+  AlertTriangle,
+  Crown,
+  MessageSquare,
+  DollarSign,
+  Zap
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Clean Architecture Integration
+import { useCurrentUser } from '../../app/hooks/auth/useAuth';
+import { useUiStore } from '../../app/stores/uiStore';
 
 interface ChatProps {
   conversationId?: string;
@@ -16,10 +38,16 @@ export const Chat: React.FC<ChatProps> = ({
   conversationId, 
   onConversationChange 
 }) => {
-  const { user, isAuthenticated, checkQuota } = useAuth();
+  // Clean Architecture Integration
+  const userQuery = useCurrentUser();
+  const { theme } = useUiStore();
+  const currentUser = userQuery.data;
+  
+  // Legacy Auth Context (will be migrated later)
+  const { isAuthenticated, checkQuota } = useAuth();
   const [showActions, setShowActions] = useState(false);
 
-  // Initialize custom chat with backend integration
+  // ✅ PRESERVE: AI SDK Integration via useCustomChat
   const {
     messages,
     input,
@@ -118,106 +146,191 @@ export const Chat: React.FC<ChatProps> = ({
   // Show loading state during auth check
   if (!isAuthenticated) {
     return (
-      <div className="chat-container">
-        <div className="chat-auth-required">
-          <h2>Authentication Required</h2>
-          <p>Please log in to start chatting.</p>
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col items-center justify-center h-full text-center p-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center space-y-4"
+          >
+            <div className="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <MessageSquare className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              Authentication Required
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
+              Please log in to start chatting with AI assistant.
+            </p>
+          </motion.div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="chat-container">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       {/* Chat Header */}
-      <div className="chat-header">
-        <div className="chat-title">
-          <h2>{conversation?.title || 'New Chat'}</h2>
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm"
+      >
+        <div className="flex-1">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            {conversation?.title || 'New Chat'}
+          </h2>
           {conversation && (
-            <div className="chat-meta">
-              <span className="message-count">{conversation.message_count} messages</span>
-              <span className="token-usage">{tokenUsage?.total || 0} tokens</span>
-              <span className="cost">~${(tokenUsage?.cost || 0).toFixed(4)}</span>
+            <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex items-center space-x-1">
+                <MessageSquare className="w-4 h-4" />
+                <span>{conversation.message_count} messages</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Zap className="w-4 h-4" />
+                <span>{tokenUsage?.total || 0} tokens</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <DollarSign className="w-4 h-4" />
+                <span>~${(tokenUsage?.cost || 0).toFixed(4)}</span>
+              </div>
             </div>
           )}
         </div>
         
         {/* User Info & Quota */}
-        <div className="chat-user-info">
-          <div className="user-details">
-            <span className="user-name">{user?.full_name || user?.email}</span>
-            <span className="subscription-tier">{user?.subscription_tier}</span>
-          </div>
-          <div className="quota-info">
-            <div className="quota-bar">
-              <div 
-                className="quota-fill" 
-                style={{ width: `${Math.min(quota.percentage, 100)}%` }}
-              />
+        <div className="flex flex-col items-end space-y-2">
+          <div className="flex items-center space-x-2">
+            <Avatar className="w-8 h-8">
+              <AvatarImage src={currentUser?.avatarUrl} />
+              <AvatarFallback className="bg-blue-100 dark:bg-blue-900">
+                <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-right">
+              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                {currentUser?.fullName || currentUser?.email}
+              </div>
+              <div className="flex items-center space-x-1">
+                <Crown className="w-3 h-3 text-yellow-500" />
+                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-full uppercase font-medium">
+                  {currentUser?.subscriptionTier}
+                </span>
+              </div>
             </div>
-            <span className="quota-text">
-              {quota.used}/{quota.total} messages
+          </div>
+          
+          {/* Quota Progress Bar */}
+          <div className="flex items-center space-x-2">
+            <Progress 
+              value={Math.min(quota.percentage, 100)} 
+              className="w-20 h-2"
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              {quota.used}/{quota.total}
             </span>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Error Display */}
-      {error && (
-        <div className="chat-error">
-          <span>{error}</span>
-          <button onClick={clearError} className="error-close">×</button>
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 mx-4 mt-2 rounded-lg"
+          >
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5" />
+              <span>{error}</span>
+            </div>
+            <button 
+              onClick={clearError}
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Quota Warning */}
-      {quota.percentage > 80 && (
-        <div className={`quota-warning ${quota.percentage >= 100 ? 'quota-exceeded' : ''}`}>
-          {quota.percentage >= 100 
-            ? `⚠️ Quota exceeded! Upgrade your ${user?.subscription_tier} plan to continue.`
-            : `⚠️ Quota warning: ${quota.percentage.toFixed(0)}% used`
-          }
-        </div>
-      )}
+      <AnimatePresence>
+        {quota.percentage > 80 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`flex items-center justify-center px-4 py-3 mx-4 mt-2 rounded-lg ${
+              quota.percentage >= 100 
+                ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+                : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'
+            }`}
+          >
+            <AlertTriangle className="w-5 h-5 mr-2" />
+            <span>
+              {quota.percentage >= 100 
+                ? `⚠️ Quota exceeded! Upgrade your ${currentUser?.subscriptionTier} plan to continue.`
+                : `⚠️ Quota warning: ${quota.percentage.toFixed(0)}% used`
+              }
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Messages */}
-      <MessageList 
-        messages={messages} 
-        isLoading={isLoading}
-        className="chat-messages"
-        onLoadMore={handleLoadMore}
-        conversationId={conversation?.conversation_id}
-        hasMoreMessages={true}
-      />
+      {/* Messages Area */}
+      <ScrollArea className="flex-1 px-4">
+        <MessageList 
+          messages={messages} 
+          isLoading={isLoading}
+          className="py-4"
+          onLoadMore={handleLoadMore}
+          conversationId={conversation?.conversation_id}
+          hasMoreMessages={true}
+        />
+      </ScrollArea>
 
       {/* Chat Actions */}
-      {showActions && hasConversation && (
-        <ChatActions
-          onShare={handleShare}
-          onDelete={handleDelete}
-          onStop={stop}
-          onRegenerate={() => console.log('Regenerate not implemented')}
-          isStreaming={isLoading}
-          canShare={!!conversation}
-          canDelete={!!conversation}
-        />
-      )}
+      <AnimatePresence>
+        {showActions && hasConversation && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="px-4 pb-2"
+          >
+            <ChatActions
+              onShare={handleShare}
+              onDelete={handleDelete}
+              onStop={stop}
+              onRegenerate={() => console.log('Regenerate not implemented')}
+              isStreaming={isLoading}
+              canShare={!!conversation}
+              canDelete={!!conversation}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Input */}
-      <ChatInput
-        input={input}
-        setInput={setInput}
-        onSubmit={handleMessageSubmit}
-        isLoading={isLoading}
-        disabled={isQuotaExceeded}
-        placeholder={
-          isQuotaExceeded 
-            ? "Quota exceeded - please upgrade your plan"
-            : hasConversation 
-              ? "Type your message..." 
-              : "Start a new conversation..."
-        }
-      />
+      {/* Chat Input */}
+      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          onSubmit={handleMessageSubmit}
+          isLoading={isLoading}
+          disabled={isQuotaExceeded}
+          placeholder={
+            isQuotaExceeded 
+              ? "Quota exceeded - please upgrade your plan"
+              : hasConversation 
+                ? "Type your message..." 
+                : "Start a new conversation..."
+          }
+        />
+      </div>
     </div>
   );
 }; 
