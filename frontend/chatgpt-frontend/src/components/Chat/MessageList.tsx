@@ -31,6 +31,32 @@ export const MessageList: React.FC<MessageListProps> = ({
   const isLoadingMoreRef = useRef(isLoadingMore);
   const loadingRequestRef = useRef(false); // Immediate synchronous loading flag
   
+  // Track current conversation ID to detect switches
+  const currentConversationIdRef = useRef(conversationId);
+  
+  // Reset state when conversation changes
+  useEffect(() => {
+    if (currentConversationIdRef.current !== conversationId) {
+      console.log('Conversation changed, resetting scroll state:', {
+        from: currentConversationIdRef.current,
+        to: conversationId
+      });
+      
+      // Reset all scroll-related state
+      setIsLoadingMore(false);
+      setNoMoreMessages(false);
+      setIsInitialLoad(true);
+      setShouldAutoScroll(true);
+      
+      // Reset refs
+      loadingRequestRef.current = false;
+      isLoadingMoreRef.current = false;
+      
+      // Update conversation ID ref
+      currentConversationIdRef.current = conversationId;
+    }
+  }, [conversationId]);
+  
   // Update refs when values change
   useEffect(() => {
     messagesLengthRef.current = messages.length;

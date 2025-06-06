@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useCustomChat } from '../../hooks/useCustomChat';
 import { useAuth } from '../../contexts/AuthContext';
 import { ConversationResponse } from '../../types/chat';
@@ -105,11 +105,15 @@ export const Chat: React.FC<ChatProps> = ({
     }
   };
 
-  // Handle load more messages
-  const handleLoadMore = async (offset: number): Promise<number> => {
-    if (!conversation?.conversation_id) return 0;
+  // Handle load more messages - memoized to prevent unnecessary re-renders
+  const handleLoadMore = useCallback(async (offset: number): Promise<number> => {
+    if (!conversation?.conversation_id) {
+      console.log('No conversation ID available for loadMore');
+      return 0;
+    }
+    console.log('Chat handleLoadMore called:', { conversationId: conversation.conversation_id, offset });
     return await loadMoreMessages(conversation.conversation_id, offset);
-  };
+  }, [conversation?.conversation_id, loadMoreMessages]);
 
   // Show loading state during auth check
   if (!isAuthenticated) {

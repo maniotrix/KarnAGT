@@ -166,9 +166,17 @@ export function useCustomChat(options: CustomChatOptions = {}) {
   // Initialize conversation if conversationId provided
   useEffect(() => {
     if (options.conversationId && isAuthenticated) {
+      console.log('Loading conversation:', options.conversationId);
       loadConversation(options.conversationId);
+    } else if (!options.conversationId) {
+      // Clear conversation when switching to "new chat" mode
+      console.log('Clearing conversation for new chat');
+      setConversation(null);
+      setMessages([]);
+      setTokenUsage({ total: 0, cost: 0, model: '' });
+      setBackendError(null);
     }
-  }, [options.conversationId, isAuthenticated, loadConversation]);
+  }, [options.conversationId, isAuthenticated, loadConversation, setMessages]);
 
   // Custom submit handler
   const handleSubmit = useCallback(async (e?: React.FormEvent, submitOptions?: { 
