@@ -34,6 +34,11 @@ export const MessageList: React.FC<MessageListProps> = ({
   // Track current conversation ID to detect switches
   const currentConversationIdRef = useRef(conversationId);
   
+  // Refs for scroll position preservation
+  const scrollHeightBeforeLoadRef = useRef(0);
+  const scrollTopBeforeLoadRef = useRef(0);
+  const shouldPreserveScrollRef = useRef(false);
+  
   // Reset state when conversation changes
   useEffect(() => {
     if (currentConversationIdRef.current !== conversationId) {
@@ -51,6 +56,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       // Reset refs
       loadingRequestRef.current = false;
       isLoadingMoreRef.current = false;
+      shouldPreserveScrollRef.current = false;
       
       // Update conversation ID ref
       currentConversationIdRef.current = conversationId;
@@ -69,6 +75,28 @@ export const MessageList: React.FC<MessageListProps> = ({
       loadingRequestRef.current = false;
     }
   }, [isLoadingMore]);
+
+  // Preserve scroll position after new messages are loaded
+  useEffect(() => {
+    if (shouldPreserveScrollRef.current && messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const heightDifference = container.scrollHeight - scrollHeightBeforeLoadRef.current;
+      
+      console.log('Preserving scroll position:', {
+        oldScrollHeight: scrollHeightBeforeLoadRef.current,
+        newScrollHeight: container.scrollHeight,
+        heightDifference,
+        oldScrollTop: scrollTopBeforeLoadRef.current,
+        newScrollTop: scrollTopBeforeLoadRef.current + heightDifference
+      });
+      
+      // Adjust scroll position by the height of newly added content
+      container.scrollTop = scrollTopBeforeLoadRef.current + heightDifference;
+      
+      // Reset the flag
+      shouldPreserveScrollRef.current = false;
+    }
+  }, [messages.length]); // Trigger when messages array changes
 
   // Handle initial load - auto scroll to bottom and disable load more during initial scroll
   useEffect(() => {
@@ -100,6 +128,16 @@ export const MessageList: React.FC<MessageListProps> = ({
     if (container.scrollTop <= 5 && !currentlyLoading && !loadingRequestRef.current) {
       console.log('Scroll triggered loadMore with offset:', currentMessageCount);
       
+      // Store current scroll position and height BEFORE loading
+      scrollHeightBeforeLoadRef.current = container.scrollHeight;
+      scrollTopBeforeLoadRef.current = container.scrollTop;
+      shouldPreserveScrollRef.current = true;
+      
+      console.log('Storing scroll position before load:', {
+        scrollHeight: scrollHeightBeforeLoadRef.current,
+        scrollTop: scrollTopBeforeLoadRef.current
+      });
+      
       // Set synchronous flag immediately to prevent duplicate calls
       loadingRequestRef.current = true;
       setIsLoadingMore(true);
@@ -110,18 +148,13 @@ export const MessageList: React.FC<MessageListProps> = ({
         if (loadedCount === 0) {
           // No more messages available - stop future requests
           setNoMoreMessages(true);
-        } else {
-          // Maintain scroll position after loading older messages
-          // Move scroll down a bit so user doesn't immediately trigger again
-          setTimeout(() => {
-            if (messagesContainerRef.current) {
-              messagesContainerRef.current.scrollTop = 50;
-            }
-          }, 100);
+          shouldPreserveScrollRef.current = false; // Don't preserve if no new messages
         }
+        // Note: Scroll position preservation happens in useEffect above
         
       } catch (error) {
         console.error('Failed to load more messages:', error);
+        shouldPreserveScrollRef.current = false; // Don't preserve on error
       } finally {
         // Reset both state and synchronous flag
         setIsLoadingMore(false);
