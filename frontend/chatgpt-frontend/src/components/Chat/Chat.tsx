@@ -184,12 +184,12 @@ export const Chat: React.FC<ChatProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Chat Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm"
+        className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0"
       >
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -255,7 +255,7 @@ export const Chat: React.FC<ChatProps> = ({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 mx-4 mt-2 rounded-lg"
+            className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 mx-4 mt-2 rounded-lg flex-shrink-0"
           >
             <div className="flex items-center space-x-2">
               <AlertTriangle className="w-5 h-5" />
@@ -278,7 +278,7 @@ export const Chat: React.FC<ChatProps> = ({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className={`flex items-center justify-center px-4 py-3 mx-4 mt-2 rounded-lg ${
+            className={`flex items-center justify-center px-4 py-3 mx-4 mt-2 rounded-lg flex-shrink-0 ${
               quota.percentage >= 100 
                 ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
                 : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'
@@ -295,56 +295,58 @@ export const Chat: React.FC<ChatProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Messages Area */}
-      <ScrollArea className="flex-1 px-4">
-        <MessageList 
-          messages={messages} 
-          isLoading={isLoading}
-          className="py-4"
-          onLoadMore={handleLoadMore}
-          conversationId={conversation?.conversation_id}
-          hasMoreMessages={true}
-        />
-      </ScrollArea>
+      {/* Messages Area - Flex grow to fill available space */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 overflow-y-auto px-4">
+          <MessageList 
+            messages={messages} 
+            isLoading={isLoading}
+            className="py-4"
+            onLoadMore={handleLoadMore}
+            conversationId={conversation?.conversation_id}
+            hasMoreMessages={true}
+          />
+        </div>
 
-      {/* Chat Actions */}
-      <AnimatePresence>
-        {showActions && hasConversation && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="px-4 pb-2"
-          >
-            <ChatActions
-              onShare={handleShare}
-              onDelete={handleDelete}
-              onStop={stop}
-              onRegenerate={() => console.log('Regenerate not implemented')}
-              isStreaming={isLoading}
-              canShare={!!conversation}
-              canDelete={!!conversation}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Chat Actions */}
+        <AnimatePresence>
+          {showActions && hasConversation && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="px-4 pb-2 flex-shrink-0"
+            >
+              <ChatActions
+                onShare={handleShare}
+                onDelete={handleDelete}
+                onStop={stop}
+                onRegenerate={() => console.log('Regenerate not implemented')}
+                isStreaming={isLoading}
+                canShare={!!conversation}
+                canDelete={!!conversation}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Chat Input */}
-      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-        <ChatInput
-          input={input}
-          setInput={setInput}
-          onSubmit={handleMessageSubmit}
-          isLoading={isLoading}
-          disabled={isQuotaExceeded}
-          placeholder={
-            isQuotaExceeded 
-              ? "Quota exceeded - please upgrade your plan"
-              : hasConversation 
-                ? "Type your message..." 
-                : "Start a new conversation..."
-          }
-        />
+        {/* Chat Input */}
+        <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex-shrink-0">
+          <ChatInput
+            input={input}
+            setInput={setInput}
+            onSubmit={handleMessageSubmit}
+            isLoading={isLoading}
+            disabled={isQuotaExceeded}
+            placeholder={
+              isQuotaExceeded 
+                ? "Quota exceeded - please upgrade your plan"
+                : hasConversation 
+                  ? "Type your message..." 
+                  : "Start a new conversation..."
+            }
+          />
+        </div>
       </div>
     </div>
   );
