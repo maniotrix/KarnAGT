@@ -84,7 +84,7 @@ export const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen overflow-hidden bg-gray-100">
       {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
@@ -254,7 +254,7 @@ export const ChatApp: React.FC = () => {
         </div>
 
         {/* Chat Component */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 overflow-hidden">
           <Chat
             conversationId={currentConversationId ?? undefined}
             onConversationChange={handleConversationChange}

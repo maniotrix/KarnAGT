@@ -257,7 +257,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <div className={`flex flex-col h-full overflow-hidden ${className}`}>
       {/* Load More Indicator */}
       <AnimatePresence>
         {isLoadingMore && (
@@ -275,12 +275,12 @@ export const MessageList: React.FC<MessageListProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Messages Container with Radix ScrollArea */}
-      <ScrollArea className="flex-1">
-        <div
-          ref={messagesContainerRef}
-          className="flex flex-col space-y-4 p-4"
-        >
+      {/* Messages Container */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto h-full"
+      >
+        <div className="flex flex-col space-y-4 p-4">
           <AnimatePresence initial={false}>
             {messages.map((message, index) => (
               <motion.div
@@ -335,7 +335,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           {/* Auto-scroll anchor */}
           <div ref={messagesEndRef} />
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Scroll to bottom button */}
       <AnimatePresence>

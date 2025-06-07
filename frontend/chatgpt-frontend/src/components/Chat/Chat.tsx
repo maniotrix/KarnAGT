@@ -94,7 +94,7 @@ export const Chat: React.FC<ChatProps> = ({
     },
     onError: (error) => {
       console.error('Chat error:', error);
-    },
+    }
   });
 
   // Quota is already calculated above using clean architecture
@@ -184,7 +184,7 @@ export const Chat: React.FC<ChatProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Chat Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -259,7 +259,7 @@ export const Chat: React.FC<ChatProps> = ({
           >
             <div className="flex items-center space-x-2">
               <AlertTriangle className="w-5 h-5" />
-              <span>{error}</span>
+              <span>{typeof error === 'object' && error !== null ? error.message : String(error)}</span>
             </div>
             <button 
               onClick={clearError}
@@ -296,7 +296,7 @@ export const Chat: React.FC<ChatProps> = ({
       </AnimatePresence>
 
       {/* Main Content Area - This will grow and the inner MessageList will scroll */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 overflow-hidden min-h-0">
         <MessageList
           messages={messages}
           isLoading={isLoading}
@@ -336,7 +336,7 @@ export const Chat: React.FC<ChatProps> = ({
         />
         {error && (
           <div className="mt-2 text-sm text-red-600 dark:text-red-400">
-            Error: {error.message}
+            Error: {typeof error === 'object' && error !== null ? error.message : String(error)}
           </div>
         )}
         {/* Stop generating button */}
