@@ -29,7 +29,7 @@ interface ChatMessageProps {
   isStreaming?: boolean;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ 
+const ChatMessageComponent: React.FC<ChatMessageProps> = ({ 
   message, 
   isStreaming = false 
 }) => {
@@ -230,4 +230,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       </motion.div>
     </TooltipProvider>
   );
-}; 
+};
+
+// Export memoized version to prevent re-renders when input changes
+export const ChatMessage = React.memo(ChatMessageComponent); 

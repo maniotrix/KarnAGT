@@ -6,7 +6,8 @@ import {
   Loader2,
   CornerDownLeft
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+// Remove framer motion to improve performance
+// import { motion, AnimatePresence } from 'framer-motion';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 // Clean Architecture Integration
@@ -92,11 +93,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const isNearLimit = characterCount > 3500;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full"
-    >
+    <div className="w-full">
       <form onSubmit={handleFormSubmit} className="relative">
         {/* Main Input Container */}
         <div className={`flex items-end gap-3 p-4 bg-white dark:bg-gray-800 border rounded-2xl transition-all duration-200 ${
@@ -146,27 +143,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       : "Send message (Enter)"
             }
           >
-            <AnimatePresence mode="wait">
-              {isLoading ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                >
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="send"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                >
-                  <Send className="w-5 h-5" />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {isLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Send className="w-5 h-5" />
+            )}
           </button>
         </div>
 
@@ -198,6 +179,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         </div>
       </form>
-    </motion.div>
+    </div>
   );
 }; 

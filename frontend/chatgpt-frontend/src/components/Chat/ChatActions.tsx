@@ -128,7 +128,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
         exit={{ opacity: 0, y: 10 }}
         className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700"
       >
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           {actions.map((action, index) => {
             const Icon = action.icon;
             return (

@@ -26,7 +26,7 @@ interface MessageListProps {
   onScrollStateChange?: (shouldAutoScroll: boolean, scrollToBottom: () => void) => void;
 }
 
-export const MessageList: React.FC<MessageListProps> = ({
+const MessageListComponent: React.FC<MessageListProps> = ({
   messages,
   isLoading,
   className = '',
@@ -265,4 +265,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
     </div>
   );
-}; 
+};
+
+// Export memoized version to prevent re-renders when input changes
+export const MessageList = React.memo(MessageListComponent); 
