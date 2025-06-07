@@ -6,7 +6,7 @@ import {
   useCreateConversation 
 } from '../../app/hooks/chat';
 import { useCurrentUser, useLogout } from '../../app/hooks/auth';
-import { useUiStore } from '../../app/stores/uiStore';
+import { useUiStore, useToast } from '../../app/stores/uiStore';
 import { Chat } from '../Chat/Chat';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
@@ -36,6 +36,7 @@ export const ChatApp: React.FC = () => {
   const sidebarOpen = useUiStore(state => state.sidebarOpen);
   const setSidebarOpen = useUiStore(state => state.setSidebarOpen);
   const toggleSidebar = useUiStore(state => state.toggleSidebar);
+  const toast = useToast();
 
   // Update currentConversationId when URL param changes
   useEffect(() => {
@@ -88,10 +89,18 @@ export const ChatApp: React.FC = () => {
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync();
-      // Navigate to login after logout
-      navigate('/login');
+      
+      // Show success toast
+      toast.success('Logout successful!', 'You have been signed out successfully.');
+      
+      // Small delay before navigation to allow user to see the toast
+      setTimeout(() => {
+        navigate('/login');
+      }, 1000);
     } catch (error) {
       console.error('Logout failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Logout failed';
+      toast.error('Logout failed', errorMessage);
     }
   };
 
