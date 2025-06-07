@@ -1,11 +1,12 @@
 // AuthForm - Modern Auth Component using React Hook Form + Zod + Tailwind
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useLogin, useRegister } from '../../app/hooks/auth';
+import { useLogin, useRegister, useCurrentUser } from '../../app/hooks/auth';
 import { useToast } from '../../app/stores/uiStore';
 import { Eye, EyeOff, User, Mail, Lock, Loader2 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 
 // Zod validation schemas
 const loginSchema = z.object({
@@ -38,20 +39,39 @@ const registerSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 type RegisterForm = z.infer<typeof registerSchema>;
 
-export const AuthForm: React.FC = () => {
-  const [isLoginMode, setIsLoginMode] = useState(true);
+// Update the component interface to accept isRegisterMode
+interface AuthFormProps {
+  isRegisterMode?: boolean;
+}
+
+export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) => {
+  const [isLoginMode, setIsLoginMode] = useState(!isRegisterMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const navigate = useNavigate();
   const toast = useToast();
   const loginMutation = useLogin();
   const registerMutation = useRegister();
+  const { data: user } = useCurrentUser();
 
   // React Hook Form setup with proper typing
   const form = useForm<any>({
     resolver: zodResolver(isLoginMode ? loginSchema : registerSchema),
     mode: 'onChange',
   });
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  // Sync the login/register mode with the prop
+  useEffect(() => {
+    setIsLoginMode(!isRegisterMode);
+  }, [isRegisterMode]);
 
   const { register, handleSubmit, formState: { errors }, reset } = form;
 
@@ -65,6 +85,7 @@ export const AuthForm: React.FC = () => {
           password: data.password,
         });
         toast.success('Login successful!', `Welcome back, ${result.user.getDisplayName()}`);
+        navigate('/');
       } else {
         const result = await registerMutation.mutateAsync({
           email: data.email,
@@ -74,6 +95,7 @@ export const AuthForm: React.FC = () => {
           username: data.username,
         });
         toast.success('Registration successful!', result.message);
+        navigate('/');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
@@ -84,6 +106,7 @@ export const AuthForm: React.FC = () => {
   const toggleMode = () => {
     setIsLoginMode(!isLoginMode);
     reset(); // Clear form when switching modes
+    navigate(isLoginMode ? '/register' : '/login');
   };
 
   return (
@@ -266,15 +289,17 @@ export const AuthForm: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={toggleMode}
-              className="font-medium text-blue-600 hover:text-blue-500 disabled:opacity-50"
-              disabled={isLoading}
-            >
-              {isLoginMode ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-            </button>
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-600">
+              {isLoginMode ? "Don't have an account? " : "Already have an account? "}
+              <button 
+                type="button"
+                onClick={toggleMode}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {isLoginMode ? 'Sign up' : 'Sign in'}
+              </button>
+            </p>
           </div>
         </form>
       </div>

@@ -1,5 +1,5 @@
 // ChatApp - Modern Chat Component using Clean Architecture
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   useConversations, 
   useDeleteConversation, 
@@ -8,6 +8,7 @@ import {
 import { useCurrentUser, useLogout } from '../../app/hooks/auth';
 import { useUiStore } from '../../app/stores/uiStore';
 import { Chat } from '../Chat/Chat';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Menu, 
   X, 
@@ -20,7 +21,9 @@ import {
 } from 'lucide-react';
 
 export const ChatApp: React.FC = () => {
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const { conversationId } = useParams<{ conversationId?: string }>();
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId || null);
+  const navigate = useNavigate();
 
   // Clean Architecture Hooks
   const { data: conversations, isLoading: conversationsLoading } = useConversations();
@@ -34,6 +37,13 @@ export const ChatApp: React.FC = () => {
   const setSidebarOpen = useUiStore(state => state.setSidebarOpen);
   const toggleSidebar = useUiStore(state => state.toggleSidebar);
 
+  // Update currentConversationId when URL param changes
+  useEffect(() => {
+    if (conversationId) {
+      setCurrentConversationId(conversationId);
+    }
+  }, [conversationId]);
+
   // Find current conversation
   const currentConversation = conversations?.find(
     conv => conv.conversationId === currentConversationId
@@ -45,6 +55,8 @@ export const ChatApp: React.FC = () => {
         title: 'New Conversation'
       });
       setCurrentConversationId(newConv.conversationId);
+      // Update URL to reflect the new conversation
+      navigate(`/chat/${newConv.conversationId}`);
       setSidebarOpen(false);
     } catch (error) {
       console.error('Failed to create conversation:', error);
@@ -53,6 +65,8 @@ export const ChatApp: React.FC = () => {
 
   const handleSelectConversation = (conversationId: string) => {
     setCurrentConversationId(conversationId);
+    // Update URL when selecting a conversation
+    navigate(`/chat/${conversationId}`);
     setSidebarOpen(false);
   };
 
@@ -62,6 +76,8 @@ export const ChatApp: React.FC = () => {
         await deleteConversationMutation.mutateAsync(conversationId);
         if (currentConversationId === conversationId) {
           setCurrentConversationId(null);
+          // Navigate to root when deleting the current conversation
+          navigate('/');
         }
       } catch (error) {
         console.error('Failed to delete conversation:', error);
@@ -72,6 +88,8 @@ export const ChatApp: React.FC = () => {
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync();
+      // Navigate to login after logout
+      navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -80,6 +98,8 @@ export const ChatApp: React.FC = () => {
   const handleConversationChange = (conversation: any) => {
     if (conversation) {
       setCurrentConversationId(conversation.conversationId);
+      // Update URL when conversation changes
+      navigate(`/chat/${conversation.conversationId}`);
     }
   };
 
