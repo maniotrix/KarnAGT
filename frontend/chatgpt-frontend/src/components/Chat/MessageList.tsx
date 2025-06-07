@@ -188,6 +188,17 @@ export const MessageList: React.FC<MessageListProps> = ({
     setShouldAutoScroll(isNearBottom);
   }, [onLoadMore, conversationId, hasMoreMessages, noMoreMessages, isInitialLoad]);
 
+  // Check if user is at bottom when content changes (especially during streaming)
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      if (isNearBottom !== shouldAutoScroll) {
+        setShouldAutoScroll(isNearBottom);
+      }
+    }
+  }, [messages, shouldAutoScroll]);
+
   // Expose scroll state and scroll function to parent
   useEffect(() => {
     const scrollFunction = () => {
