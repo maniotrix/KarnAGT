@@ -188,8 +188,8 @@ export const Chat: React.FC<ChatProps> = ({
   }, [conversation?.conversation_id, loadMoreMessages]);
 
   // Handle scroll state changes from MessageList
-  const handleScrollStateChange = useCallback((shouldAutoScroll: boolean, scrollToBottom: () => void) => {
-    setShouldShowScrollButton(!shouldAutoScroll);
+  const handleScrollStateChange = useCallback((shouldShowButton: boolean, scrollToBottom: () => void) => {
+    setShouldShowScrollButton(shouldShowButton);
     setScrollToBottomFn(() => scrollToBottom);
   }, []);
 

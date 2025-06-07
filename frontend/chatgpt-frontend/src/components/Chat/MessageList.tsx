@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ChatMessage } from './ChatMessage';
 import { Message } from '../../types/chat';
 
-// Modern UI Libraries
-import { ScrollArea } from '@radix-ui/react-scroll-area';
+
 import { 
   MessageSquare, 
   Lightbulb, 
@@ -15,8 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Clean Architecture Integration
-import { useUiStore } from '../../app/stores/uiStore';
+
 
 interface MessageListProps {
   messages: Message[];
@@ -37,198 +35,81 @@ export const MessageList: React.FC<MessageListProps> = ({
   hasMoreMessages = true,
   onScrollStateChange
 }) => {
-  // Clean Architecture Integration
-  const { theme } = useUiStore();
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-  const [noMoreMessages, setNoMoreMessages] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const isLoadingMoreRef = useRef(false);
+  const prevConversationIdRef = useRef(conversationId);
   
-  // Use refs to avoid recreating handleScroll on every render
-  const messagesLengthRef = useRef(messages.length);
-  const isLoadingMoreRef = useRef(isLoadingMore);
-  const loadingRequestRef = useRef(false); // Immediate synchronous loading flag
-  
-  // Track current conversation ID to detect switches
-  const currentConversationIdRef = useRef(conversationId);
-  
-  // Refs for scroll position preservation
-  const scrollHeightBeforeLoadRef = useRef(0);
-  const scrollTopBeforeLoadRef = useRef(0);
-  const shouldPreserveScrollRef = useRef(false);
-  
-  // Reset state when conversation changes
-  useEffect(() => {
-    if (currentConversationIdRef.current !== conversationId) {
-      console.log('Conversation changed, resetting scroll state:', {
-        from: currentConversationIdRef.current,
-        to: conversationId
-      });
-      
-      // Reset all scroll-related state
-      setIsLoadingMore(false);
-      setNoMoreMessages(false);
-      setIsInitialLoad(true);
-      setShouldAutoScroll(true);
-      
-      // Reset refs
-      loadingRequestRef.current = false;
-      isLoadingMoreRef.current = false;
-      shouldPreserveScrollRef.current = false;
-      
-      // Update conversation ID ref
-      currentConversationIdRef.current = conversationId;
-    }
-  }, [conversationId]);
-  
-  // Update refs when values change
-  useEffect(() => {
-    messagesLengthRef.current = messages.length;
-  }, [messages.length]);
-  
-  useEffect(() => {
-    isLoadingMoreRef.current = isLoadingMore;
-    // Also sync the immediate loading flag with state
-    if (!isLoadingMore) {
-      loadingRequestRef.current = false;
-    }
-  }, [isLoadingMore]);
-
-  // Preserve scroll position after new messages are loaded
-  useEffect(() => {
-    if (shouldPreserveScrollRef.current && messagesContainerRef.current) {
-      const container = messagesContainerRef.current;
-      const heightDifference = container.scrollHeight - scrollHeightBeforeLoadRef.current;
-      
-      console.log('Preserving scroll position:', {
-        oldScrollHeight: scrollHeightBeforeLoadRef.current,
-        newScrollHeight: container.scrollHeight,
-        heightDifference,
-        oldScrollTop: scrollTopBeforeLoadRef.current,
-        newScrollTop: scrollTopBeforeLoadRef.current + heightDifference
-      });
-      
-      // Adjust scroll position by the height of newly added content
-      container.scrollTop = scrollTopBeforeLoadRef.current + heightDifference;
-      
-      // Reset the flag
-      shouldPreserveScrollRef.current = false;
-    }
-  }, [messages.length]); // Trigger when messages array changes
-
-  // Handle initial load - auto scroll to bottom and disable load more during initial scroll
-  useEffect(() => {
-    if (messages.length > 0 && isInitialLoad) {
-      // Auto-scroll to bottom on initial load
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        // Allow load more after initial scroll is complete
-        setTimeout(() => {
-          setIsInitialLoad(false);
-        }, 1000);
-      }, 100);
-    }
-  }, [messages.length, isInitialLoad]);
-
-  // Handle scroll for pagination
-  const handleScroll = useCallback(async () => {
-    // BLOCK all load more logic during initial load/auto-scroll
-    if (isInitialLoad || !messagesContainerRef.current || !onLoadMore || !conversationId || !hasMoreMessages || noMoreMessages) {
-      return;
-    }
+  // Simple scroll handler - just track if user is at bottom and handle load more
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
     
     const container = messagesContainerRef.current;
-    const currentMessageCount = messagesLengthRef.current;
-    const currentlyLoading = isLoadingMoreRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = container;
     
-    // ONLY trigger when user explicitly scrolls to the VERY TOP (within 5px)
-    // Use synchronous ref check to prevent race conditions
-    if (container.scrollTop <= 5 && !currentlyLoading && !loadingRequestRef.current) {
-      console.log('Scroll triggered loadMore with offset:', currentMessageCount);
-      
-      // Store current scroll position and height BEFORE loading
-      scrollHeightBeforeLoadRef.current = container.scrollHeight;
-      scrollTopBeforeLoadRef.current = container.scrollTop;
-      shouldPreserveScrollRef.current = true;
-      
-      console.log('Storing scroll position before load:', {
-        scrollHeight: scrollHeightBeforeLoadRef.current,
-        scrollTop: scrollTopBeforeLoadRef.current
-      });
-      
-      // Set synchronous flag immediately to prevent duplicate calls
-      loadingRequestRef.current = true;
+    // Track if user is at bottom (for scroll button visibility)
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+    setIsAtBottom(isNearBottom);
+    
+    // Load more when scrolled to top
+    if (scrollTop <= 10 && onLoadMore && !isLoadingMoreRef.current) {
+      isLoadingMoreRef.current = true;
       setIsLoadingMore(true);
       
-      try {
-        const loadedCount = await onLoadMore(currentMessageCount);
-        
-        if (loadedCount === 0) {
-          // No more messages available - stop future requests
-          setNoMoreMessages(true);
-          shouldPreserveScrollRef.current = false; // Don't preserve if no new messages
-        }
-        // Note: Scroll position preservation happens in useEffect above
-        
-      } catch (error) {
-        console.error('Failed to load more messages:', error);
-        shouldPreserveScrollRef.current = false; // Don't preserve on error
-      } finally {
-        // Reset both state and synchronous flag
-        setIsLoadingMore(false);
-        loadingRequestRef.current = false;
-      }
+      onLoadMore(messages.length)
+        .then(() => {
+          // Keep user near top after loading
+          setTimeout(() => {
+            if (messagesContainerRef.current) {
+              messagesContainerRef.current.scrollTop = 100;
+            }
+          }, 50);
+        })
+        .catch(console.error)
+        .finally(() => {
+          setIsLoadingMore(false);
+          isLoadingMoreRef.current = false;
+        });
     }
+  }, [onLoadMore, messages.length]);
+
+  // ONLY auto-scroll on conversation change or initial load
+  useEffect(() => {
+    const conversationChanged = prevConversationIdRef.current !== conversationId;
     
-    // Determine if we should auto-scroll when new messages arrive (only after initial load)
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    setShouldAutoScroll(isNearBottom);
-  }, [onLoadMore, conversationId, hasMoreMessages, noMoreMessages, isInitialLoad]);
-
-  // Check if user is at bottom when content changes (especially during streaming)
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (container) {
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-      if (isNearBottom !== shouldAutoScroll) {
-        setShouldAutoScroll(isNearBottom);
-      }
+    if (conversationChanged && messages.length > 0) {
+      // Scroll to bottom when conversation changes
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        setIsAtBottom(true);
+      }, 100);
+      
+      prevConversationIdRef.current = conversationId;
     }
-  }, [messages, shouldAutoScroll]);
+  }, [conversationId, messages.length]);
 
-  // Expose scroll state and scroll function to parent
+  // Expose scroll state to parent
   useEffect(() => {
-    const scrollFunction = () => {
+    const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setIsAtBottom(true);
     };
-    onScrollStateChange?.(shouldAutoScroll, scrollFunction);
-  }, [shouldAutoScroll, onScrollStateChange]);
+    
+    // Show scroll button when: not at bottom OR (streaming and can scroll more)
+    const shouldShowButton = !isAtBottom || (isLoading && !isAtBottom);
+    onScrollStateChange?.(shouldShowButton, scrollToBottom);
+  }, [isAtBottom, isLoading, onScrollStateChange]);
 
-  // Add scroll listener
+  // Attach scroll listener
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (container) {
-      container.addEventListener('scroll', handleScroll);
-      return () => {
-        container.removeEventListener('scroll', handleScroll);
-      };
+      container.addEventListener('scroll', handleScroll, { passive: true });
+      return () => container.removeEventListener('scroll', handleScroll);
     }
   }, [handleScroll]);
-
-  // Auto-scroll to bottom when new messages arrive (only if user is near bottom AND not during streaming)
-  useEffect(() => {
-    // Check if we're currently streaming a response
-    const lastMessage = messages[messages.length - 1];
-    const isStreamingResponse = isLoading && lastMessage?.role === 'assistant';
-    
-    // Only auto-scroll if user is near bottom AND we're not streaming
-    if (shouldAutoScroll && !isStreamingResponse) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isLoading, shouldAutoScroll]);
 
   // Welcome suggestions data
   const suggestions = [
