@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { AISDKMessage } from '../../types/chat';
 
+// Markdown Support
+import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
+import remarkGfm from 'remark-gfm';
+
 // Modern UI Libraries  
 import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
@@ -102,15 +107,42 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               ? 'bg-blue-600 text-white ml-8' 
               : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mr-8'
           }`}>
-            {/* Message Text - TODO: Add React Markdown in Phase 3 */}
+            {/* Message Text with Markdown Support */}
             <div className={`prose prose-sm max-w-none ${
               isUser 
                 ? 'prose-invert text-white' 
                 : 'prose-gray dark:prose-invert text-gray-900 dark:text-white'
             }`}>
-              <p className="mb-0 whitespace-pre-wrap break-words leading-relaxed">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  // Custom styling for code blocks
+                  pre: ({ children, ...props }) => (
+                    <pre {...props} className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                      {children}
+                    </pre>
+                  ),
+                  // Custom styling for inline code
+                  code: ({ children, className, ...props }) => {
+                    const isInline = !className;
+                    return (
+                      <code 
+                        {...props} 
+                        className={`${className || ''} ${
+                          isInline 
+                            ? 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm' 
+                            : ''
+                        }`}
+                      >
+                        {children}
+                      </code>
+                    );
+                  }
+                }}
+              >
                 {message.content}
-              </p>
+              </ReactMarkdown>
             </div>
 
             {/* Copy Button */}
