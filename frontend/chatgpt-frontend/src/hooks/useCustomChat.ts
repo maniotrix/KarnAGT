@@ -197,32 +197,16 @@ export function useCustomChat(options: CustomChatOptions = {}) {
     // Clear previous errors
     setError(null);
 
-    // If no conversation exists, create one
-    if (!conversation && !submitOptions?.conversationId) {
-      try {
-        const newConv = await chatApi.createConversation({
-          title: input.slice(0, 50) || 'New Chat',
-          memory_config: {
-            enabled: submitOptions?.memoryEnabled ?? true,
-            max_turns: 10,
-            summary_threshold: 8,
-          },
-        });
-        setConversation(newConv);
-        
-        // Update options with new conversation ID
-        if (submitOptions?.onConversationUpdate) {
-          submitOptions.onConversationUpdate(newConv);
-        }
-      } catch (error) {
-        setError({ message: 'Failed to create conversation' });
-        return;
-      }
+    // Strictly require conversation to exist - no automatic creation
+    // Conversation creation is now handled by ChatApp component
+    if (!conversation) {
+      setError({ message: 'No conversation available. Conversation must be created first.' });
+      return;
     }
 
-    // Call AI SDK submit
+    // Call AI SDK submit with existing conversation
     originalHandleSubmit(e, submitOptions);
-  }, [isAuthenticated, accessToken, conversation, input, originalHandleSubmit]);
+  }, [isAuthenticated, accessToken, conversation, originalHandleSubmit]);
 
   // Create new conversation
   const createConversation = useCallback(async (title?: string) => {

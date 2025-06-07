@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useCustomChat } from '../../hooks/useCustomChat';
 import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
@@ -31,11 +31,19 @@ import { useUiStore } from '../../app/stores/uiStore';
 interface ChatProps {
   conversationId?: string;
   onConversationChange?: (conversation: ConversationResponse | null) => void;
+  onCreateConversationForMessage?: (messageContent: string) => Promise<ConversationResponse | null>;
+  isCreatingConversation?: boolean;
+  pendingMessage?: string | null;
+  onPendingMessageSubmitted?: () => void;
 }
 
 export const Chat: React.FC<ChatProps> = ({ 
   conversationId, 
-  onConversationChange 
+  onConversationChange,
+  onCreateConversationForMessage,
+  isCreatingConversation,
+  pendingMessage,
+  onPendingMessageSubmitted
 }) => {
   // Clean Architecture Integration  
   const userQuery = useCurrentUser();
@@ -99,13 +107,24 @@ export const Chat: React.FC<ChatProps> = ({
 
   // Quota is already calculated above using clean architecture
 
-  // Handle conversation creation for new chats
-  const handleNewConversation = async () => {
-    const newConv = await createConversation();
-    if (newConv && onConversationChange) {
-      onConversationChange(newConv);
+  // Auto-submit pending message when conversation is loaded
+  useEffect(() => {
+    if (hasConversation && pendingMessage && pendingMessage.trim() && !isLoading) {
+      // Set the input to the pending message and submit it
+      setInput(pendingMessage);
+      
+      // Submit the message after a brief delay to ensure conversation is fully loaded
+      const timer = setTimeout(() => {
+        const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
+        handleSubmit(syntheticEvent as any);
+        
+        // Clear the pending message
+        onPendingMessageSubmitted?.();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
-  };
+  }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted]);
 
   // Handle message submission with quota check
   const handleMessageSubmit = async (e: React.FormEvent) => {
@@ -114,11 +133,18 @@ export const Chat: React.FC<ChatProps> = ({
       return;
     }
 
-    if (!hasConversation) {
-      await handleNewConversation();
+    // If we don't have a conversation, ask parent to create one
+    if (!hasConversation && onCreateConversationForMessage && input.trim()) {
+      // Parent will create conversation and navigate to proper URL
+      // The message will be submitted after navigation completes
+      await onCreateConversationForMessage(input.trim());
+      return;
     }
-    
-    handleSubmit(e);
+
+    // We have a conversation, submit the message normally
+    if (hasConversation) {
+      handleSubmit(e);
+    }
   };
 
   // Handle share conversation
@@ -326,10 +352,12 @@ export const Chat: React.FC<ChatProps> = ({
           input={input}
           setInput={setInput}
           onSubmit={handleMessageSubmit}
-          isLoading={isLoading}
-          disabled={isQuotaExceeded}
+          isLoading={isLoading || (isCreatingConversation ?? false)}
+          disabled={isQuotaExceeded || (isCreatingConversation ?? false)}
           placeholder={
-            isQuotaExceeded
+            (isCreatingConversation ?? false)
+              ? "Creating conversation..."
+              : isQuotaExceeded
               ? "Quota exceeded. Please upgrade your plan."
               : "Type your message..."
           }

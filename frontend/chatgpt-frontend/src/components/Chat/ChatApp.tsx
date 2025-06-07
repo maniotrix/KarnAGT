@@ -9,6 +9,8 @@ import { useCurrentUser, useLogout } from '../../app/hooks/auth';
 import { useUiStore, useToast } from '../../app/stores/uiStore';
 import { Chat } from '../Chat/Chat';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ConversationResponse } from '../../types/chat';
+import { Conversation } from '../../domain/entities/Conversation';
 import { 
   Menu, 
   X, 
@@ -23,6 +25,8 @@ import {
 export const ChatApp: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId || null);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Clean Architecture Hooks
@@ -42,6 +46,9 @@ export const ChatApp: React.FC = () => {
   useEffect(() => {
     if (conversationId) {
       setCurrentConversationId(conversationId);
+    } else {
+      // Homepage case - no conversation ID in URL
+      setCurrentConversationId(null);
     }
   }, [conversationId]);
 
@@ -50,14 +57,47 @@ export const ChatApp: React.FC = () => {
     conv => conv.conversationId === currentConversationId
   );
 
+  // Handle conversation creation for new messages from homepage
+  const handleCreateConversationForMessage = async (messageContent: string): Promise<ConversationResponse | null> => {
+    if (isCreatingConversation) return null; // Prevent double creation
+    
+    setIsCreatingConversation(true);
+    // Store the message for auto-submission after conversation loads
+    setPendingMessage(messageContent);
+    
+    try {
+      const newConversation = await createConversationMutation.mutateAsync({
+        title: messageContent.slice(0, 50) || 'New Chat'
+      });
+      
+      // Convert Conversation entity to ConversationResponse format
+      const conversationResponse = newConversation.toBackendResponse();
+      
+      setCurrentConversationId(conversationResponse.conversation_id);
+      navigate(`/chat/${conversationResponse.conversation_id}`, { replace: true });
+      setSidebarOpen(false);
+      
+      return conversationResponse;
+    } catch (error) {
+      console.error('Failed to create conversation for message:', error);
+      toast.error('Failed to create conversation', 'Please try again.');
+      setPendingMessage(null); // Clear pending message on error
+      return null;
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  };
+
   const handleNewChat = async () => {
     try {
-      const newConv = await createConversationMutation.mutateAsync({
+      const newConversation = await createConversationMutation.mutateAsync({
         title: 'New Conversation'
       });
-      setCurrentConversationId(newConv.conversationId);
+      // Convert Conversation entity to ConversationResponse format
+      const conversationResponse = newConversation.toBackendResponse();
+      setCurrentConversationId(conversationResponse.conversation_id);
       // Update URL to reflect the new conversation
-      navigate(`/chat/${newConv.conversationId}`);
+      navigate(`/chat/${conversationResponse.conversation_id}`);
       setSidebarOpen(false);
     } catch (error) {
       console.error('Failed to create conversation:', error);
@@ -287,6 +327,10 @@ export const ChatApp: React.FC = () => {
           <Chat
             conversationId={currentConversationId ?? undefined}
             onConversationChange={handleConversationChange}
+            onCreateConversationForMessage={handleCreateConversationForMessage}
+            isCreatingConversation={isCreatingConversation}
+            pendingMessage={pendingMessage}
+            onPendingMessageSubmitted={() => setPendingMessage(null)}
           />
         </div>
       </div>
