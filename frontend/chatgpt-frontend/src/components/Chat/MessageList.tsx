@@ -207,9 +207,14 @@ export const MessageList: React.FC<MessageListProps> = ({
     }
   }, [handleScroll]);
 
-  // Auto-scroll to bottom when new messages arrive (only if user is near bottom)
+  // Auto-scroll to bottom when new messages arrive (only if user is near bottom AND not during streaming)
   useEffect(() => {
-    if (shouldAutoScroll) {
+    // Check if we're currently streaming a response
+    const lastMessage = messages[messages.length - 1];
+    const isStreamingResponse = isLoading && lastMessage?.role === 'assistant';
+    
+    // Only auto-scroll if user is near bottom AND we're not streaming
+    if (shouldAutoScroll && !isStreamingResponse) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading, shouldAutoScroll]);
