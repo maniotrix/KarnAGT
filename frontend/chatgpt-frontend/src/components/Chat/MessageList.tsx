@@ -292,23 +292,41 @@ export const MessageList: React.FC<MessageListProps> = ({
       >
         <div className="flex flex-col space-y-4 p-4">
           <AnimatePresence initial={false}>
-            {messages.map((message, index) => (
-              <motion.div
-                key={`${message.role}-${index}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                layout
-              >
-                <ChatMessage message={message} />
-              </motion.div>
-            ))}
+            {messages.map((message, index) => {
+              // Determine if this message is currently being streamed
+              const isLastMessage = index === messages.length - 1;
+              const isStreamingThisMessage = isLoading && isLastMessage && message.role === 'assistant';
+              
+              return (
+                <motion.div
+                  key={`${message.role}-${index}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  layout
+                >
+                  <ChatMessage 
+                    message={message} 
+                    isStreaming={isStreamingThisMessage}
+                  />
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
 
-          {/* Typing Indicator */}
+          {/* Typing Indicator - Only show when thinking (before streaming starts) */}
           <AnimatePresence>
-            {isLoading && (
+            {(() => {
+              // Show thinking indicator only when:
+              // 1. isLoading is true (AI is processing)
+              // 2. AND either no messages exist OR last message is not an incomplete assistant message
+              const lastMessage = messages[messages.length - 1];
+              const isStreamingResponse = isLoading && lastMessage?.role === 'assistant';
+              const shouldShowThinking = isLoading && !isStreamingResponse;
+              
+              return shouldShowThinking;
+            })() && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
