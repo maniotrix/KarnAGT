@@ -22,19 +22,28 @@ export class AuthRepository implements IAuthRepository {
 
   // Authentication methods
   async login(credentials: LoginRequest): Promise<{ user: User; tokens: TokenResponse }> {
+    console.log('🔐 AuthRepository.login called with:', { email: credentials.email, hasPassword: !!credentials.password });
+    
     const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.LOGIN), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
     });
 
+    console.log('🔐 Login response status:', response.status);
+    console.log('🔐 Login response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
       const error = await response.json();
+      console.error('🔐 Login failed with error:', error);
       throw new Error(error.message || 'Login failed');
     }
 
     const tokens: TokenResponse = await response.json();
+    console.log('🔐 Login successful, got tokens:', { hasAccessToken: !!tokens.access_token, user: tokens.user?.email });
+    
     const user = User.fromProfile(tokens.user);
+    console.log('🔐 User entity created:', { userId: user.userId, email: user.email });
     
     return { user, tokens };
   }

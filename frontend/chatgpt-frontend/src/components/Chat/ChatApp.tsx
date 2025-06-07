@@ -36,7 +36,7 @@ export const ChatApp: React.FC = () => {
 
   // Find current conversation
   const currentConversation = conversations?.find(
-    conv => conv.id === currentConversationId
+    conv => conv.conversationId === currentConversationId
   );
 
   const handleNewChat = async () => {
@@ -44,7 +44,7 @@ export const ChatApp: React.FC = () => {
       const newConv = await createConversationMutation.mutateAsync({
         title: 'New Conversation'
       });
-      setCurrentConversationId(newConv.id);
+      setCurrentConversationId(newConv.conversationId);
       setSidebarOpen(false);
     } catch (error) {
       console.error('Failed to create conversation:', error);
@@ -79,7 +79,7 @@ export const ChatApp: React.FC = () => {
 
   const handleConversationChange = (conversation: any) => {
     if (conversation) {
-      setCurrentConversationId(conversation.id);
+      setCurrentConversationId(conversation.conversationId);
     }
   };
 
@@ -128,10 +128,10 @@ export const ChatApp: React.FC = () => {
               <div className="space-y-2">
                 {conversations.map(conv => (
                   <div
-                    key={conv.id}
+                    key={conv.conversationId}
                     className={`
                       group relative flex items-center p-3 rounded-lg cursor-pointer transition-colors
-                      ${currentConversationId === conv.id 
+                      ${currentConversationId === conv.conversationId 
                         ? 'bg-blue-50 border border-blue-200' 
                         : 'hover:bg-gray-50 border border-transparent'
                       }
@@ -139,7 +139,7 @@ export const ChatApp: React.FC = () => {
                   >
                     <div
                       className="flex-1 min-w-0"
-                      onClick={() => handleSelectConversation(conv.id)}
+                      onClick={() => handleSelectConversation(conv.conversationId)}
                     >
                       <div className="font-medium text-gray-900 truncate">
                         {conv.title}
@@ -154,7 +154,7 @@ export const ChatApp: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteConversation(conv.id);
+                        handleDeleteConversation(conv.conversationId);
                       }}
                       disabled={deleteConversationMutation.isPending}
                       className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-100 text-red-600 transition-opacity disabled:opacity-50"
@@ -254,9 +254,9 @@ export const ChatApp: React.FC = () => {
         </div>
 
         {/* Chat Component */}
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-w-0">
           <Chat
-            conversationId={currentConversationId || undefined}
+            conversationId={currentConversationId ?? undefined}
             onConversationChange={handleConversationChange}
           />
         </div>

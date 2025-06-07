@@ -62,7 +62,10 @@ export class ChatRepository implements IChatRepository {
   }
 
   async createConversation(conversation: Conversation): Promise<Conversation> {
+    console.log('💬 ChatRepository.createConversation called with:', { title: conversation.title });
+    
     const createData = conversation.toBackendCreateFormat();
+    console.log('💬 Sending create data:', createData);
     
     const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATIONS), {
       method: 'POST',
@@ -70,11 +73,16 @@ export class ChatRepository implements IChatRepository {
       body: JSON.stringify(createData),
     });
 
+    console.log('💬 Create conversation response status:', response.status);
+
     if (!response.ok) {
+      const error = await response.json();
+      console.error('💬 Create conversation failed:', error);
       throw new Error('Failed to create conversation');
     }
 
     const conversationResponse: ConversationResponse = await response.json();
+    console.log('💬 Create conversation successful:', conversationResponse);
     return Conversation.fromBackendResponse(conversationResponse);
   }
 
@@ -160,7 +168,10 @@ export class ChatRepository implements IChatRepository {
   }
 
   async sendMessage(conversationId: string, message: Message): Promise<Message> {
+    console.log('💬 ChatRepository.sendMessage called:', { conversationId, content: message.content.substring(0, 50) + '...' });
+    
     const messageCreate = message.toBackendCreateFormat();
+    console.log('💬 Sending message data:', messageCreate);
     
     const response = await fetch(
       buildApiUrl(API_ENDPOINTS.CHAT.SEND_MESSAGE(conversationId)),
@@ -171,11 +182,16 @@ export class ChatRepository implements IChatRepository {
       }
     );
 
+    console.log('💬 Send message response status:', response.status);
+
     if (!response.ok) {
+      const error = await response.json();
+      console.error('💬 Send message failed:', error);
       throw new Error('Failed to send message');
     }
 
     const messageResponse: MessageResponse = await response.json();
+    console.log('💬 Send message successful:', messageResponse);
     return Message.fromBackendResponse(messageResponse);
   }
 
