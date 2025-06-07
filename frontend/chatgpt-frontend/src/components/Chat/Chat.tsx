@@ -20,7 +20,8 @@ import {
   Crown,
   MessageSquare,
   DollarSign,
-  Zap
+  Zap,
+  ArrowDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -52,6 +53,8 @@ export const Chat: React.FC<ChatProps> = ({
   const currentUser = userQuery.data;
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const [showActions, setShowActions] = useState(false);
+  const [shouldShowScrollButton, setShouldShowScrollButton] = useState(false);
+  const [scrollToBottomFn, setScrollToBottomFn] = useState<(() => void) | null>(null);
 
   // Calculate quota using clean architecture user data
   const calculateQuota = () => {
@@ -183,6 +186,12 @@ export const Chat: React.FC<ChatProps> = ({
     console.log('Chat handleLoadMore called:', { conversationId: conversation.conversation_id, offset });
     return await loadMoreMessages(conversation.conversation_id, offset);
   }, [conversation?.conversation_id, loadMoreMessages]);
+
+  // Handle scroll state changes from MessageList
+  const handleScrollStateChange = useCallback((shouldAutoScroll: boolean, scrollToBottom: () => void) => {
+    setShouldShowScrollButton(!shouldAutoScroll);
+    setScrollToBottomFn(() => scrollToBottom);
+  }, []);
 
   // Show loading state during auth check
   if (!isAuthenticated) {
@@ -322,13 +331,29 @@ export const Chat: React.FC<ChatProps> = ({
       </AnimatePresence>
 
       {/* Main Content Area - This will grow and the inner MessageList will scroll */}
-      <div className="flex-1 overflow-hidden min-h-0">
+      <div className="flex-1 overflow-hidden min-h-0 relative">
         <MessageList
           messages={messages}
           isLoading={isLoading}
           onLoadMore={handleLoadMore}
           conversationId={conversation?.conversation_id}
+          onScrollStateChange={handleScrollStateChange}
         />
+        
+        {/* Scroll to bottom button - Centered in chat area */}
+        <AnimatePresence>
+          {shouldShowScrollButton && messages.length > 0 && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => scrollToBottomFn?.()}
+              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800 transition-all duration-200 hover:scale-105 z-10"
+            >
+              <ArrowDown className="w-5 h-5" />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Chat Actions (conditionally rendered) */}

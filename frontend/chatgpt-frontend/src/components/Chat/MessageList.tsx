@@ -25,6 +25,7 @@ interface MessageListProps {
   onLoadMore?: (offset: number) => Promise<number>;
   conversationId?: string;
   hasMoreMessages?: boolean;
+  onScrollStateChange?: (shouldAutoScroll: boolean, scrollToBottom: () => void) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -33,7 +34,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   className = '',
   onLoadMore,
   conversationId,
-  hasMoreMessages = true
+  hasMoreMessages = true,
+  onScrollStateChange
 }) => {
   // Clean Architecture Integration
   const { theme } = useUiStore();
@@ -186,6 +188,14 @@ export const MessageList: React.FC<MessageListProps> = ({
     setShouldAutoScroll(isNearBottom);
   }, [onLoadMore, conversationId, hasMoreMessages, noMoreMessages, isInitialLoad]);
 
+  // Expose scroll state and scroll function to parent
+  useEffect(() => {
+    const scrollFunction = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+    onScrollStateChange?.(shouldAutoScroll, scrollFunction);
+  }, [shouldAutoScroll, onScrollStateChange]);
+
   // Add scroll listener
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -337,20 +347,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         </div>
       </div>
 
-      {/* Scroll to bottom button */}
-      <AnimatePresence>
-        {!shouldAutoScroll && messages.length > 0 && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-            className="absolute bottom-20 right-6 p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors"
-          >
-            <ArrowDown className="w-5 h-5" />
-          </motion.button>
-        )}
-      </AnimatePresence>
+
     </div>
   );
 }; 
