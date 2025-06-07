@@ -57,7 +57,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        data-message-role={message.role}
         className={`flex gap-4 p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
           isUser ? 'justify-end' : 'justify-start'
         }`}

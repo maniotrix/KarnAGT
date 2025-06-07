@@ -46,7 +46,6 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [noMoreMessages, setNoMoreMessages] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [additionalHeight, setAdditionalHeight] = useState(0);
   
   // Use refs to avoid recreating handleScroll on every render
   const messagesLengthRef = useRef(messages.length);
@@ -231,36 +230,6 @@ export const MessageList: React.FC<MessageListProps> = ({
     }
   }, [messages, isLoading, shouldAutoScroll]);
 
-  // Check if last AI message is below 50% of viewport and increase height when user sends message
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    const container = messagesContainerRef.current;
-    
-    if (lastMessage?.role === 'user' && container && messages.length >= 2) {
-      // Find the previous AI message
-      const prevMessage = messages[messages.length - 2];
-      if (prevMessage?.role === 'assistant') {
-        // Check if last AI message is below 50% of viewport
-        const viewportHeight = container.clientHeight;
-        const scrollTop = container.scrollTop;
-        const messageElements = container.querySelectorAll('[data-message-role="assistant"]');
-        const lastAiElement = messageElements[messageElements.length - 1] as HTMLElement;
-        
-        if (lastAiElement) {
-          const messageY = lastAiElement.offsetTop - scrollTop;
-          if (messageY > viewportHeight * 0.5) {
-            // Increase container height
-            setAdditionalHeight(viewportHeight);
-            // Scroll to bottom
-            setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }, 50);
-          }
-        }
-      }
-    }
-  }, [messages]);
-
   // Welcome suggestions data
   const suggestions = [
     { icon: Lightbulb, text: 'Ask me anything', color: 'text-yellow-500' },
@@ -337,12 +306,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto h-full"
       >
-        <div 
-          className="flex flex-col space-y-4 p-4"
-          style={{ 
-            minHeight: additionalHeight > 0 ? `calc(100% + ${additionalHeight}px)` : 'auto' 
-          }}
-        >
+        <div className="flex flex-col space-y-4 p-4">
           <AnimatePresence initial={false}>
             {messages.map((message, index) => {
               // Determine if this message is currently being streamed
