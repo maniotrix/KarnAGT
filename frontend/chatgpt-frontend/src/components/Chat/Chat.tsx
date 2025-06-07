@@ -343,15 +343,17 @@ export const Chat: React.FC<ChatProps> = ({
         {/* Scroll to bottom button - Centered in chat area */}
         <AnimatePresence>
           {shouldShowScrollButton && messages.length > 0 && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              onClick={() => scrollToBottomFn?.()}
-              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800 transition-all duration-200 hover:scale-105 z-10"
-            >
-              <ArrowDown className="w-5 h-5" />
-            </motion.button>
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={() => scrollToBottomFn?.()}
+                className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800 transition-all duration-200 hover:scale-105"
+              >
+                <ArrowDown className="w-5 h-5" />
+              </motion.button>
+            </div>
           )}
         </AnimatePresence>
       </div>
