@@ -326,8 +326,11 @@ export function useChat(options: ChatOptions = {}) {
     }
 
     if (input.trim()) {
-      await sendMessage(input, conversation.conversation_id);
+      const messageToSend = input.trim();
+      // Clear input IMMEDIATELY when user submits
       setInput('');
+      
+      await sendMessage(messageToSend, conversation.conversation_id);
     }
   }, [isAuthenticated, conversation, input, sendMessage]);
 

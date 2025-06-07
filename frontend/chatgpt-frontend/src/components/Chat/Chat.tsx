@@ -121,13 +121,18 @@ export const Chat: React.FC<ChatProps> = ({
         const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
         handleSubmit(syntheticEvent as any);
         
+        // Scroll to bottom after auto-submit
+        setTimeout(() => {
+          scrollToBottomFn?.();
+        }, 100);
+        
         // Clear the pending message
         onPendingMessageSubmitted?.();
       }, 100);
       
       return () => clearTimeout(timer);
     }
-  }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted]);
+  }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
 
   // Handle message submission with quota check
   const handleMessageSubmit = async (e: React.FormEvent) => {
@@ -147,6 +152,11 @@ export const Chat: React.FC<ChatProps> = ({
     // We have a conversation, submit the message normally
     if (hasConversation) {
       handleSubmit(e);
+      
+      // ALWAYS scroll to bottom when user sends message
+      setTimeout(() => {
+        scrollToBottomFn?.();
+      }, 100);
     }
   };
 
