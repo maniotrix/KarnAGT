@@ -98,11 +98,31 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => authRepository.logout(),
     onSuccess: () => {
-      // Clear all cached data
+      // Disable fetching for auth queries
+      queryClient.setQueryDefaults(authKeys.user(), {
+        enabled: false,
+      });
+      queryClient.setQueryDefaults(authKeys.status(), {
+        enabled: false,
+      });
+      
+      // Set data as null instead of just clearing cache
+      queryClient.setQueryData(authKeys.user(), null);
+      queryClient.setQueryData(authKeys.status(), { authenticated: false });
+      
+      // Then clear all cached data
       queryClient.clear();
     },
     onError: () => {
-      // Even if logout fails, clear local data
+      // Same approach for error case
+      queryClient.setQueryDefaults(authKeys.user(), {
+        enabled: false,
+      });
+      queryClient.setQueryDefaults(authKeys.status(), {
+        enabled: false,
+      });
+      queryClient.setQueryData(authKeys.user(), null);
+      queryClient.setQueryData(authKeys.status(), { authenticated: false });
       queryClient.clear();
     },
   });
