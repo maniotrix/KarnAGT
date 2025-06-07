@@ -284,7 +284,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           <AnimatePresence initial={false}>
             {messages.map((message, index) => (
               <motion.div
-                key={message.id}
+                key={`${message.role}-${index}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
