@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useCustomChat } from '../../hooks/useCustomChat';
+import { useChat } from '../../hooks/useChat';
 import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
@@ -75,7 +75,7 @@ export const Chat: React.FC<ChatProps> = ({
   const quota = calculateQuota();
   const isQuotaExceeded = quota.percentage >= 100;
 
-  // ✅ PRESERVE: AI SDK Integration via useCustomChat
+  // ✅ Simple Chat Integration
   const {
     messages,
     input,
@@ -92,7 +92,7 @@ export const Chat: React.FC<ChatProps> = ({
     clearError,
     hasConversation,
     loadMoreMessages,
-  } = useCustomChat({
+  } = useChat({
     conversationId,
     memoryEnabled: true,
     onConversationUpdate: onConversationChange,

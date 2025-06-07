@@ -1,5 +1,3 @@
-import { Message } from '@ai-sdk/ui-utils';
-
 // Backend types from your chat_schemas.py
 
 // Exact MessageCreate from your backend line 15
@@ -108,9 +106,13 @@ export interface StreamErrorEvent {
   message?: string;
 }
 
-// AI SDK Message format (bridge type)
-export interface AISDKMessage extends Message {
-  // Additional fields for backend compatibility
+// Simple Message interface that matches frontend needs - replaces AISDKMessage
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt?: Date;
+  // Backend specific fields (using snake_case as they come from backend)
   message_id?: string;
   parent_message_id?: string;
   total_tokens?: number;
@@ -133,8 +135,8 @@ export interface ChatState {
   };
 }
 
-// Custom useChat options for backend integration
-export interface CustomChatOptions {
+// Chat hook options
+export interface ChatOptions {
   conversationId?: string;
   memoryEnabled?: boolean;
   onStreamStart?: () => void;

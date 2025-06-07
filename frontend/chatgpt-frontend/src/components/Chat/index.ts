@@ -1,9 +1,9 @@
-// Chat component barrel exports
+// Chat Component Exports
 export { Chat } from './Chat';
 export { ChatMessage } from './ChatMessage';
-export { MessageList } from './MessageList';
 export { ChatInput } from './ChatInput';
+export { MessageList } from './MessageList';
 export { ChatActions } from './ChatActions';
 
 // Re-export types for convenience
-export type { AISDKMessage } from '../../types/chat'; 
+export type { Message } from '../../types/chat'; 

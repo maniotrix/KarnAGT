@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ChatMessage } from './ChatMessage';
-import { AISDKMessage } from '../../types/chat';
+import { Message } from '../../types/chat';
 
 // Modern UI Libraries
 import { ScrollArea } from '@radix-ui/react-scroll-area';
@@ -19,7 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../app/stores/uiStore';
 
 interface MessageListProps {
-  messages: AISDKMessage[];
+  messages: Message[];
   isLoading: boolean;
   className?: string;
   onLoadMore?: (offset: number) => Promise<number>;

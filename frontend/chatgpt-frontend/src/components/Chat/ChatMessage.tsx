@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AISDKMessage } from '../../types/chat';
+import { Message } from '../../types/chat';
 
 // Markdown Support
 import ReactMarkdown from 'react-markdown';
@@ -25,7 +25,7 @@ import { motion } from 'framer-motion';
 import { useUiStore } from '../../app/stores/uiStore';
 
 interface ChatMessageProps {
-  message: AISDKMessage;
+  message: Message;
   isStreaming?: boolean;
 }
 
