@@ -1,5 +1,6 @@
 import { useChat } from '@ai-sdk/react';
 import { useState, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   ConversationResponse, 
   CustomChatOptions,
@@ -7,6 +8,7 @@ import {
 } from '../types/chat';
 import { chatApi } from '../services/chatApi';
 import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
+import { chatKeys } from '../app/hooks/chat';
 
 export function useCustomChat(options: CustomChatOptions = {}) {
   // Clean Architecture Integration
@@ -14,6 +16,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
   const authStatus = useAuthStatus();
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const accessToken = userQuery.data ? 'mock-token' : null; // TODO: Implement proper token management
+  const queryClient = useQueryClient();
   const [conversation, setConversation] = useState<ConversationResponse | null>(null);
   const [tokenUsage, setTokenUsage] = useState({ total: 0, cost: 0, model: '' });
   const [error, setError] = useState<{ message: string } | null>(null);
@@ -56,6 +59,9 @@ export function useCustomChat(options: CustomChatOptions = {}) {
           last_message_at: new Date().toISOString(),
         } : null);
       }
+      
+      // 🔑 SIMPLE FIX: Invalidate conversations cache so sidebar updates
+      queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
     },
     onError: (error) => {
       setError({ message: error.message });
