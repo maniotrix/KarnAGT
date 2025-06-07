@@ -70,6 +70,7 @@ export class AuthRepository implements IAuthRepository {
     const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.LOGOUT), {
       method: 'POST',
       headers: this.getPrivateHeaders(),
+      body: JSON.stringify({ refresh_token: null }),
     });
 
     if (!response.ok) {
