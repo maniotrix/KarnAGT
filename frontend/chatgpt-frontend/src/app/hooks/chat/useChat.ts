@@ -125,7 +125,7 @@ export function useDeleteConversation() {
       // Remove from conversations list
       queryClient.setQueryData(chatKeys.conversations(), (old: any) => {
         if (!old) return [];
-        return old.filter((conv: any) => conv.id !== conversationId);
+        return old.filter((conv: any) => conv.conversationId !== conversationId);
       });
       
       // Remove conversation cache
