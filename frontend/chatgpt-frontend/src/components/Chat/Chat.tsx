@@ -295,58 +295,61 @@ export const Chat: React.FC<ChatProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Messages Area - Flex grow to fill available space */}
-      <div className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 overflow-y-auto px-4">
-          <MessageList 
-            messages={messages} 
-            isLoading={isLoading}
-            className="py-4"
-            onLoadMore={handleLoadMore}
-            conversationId={conversation?.conversation_id}
-            hasMoreMessages={true}
+      {/* Main Content Area - This will grow and the inner MessageList will scroll */}
+      <div className="flex-1 min-h-0">
+        <MessageList
+          messages={messages}
+          isLoading={isLoading}
+          onLoadMore={handleLoadMore}
+          conversationId={conversation?.conversation_id}
+        />
+      </div>
+
+      {/* Chat Actions (conditionally rendered) */}
+      {showActions && conversation && (
+        <div className="px-4 pb-2 flex-shrink-0">
+          <ChatActions
+            onShare={handleShare}
+            onDelete={handleDelete}
+            onStop={stop}
+            onRegenerate={() => console.log('Regenerate not implemented')}
+            isStreaming={isLoading}
+            canShare={!!conversation}
+            canDelete={!!conversation}
           />
         </div>
+      )}
 
-        {/* Chat Actions */}
-        <AnimatePresence>
-          {showActions && hasConversation && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="px-4 pb-2 flex-shrink-0"
+      {/* Chat Input & Error Display */}
+      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex-shrink-0">
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          onSubmit={handleMessageSubmit}
+          isLoading={isLoading}
+          disabled={isQuotaExceeded}
+          placeholder={
+            isQuotaExceeded
+              ? "Quota exceeded. Please upgrade your plan."
+              : "Type your message..."
+          }
+        />
+        {error && (
+          <div className="mt-2 text-sm text-red-600 dark:text-red-400">
+            Error: {error.message}
+          </div>
+        )}
+        {/* Stop generating button */}
+        {isLoading && (
+          <div className="mt-2 text-center">
+            <button
+              onClick={stop}
+              className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200"
             >
-              <ChatActions
-                onShare={handleShare}
-                onDelete={handleDelete}
-                onStop={stop}
-                onRegenerate={() => console.log('Regenerate not implemented')}
-                isStreaming={isLoading}
-                canShare={!!conversation}
-                canDelete={!!conversation}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Chat Input */}
-        <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex-shrink-0">
-          <ChatInput
-            input={input}
-            setInput={setInput}
-            onSubmit={handleMessageSubmit}
-            isLoading={isLoading}
-            disabled={isQuotaExceeded}
-            placeholder={
-              isQuotaExceeded 
-                ? "Quota exceeded - please upgrade your plan"
-                : hasConversation 
-                  ? "Type your message..." 
-                  : "Start a new conversation..."
-            }
-          />
-        </div>
+              Stop generating
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

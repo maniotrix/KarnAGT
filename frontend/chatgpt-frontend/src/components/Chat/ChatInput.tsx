@@ -1,30 +1,16 @@
-import React, { KeyboardEvent, FormEvent, useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import React, { KeyboardEvent, FormEvent, useRef, useEffect, ChangeEvent } from 'react';
 
 // Modern UI Libraries
 import { 
   Send, 
   Loader2,
-  CornerDownLeft,
-  AlertCircle
+  CornerDownLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 // Clean Architecture Integration
 import { useUiStore } from '../../app/stores/uiStore';
-
-// Validation Schema
-const messageSchema = z.object({
-  message: z.string()
-    .min(1, 'Message cannot be empty')
-    .max(4000, 'Message too long (max 4000 characters)')
-    .refine(val => val.trim().length > 0, 'Message cannot be only whitespace')
-});
-
-type MessageFormData = z.infer<typeof messageSchema>;
 
 interface ChatInputProps {
   input: string;
@@ -46,33 +32,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Clean Architecture Integration
   const { theme } = useUiStore();
   
-  // Form setup with validation
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isValid },
-    setValue,
-    watch,
-    reset
-  } = useForm<MessageFormData>({
-    resolver: zodResolver(messageSchema),
-    mode: 'onChange',
-    defaultValues: {
-      message: input
-    }
-  });
-
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const formValue = watch('message');
 
-  // Sync form value with parent state
-  useEffect(() => {
-    setValue('message', input);
-  }, [input, setValue]);
-
-  useEffect(() => {
-    setInput(formValue || '');
-  }, [formValue, setInput]);
+  const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+  };
 
   // Auto-resize textarea
   const adjustTextareaHeight = () => {
@@ -85,50 +49,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   useEffect(() => {
     adjustTextareaHeight();
-  }, [formValue]);
+  }, [input]);
+
+  const handleFormSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!disabled && !isLoading && input.trim()) {
+      onSubmit(e);
+    }
+  };
 
   // Keyboard shortcuts
   useHotkeys('mod+enter', (e) => {
     e.preventDefault();
-    if (!disabled && !isLoading && formValue?.trim()) {
-      handleFormSubmit({ message: formValue });
+    if (!disabled && !isLoading && input.trim()) {
+      handleFormSubmit(e as any);
     }
   }, { enableOnFormTags: ['textarea'] });
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && !isLoading && formValue?.trim()) {
-        handleFormSubmit({ message: formValue });
+      if (!disabled && !isLoading && input.trim()) {
+        handleFormSubmit(e as any);
       }
     }
   };
 
-  const handleFormSubmit = (data: MessageFormData) => {
-    if (!disabled && !isLoading && data.message.trim()) {
-      // Create a synthetic form event for compatibility
-      const syntheticEvent = {
-        preventDefault: () => {},
-        target: { value: data.message },
-        currentTarget: null,
-        bubbles: false,
-        cancelable: false,
-        defaultPrevented: false,
-        eventPhase: 0,
-        isTrusted: false,
-        nativeEvent: {} as Event,
-        persist: () => {},
-        stopPropagation: () => {},
-        timeStamp: Date.now(),
-        type: 'submit'
-      } as unknown as FormEvent;
-      
-      onSubmit(syntheticEvent);
-      reset(); // Clear form after submission
-    }
-  };
-
-  const characterCount = formValue?.length || 0;
+  const characterCount = input?.length || 0;
   const isOverLimit = characterCount > 4000;
   const isNearLimit = characterCount > 3500;
 
@@ -138,20 +85,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       animate={{ opacity: 1, y: 0 }}
       className="w-full"
     >
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="relative">
+      <form onSubmit={handleFormSubmit} className="relative">
         {/* Main Input Container */}
         <div className={`flex items-end gap-3 p-4 bg-white dark:bg-gray-800 border rounded-2xl transition-all duration-200 ${
           disabled 
             ? 'border-gray-200 dark:border-gray-700 opacity-60' 
-            : errors.message
+            : isOverLimit
               ? 'border-red-300 dark:border-red-600 ring-2 ring-red-100 dark:ring-red-900/20'
               : 'border-gray-300 dark:border-gray-600 focus-within:border-blue-500 dark:focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/20'
         }`}>
           {/* Textarea */}
           <div className="flex-1 min-w-0">
             <textarea
-              {...register('message')}
               ref={textareaRef}
+              value={input}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               disabled={disabled || isLoading}
@@ -168,9 +116,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {/* Send Button */}
           <button
             type="submit"
-            disabled={disabled || isLoading || !isValid || !formValue?.trim()}
+            disabled={disabled || isLoading || !input.trim() || isOverLimit}
             className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 ${
-              disabled || isLoading || !isValid || !formValue?.trim()
+              disabled || isLoading || !input.trim() || isOverLimit
                 ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transform hover:scale-105'
             }`}
@@ -179,9 +127,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ? "Input disabled" 
                 : isLoading 
                   ? "Sending..." 
-                  : !formValue?.trim()
+                  : !input.trim()
                     ? "Type a message to send"
-                    : "Send message (Enter)"
+                    : isOverLimit
+                      ? "Message is too long"
+                      : "Send message (Enter)"
             }
           >
             <AnimatePresence mode="wait">
@@ -212,16 +162,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <div className="flex items-center justify-between mt-2 px-2">
           {/* Left side: Hints and errors */}
           <div className="flex items-center gap-4 text-sm">
-            {errors.message ? (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex items-center gap-1 text-red-600 dark:text-red-400"
-              >
-                <AlertCircle className="w-4 h-4" />
-                <span>{errors.message.message}</span>
-              </motion.div>
-            ) : disabled ? (
+            {disabled ? (
               <span className="text-gray-500 dark:text-gray-400">
                 Input disabled
               </span>

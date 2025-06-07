@@ -16,7 +16,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
   const accessToken = userQuery.data ? 'mock-token' : null; // TODO: Implement proper token management
   const [conversation, setConversation] = useState<ConversationResponse | null>(null);
   const [tokenUsage, setTokenUsage] = useState({ total: 0, cost: 0, model: '' });
-  const [backendError, setBackendError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string } | null>(null);
 
   // AI SDK useChat with custom fetch
   const {
@@ -58,7 +58,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       }
     },
     onError: (error) => {
-      setBackendError(error.message);
+      setError({ message: error.message });
       options.onError?.({
         type: 'error',
         error: error.message,
@@ -109,7 +109,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
         model: recentMessages[0]?.model_name || 'gpt-4',
       });
     } catch (error) {
-      setBackendError(error instanceof Error ? error.message : 'Failed to load conversation');
+      setError({ message: error instanceof Error ? error.message : 'Failed to load conversation' });
     }
   }, [setMessages]);
 
@@ -162,7 +162,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       return uniqueMessagesCount;
     } catch (error) {
       console.error('loadMoreMessages error:', error);
-      setBackendError(error instanceof Error ? error.message : 'Failed to load more messages');
+      setError({ message: error instanceof Error ? error.message : 'Failed to load more messages' });
       return 0;
     }
   }, [setMessages]);
@@ -178,7 +178,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       setConversation(null);
       setMessages([]);
       setTokenUsage({ total: 0, cost: 0, model: '' });
-      setBackendError(null);
+      setError(null);
     }
   }, [options.conversationId, isAuthenticated, loadConversation, setMessages]);
 
@@ -190,12 +190,12 @@ export function useCustomChat(options: CustomChatOptions = {}) {
     onConversationUpdate?: (conv: ConversationResponse) => void;
   }) => {
     if (!isAuthenticated || !accessToken) {
-      setBackendError('Authentication required');
+      setError({ message: 'Authentication required' });
       return;
     }
 
     // Clear previous errors
-    setBackendError(null);
+    setError(null);
 
     // If no conversation exists, create one
     if (!conversation && !submitOptions?.conversationId) {
@@ -215,7 +215,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
           submitOptions.onConversationUpdate(newConv);
         }
       } catch (error) {
-        setBackendError('Failed to create conversation');
+        setError({ message: 'Failed to create conversation' });
         return;
       }
     }
@@ -242,7 +242,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       setTokenUsage({ total: 0, cost: 0, model: 'gpt-4' });
       return newConv;
     } catch (error) {
-      setBackendError('Failed to create conversation');
+      setError({ message: 'Failed to create conversation' });
       return null;
     }
   }, [isAuthenticated, options.memoryEnabled, setMessages]);
@@ -261,7 +261,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       }
       return true;
     } catch (error) {
-      setBackendError('Failed to delete conversation');
+      setError({ message: 'Failed to delete conversation' });
       return false;
     }
   }, [conversation, setMessages]);
@@ -275,7 +275,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
       const result = await chatApi.shareConversation(idToShare);
       return result.share_url;
     } catch (error) {
-      setBackendError('Failed to share conversation');
+      setError({ message: 'Failed to share conversation' });
       return null;
     }
   }, [conversation]);
@@ -287,13 +287,10 @@ export function useCustomChat(options: CustomChatOptions = {}) {
     try {
       return await chatApi.getConversations();
     } catch (error) {
-      setBackendError('Failed to fetch conversations');
+      setError({ message: 'Failed to fetch conversations' });
       return [];
     }
   }, [isAuthenticated]);
-
-  // Combined error handling
-  const error = backendError || aiError?.message || null;
 
   return {
     // AI SDK properties
@@ -321,7 +318,7 @@ export function useCustomChat(options: CustomChatOptions = {}) {
     loadMoreMessages,
     
     // Utilities
-    clearError: () => setBackendError(null),
+    clearError: () => setError(null),
     hasConversation: !!conversation,
     conversationId: conversation?.conversation_id || null,
   };
