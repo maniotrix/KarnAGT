@@ -110,8 +110,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             {/* Message Text with Markdown Support */}
             <div className={`prose prose-sm max-w-none ${
               isUser 
-                ? 'prose-invert text-white' 
-                : 'prose-gray dark:prose-invert text-gray-900 dark:text-white'
+                ? 'prose-invert text-white pr-8' 
+                : 'prose-gray dark:prose-invert text-gray-900 dark:text-white pr-8'
             }`}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}

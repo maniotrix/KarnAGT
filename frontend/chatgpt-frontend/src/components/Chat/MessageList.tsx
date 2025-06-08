@@ -219,14 +219,16 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               const isLastMessage = index === messages.length - 1;
               const isStreamingThisMessage = isLoading && isLastMessage && message.role === 'assistant';
               
+              // Create a more stable key - use message ID if available, fallback to index
+              const messageKey = message.id || `${conversationId}-${message.role}-${index}`;
+              
               return (
                 <motion.div
-                  key={`${message.role}-${index}`}
+                  key={messageKey}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3 }}
-                  layout
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   <ChatMessage 
                     message={message} 
