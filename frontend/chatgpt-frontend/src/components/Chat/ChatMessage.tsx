@@ -76,7 +76,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         )}
 
         {/* Message Content */}
-        <div className={`flex flex-col max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
+        <div className={`flex flex-col ${isUser ? 'max-w-[80%] items-end' : 'max-w-full items-start'}`}>
           {/* Message Header */}
           <div className={`flex items-center gap-2 mb-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
             <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -105,7 +105,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           <div className={`relative px-4 py-3 rounded-2xl max-w-none ${
             isUser 
               ? 'bg-blue-600 text-white ml-8' 
-              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mr-8'
+              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
           }`}>
             {/* Message Text with Markdown Support */}
             <div className={`prose prose-sm max-w-none ${
