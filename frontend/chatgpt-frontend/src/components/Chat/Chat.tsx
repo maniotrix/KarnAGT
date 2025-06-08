@@ -92,6 +92,7 @@ export const Chat: React.FC<ChatProps> = ({
     clearError,
     hasConversation,
     loadMoreMessages,
+    hasMoreMessages,
   } = useChat({
     conversationId,
     memoryEnabled: true,
@@ -347,6 +348,7 @@ export const Chat: React.FC<ChatProps> = ({
           isLoading={isLoading}
           onLoadMore={handleLoadMore}
           conversationId={conversation?.conversation_id}
+          hasMoreMessages={hasMoreMessages}
           onScrollStateChange={handleScrollStateChange}
         />
         

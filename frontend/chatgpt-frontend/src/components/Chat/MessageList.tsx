@@ -10,7 +10,8 @@ import {
   Calculator, 
   Code,
   Loader2,
-  ArrowDown
+  ArrowDown,
+  ArrowUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -32,17 +33,16 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   className = '',
   onLoadMore,
   conversationId,
-  hasMoreMessages = true,
+  hasMoreMessages = false,
   onScrollStateChange
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const isLoadingMoreRef = useRef(false);
   const prevConversationIdRef = useRef(conversationId);
   
-  // Simple scroll handler - just track if user is at bottom and handle load more
+  // Simple scroll handler - only track if user is at bottom
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
     
@@ -52,28 +52,38 @@ const MessageListComponent: React.FC<MessageListProps> = ({
     // Track if user is at bottom (for scroll button visibility)
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
     setIsAtBottom(isNearBottom);
+  }, []);
+
+  // Handle Load More button click
+  const handleLoadMoreClick = useCallback(async () => {
+    if (!onLoadMore || isLoadingMore || !hasMoreMessages) return;
     
-    // Load more when scrolled to top
-    if (scrollTop <= 10 && onLoadMore && !isLoadingMoreRef.current) {
-      isLoadingMoreRef.current = true;
-      setIsLoadingMore(true);
+    // Store current scroll position and height for restoration
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    
+    const oldScrollHeight = container.scrollHeight;
+    const oldScrollTop = container.scrollTop;
+    
+    setIsLoadingMore(true);
+    
+    try {
+      await onLoadMore(messages.length);
       
-      onLoadMore(messages.length)
-        .then(() => {
-          // Keep user near top after loading
-          setTimeout(() => {
-            if (messagesContainerRef.current) {
-              messagesContainerRef.current.scrollTop = 100;
-            }
-          }, 50);
-        })
-        .catch(console.error)
-        .finally(() => {
-          setIsLoadingMore(false);
-          isLoadingMoreRef.current = false;
-        });
+      // Restore scroll position after new messages are loaded
+      setTimeout(() => {
+        if (container) {
+          const newScrollHeight = container.scrollHeight;
+          const heightDifference = newScrollHeight - oldScrollHeight;
+          container.scrollTop = oldScrollTop + heightDifference;
+        }
+      }, 50);
+    } catch (error) {
+      console.error('Failed to load more messages:', error);
+    } finally {
+      setIsLoadingMore(false);
     }
-  }, [onLoadMore, messages.length]);
+  }, [onLoadMore, isLoadingMore, hasMoreMessages, messages.length]);
 
   // ONLY auto-scroll on conversation change or initial load
   useEffect(() => {
@@ -165,29 +175,44 @@ const MessageListComponent: React.FC<MessageListProps> = ({
 
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
-      {/* Load More Indicator */}
-      <AnimatePresence>
-        {isLoadingMore && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-center justify-center py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-          >
-            <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400 mr-2" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Loading more messages...
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Messages Container */}
       <div
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto h-full"
       >
         <div className="flex flex-col space-y-4 p-4">
+          {/* Load More Button - Always at top when more messages available */}
+          <AnimatePresence>
+            {hasMoreMessages && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex justify-center py-2"
+              >
+                <motion.button
+                  onClick={handleLoadMoreClick}
+                  disabled={isLoadingMore}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm font-medium">Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUp className="w-4 h-4" />
+                      <span className="text-sm font-medium">Load More Messages</span>
+                    </>
+                  )}
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <AnimatePresence initial={false}>
             {messages.map((message, index) => {
               // Determine if this message is currently being streamed

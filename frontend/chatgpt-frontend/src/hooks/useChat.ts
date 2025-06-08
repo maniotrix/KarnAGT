@@ -27,6 +27,19 @@ export function useChat(options: ChatOptions = {}) {
   const [conversation, setConversation] = useState<ConversationResponse | null>(null);
   const [tokenUsage, setTokenUsage] = useState({ total: 0, cost: 0, model: '' });
   
+  // Pagination state
+  const [paginationInfo, setPaginationInfo] = useState<{
+    hasNext: boolean;
+    hasPrev: boolean;
+    total: number;
+    currentlyLoaded: number;
+  }>({
+    hasNext: false,
+    hasPrev: false,
+    total: 0,
+    currentlyLoaded: 0
+  });
+  
   // Refs for SSE management
   const eventSourceRef = useRef<EventSource | null>(null);
   const currentStreamingMessageRef = useRef<Message | null>(null);
@@ -53,7 +66,7 @@ export function useChat(options: ChatOptions = {}) {
       setConversation(conv);
       
       // Load messages - the API returns { messages: MessageResponse[], pagination: any }
-      const { messages: recentMessages } = await chatApi.getMessages(conversationId, { 
+      const { messages: recentMessages, pagination } = await chatApi.getMessages(conversationId, { 
         limit: 20, 
         offset: 0 
       });
@@ -61,6 +74,14 @@ export function useChat(options: ChatOptions = {}) {
       // Transform and set messages
       const chatMessages = recentMessages.map(transformBackendMessage);
       setMessages(chatMessages);
+      
+      // Update pagination info
+      setPaginationInfo({
+        hasNext: pagination?.has_next || false,
+        hasPrev: pagination?.has_prev || false,
+        total: pagination?.total || chatMessages.length,
+        currentlyLoaded: chatMessages.length
+      });
       
       // Update token usage
       setTokenUsage({
@@ -76,7 +97,7 @@ export function useChat(options: ChatOptions = {}) {
   // Load more messages (pagination)
   const loadMoreMessages = useCallback(async (conversationId: string, offset: number = 0) => {
     try {
-      const { messages: newMessages } = await chatApi.getMessages(conversationId, { 
+      const { messages: newMessages, pagination } = await chatApi.getMessages(conversationId, { 
         limit: 20, 
         offset 
       });
@@ -91,6 +112,14 @@ export function useChat(options: ChatOptions = {}) {
         uniqueNewMessagesCount = uniqueNewMessages.length;
         return [...uniqueNewMessages, ...prev];
       });
+      
+      // Update pagination info
+      setPaginationInfo(prev => ({
+        hasNext: pagination?.has_next || false,
+        hasPrev: pagination?.has_prev || false,
+        total: pagination?.total || prev.total,
+        currentlyLoaded: prev.currentlyLoaded + uniqueNewMessagesCount
+      }));
       
       return uniqueNewMessagesCount;
     } catch (error) {
@@ -108,6 +137,12 @@ export function useChat(options: ChatOptions = {}) {
       setConversation(null);
       setMessages([]);
       setTokenUsage({ total: 0, cost: 0, model: '' });
+      setPaginationInfo({
+        hasNext: false,
+        hasPrev: false,
+        total: 0,
+        currentlyLoaded: 0
+      });
       setError(null);
     }
   }, [options.conversationId, isAuthenticated, loadConversation]);
@@ -362,6 +397,12 @@ export function useChat(options: ChatOptions = {}) {
       setConversation(newConv);
       setMessages([]);
       setTokenUsage({ total: 0, cost: 0, model: 'gpt-4' });
+      setPaginationInfo({
+        hasNext: false,
+        hasPrev: false,
+        total: 0,
+        currentlyLoaded: 0
+      });
       return newConv;
     } catch (error) {
       setError(new Error('Failed to create conversation'));
@@ -436,6 +477,10 @@ export function useChat(options: ChatOptions = {}) {
     conversation,
     tokenUsage,
     isAuthenticated,
+    
+    // Pagination
+    hasMoreMessages: paginationInfo.hasNext,
+    paginationInfo,
     
     // Actions
     handleSubmit,
