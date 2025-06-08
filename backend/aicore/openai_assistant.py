@@ -72,17 +72,13 @@ class OpenAIAssistant:
         logger.debug("OpenAIAssistant initialized with Agents SDK")
         
     def cancel_openai_result(self):
-        # Cancel the underlying Agents SDK task that contains the actual OpenAI request
-        if (self.current_streaming_result and 
-            hasattr(self.current_streaming_result, '_run_impl_task') and
-            self.current_streaming_result._run_impl_task and 
-            not self.current_streaming_result._run_impl_task.done()):
-            logger.info("🛑 Cancelling the Agents SDK _run_impl_task (contains OpenAI request)")
-            self.current_streaming_result._run_impl_task.cancel()
+        # Use the Agents SDK's built-in cleanup method to cancel all streaming tasks
+        if self.current_streaming_result:
+            logger.info("🛑 Calling Agents SDK _cleanup_tasks() to cancel all streaming tasks")
+            self.current_streaming_result._cleanup_tasks()
+            logger.info("✅ All streaming tasks cancelled via SDK cleanup method")
         else:
-            logger.info("⚠️ No active Agents SDK task to cancel")
-        
-        logger.info("✅ Cancelled underlying OpenAI task")
+            logger.info("⚠️ No active streaming result to cancel")
     
     def cancel_current_stream(self):
         """Cancel the current streaming operation"""
