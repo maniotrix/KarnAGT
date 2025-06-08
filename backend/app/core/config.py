@@ -2,7 +2,7 @@
 Core Configuration Settings
 """
 from typing import List, Optional, Union
-from pydantic import validator, AnyHttpUrl
+from pydantic import validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 import os
