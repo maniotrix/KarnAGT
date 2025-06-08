@@ -64,7 +64,24 @@ class OpenAIAssistant:
         # Store conversation history and last_response_id for continuity
         self.messages = []
         self.last_response_id = None
+        
+        # Store the current streaming result for cancellation
+        self.current_streaming_result = None
+        self.is_cancelled = False
+        
         logger.debug("OpenAIAssistant initialized with Agents SDK")
+    
+    def cancel_current_stream(self):
+        """Cancel the current streaming operation"""
+        logger.info("Cancelling current stream in OpenAIAssistant")
+        self.is_cancelled = True
+        
+        if self.current_streaming_result:
+            # Cancel the underlying asyncio tasks
+            self.current_streaming_result._cleanup_tasks()
+            logger.info("✅ Cancelled aicore streaming tasks")
+        else:
+            logger.warning("No active streaming result to cancel")
     
     async def _async_process_message(self, user_message: str) -> str:
         """Process a user message asynchronously and return the agent's response"""
@@ -120,6 +137,9 @@ class OpenAIAssistant:
         logger.info("Using streaming response mode")
         
         try:
+            # Reset cancellation flag
+            self.is_cancelled = False
+            
             # Run the agent with streaming, using last_response_id if available
             _message_id = self.agent.set_message_id()
             custom_result = {}
@@ -130,21 +150,43 @@ class OpenAIAssistant:
                     previous_response_id=self.last_response_id
                 )
             
+            # Store the streaming result for cancellation
+            self.current_streaming_result = result
+            
             # Collect the full response while streaming
             full_response = ""
             
-            # Process streaming events
-            async for event in result.stream_events():
-                if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
-                    # Get the text delta
-                    text_delta = event.data.delta
-                    
-                    # Add to the full response
-                    full_response += text_delta
-                    
-                    # Call the streaming callback with the delta
-                    if self.streaming_callback:
-                        self.streaming_callback(text_delta)
+            try:
+                # Process streaming events with cancellation check
+                async for event in result.stream_events():
+                    # Check if we were cancelled
+                    if self.is_cancelled:
+                        logger.info("🛑 Stream cancelled by user - stopping processing")
+                        break
+                        
+                    if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                        # Get the text delta
+                        text_delta = event.data.delta
+                        
+                        # Add to the full response
+                        full_response += text_delta
+                        
+                        # Call the streaming callback with the delta
+                        if self.streaming_callback:
+                            self.streaming_callback(text_delta)
+                            
+            except asyncio.CancelledError:
+                logger.info("🛑 Stream cancelled via asyncio.CancelledError")
+                self.is_cancelled = True
+                # Don't re-raise, let it complete gracefully
+            
+            # Clear the streaming result reference
+            self.current_streaming_result = None
+            
+            if self.is_cancelled:
+                logger.info(f"Stream was cancelled, returning partial response: {len(full_response)} chars")
+                # Don't store in messages or update response_id for cancelled streams
+                return full_response
             
             logger.debug(f"Streaming AI response completed: {full_response[:50]}...")
             
@@ -169,6 +211,8 @@ class OpenAIAssistant:
             return full_response
         except Exception as e:
             logger.error(f"Error during streaming agent execution: {e}")
+            # Clear the streaming result reference on error
+            self.current_streaming_result = None
             raise
     
     def process_message(self, user_message: str) -> str:

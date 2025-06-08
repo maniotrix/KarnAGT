@@ -219,6 +219,14 @@ class OpenAIAssistantClient:
             self.assistant.clear_memory()
             logger.info(f"Conversation memory cleared for user {self.user_id}")
     
+    def cancel_streaming(self):
+        """Cancel any active streaming operation"""
+        logger.info(f"Cancelling streaming for user {self.user_id}")
+        if self.assistant:
+            self.assistant.cancel_current_stream()
+        else:
+            logger.warning("No assistant instance to cancel")
+    
     def add_tool(self, tool_name: str, tool_function: Callable):
         """
         Add a custom tool to the assistant

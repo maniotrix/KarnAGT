@@ -153,6 +153,11 @@ class StreamingService:
             MessageResponse or None
         """
         try:
+            # Get assistant client and set it on the streaming handler for cancellation
+            from app.integrations.openai.assistant_client import assistant_manager
+            assistant_client = assistant_manager.get_client(self.user.user_id, conversation_id)
+            stream_handler.set_assistant_client(assistant_client)
+            
             # Use the chat service to send message with streaming
             response = await self.chat_service.send_message_streaming(
                 conversation_id=conversation_id,

@@ -51,7 +51,14 @@ class StreamingHandler:
         self.accumulated_content = ""  # Track partial content for cancellation
         self.client_disconnected = False
         
+        # Store assistant client reference for cancellation
+        self.assistant_client = None
+        
         logger.info(f"StreamingHandler initialized for user {user_id}, stream {self.stream_id}")
+    
+    def set_assistant_client(self, assistant_client):
+        """Set the assistant client reference for cancellation"""
+        self.assistant_client = assistant_client
     
     def streaming_callback(self, token: str):
         """
@@ -184,6 +191,16 @@ class StreamingHandler:
         self.is_cancelled = True
         self.is_streaming = False
         logger.info(f"Cancelling stream for user {self.user_id}, stream {self.stream_id}, reason: {reason}")
+        
+        # Cancel the actual aicore streaming
+        if self.assistant_client:
+            try:
+                self.assistant_client.cancel_streaming()
+                logger.info(f"✅ Cancelled aicore streaming for stream {self.stream_id}")
+            except Exception as e:
+                logger.error(f"❌ Error cancelling aicore streaming: {e}")
+        else:
+            logger.warning(f"No assistant client to cancel for stream {self.stream_id}")
     
     def mark_client_disconnected(self):
         """Mark that the client has disconnected"""
