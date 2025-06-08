@@ -76,12 +76,9 @@ class OpenAIAssistant:
         logger.info("Cancelling current stream in OpenAIAssistant")
         self.is_cancelled = True
         
-        if self.current_streaming_result:
-            # Cancel the underlying asyncio tasks
-            self.current_streaming_result._cleanup_tasks()
-            logger.info("✅ Cancelled aicore streaming tasks")
-        else:
-            logger.warning("No active streaming result to cancel")
+        # No need to access private members - our streaming loop will check is_cancelled
+        # and break out, which naturally closes the HTTP connection to OpenAI
+        logger.info("✅ Set cancellation flag - streaming will stop on next iteration")
     
     async def _async_process_message(self, user_message: str) -> str:
         """Process a user message asynchronously and return the agent's response"""
