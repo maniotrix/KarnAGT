@@ -49,17 +49,17 @@ const MessageListComponent: React.FC<MessageListProps> = ({
     const container = messagesContainerRef.current;
     const { scrollTop, scrollHeight, clientHeight } = container;
     
-    console.log('[DEBUG] Scroll values:', { 
-      scrollTop, 
-      scrollHeight, 
-      clientHeight, 
-      diff: scrollHeight - scrollTop - clientHeight,
-      isAtBottom 
-    });
+    // console.log('[DEBUG] Scroll values:', { 
+    //   scrollTop, 
+    //   scrollHeight, 
+    //   clientHeight, 
+    //   diff: scrollHeight - scrollTop - clientHeight,
+    //   isAtBottom 
+    // });
     
     // Track if user is at bottom (for scroll button visibility)
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
-    console.log('[DEBUG] Setting isAtBottom:', isNearBottom);
+    // console.log('[DEBUG] Setting isAtBottom:', isNearBottom);
     setIsAtBottom(isNearBottom);
   }, [isAtBottom]);
 
@@ -67,7 +67,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   const setMessagesContainerRef = useCallback((element: HTMLDivElement | null) => {
     // Remove listener from old element
     if (messagesContainerRef.current) {
-      console.log('[DEBUG] Removing old scroll listener');
+      // console.log('[DEBUG] Removing old scroll listener');
       messagesContainerRef.current.removeEventListener('scroll', handleScroll);
     }
     
@@ -76,9 +76,9 @@ const MessageListComponent: React.FC<MessageListProps> = ({
     
     // Attach listener to new element
     if (element) {
-      console.log('[DEBUG] Attaching scroll listener to new element');
+      // console.log('[DEBUG] Attaching scroll listener to new element');
       element.addEventListener('scroll', handleScroll, { passive: true });
-      console.log('[DEBUG] Scroll listener attached successfully');
+      // console.log('[DEBUG] Scroll listener attached successfully');
     }
   }, [handleScroll]);
 
@@ -131,7 +131,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   // Check scroll position when content changes (during streaming)
   useEffect(() => {
     if (isLoading && messagesContainerRef.current) {
-      console.log('[DEBUG] Content changed during streaming, checking scroll position');
+      // console.log('[DEBUG] Content changed during streaming, checking scroll position');
       handleScroll(); // Manually trigger scroll position check
     }
   }, [messages, isLoading, handleScroll]);
@@ -145,7 +145,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
     
     // Show scroll button when user is not at bottom
     const shouldShowButton = !isAtBottom;
-    console.log('[DEBUG] Scroll button visibility:', { isAtBottom, isLoading, shouldShowButton });
+    // console.log('[DEBUG] Scroll button visibility:', { isAtBottom, isLoading, shouldShowButton });
     onScrollStateChange?.(shouldShowButton, scrollToBottom);
   }, [isAtBottom, onScrollStateChange]);
 
