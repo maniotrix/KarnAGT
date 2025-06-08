@@ -46,7 +46,18 @@ Respond in a conversational and friendly tone while maintaining professionalism.
 
 
 class OpenAIAssistant:
-    """Manager class for the OpenAI assistant agent using the Agents SDK"""
+    """
+    Manager class for the OpenAI assistant agent using the Agents SDK
+    
+    TODO : ⚠️  STREAM CANCELLATION NOTE:
+    This class implements stream cancellation using the Agents SDK's built-in cancellation flow.
+    
+    LIMITATION: OpenAI does not provide official stream cancellation API
+    APPROACH: Cancel SDK's _run_impl_task and let SDK handle cleanup gracefully  
+    SIDE EFFECT: May break OpenAI dashboard logging for cancelled requests
+    
+    See cancel_openai_result() method for detailed implementation.
+    """
     agent: CodeExecutorAgent
     def __init__(self, streaming_callback=None):
         """Initialize the agent with OpenAI Agents SDK"""
@@ -72,13 +83,36 @@ class OpenAIAssistant:
         logger.debug("OpenAIAssistant initialized with Agents SDK")
         
     def cancel_openai_result(self):
-        # Use the Agents SDK's built-in cleanup method to cancel all streaming tasks
-        if self.current_streaming_result:
-            logger.info("🛑 Calling Agents SDK _cleanup_tasks() to cancel all streaming tasks")
-            self.current_streaming_result._cleanup_tasks()
-            logger.info("✅ All streaming tasks cancelled via SDK cleanup method")
+        """
+        TODO: ⚠️  STREAM CANCELLATION NOTE:
+        Cancel OpenAI streaming request using SDK-native cancellation flow
+        
+        APPROACH: Use the Agents SDK's intended cancellation mechanism
+        
+        HOW IT WORKS:
+        1. Cancel the main _run_impl_task (contains OpenAI request)
+        2. SDK receives asyncio.CancelledError in stream_events() 
+        3. SDK breaks out of event loop gracefully
+        4. SDK automatically calls _cleanup_tasks() to clean up all tasks
+        
+        BENEFITS:
+        - ✅ Uses SDK's intended design pattern
+        - ✅ Cleaner code (let SDK handle its own cleanup)
+        - ✅ More robust (follows documented cancellation flow)
+        - ✅ Still effectively cancels OpenAI request
+        
+        SIDE EFFECTS:
+        - ❌ Still breaks OpenAI dashboard logging (network-level cancellation)
+        - ⚠️ OpenAI doesn't provide official stream cancellation API
+        """
+        if (self.current_streaming_result and 
+            self.current_streaming_result._run_impl_task and 
+            not self.current_streaming_result._run_impl_task.done()):
+            logger.info("🛑 Cancelling Agents SDK _run_impl_task (SDK will handle cleanup automatically)")
+            self.current_streaming_result._run_impl_task.cancel()
+            logger.info("✅ Task cancelled - SDK will process CancelledError and cleanup gracefully")
         else:
-            logger.info("⚠️ No active streaming result to cancel")
+            logger.info("⚠️ No active streaming task to cancel")
     
     def cancel_current_stream(self):
         """Cancel the current streaming operation"""
