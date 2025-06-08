@@ -40,6 +40,9 @@ export function useChat(options: ChatOptions = {}) {
     currentlyLoaded: 0
   });
   
+  // Stream state for stop functionality
+  const [currentStreamId, setCurrentStreamId] = useState<string | null>(null);
+  
   // Refs for SSE management
   const eventSourceRef = useRef<EventSource | null>(null);
   const currentStreamingMessageRef = useRef<Message | null>(null);
@@ -147,14 +150,71 @@ export function useChat(options: ChatOptions = {}) {
     }
   }, [options.conversationId, isAuthenticated, loadConversation]);
 
-  // Stop streaming
-  const stop = useCallback(() => {
+  // Extract stream_id from SSE events - exactly like the test file does
+  const extractStreamIdFromSSE = useCallback((data: string): string | null => {
+    if (!data || data === '[DONE]' || data === '') {
+      return null;
+    }
+    
+    try {
+      const event = JSON.parse(data);
+      
+      // Look for stream_id in various event types (as shown in test file)
+      if ('stream_id' in event) {
+        return event.stream_id;
+      }
+      
+      // Also check nested data
+      if ('data' in event && typeof event.data === 'object' && event.data !== null && 'stream_id' in event.data) {
+        return event.data.stream_id;
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  // Stop streaming - updated to use backend stream cancellation API
+  const stop = useCallback(async () => {
+    console.log('Stop called - currentStreamId:', currentStreamId);
+    
+    // Cancel backend stream if we have a stream ID
+    if (currentStreamId) {
+      try {
+        const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT.CANCEL_STREAM(currentStreamId)), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+        });
+        
+        if (response.status === 200) {
+          console.log('✅ Stream cancelled successfully');
+        } else if (response.status === 410) {
+          console.log('✅ Stream already completed (410 - expected for fast streams)');
+        } else if (response.status === 404) {
+          console.log('⚠️ Stream not found (may have already ended)');
+        } else {
+          console.error('❌ Stream cancellation failed:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ Stream cancellation error:', error);
+      }
+    }
+    
+    // Clean up EventSource (legacy support)
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+    
+    // Update state
     setIsLoading(false);
-  }, []);
+    setCurrentStreamId(null);
+  }, [currentStreamId]);
 
   // Send message with SSE streaming
   const sendMessage = useCallback(async (content: string, conversationId: string) => {
@@ -220,16 +280,20 @@ export function useChat(options: ChatOptions = {}) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let streamIdCaptured = false;
 
       if (!reader) {
         throw new Error('No response body');
       }
+
+      console.log('🌊 Stream started, waiting for stream_id...');
 
       while (true) {
         const { done, value } = await reader.read();
         
         if (done) {
           setIsLoading(false);
+          setCurrentStreamId(null);
           break;
         }
 
@@ -245,8 +309,19 @@ export function useChat(options: ChatOptions = {}) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6);
             
+            // Try to capture stream_id from this event (critical for stop button)
+            if (!streamIdCaptured) {
+              const extractedStreamId = extractStreamIdFromSSE(data);
+              if (extractedStreamId) {
+                setCurrentStreamId(extractedStreamId);
+                streamIdCaptured = true;
+                console.log('🎯 STREAM_ID CAPTURED:', extractedStreamId);
+              }
+            }
+            
             if (data === '[DONE]') {
               setIsLoading(false);
+              setCurrentStreamId(null);
               options.onStreamEnd?.({
                 type: 'end',
                 message: currentStreamingMessageRef.current as any,
@@ -324,6 +399,7 @@ export function useChat(options: ChatOptions = {}) {
                 case 'end':
                 case 'stream_end':
                   setIsLoading(false);
+                  setCurrentStreamId(null);
                   options.onStreamEnd?.({
                     type: 'end',
                     message: currentStreamingMessageRef.current as any,
@@ -341,6 +417,7 @@ export function useChat(options: ChatOptions = {}) {
     } catch (error) {
       setError(error instanceof Error ? error : new Error('Failed to send message'));
       setIsLoading(false);
+      setCurrentStreamId(null);
     } finally {
       currentStreamingMessageRef.current = null;
     }

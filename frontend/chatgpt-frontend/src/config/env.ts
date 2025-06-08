@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
     SHARE_CONVERSATION: (id: string) => `/api/v1/chat/conversations/${id}/share`,
     BULK_CONVERSATIONS: '/api/v1/chat/conversations/bulk',
     TEST_STREAMING: '/api/v1/chat/stream/test',
+    CANCEL_STREAM: (streamId: string) => `/api/v1/chat/stream/cancel/${streamId}`,
   },
   
   // Other endpoints
