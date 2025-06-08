@@ -391,9 +391,10 @@ async def cancel_stream(
                 "cancelled": True
             }
         else:
+            # Stream not found - client tried to cancel but action failed
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Stream {stream_id} not found or already completed"
+                status_code=status.HTTP_410_GONE,
+                detail=f"Stream {stream_id} has already completed and cannot be cancelled"
             )
             
     except Exception as e:
