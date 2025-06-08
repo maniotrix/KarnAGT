@@ -1,5 +1,5 @@
 // ChatApp - Modern Chat Component using Clean Architecture
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   useConversations, 
   useDeleteConversation, 
@@ -27,6 +27,8 @@ export const ChatApp: React.FC = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId || null);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   // Clean Architecture Hooks
@@ -56,6 +58,21 @@ export const ChatApp: React.FC = () => {
   const currentConversation = conversations?.find(
     conv => conv.conversationId === currentConversationId
   );
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+
+    if (showUserDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserDropdown]);
 
   // Handle conversation creation for new messages from homepage
   const handleCreateConversationForMessage = async (messageContent: string): Promise<ConversationResponse | null> => {
@@ -304,18 +321,76 @@ export const ChatApp: React.FC = () => {
             <span className="text-sm text-gray-600">
               Hello, {user?.getDisplayName()}
             </span>
-            <div className="hidden lg:flex items-center space-x-2">
+            <div className="hidden lg:flex items-center space-x-2 relative">
               {user?.hasAvatar() ? (
                 <img
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-full cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
                   src={user.avatarUrl}
                   alt={user.getDisplayName()}
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
                 />
               ) : (
-                <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+                <div 
+                  className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors"
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                >
                   <span className="text-white text-sm font-medium">
                     {user?.getInitials()}
                   </span>
+                </div>
+              )}
+              
+              {/* User Dropdown - Shows quota and user info */}
+              {showUserDropdown && (
+                <div ref={dropdownRef} className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 p-4">
+                  <div className="flex items-start space-x-3 mb-3">
+                    {user?.hasAvatar() ? (
+                      <img
+                        className="h-10 w-10 rounded-full"
+                        src={user.avatarUrl}
+                        alt={user.getDisplayName()}
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                        <span className="text-white text-sm font-medium">
+                          {user?.getInitials()}
+                        </span>
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-medium">{user?.getDisplayName()}</div>
+                      <div className="text-sm text-gray-500">{user?.email}</div>
+                      <div className="mt-1 flex items-center">
+                        <Crown className="h-3 w-3 mr-1 text-yellow-500" />
+                        <span className="text-xs bg-green-100 px-2 py-0.5 rounded-full uppercase font-medium text-green-800">
+                          {user?.subscriptionTier} plan
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Quota Info */}
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600">Usage Quota</span>
+                      <span className="font-medium">70%</span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="bg-blue-600 h-full rounded-full" style={{ width: '70%' }} />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>7,000 / 10,000 tokens</span>
+                      <span>~$0.14 used</span>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </button>
                 </div>
               )}
             </div>

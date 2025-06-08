@@ -235,7 +235,7 @@ export const Chat: React.FC<ChatProps> = ({
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0"
+        className="flex justify-between items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0"
       >
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -257,40 +257,6 @@ export const Chat: React.FC<ChatProps> = ({
               </div>
             </div>
           )}
-        </div>
-        
-        {/* User Info & Quota */}
-        <div className="flex flex-col items-end space-y-2">
-          <div className="flex items-center space-x-2">
-            <Avatar className="w-8 h-8">
-              <AvatarImage src={currentUser?.avatarUrl} />
-              <AvatarFallback className="bg-blue-100 dark:bg-blue-900">
-                <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="text-right">
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                {currentUser?.fullName || currentUser?.email}
-              </div>
-              <div className="flex items-center space-x-1">
-                <Crown className="w-3 h-3 text-yellow-500" />
-                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-full uppercase font-medium">
-                  {currentUser?.subscriptionTier}
-                </span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Quota Progress Bar */}
-          <div className="flex items-center space-x-2">
-            <Progress 
-              value={Math.min(quota.percentage, 100)} 
-              className="w-20 h-2"
-            />
-            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-              {quota.used}/{quota.total}
-            </span>
-          </div>
         </div>
       </motion.div>
 
