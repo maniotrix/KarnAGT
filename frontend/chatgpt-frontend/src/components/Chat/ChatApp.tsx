@@ -290,14 +290,14 @@ export const ChatApp: React.FC = () => {
                 </div>
               </div>
             </div>
-            <button
+            {/* <button
               onClick={handleLogout}
               disabled={logoutMutation.isPending}
               className="w-full flex items-center justify-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
             >
               <LogOut className="h-4 w-4 mr-2" />
               {logoutMutation.isPending ? 'Signing out...' : 'Sign Out'}
-            </button>
+            </button> */}
           </div>
         </div>
       </div>
