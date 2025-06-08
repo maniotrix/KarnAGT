@@ -80,7 +80,7 @@ class OpenAIAssistant:
         # and break out, which naturally closes the HTTP connection to OpenAI
         logger.info("✅ Set cancellation flag - streaming will stop on next iteration")
     
-    async def _async_process_message(self, user_message: str) -> str:
+    async def _async_process_message(self, user_message: str) -> Dict[str, Any]:
         """Process a user message asynchronously and return the agent's response"""
         logger.info(f"Processing user message: {user_message[:50]}...")
         
@@ -124,12 +124,16 @@ class OpenAIAssistant:
                 # Store the AI response in history
                 self.messages.append({"role": "assistant", "content": response})
                 
-                return response
+                return {
+                    "content": response,
+                    "was_cancelled": False,
+                    "partial_response": False
+                }
         except Exception as e:
             logger.error(f"Error during agent execution: {e}")
             raise
     
-    async def _stream_response(self, user_message: str) -> str:
+    async def _stream_response(self, user_message: str) -> Dict[str, Any]:
         """Process a user message with streaming enabled"""
         logger.info("Using streaming response mode")
         
@@ -183,7 +187,11 @@ class OpenAIAssistant:
             if self.is_cancelled:
                 logger.info(f"Stream was cancelled, returning partial response: {len(full_response)} chars")
                 # Don't store in messages or update response_id for cancelled streams
-                return full_response
+                return {
+                    "content": full_response,
+                    "was_cancelled": True,
+                    "partial_response": True
+                }
             
             logger.debug(f"Streaming AI response completed: {full_response[:50]}...")
             
@@ -205,7 +213,11 @@ class OpenAIAssistant:
             # Store the AI response in history
             self.messages.append({"role": "assistant", "content": full_response})
             
-            return full_response
+            return {
+                "content": full_response,
+                "was_cancelled": False,
+                "partial_response": False
+            }
         except Exception as e:
             logger.error(f"Error during streaming agent execution: {e}")
             # Clear the streaming result reference on error
@@ -214,7 +226,11 @@ class OpenAIAssistant:
     
     def process_message(self, user_message: str) -> str:
         """Process a user message and return the agent's response (synchronous wrapper)"""
-        return asyncio.run(self._async_process_message(user_message))
+        result = asyncio.run(self._async_process_message(user_message))
+        # For backward compatibility, return just the content string
+        if isinstance(result, dict):
+            return result.get("content", "")
+        return result
     
     def clear_memory(self) -> None:
         """Clear the agent's memory"""

@@ -82,6 +82,7 @@ class MessageService:
                 content=message_data.content,
                 role=message_data.role,
                 message_type=getattr(message_data, 'message_type', 'text'),
+                status=getattr(message_data, 'status', 'completed'),
                 extra_metadata=getattr(message_data, 'metadata', {})
             )
             

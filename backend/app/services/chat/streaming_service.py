@@ -91,15 +91,8 @@ class StreamingService:
             async for event in stream_generator:
                 yield event
                 
-                # Check if this is a cancellation event to handle partial message saving
-                if "cancelled" in event and stream_handler.is_cancelled:
-                    # Save partial message if we have accumulated content
-                    if stream_handler.accumulated_content.strip():
-                        await self._save_partial_message(
-                            conversation_id, 
-                            stream_handler.accumulated_content,
-                            "cancelled"
-                        )
+                # Note: Partial message saving removed - now handled in chat service
+                # based on cancellation status from AI core
             
             # Wait for message processing to complete and get the result
             try:
@@ -183,63 +176,6 @@ class StreamingService:
             # Stop streaming on error
             stream_handler.stop_streaming()
             raise
-    
-    async def _save_partial_message(
-        self,
-        conversation_id: str,
-        partial_content: str,
-        status: str = "cancelled"
-    ) -> Optional[str]:
-        """
-        Save a partial message when streaming is cancelled
-        
-        Args:
-            conversation_id: The conversation ID
-            partial_content: The partial content received
-            status: Message status (cancelled, error, etc.)
-            
-        Returns:
-            Message ID if saved, None otherwise
-        """
-        try:
-            if not partial_content.strip():
-                logger.info("No content to save for cancelled message")
-                return None
-            
-            # Create partial message data
-            partial_message_data = MessageCreate(
-                content=partial_content,
-                role="assistant"
-            )
-            
-            # Save the partial message with cancelled status
-            message = await self.chat_service.message_service.create_message(
-                conversation_id, 
-                partial_message_data
-            )
-            
-            # Update the message status to cancelled
-            from sqlalchemy import update
-            from app.models.database.message import Message
-            
-            update_stmt = update(Message).where(
-                Message.id == message.id
-            ).values(
-                status=status,
-                stream_completed=False,
-                is_streaming=False,
-                completed_at=datetime.utcnow()
-            )
-            
-            await self.chat_service.db.execute(update_stmt)
-            await self.chat_service.db.commit()
-            
-            logger.info(f"Saved partial message {message.message_id} with status '{status}' for conversation {conversation_id}")
-            return message.message_id
-            
-        except Exception as e:
-            logger.error(f"Error saving partial message: {e}")
-            return None
     
     async def cancel_stream(self, stream_id: str, reason: str = "user_requested") -> bool:
         """

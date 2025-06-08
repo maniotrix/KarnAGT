@@ -118,8 +118,8 @@ class OpenAIAssistantClient:
         logger.info(f"Processing message for user {self.user_id}")
         
         try:
-            # Process the message through aicore
-            ai_response = await self.assistant._async_process_message(message)
+            # Process the message through aicore - now returns dict with cancellation info
+            ai_response_data = await self.assistant._async_process_message(message)
             
             # Extract plots if any were generated
             plots = []
@@ -131,7 +131,9 @@ class OpenAIAssistantClient:
             
             # Prepare response data
             response_data = {
-                "content": ai_response,
+                "content": ai_response_data["content"],  # Extract content from dict
+                "was_cancelled": ai_response_data.get("was_cancelled", False),
+                "partial_response": ai_response_data.get("partial_response", False),
                 "type": "text",
                 "plots": plots,
                 "metadata": {
@@ -176,8 +178,8 @@ class OpenAIAssistantClient:
         self.set_streaming_callback(callback)
         
         try:
-            # Process the message with streaming
-            ai_response = await self.assistant._async_process_message(message)
+            # Process the message with streaming - now returns dict with cancellation info
+            ai_response_data = await self.assistant._async_process_message(message)
             
             # Extract plots if any were generated
             plots = []
@@ -187,9 +189,11 @@ class OpenAIAssistantClient:
                 if current_msg_id in plots_data:
                     plots = plots_data[current_msg_id]
             
-            # Prepare response data
+            # Prepare response data with cancellation status
             response_data = {
-                "content": ai_response,
+                "content": ai_response_data["content"],  # Extract content from dict
+                "was_cancelled": ai_response_data.get("was_cancelled", False),  # Pass through cancellation status
+                "partial_response": ai_response_data.get("partial_response", False),
                 "type": "text",
                 "plots": plots,
                 "metadata": {
@@ -203,7 +207,7 @@ class OpenAIAssistantClient:
                 }
             }
             
-            logger.info(f"Streaming AI response completed for user {self.user_id}")
+            logger.info(f"Streaming AI response completed for user {self.user_id}, cancelled: {ai_response_data.get('was_cancelled', False)}")
             return response_data
             
         except Exception as e:

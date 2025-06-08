@@ -9,6 +9,8 @@ import uuid
 from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update
+from sqlalchemy.orm import selectinload
 
 from app.integrations.openai.assistant_client import assistant_manager, OpenAIAssistantClient
 from app.integrations.openai.cost_tracker import CostTracker
@@ -16,6 +18,8 @@ from app.integrations.openai.error_handler import handle_openai_errors
 from app.services.chat.conversation_service import ConversationService
 from app.services.chat.message_service import MessageService
 from app.models.database.user import User
+from app.models.database.conversation import Conversation
+from app.models.database.message import Message
 from app.models.schemas.chat_schemas import (
     ConversationCreate,
     ConversationResponse,
@@ -351,10 +355,11 @@ class ChatService:
                 }
             )
             
-            # Save AI response message
+            # Save AI response message with appropriate status based on cancellation
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
-                role="assistant"
+                role="assistant",
+                status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
@@ -366,6 +371,10 @@ class ChatService:
             ai_message_content = ai_message.content
             ai_message_extra_metadata = ai_message.extra_metadata or {}
             ai_message_created_at = ai_message.created_at
+            
+            # Log cancellation if it occurred
+            if ai_response_data.get("was_cancelled", False):
+                logger.info(f"Message {ai_message.message_id} created with cancelled status due to stream cancellation")
             
             # Track costs
             await self.cost_tracker.track_usage(
@@ -379,6 +388,7 @@ class ChatService:
                     "user_message_id": user_message_id,
                     "ai_message_id": ai_message_id,
                     "streaming": True,
+                    "was_cancelled": ai_response_data.get("was_cancelled", False),
                     "plots": ai_response_data.get("plots", [])
                 }
             )
