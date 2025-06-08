@@ -18,6 +18,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <ErrorPage 
       title="Authentication Error" 
       message="There was a problem verifying your authentication. Please try logging in again."
+      showLoginButton={true}
     />;
   }
 

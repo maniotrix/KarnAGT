@@ -5,11 +5,13 @@ import { AlertTriangle } from 'lucide-react';
 interface ErrorPageProps {
   title?: string;
   message?: string;
+  showLoginButton?: boolean;
 }
 
 export const ErrorPage: React.FC<ErrorPageProps> = ({
   title = 'Something went wrong',
-  message = 'We encountered an error while processing your request.'
+  message = 'We encountered an error while processing your request.',
+  showLoginButton = false
 }) => {
   const navigate = useNavigate();
   
@@ -31,19 +33,39 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
         </p>
         
         <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-3 justify-center">
-          <button
-            onClick={() => navigate('/')}
-            className="px-5 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Go to Home
-          </button>
-          
-          <button
-            onClick={() => navigate(-1)}
-            className="px-5 py-2 bg-gray-200 text-gray-800 font-medium rounded-md hover:bg-gray-300 transition-colors"
-          >
-            Go Back
-          </button>
+          {showLoginButton ? (
+            <>
+              <button
+                onClick={() => navigate('/login')}
+                className="px-5 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Go to Login
+              </button>
+              
+              <button
+                onClick={() => navigate('/register')}
+                className="px-5 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors"
+              >
+                Create Account
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/')}
+                className="px-5 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Go to Home
+              </button>
+              
+              <button
+                onClick={() => navigate(-1)}
+                className="px-5 py-2 bg-gray-200 text-gray-800 font-medium rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Go Back
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
