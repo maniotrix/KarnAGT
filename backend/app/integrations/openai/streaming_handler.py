@@ -8,7 +8,7 @@ integrating with the aicore streaming capabilities.
 import asyncio
 import json
 import uuid
-from typing import AsyncGenerator, Dict, Any, Optional
+from typing import AsyncGenerator, Dict, Any, Optional, List
 from datetime import datetime
 import queue
 import threading
@@ -31,6 +31,7 @@ class StreamingHandler:
     - Event formatting for SSE
     - Error handling and connection management
     - Integration with aicore streaming callbacks
+    - Cancellation support with client disconnection detection
     """
     
     def __init__(self, user_id: str, conversation_id: Optional[str] = None):
@@ -45,7 +46,10 @@ class StreamingHandler:
         self.conversation_id = conversation_id
         self.token_queue = asyncio.Queue()
         self.is_streaming = False
+        self.is_cancelled = False
         self.stream_id = str(uuid.uuid4())
+        self.accumulated_content = ""  # Track partial content for cancellation
+        self.client_disconnected = False
         
         logger.info(f"StreamingHandler initialized for user {user_id}, stream {self.stream_id}")
     
@@ -56,7 +60,10 @@ class StreamingHandler:
         Args:
             token: The streaming token from OpenAI
         """
-        if self.is_streaming:
+        if self.is_streaming and not self.is_cancelled:
+            # Accumulate content for potential cancellation handling
+            self.accumulated_content += token
+            
             # Put token in queue for async processing
             try:
                 # Use a thread-safe method to put the token
@@ -89,10 +96,33 @@ class StreamingHandler:
             })
             
             # Process streaming tokens
-            while self.is_streaming:
+            while self.is_streaming and not self.is_cancelled:
                 try:
                     # Wait for tokens with a timeout to allow for graceful shutdown
                     token = await asyncio.wait_for(self.token_queue.get(), timeout=1.0)
+                    
+                    # Check if we were cancelled while waiting
+                    if self.is_cancelled:
+                        logger.info(f"Stream {self.stream_id} was cancelled, stopping token processing")
+                        yield self._format_sse_event("cancelled", {
+                            "stream_id": self.stream_id,
+                            "partial_content": self.accumulated_content,
+                            "reason": "user_cancelled",
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        break
+                    
+                    # Check for client disconnection
+                    if self.client_disconnected:
+                        logger.info(f"Client disconnected for stream {self.stream_id}")
+                        self.is_cancelled = True
+                        yield self._format_sse_event("cancelled", {
+                            "stream_id": self.stream_id,
+                            "partial_content": self.accumulated_content,
+                            "reason": "client_disconnected",
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        break
                     
                     # Format and yield the token
                     yield self._format_sse_event("token", {
@@ -129,18 +159,37 @@ class StreamingHandler:
                 "timestamp": datetime.utcnow().isoformat()
             })
         finally:
-            # Send stream end event
-            yield self._format_sse_event("stream_end", {
-                "stream_id": self.stream_id,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            # Send appropriate end event
+            if self.is_cancelled:
+                yield self._format_sse_event("stream_cancelled", {
+                    "stream_id": self.stream_id,
+                    "partial_content": self.accumulated_content,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            else:
+                yield self._format_sse_event("stream_end", {
+                    "stream_id": self.stream_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
             
-            logger.info(f"Stream ended for user {self.user_id}, stream {self.stream_id}")
+            logger.info(f"Stream ended for user {self.user_id}, stream {self.stream_id}, cancelled: {self.is_cancelled}")
     
     def stop_streaming(self):
         """Stop the streaming process"""
         self.is_streaming = False
         logger.info(f"Stopping stream for user {self.user_id}, stream {self.stream_id}")
+    
+    def cancel_streaming(self, reason: str = "user_requested"):
+        """Cancel the streaming process with a reason"""
+        self.is_cancelled = True
+        self.is_streaming = False
+        logger.info(f"Cancelling stream for user {self.user_id}, stream {self.stream_id}, reason: {reason}")
+    
+    def mark_client_disconnected(self):
+        """Mark that the client has disconnected"""
+        self.client_disconnected = True
+        self.is_cancelled = True
+        logger.info(f"Client disconnected for stream {self.stream_id}")
     
     def _format_sse_event(self, event_type: str, data: Dict[str, Any]) -> str:
         """
@@ -167,7 +216,7 @@ class StreamingHandler:
         Args:
             response_data: The complete response data
         """
-        if self.is_streaming:
+        if self.is_streaming and not self.is_cancelled:
             await self.token_queue.put("__COMPLETION__")
             
             # Format completion event
@@ -230,6 +279,65 @@ class StreamingManager:
             self.streams[stream_id].stop_streaming()
             del self.streams[stream_id]
             logger.info(f"Removed streaming handler {stream_id}")
+    
+    def cancel_stream(self, stream_id: str, reason: str = "user_requested") -> bool:
+        """
+        Cancel a specific stream
+        
+        Args:
+            stream_id: The stream ID to cancel
+            reason: Reason for cancellation
+            
+        Returns:
+            True if stream was found and cancelled, False otherwise
+        """
+        if stream_id in self.streams:
+            self.streams[stream_id].cancel_streaming(reason)
+            logger.info(f"Cancelled streaming handler {stream_id}, reason: {reason}")
+            return True
+        else:
+            logger.warning(f"Stream {stream_id} not found for cancellation")
+            return False
+    
+    def cancel_user_streams(self, user_id: str, reason: str = "user_requested") -> int:
+        """
+        Cancel all streams for a specific user
+        
+        Args:
+            user_id: The user ID
+            reason: Reason for cancellation
+            
+        Returns:
+            Number of streams cancelled
+        """
+        user_streams = [
+            (stream_id, handler) for stream_id, handler in self.streams.items()
+            if handler.user_id == user_id and handler.is_streaming
+        ]
+        
+        for stream_id, handler in user_streams:
+            handler.cancel_streaming(reason)
+        
+        cancelled_count = len(user_streams)
+        if cancelled_count > 0:
+            logger.info(f"Cancelled {cancelled_count} streams for user {user_id}, reason: {reason}")
+        
+        return cancelled_count
+    
+    def get_user_active_streams(self, user_id: str) -> List[str]:
+        """
+        Get all active stream IDs for a user
+        
+        Args:
+            user_id: The user ID
+            
+        Returns:
+            List of active stream IDs
+        """
+        return [
+            stream_id for stream_id, handler in self.streams.items()
+            if handler.user_id == user_id and handler.is_streaming and not handler.is_cancelled
+        ]
     
     def cleanup_inactive_streams(self):
         """Clean up inactive streaming handlers"""

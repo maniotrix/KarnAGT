@@ -5,10 +5,11 @@ This module provides REST API endpoints for chat functionality including:
 - Creating and managing conversations
 - Sending messages and receiving AI responses
 - Real-time streaming of AI responses
+- Streaming cancellation and management
 - Conversation history and search
 """
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -281,7 +282,8 @@ async def stream_message(
     conversation_id: str,
     message_data: MessageCreate,
     current_user: User = Depends(check_chat_quota),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    request: Request = None
 ):
     """
     Send a message and stream the AI response in real-time
@@ -293,6 +295,7 @@ async def stream_message(
     - `token`: Individual tokens as they're generated
     - `completion`: Final message with metadata
     - `error`: Any errors that occur during streaming
+    - `cancelled`: Stream was cancelled due to client disconnection
     """
     logger.info(f"Starting streaming response for conversation {conversation_id}")
     
@@ -300,16 +303,38 @@ async def stream_message(
         chat_service = ChatService(db, current_user)
         streaming_service = StreamingService(chat_service, current_user)
         
-        # Create the streaming generator
-        stream_generator = streaming_service.stream_message_response(
-            conversation_id=conversation_id,
-            content=message_data.content,
-            message_type="text"
-        )
+        # Create the streaming generator with client disconnection detection
+        async def stream_with_disconnection_detection():
+            """Wrapper generator that detects client disconnection"""
+            stream_generator = streaming_service.stream_message_response(
+                conversation_id=conversation_id,
+                content=message_data.content,
+                message_type="text"
+            )
+            
+            try:
+                async for event in stream_generator:
+                    # Check if client is still connected
+                    if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
+                        logger.info(f"Client disconnected for conversation {conversation_id}")
+                        # Cancel any active streams for this user
+                        await streaming_service.cancel_user_streams("client_disconnected")
+                        break
+                    
+                    yield event
+                    
+            except Exception as e:
+                logger.error(f"Error in stream with disconnection detection: {e}")
+                # Try to cancel streams on error
+                try:
+                    await streaming_service.cancel_user_streams("stream_error")
+                except:
+                    pass
+                raise
         
         # Return as Server-Sent Events stream
         return StreamingResponse(
-            stream_generator,
+            stream_with_disconnection_detection(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -328,6 +353,129 @@ async def stream_message(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to start streaming"
+        )
+
+
+@router.post("/stream/cancel/{stream_id}")
+async def cancel_stream(
+    stream_id: str,
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Cancel a specific active stream
+    
+    This endpoint allows users to stop an active stream by its stream ID.
+    When cancelled, any partial response will be saved with "cancelled" status.
+    
+    Args:
+        stream_id: The ID of the stream to cancel
+        
+    Returns:
+        Success response indicating whether the stream was cancelled
+    """
+    logger.info(f"Cancelling stream {stream_id} for user {current_user.user_id}")
+    
+    try:
+        chat_service = ChatService(db, current_user)
+        streaming_service = StreamingService(chat_service, current_user)
+        
+        # Cancel the specific stream
+        cancelled = await streaming_service.cancel_stream(stream_id, "user_requested")
+        
+        if cancelled:
+            return {
+                "success": True,
+                "message": f"Stream {stream_id} cancelled successfully",
+                "stream_id": stream_id,
+                "cancelled": True
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Stream {stream_id} not found or already completed"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error cancelling stream {stream_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to cancel stream"
+        )
+
+
+@router.post("/stream/cancel-all")
+async def cancel_all_user_streams(
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Cancel all active streams for the current user
+    
+    This endpoint allows users to stop all their active streams at once.
+    Useful for cleanup or when switching contexts.
+    
+    Returns:
+        Success response with count of cancelled streams
+    """
+    logger.info(f"Cancelling all streams for user {current_user.user_id}")
+    
+    try:
+        chat_service = ChatService(db, current_user)
+        streaming_service = StreamingService(chat_service, current_user)
+        
+        # Cancel all user streams
+        cancelled_count = await streaming_service.cancel_user_streams("user_requested_all")
+        
+        return {
+            "success": True,
+            "message": f"Cancelled {cancelled_count} active streams",
+            "cancelled_count": cancelled_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cancelling all streams for user {current_user.user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to cancel streams"
+        )
+
+
+@router.get("/stream/active")
+async def get_active_streams(
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all active streams for the current user
+    
+    This endpoint returns information about all currently active streams
+    for the authenticated user.
+    
+    Returns:
+        List of active stream IDs and their status
+    """
+    logger.info(f"Getting active streams for user {current_user.user_id}")
+    
+    try:
+        chat_service = ChatService(db, current_user)
+        streaming_service = StreamingService(chat_service, current_user)
+        
+        # Get active streams
+        active_streams = await streaming_service.get_user_active_streams()
+        
+        return {
+            "success": True,
+            "message": f"Found {len(active_streams)} active streams",
+            "active_streams": active_streams,
+            "count": len(active_streams)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting active streams for user {current_user.user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get active streams"
         )
 
 

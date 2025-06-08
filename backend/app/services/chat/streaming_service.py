@@ -13,7 +13,7 @@ from datetime import datetime
 from app.integrations.openai.streaming_handler import streaming_manager, StreamingHandler
 from app.services.chat.chat_service import ChatService
 from app.models.database.user import User
-from app.models.schemas.chat_schemas import MessageStreamResponse
+from app.models.schemas.chat_schemas import MessageStreamResponse, MessageCreate
 
 from aicore.logger import get_logger
 
@@ -30,6 +30,7 @@ class StreamingService:
     - Integration with chat service
     - Stream lifecycle management
     - Error handling for streaming
+    - Cancellation support with partial message saving
     """
     
     def __init__(self, chat_service: ChatService, user: User):
@@ -89,6 +90,16 @@ class StreamingService:
             # Yield streaming events
             async for event in stream_generator:
                 yield event
+                
+                # Check if this is a cancellation event to handle partial message saving
+                if "cancelled" in event and stream_handler.is_cancelled:
+                    # Save partial message if we have accumulated content
+                    if stream_handler.accumulated_content.strip():
+                        await self._save_partial_message(
+                            conversation_id, 
+                            stream_handler.accumulated_content,
+                            "cancelled"
+                        )
             
             # Wait for message processing to complete and get the result
             try:
@@ -153,9 +164,12 @@ class StreamingService:
             
             logger.info(f"Streaming message processing completed for conversation {conversation_id}")
             
-            # Stop streaming first to ensure database operations complete
-            stream_handler.stop_streaming()
-            logger.info(f"Streaming stopped for conversation {conversation_id}")
+            # Only stop streaming if not cancelled (let cancellation handling do its work)
+            if not stream_handler.is_cancelled:
+                stream_handler.stop_streaming()
+                logger.info(f"Streaming stopped normally for conversation {conversation_id}")
+            else:
+                logger.info(f"Streaming was cancelled for conversation {conversation_id}")
             
             return response
             
@@ -164,6 +178,106 @@ class StreamingService:
             # Stop streaming on error
             stream_handler.stop_streaming()
             raise
+    
+    async def _save_partial_message(
+        self,
+        conversation_id: str,
+        partial_content: str,
+        status: str = "cancelled"
+    ) -> Optional[str]:
+        """
+        Save a partial message when streaming is cancelled
+        
+        Args:
+            conversation_id: The conversation ID
+            partial_content: The partial content received
+            status: Message status (cancelled, error, etc.)
+            
+        Returns:
+            Message ID if saved, None otherwise
+        """
+        try:
+            if not partial_content.strip():
+                logger.info("No content to save for cancelled message")
+                return None
+            
+            # Create partial message data
+            partial_message_data = MessageCreate(
+                content=partial_content,
+                role="assistant"
+            )
+            
+            # Save the partial message with cancelled status
+            message = await self.chat_service.message_service.create_message(
+                conversation_id, 
+                partial_message_data
+            )
+            
+            # Update the message status to cancelled
+            from sqlalchemy import update
+            from app.models.database.message import Message
+            
+            update_stmt = update(Message).where(
+                Message.id == message.id
+            ).values(
+                status=status,
+                stream_completed=False,
+                is_streaming=False,
+                completed_at=datetime.utcnow()
+            )
+            
+            await self.chat_service.db.execute(update_stmt)
+            await self.chat_service.db.commit()
+            
+            logger.info(f"Saved partial message {message.message_id} with status '{status}' for conversation {conversation_id}")
+            return message.message_id
+            
+        except Exception as e:
+            logger.error(f"Error saving partial message: {e}")
+            return None
+    
+    async def cancel_stream(self, stream_id: str, reason: str = "user_requested") -> bool:
+        """
+        Cancel a specific stream
+        
+        Args:
+            stream_id: The stream ID to cancel
+            reason: Reason for cancellation
+            
+        Returns:
+            True if stream was cancelled, False if not found
+        """
+        result = streaming_manager.cancel_stream(stream_id, reason)
+        if result:
+            logger.info(f"Stream {stream_id} cancelled successfully, reason: {reason}")
+        else:
+            logger.warning(f"Stream {stream_id} not found for cancellation")
+        return result
+    
+    async def cancel_user_streams(self, reason: str = "user_requested") -> int:
+        """
+        Cancel all active streams for the current user
+        
+        Args:
+            reason: Reason for cancellation
+            
+        Returns:
+            Number of streams cancelled
+        """
+        cancelled_count = streaming_manager.cancel_user_streams(self.user_id, reason)
+        logger.info(f"Cancelled {cancelled_count} streams for user {self.user_uuid}, reason: {reason}")
+        return cancelled_count
+    
+    async def get_user_active_streams(self) -> list[str]:
+        """
+        Get all active stream IDs for the current user
+        
+        Returns:
+            List of active stream IDs
+        """
+        active_streams = streaming_manager.get_user_active_streams(self.user_id)
+        logger.debug(f"User {self.user_uuid} has {len(active_streams)} active streams")
+        return active_streams
     
     async def stream_conversation_history(
         self,
@@ -206,8 +320,9 @@ class StreamingService:
                         "content": message.content,
                         "role": message.role,
                         "message_type": message.message_type,
+                        "status": message.status,
                         "created_at": message.created_at.isoformat(),
-                        "metadata": message.metadata
+                        "metadata": message.extra_metadata
                     },
                     "index": i,
                     "total": len(messages)
