@@ -606,12 +606,17 @@ export function useChat(options: ChatOptions = {}) {
       
       const decoder = new TextDecoder();
       let buffer = '';
+      let streamIdCaptured = false;
       
       try {
+        console.log('🌊 Edit stream started, waiting for stream_id...');
+        
         while (true) {
           const { done, value } = await reader.read();
           
           if (done) {
+            setIsLoading(false);
+            setCurrentStreamId(null);
             break;
           }
           
@@ -625,6 +630,16 @@ export function useChat(options: ChatOptions = {}) {
             if (line.startsWith('data: ')) {
               const data = line.slice(6).trim();
               
+              // Try to capture stream_id from this event (critical for stop button)
+              if (!streamIdCaptured) {
+                const extractedStreamId = extractStreamIdFromSSE(data);
+                if (extractedStreamId) {
+                  setCurrentStreamId(extractedStreamId);
+                  streamIdCaptured = true;
+                  console.log('🎯 EDIT STREAM_ID CAPTURED:', extractedStreamId);
+                }
+              }
+              
               if (data === '[DONE]') {
                 break;
               }
@@ -632,13 +647,6 @@ export function useChat(options: ChatOptions = {}) {
               try {
                 const event = JSON.parse(data);
                 console.log('Edit stream event:', event);
-                
-                // Extract stream_id for cancellation support (like test file does)
-                const streamId = extractStreamIdFromSSE(line);
-                if (streamId && !currentStreamId) {
-                  setCurrentStreamId(streamId);
-                  console.log('🎯 Captured edit stream_id:', streamId);
-                }
                 
                 switch (event.type) {
                   case 'stream_start':
@@ -708,6 +716,8 @@ export function useChat(options: ChatOptions = {}) {
                       message: currentStreamingMessageRef.current as any,
                       conversation: conversation as any
                     });
+                    // Invalidate queries to refresh conversation list
+                    queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
                     break;
                     
                   case 'error':
