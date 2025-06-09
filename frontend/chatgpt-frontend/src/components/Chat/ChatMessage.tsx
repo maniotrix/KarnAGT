@@ -160,14 +160,14 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           </div>
 
           {/* Message Bubble */}
-          <div className={`relative px-4 py-3 rounded-2xl max-w-none ${
+          <div className={`px-4 py-3 rounded-2xl max-w-none ${
             isUser 
               ? 'bg-blue-600 text-white ml-8' 
               : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
           }`}>
             {/* Message Text with Edit/Display Mode */}
             {isEditing ? (
-              <div className="pr-8">
+              <div>
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
@@ -188,8 +188,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             ) : (
               <div className={`prose prose-sm max-w-none ${
                 isUser 
-                  ? 'prose-invert text-white pr-8' 
-                  : 'prose-gray dark:prose-invert text-gray-900 dark:text-white pr-8'
+                  ? 'prose-invert text-white' 
+                  : 'prose-gray dark:prose-invert text-gray-900 dark:text-white'
               }`}>
                 {/* Show saving indicator if message is being edited */}
                 {isSaving && (
@@ -231,98 +231,98 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 </ReactMarkdown>
               </div>
             )}
+          </div>
 
-            {/* Action Buttons */}
-            <div className="absolute top-2 right-2 flex items-center gap-1">
-              {/* Edit Mode Buttons */}
-              {isEditing ? (
-                <>
+          {/* Action Buttons - Now below the message bubble */}
+          <div className={`flex items-center gap-1 mt-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
+            {/* Edit Mode Buttons */}
+            {isEditing ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleCancel}
+                      disabled={isSaving}
+                      className={`p-1.5 rounded-lg transition-opacity ${
+                        isUser 
+                          ? 'hover:bg-blue-100 text-blue-600' 
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
+                      } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Cancel edit</p>
+                  </TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !editContent.trim() || editContent.trim() === message.content}
+                      className={`p-1.5 rounded-lg transition-opacity ${
+                        isUser 
+                          ? 'hover:bg-green-100 text-green-600' 
+                          : 'hover:bg-green-100 dark:hover:bg-green-900 text-green-600 dark:text-green-400'
+                      } ${(isSaving || !editContent.trim() || editContent.trim() === message.content) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <Save className="w-3 h-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>{isSaving ? 'Saving...' : 'Save changes'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            ) : (
+              <>
+                {/* Edit Button - Only for user messages */}
+                {canEdit && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        onClick={handleCancel}
-                        disabled={isSaving}
-                        className={`p-1.5 rounded-lg transition-opacity ${
-                          isUser 
-                            ? 'hover:bg-blue-700 text-blue-100' 
-                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
-                        } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Cancel edit</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={handleSave}
-                        disabled={isSaving || !editContent.trim() || editContent.trim() === message.content}
-                        className={`p-1.5 rounded-lg transition-opacity ${
-                          isUser 
-                            ? 'hover:bg-blue-700 text-blue-100' 
-                            : 'hover:bg-green-100 dark:hover:bg-green-900 text-green-600 dark:text-green-400'
-                        } ${(isSaving || !editContent.trim() || editContent.trim() === message.content) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <Save className="w-3 h-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{isSaving ? 'Saving...' : 'Save changes'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </>
-              ) : (
-                <>
-                  {/* Edit Button - Only for user messages */}
-                  {canEdit && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={handleEdit}
-                          className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
-                            isUser 
-                              ? 'hover:bg-blue-700 text-blue-100' 
-                              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
-                          }`}
-                        >
-                          <Edit3 className="w-3 h-3" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Edit message</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  
-                  {/* Copy Button */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={handleCopy}
+                        onClick={handleEdit}
                         className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
                           isUser 
-                            ? 'hover:bg-blue-700 text-blue-100' 
+                            ? 'hover:bg-blue-100 text-blue-600' 
                             : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
                         }`}
                       >
-                        {copied ? (
-                          <Check className="w-3 h-3" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
+                        <Edit3 className="w-3 h-3" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{copied ? 'Copied!' : 'Copy message'}</p>
+                    <TooltipContent side="bottom">
+                      <p>Edit message</p>
                     </TooltipContent>
                   </Tooltip>
-                </>
-              )}
-            </div>
+                )}
+                
+                {/* Copy Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleCopy}
+                      className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
+                        isUser 
+                          ? 'hover:bg-blue-100 text-blue-600' 
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      {copied ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>{copied ? 'Copied!' : 'Copy message'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            )}
           </div>
 
           {/* Message Metadata */}
