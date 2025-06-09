@@ -569,4 +569,273 @@ class ChatService:
             
         except Exception as e:
             logger.error(f"Error clearing memory for conversation {conversation_id}: {e}")
-            return False 
+            return False
+    
+    @handle_openai_errors(max_retries=3)
+    async def generate_ai_response_only(
+        self,
+        conversation_id: str,
+        content: str,
+        message_type: str = "text",
+        model: Optional[str] = None
+    ) -> MessageResponse:
+        """
+        Generate an AI response only (for message editing scenarios)
+        
+        This method generates an AI response without creating a new user message.
+        Used when editing existing user messages where we don't want to duplicate
+        the user message in the conversation.
+        
+        Args:
+            conversation_id: The conversation ID
+            content: The user message content to respond to
+            message_type: Type of message
+            model: Optional model override
+            
+        Returns:
+            MessageResponse with AI response only
+        """
+        logger.info(f"Generating AI response only for conversation {conversation_id}")
+        
+        try:
+            # Verify conversation exists and belongs to user
+            conversation = await self.conversation_service.get_conversation(conversation_id)
+            if not conversation:
+                raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
+            
+            # Store model name to avoid accessing detached SQLAlchemy object later
+            model_name = model or conversation.model_name or "gpt-4"
+            
+            # Check quota before processing
+            estimated_tokens = self.cost_tracker.count_tokens(content, model_name)
+            quota_status = await self.cost_tracker.check_user_quota(self.db, estimated_tokens)
+            
+            if not quota_status["allowed"]:
+                raise QuotaExceededException(
+                    f"Quota exceeded: {quota_status.get('reason', 'Unknown reason')}"
+                )
+            
+            # Get conversation context (all existing messages)
+            conversation_history = await self.message_service.get_conversation_messages(
+                conversation_id, 
+                limit=20  # Last 20 messages for context
+            )
+            
+            # Get assistant client
+            assistant_client = assistant_manager.get_client(self.user_uuid, conversation_id)
+            
+            # Set conversation context with all existing messages
+            if conversation_history:
+                context_messages = [
+                    {"role": msg.role, "content": msg.content} 
+                    for msg in conversation_history
+                ]
+                assistant_client.set_conversation_context(context_messages)
+            
+            # Process message with AI (using the edited content)
+            ai_response_data = await assistant_client.send_message(
+                content,
+                message_type=message_type,
+                metadata={
+                    "conversation_id": conversation_id,
+                    "model": model_name,
+                    "edit_response": True  # Mark this as an edit response
+                }
+            )
+            
+            # Save AI response message only
+            ai_message_data = MessageCreate(
+                content=ai_response_data["content"],
+                role="assistant"
+            )
+            
+            ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
+            # Capture all needed values immediately to avoid lazy loading later
+            ai_message_db_id = ai_message.id
+            ai_message_id = ai_message.message_id
+            ai_message_conversation_id = ai_message.conversation_id
+            ai_message_role = ai_message.role
+            ai_message_content = ai_message.content
+            ai_message_extra_metadata = ai_message.extra_metadata or {}
+            ai_message_created_at = ai_message.created_at
+            
+            # Track costs
+            try:
+                await self.cost_tracker.track_usage(
+                    db=self.db,
+                    operation_type="chat_edit",
+                    model=model_name,
+                    input_text=content,
+                    output_text=ai_response_data["content"],
+                    conversation_id=conversation_id,
+                    additional_metadata={
+                        "ai_message_id": ai_message_id,
+                        "plots": ai_response_data.get("plots", []),
+                        "is_edit_response": True
+                    }
+                )
+            except Exception as cost_error:
+                logger.warning(f"Cost tracking failed (non-critical): {cost_error}")
+                # Continue without failing the entire operation
+            
+            # Update conversation
+            await self.conversation_service.update_conversation_activity(conversation_id)
+            
+            logger.info(f"AI response generated successfully for conversation {conversation_id}")
+            
+            return MessageResponse(
+                id=ai_message_db_id,
+                message_id=ai_message_id,
+                conversation_id=ai_message_conversation_id,
+                role=ai_message_role,
+                content=ai_message_content,
+                total_tokens=ai_response_data.get("total_tokens", 0),
+                cost_usd=ai_response_data.get("cost_usd", 0.0),
+                model_name=model_name,
+                finish_reason=ai_response_data.get("finish_reason"),
+                extra_metadata=ai_message_extra_metadata,
+                created_at=ai_message_created_at
+            )
+            
+        except Exception as e:
+            logger.error(f"Error generating AI response for conversation {conversation_id}: {e}")
+            raise MessageProcessingException(f"Failed to generate AI response: {str(e)}")
+
+    @handle_openai_errors(max_retries=3)
+    async def generate_ai_response_only_streaming(
+        self,
+        conversation_id: str,
+        content: str,
+        streaming_callback: Callable[[str], None],
+        message_type: str = "text",
+        model: Optional[str] = None
+    ) -> MessageResponse:
+        """
+        Generate an AI response only with streaming (for message editing scenarios with streaming)
+        
+        This method generates an AI response with streaming without creating a new user message.
+        Used when editing existing user messages and wanting real-time streaming response.
+        
+        Args:
+            conversation_id: The conversation ID
+            content: The user message content to respond to
+            streaming_callback: Callback for streaming tokens
+            message_type: Type of message
+            model: Optional model override
+            
+        Returns:
+            MessageResponse with AI response only
+        """
+        logger.info(f"Generating streaming AI response only for conversation {conversation_id}")
+        
+        try:
+            # Verify conversation exists and belongs to user
+            conversation = await self.conversation_service.get_conversation(conversation_id)
+            if not conversation:
+                raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
+            
+            # Store model name to avoid accessing detached SQLAlchemy object later
+            model_name = model or conversation.model_name or "gpt-4"
+            
+            # Check quota before processing
+            estimated_tokens = self.cost_tracker.count_tokens(content, model_name)
+            quota_status = await self.cost_tracker.check_user_quota(self.db, estimated_tokens)
+            
+            if not quota_status["allowed"]:
+                raise QuotaExceededException(
+                    f"Quota exceeded: {quota_status.get('reason', 'Unknown reason')}"
+                )
+            
+            # Get conversation context (all existing messages)
+            conversation_history = await self.message_service.get_conversation_messages(
+                conversation_id, 
+                limit=20  # Last 20 messages for context
+            )
+            
+            # Get assistant client
+            assistant_client = assistant_manager.get_client(self.user_uuid, conversation_id)
+            
+            # Set conversation context with all existing messages
+            if conversation_history:
+                context_messages = [
+                    {"role": msg.role, "content": msg.content} 
+                    for msg in conversation_history
+                ]
+                assistant_client.set_conversation_context(context_messages)
+            
+            # Process message with AI using streaming (using the edited content)
+            ai_response_data = await assistant_client.send_message_streaming(
+                content,
+                streaming_callback,
+                message_type=message_type,
+                metadata={
+                    "conversation_id": conversation_id,
+                    "model": model_name,
+                    "edit_response": True  # Mark this as an edit response
+                }
+            )
+            
+            # Save AI response message only with appropriate status based on cancellation
+            ai_message_data = MessageCreate(
+                content=ai_response_data["content"],
+                role="assistant",
+                status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
+            )
+            
+            ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
+            # Capture all needed values immediately to avoid lazy loading later
+            ai_message_db_id = ai_message.id
+            ai_message_id = ai_message.message_id
+            ai_message_conversation_id = ai_message.conversation_id
+            ai_message_role = ai_message.role
+            ai_message_content = ai_message.content
+            ai_message_extra_metadata = ai_message.extra_metadata or {}
+            ai_message_created_at = ai_message.created_at
+            
+            # Log cancellation if it occurred
+            if ai_response_data.get("was_cancelled", False):
+                logger.info(f"Edit message {ai_message.message_id} created with cancelled status due to stream cancellation")
+            
+            # Track costs
+            try:
+                await self.cost_tracker.track_usage(
+                    db=self.db,
+                    operation_type="chat_edit_streaming",
+                    model=model_name,
+                    input_text=content,
+                    output_text=ai_response_data["content"],
+                    conversation_id=conversation_id,
+                    additional_metadata={
+                        "ai_message_id": ai_message_id,
+                        "plots": ai_response_data.get("plots", []),
+                        "is_edit_response": True,
+                        "streaming": True,
+                        "was_cancelled": ai_response_data.get("was_cancelled", False)
+                    }
+                )
+            except Exception as cost_error:
+                logger.warning(f"Cost tracking failed (non-critical): {cost_error}")
+                # Continue without failing the entire operation
+            
+            # Update conversation
+            await self.conversation_service.update_conversation_activity(conversation_id)
+            
+            logger.info(f"Streaming AI response generated successfully for conversation {conversation_id}")
+            
+            return MessageResponse(
+                id=ai_message_db_id,
+                message_id=ai_message_id,
+                conversation_id=ai_message_conversation_id,
+                role=ai_message_role,
+                content=ai_message_content,
+                total_tokens=ai_response_data.get("total_tokens", 0),
+                cost_usd=ai_response_data.get("cost_usd", 0.0),
+                model_name=model_name,
+                finish_reason=ai_response_data.get("finish_reason"),
+                extra_metadata=ai_message_extra_metadata,
+                created_at=ai_message_created_at
+            )
+            
+        except Exception as e:
+            logger.error(f"Error generating streaming AI response for conversation {conversation_id}: {e}")
+            raise MessageProcessingException(f"Failed to generate streaming AI response: {str(e)}") 

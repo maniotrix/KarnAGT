@@ -25,6 +25,7 @@ interface MessageListProps {
   conversationId?: string;
   hasMoreMessages?: boolean;
   onScrollStateChange?: (shouldAutoScroll: boolean, scrollToBottom: () => void) => void;
+  onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
 }
 
 const MessageListComponent: React.FC<MessageListProps> = ({
@@ -34,7 +35,8 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   onLoadMore,
   conversationId,
   hasMoreMessages = false,
-  onScrollStateChange
+  onScrollStateChange,
+  onEdit
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -261,6 +263,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
                   <ChatMessage 
                     message={message} 
                     isStreaming={isStreamingThisMessage}
+                    onEdit={onEdit}
                   />
                 </motion.div>
               );

@@ -149,8 +149,34 @@ class ChatApiService {
     return response.json();
   }
 
+  // POST /api/v1/chat/conversations/{id}/messages/{messageId}/edit/stream
+  async editMessage(
+    conversationId: string,
+    messageId: string,
+    content: string
+  ): Promise<Response> {
+    const response = await fetch(
+      buildApiUrl(API_ENDPOINTS.CHAT.EDIT_MESSAGE_STREAM(conversationId, messageId)),
+      {
+        method: 'POST',
+        headers: {
+          ...this.getAuthHeaders(),
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        },
+        body: JSON.stringify({ content }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text().catch(() => 'Failed to start streaming edit');
+      throw new Error(errorData || 'Failed to start streaming edit');
+    }
+
+    return response;
+  }
+
   // **CRITICAL**: AI SDK Integration - Custom fetch for streaming
-  // This proxies AI SDK requests to your backend SSE streaming endpoint
   createAISDKFetch() {
     return async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
       // Parse AI SDK request

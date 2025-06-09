@@ -259,7 +259,8 @@ class MessageService:
             if message_data.content is not None:
                 update_data['content'] = message_data.content
             if message_data.metadata is not None:
-                update_data['metadata'] = message_data.metadata
+                # Map 'metadata' from schema to 'extra_metadata' in database
+                update_data['extra_metadata'] = message_data.metadata
             
             if update_data:
                 update_data['updated_at'] = datetime.utcnow()
@@ -363,6 +364,47 @@ class MessageService:
             
         except Exception as e:
             logger.error(f"Error deleting messages for conversation {conversation_id}: {e}")
+            await self.db.rollback()
+            raise
+    
+    async def delete_messages_after(self, message_id: str) -> int:
+        """
+        Delete all messages that were created after the specified message
+        
+        This is useful for the "edit and resend" functionality where we want to
+        remove all subsequent messages after editing a user message.
+        
+        Args:
+            message_id: The message ID to delete messages after
+            
+        Returns:
+            Number of messages deleted
+        """
+        logger.info(f"Deleting messages after message {message_id}")
+        
+        try:
+            # Get the target message to find its conversation and timestamp
+            target_message = await self.get_message(message_id)
+            if not target_message:
+                logger.warning(f"Message {message_id} not found, no messages to delete")
+                return 0
+            
+            # Delete messages in the same conversation created after this message
+            query = delete(Message).where(
+                Message.conversation_id == target_message.conversation_id,
+                Message.created_at > target_message.created_at
+            )
+            
+            result = await self.db.execute(query)
+            await self.db.commit()
+            
+            deleted_count = result.rowcount
+            logger.info(f"Deleted {deleted_count} messages after message {message_id}")
+            
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Error deleting messages after {message_id}: {e}")
             await self.db.rollback()
             raise
     

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useChat } from '../../hooks/useChat';
 import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
@@ -75,6 +75,33 @@ export const Chat: React.FC<ChatProps> = ({
   const quota = calculateQuota();
   const isQuotaExceeded = quota.percentage >= 100;
 
+  // 🚀 PERFORMANCE FIX: Memoize useChat options to prevent unnecessary re-renders
+  // 
+  // PROBLEM: Inline functions were creating new references on every keystroke, causing:
+  // 1. useChat hook to recreate all internal functions (loadMoreMessages, etc.)
+  // 2. handleLoadMore to recreate, making MessageList re-render unnecessarily  
+  // 3. MessageList re-rendering with 20+ messages + animations = typing lag
+  //
+  // SOLUTION: useMemo ensures these functions only change when dependencies change
+  //
+  // ⚠️  FUTURE RISK: If these callbacks need to access changing state (input, messages, etc.),
+  //    add those dependencies to the useMemo array, or the callbacks will use stale values
+  const chatOptions = useMemo(() => ({
+    conversationId,
+    memoryEnabled: true,
+    onConversationUpdate: onConversationChange,
+    onStreamStart: () => {
+      setShowActions(false); // Hide actions during streaming
+    },
+    onStreamEnd: (data: any) => {
+      console.log('Stream completed:', data);
+      setShowActions(true); // Show actions after completion
+    },
+    onError: (error: any) => {
+      console.error('Chat error:', error);
+    }
+  }), [conversationId, onConversationChange]); // Only recreate when these actually change
+
   // ✅ Simple Chat Integration
   const {
     messages,
@@ -93,21 +120,8 @@ export const Chat: React.FC<ChatProps> = ({
     hasConversation,
     loadMoreMessages,
     hasMoreMessages,
-  } = useChat({
-    conversationId,
-    memoryEnabled: true,
-    onConversationUpdate: onConversationChange,
-    onStreamStart: () => {
-      setShowActions(false); // Hide actions during streaming
-    },
-    onStreamEnd: (data) => {
-      console.log('Stream completed:', data);
-      setShowActions(true); // Show actions after completion
-    },
-    onError: (error) => {
-      console.error('Chat error:', error);
-    }
-  });
+    editMessage,
+  } = useChat(chatOptions);
 
   // Quota is already calculated above using clean architecture
 
@@ -316,6 +330,7 @@ export const Chat: React.FC<ChatProps> = ({
           conversationId={conversation?.conversation_id}
           hasMoreMessages={hasMoreMessages}
           onScrollStateChange={handleScrollStateChange}
+          onEdit={editMessage}
         />
         
         {/* Scroll to bottom button - Centered in chat area */}

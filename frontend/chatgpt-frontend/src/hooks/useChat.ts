@@ -544,6 +544,217 @@ export function useChat(options: ChatOptions = {}) {
     await sendMessage(lastUserMessage.content, conversation.conversation_id);
   }, [conversation, messages, sendMessage]);
 
+  // Edit message with streaming support
+  const editMessage = useCallback(async (messageId: string, newContent: string) => {
+    if (!conversation || !newContent.trim()) return false;
+    
+    try {
+      setError(null);
+      
+      // Find the message being edited
+      const messageIndex = messages.findIndex(msg => msg.message_id === messageId);
+      if (messageIndex === -1) {
+        throw new Error('Message not found');
+      }
+      
+      const originalMessage = messages[messageIndex];
+      if (originalMessage.role !== 'user') {
+        throw new Error('Can only edit user messages');
+      }
+      
+      // STEP 1: Immediately update the edited message and clear everything after it
+      // This gives instant visual feedback to the user
+      setMessages(prev => {
+        const updatedMessages = [...prev];
+        
+        // Update the edited message content
+        updatedMessages[messageIndex] = {
+          ...updatedMessages[messageIndex],
+          content: newContent.trim()
+        };
+        
+        // Remove all messages after the edited one
+        return updatedMessages.slice(0, messageIndex + 1);
+      });
+      
+      // STEP 2: Set loading state and prepare for streaming
+      setIsLoading(true);
+      
+      // Create assistant message placeholder for streaming
+      const assistantMessage: Message = {
+        id: `assistant-edit-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        createdAt: new Date(),
+      };
+      
+      currentStreamingMessageRef.current = assistantMessage;
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // STEP 3: Start streaming edit
+      const streamResponse = await chatApi.editMessage(
+        conversation.conversation_id,
+        messageId,
+        newContent.trim()
+      );
+      
+      // STEP 4: Process the streaming response
+      const reader = streamResponse.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to get stream reader');
+      }
+      
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streamIdCaptured = false;
+      
+      try {
+        console.log('🌊 Edit stream started, waiting for stream_id...');
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            setIsLoading(false);
+            setCurrentStreamId(null);
+            break;
+          }
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              
+              // Try to capture stream_id from this event (critical for stop button)
+              if (!streamIdCaptured) {
+                const extractedStreamId = extractStreamIdFromSSE(data);
+                if (extractedStreamId) {
+                  setCurrentStreamId(extractedStreamId);
+                  streamIdCaptured = true;
+                  console.log('🎯 EDIT STREAM_ID CAPTURED:', extractedStreamId);
+                }
+              }
+              
+              if (data === '[DONE]') {
+                break;
+              }
+              
+              try {
+                const event = JSON.parse(data);
+                console.log('Edit stream event:', event);
+                
+                switch (event.type) {
+                  case 'stream_start':
+                    console.log('Edit stream started');
+                    options.onStreamStart?.();
+                    break;
+                    
+                  case 'token':
+                    if (event.data?.content && currentStreamingMessageRef.current) {
+                      setMessages(prev => {
+                        const updated = [...prev];
+                        const lastIndex = updated.length - 1;
+                        if (lastIndex >= 0 && updated[lastIndex].id === currentStreamingMessageRef.current?.id) {
+                          updated[lastIndex] = {
+                            ...updated[lastIndex],
+                            content: updated[lastIndex].content + event.data.content
+                          };
+                        }
+                        return updated;
+                      });
+                    }
+                    break;
+                    
+                  case 'completion':
+                  case 'stream_end':
+                    if (event.data && currentStreamingMessageRef.current) {
+                      // Final update with complete message data
+                      setMessages(prev => {
+                        const updated = [...prev];
+                        const lastIndex = updated.length - 1;
+                        if (lastIndex >= 0 && updated[lastIndex].id === currentStreamingMessageRef.current?.id) {
+                          updated[lastIndex] = {
+                            ...updated[lastIndex],
+                            message_id: event.data.message_id || updated[lastIndex].id,
+                            total_tokens: event.data.total_tokens,
+                            cost_usd: event.data.cost_usd,
+                            model_name: event.data.model_name,
+                          };
+                        }
+                        return updated;
+                      });
+                      
+                      // Update conversation metadata
+                      if (conversation && event.data) {
+                        setConversation(prev => prev ? {
+                          ...prev,
+                          total_tokens_used: prev.total_tokens_used + (event.data.total_tokens || 0),
+                          total_cost_usd: prev.total_cost_usd + (event.data.cost_usd || 0),
+                          last_message_at: new Date().toISOString(),
+                        } : null);
+                      }
+                      
+                      // Update token usage
+                      if (event.data) {
+                        setTokenUsage(prev => ({
+                          total: prev.total + (event.data.total_tokens || 0),
+                          cost: prev.cost + (event.data.cost_usd || 0),
+                          model: event.data.model_name || prev.model,
+                        }));
+                      }
+                    }
+                    
+                    setIsLoading(false);
+                    setCurrentStreamId(null);
+                    options.onStreamEnd?.({
+                      type: 'end',
+                      message: currentStreamingMessageRef.current as any,
+                      conversation: conversation as any
+                    });
+                    // Invalidate queries to refresh conversation list
+                    queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+                    break;
+                    
+                  case 'error':
+                    throw new Error(event.data?.error || 'Stream error occurred');
+                }
+              } catch (parseError) {
+                console.error('Failed to parse edit stream event:', parseError, 'Raw data:', data);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+        currentStreamingMessageRef.current = null;
+      }
+      
+      // Invalidate queries to refresh conversation list
+      queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+      
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error : new Error('Failed to edit message'));
+      setIsLoading(false);
+      setCurrentStreamId(null);
+      
+      // Remove the placeholder assistant message on error
+      if (currentStreamingMessageRef.current) {
+        setMessages(prev => 
+          prev.filter(msg => msg.id !== currentStreamingMessageRef.current?.id)
+        );
+        currentStreamingMessageRef.current = null;
+      }
+      
+      return false;
+    }
+  }, [conversation, messages, queryClient, options, extractStreamIdFromSSE, currentStreamId]);
+
   return {
     // State
     messages,
@@ -570,6 +781,7 @@ export function useChat(options: ChatOptions = {}) {
     getConversations,
     loadConversation,
     loadMoreMessages,
+    editMessage,
     
     // Utilities
     clearError: () => setError(null),

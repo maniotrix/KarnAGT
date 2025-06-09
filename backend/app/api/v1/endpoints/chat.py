@@ -12,6 +12,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func
 
 from app.core.database import get_db
 from app.core.exceptions import (
@@ -34,7 +35,8 @@ from app.models.schemas.chat_schemas import (
     ConversationShareResponse,
     ConversationSearchRequest,
     ConversationBulkAction,
-    ConversationBulkResponse
+    ConversationBulkResponse,
+    MessageUpdate
 )
 from app.models.schemas.common_schemas import BaseResponse
 from app.api.v1.dependencies.auth import (
@@ -549,6 +551,233 @@ async def get_conversation_messages(
         )
 
 
+@router.post("/conversations/{conversation_id}/messages/{message_id}/edit", response_model=MessageResponse)
+async def edit_and_resend_message(
+    conversation_id: str,
+    message_id: str,
+    update_data: MessageUpdate,
+    current_user: User = Depends(check_chat_quota),
+    db: AsyncSession = Depends(get_db)
+) -> MessageResponse:
+    """
+    Edit a user message and generate a new AI response
+    
+    This endpoint:
+    1. Updates the user message content
+    2. Deletes all subsequent messages in the conversation  
+    3. Generates a new AI response based on the edited message
+    
+    Only user messages can be edited and resent.
+    """
+    logger.info(f"Edit and resend message {message_id} in conversation {conversation_id}")
+    
+    try:
+        from app.services.chat.message_service import MessageService
+        message_service = MessageService(db, current_user)
+        
+        # Verify conversation exists and belongs to user
+        from app.services.chat.conversation_service import ConversationService
+        conversation_service = ConversationService(db, current_user)
+        conversation = await conversation_service.get_conversation(conversation_id)
+        
+        if not conversation:
+            raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
+        
+        # Get the original message and verify it's a user message
+        original_message = await message_service.get_message(message_id)
+        if not original_message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Message {message_id} not found"
+            )
+        
+        if original_message.role != "user":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only edit and resend user messages"
+            )
+        
+        if not update_data.content or not update_data.content.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content is required for edit and resend"
+            )
+        
+        # Step 1: Update the message content
+        updated_message = await message_service.update_message(message_id, update_data)
+        
+        # Mark as edited
+        from sqlalchemy import update, delete, select
+        from app.models.database.message import Message
+        
+        edit_query = update(Message).where(
+            Message.message_id == message_id
+        ).values(
+            is_edited=True,
+            edit_count=Message.edit_count + 1,
+            updated_at=func.now()
+        )
+        await db.execute(edit_query)
+        await db.commit()
+        
+        # Step 2: Delete all subsequent messages using the service method
+        deleted_count = await message_service.delete_messages_after(message_id)
+        logger.info(f"Deleted {deleted_count} subsequent messages")
+        
+        # Step 3: Generate new AI response
+        chat_service = ChatService(db, current_user)
+        
+        # Generate AI response with the edited content
+        ai_response = await chat_service.generate_ai_response_only(
+            conversation_id=conversation_id,
+            content=update_data.content,
+            message_type="text"
+        )
+        
+        logger.info(f"Successfully edited message {message_id} and generated new AI response")
+        return ai_response
+        
+    except ConversationNotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error in edit and resend for message {message_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to edit and resend message"
+        )
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/edit/stream")
+async def edit_and_resend_message_streaming(
+    conversation_id: str,
+    message_id: str,
+    update_data: MessageUpdate,
+    current_user: User = Depends(check_chat_quota),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None
+):
+    """
+    Edit a user message and stream the new AI response in real-time
+    
+    This endpoint:
+    1. Updates the user message content
+    2. Deletes all subsequent messages in the conversation  
+    3. Streams a new AI response based on the edited message
+    
+    Only user messages can be edited and resent.
+    
+    The response will be a stream of SSE events:
+    - `token`: Individual tokens as they're generated
+    - `completion`: Final message with metadata
+    - `error`: Any errors that occur during streaming
+    - `cancelled`: Stream was cancelled due to client disconnection
+    """
+    logger.info(f"Edit and stream message {message_id} in conversation {conversation_id}")
+    
+    try:
+        chat_service = ChatService(db, current_user)
+        
+        # VALIDATION: Verify conversation and message exist before starting stream
+        from app.services.chat.conversation_service import ConversationService
+        from app.services.chat.message_service import MessageService
+        
+        conversation_service = ConversationService(db, current_user)
+        message_service = MessageService(db, current_user)
+        
+        # Verify conversation exists and belongs to user
+        conversation = await conversation_service.get_conversation(conversation_id)
+        if not conversation:
+            raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
+        
+        # Get the original message and verify it exists
+        original_message = await message_service.get_message(message_id)
+        if not original_message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Message {message_id} not found"
+            )
+        
+        # Verify it's a user message (convert to string to avoid SQLAlchemy issues)
+        original_role = str(original_message.role) if hasattr(original_message.role, '__str__') else original_message.role
+        if str(original_role) != "user":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only edit and resend user messages"
+            )
+        
+        # Verify content is provided
+        if not update_data.content or not update_data.content.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content is required for edit and resend"
+            )
+        
+        # All validations passed, now start streaming
+        streaming_service = StreamingService(chat_service, current_user)
+        
+        # Create the streaming generator with client disconnection detection
+        async def stream_edit_with_disconnection_detection():
+            """Wrapper generator that detects client disconnection for edit streaming"""
+            stream_generator = streaming_service.stream_edit_message_response(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                content=update_data.content,
+                message_type="text"
+            )
+            
+            try:
+                async for event in stream_generator:
+                    # Check if client is still connected
+                    if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
+                        logger.info(f"Client disconnected for edit stream in conversation {conversation_id}")
+                        # Cancel any active streams for this user
+                        await streaming_service.cancel_user_streams("client_disconnected")
+                        break
+                    
+                    yield event
+                    
+            except Exception as e:
+                logger.error(f"Error in edit stream with disconnection detection: {e}")
+                # Try to cancel streams on error
+                try:
+                    await streaming_service.cancel_user_streams("stream_error")
+                except:
+                    pass
+                raise
+        
+        # Return as Server-Sent Events stream
+        return StreamingResponse(
+            stream_edit_with_disconnection_detection(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # Disable Nginx buffering
+            }
+        )
+        
+    except ConversationNotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is (including 404 for message not found)
+        raise
+    except Exception as e:
+        logger.error(f"Error starting edit stream: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to start edit streaming"
+        )
+
+
 @router.put("/conversations/{conversation_id}", response_model=ConversationResponse)
 async def update_conversation(
     conversation_id: str,
@@ -761,6 +990,47 @@ async def test_streaming(
     
     return StreamingResponse(
         generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/stream/test-edit")
+async def test_edit_streaming(
+    current_user: User = Depends(get_current_verified_user)
+):
+    """
+    Test endpoint for edit SSE streaming
+    
+    Useful for testing client-side edit streaming implementation
+    """
+    async def generate_edit_test():
+        import asyncio
+        import json
+        
+        # Send initial event
+        yield f"data: {json.dumps({'type': 'edit_start', 'message': 'Starting edit stream test'})}\n\n"
+        
+        # Send edit update event
+        yield f"data: {json.dumps({'type': 'edit_update', 'message': 'Message edited successfully'})}\n\n"
+        
+        # Send some test tokens for the AI response
+        test_response = "This is the new AI response after editing. It appears token by token."
+        words = test_response.split()
+        
+        for word in words:
+            await asyncio.sleep(0.1)  # Simulate delay
+            yield f"data: {json.dumps({'type': 'token', 'content': word + ' '})}\n\n"
+        
+        # Send completion event
+        yield f"data: {json.dumps({'type': 'completion', 'message': 'Edit stream test completed'})}\n\n"
+    
+    return StreamingResponse(
+        generate_edit_test(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

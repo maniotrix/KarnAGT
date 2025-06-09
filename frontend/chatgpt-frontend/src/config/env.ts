@@ -40,10 +40,14 @@ export const API_ENDPOINTS = {
     CONVERSATION_MESSAGES: (id: string) => `/api/v1/chat/conversations/${id}/messages`,
     SEND_MESSAGE: (id: string) => `/api/v1/chat/conversations/${id}/messages`,
     STREAM_MESSAGE: (id: string) => `/api/v1/chat/conversations/${id}/stream`,
+    EDIT_MESSAGE_STREAM: (conversationId: string, messageId: string) => `/api/v1/chat/conversations/${conversationId}/messages/${messageId}/edit/stream`,
     SHARE_CONVERSATION: (id: string) => `/api/v1/chat/conversations/${id}/share`,
     BULK_CONVERSATIONS: '/api/v1/chat/conversations/bulk',
     TEST_STREAMING: '/api/v1/chat/stream/test',
+    TEST_EDIT_STREAMING: '/api/v1/chat/stream/test-edit',
     CANCEL_STREAM: (streamId: string) => `/api/v1/chat/stream/cancel/${streamId}`,
+    CANCEL_ALL_STREAMS: '/api/v1/chat/stream/cancel-all',
+    ACTIVE_STREAMS: '/api/v1/chat/stream/active',
   },
   
   // Other endpoints
