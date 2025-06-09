@@ -17,7 +17,10 @@ import {
   DollarSign,
   Cpu,
   Copy,
-  Check
+  Check,
+  Edit3,
+  Save,
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -27,17 +30,24 @@ import { useUiStore } from '../../app/stores/uiStore';
 interface ChatMessageProps {
   message: Message;
   isStreaming?: boolean;
+  onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
 }
 
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({ 
   message, 
-  isStreaming = false 
+  isStreaming = false,
+  onEdit
 }) => {
   // Clean Architecture Integration
   const { theme } = useUiStore();
   
   // Copy functionality
   const [copied, setCopied] = useState(false);
+  
+  // Edit functionality
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content);
+  const [isSaving, setIsSaving] = useState(false);
   
   const formatTime = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date;
@@ -54,8 +64,56 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     }
   };
 
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditContent(message.content);
+  };
+
+  const handleSave = async () => {
+    if (!onEdit || !message.message_id) return;
+    
+    const trimmedContent = editContent.trim();
+    if (!trimmedContent || trimmedContent === message.content) {
+      setIsEditing(false);
+      return;
+    }
+    
+    // STEP 1: Immediately exit edit mode and show saving state
+    setIsEditing(false);
+    setIsSaving(true);
+    
+    // STEP 2: Call the edit function (this will update the message and clear subsequent ones)
+    const success = await onEdit(message.message_id, trimmedContent);
+    
+    // STEP 3: Clear saving state
+    setIsSaving(false);
+    
+    // If edit failed, go back to edit mode so user can retry
+    if (!success) {
+      setIsEditing(true);
+      // Reset content to current message content in case backend partially updated it
+      setEditContent(message.content);
+    }
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditContent(message.content);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
+
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
+  const canEdit = isUser && onEdit && !isStreaming;
 
   return (
     <TooltipProvider>
@@ -107,66 +165,164 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               ? 'bg-blue-600 text-white ml-8' 
               : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
           }`}>
-            {/* Message Text with Markdown Support */}
-            <div className={`prose prose-sm max-w-none ${
-              isUser 
-                ? 'prose-invert text-white pr-8' 
-                : 'prose-gray dark:prose-invert text-gray-900 dark:text-white pr-8'
-            }`}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
-                components={{
-                  // Custom styling for code blocks
-                  pre: ({ children, ...props }) => (
-                    <pre {...props} className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
-                      {children}
-                    </pre>
-                  ),
-                  // Custom styling for inline code
-                  code: ({ children, className, ...props }) => {
-                    const isInline = !className;
-                    return (
-                      <code 
-                        {...props} 
-                        className={`${className || ''} ${
-                          isInline 
-                            ? 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm' 
-                            : ''
+            {/* Message Text with Edit/Display Mode */}
+            {isEditing ? (
+              <div className="pr-8">
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className={`w-full p-3 rounded-lg border resize-none min-h-[100px] ${
+                    isUser 
+                      ? 'bg-blue-700 text-white border-blue-500 placeholder-blue-200' 
+                      : 'bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  placeholder="Edit your message..."
+                  disabled={isSaving}
+                  autoFocus
+                />
+                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>Press Ctrl+Enter to save, Esc to cancel</span>
+                </div>
+              </div>
+            ) : (
+              <div className={`prose prose-sm max-w-none ${
+                isUser 
+                  ? 'prose-invert text-white pr-8' 
+                  : 'prose-gray dark:prose-invert text-gray-900 dark:text-white pr-8'
+              }`}>
+                {/* Show saving indicator if message is being edited */}
+                {isSaving && (
+                  <div className="flex items-center gap-2 mb-2 text-xs opacity-75">
+                    <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                    <span>Saving changes...</span>
+                  </div>
+                )}
+                
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={{
+                    // Custom styling for code blocks
+                    pre: ({ children, ...props }) => (
+                      <pre {...props} className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                        {children}
+                      </pre>
+                    ),
+                    // Custom styling for inline code
+                    code: ({ children, className, ...props }) => {
+                      const isInline = !className;
+                      return (
+                        <code 
+                          {...props} 
+                          className={`${className || ''} ${
+                            isInline 
+                              ? 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm' 
+                              : ''
+                          }`}
+                        >
+                          {children}
+                        </code>
+                      );
+                    }
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="absolute top-2 right-2 flex items-center gap-1">
+              {/* Edit Mode Buttons */}
+              {isEditing ? (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={handleCancel}
+                        disabled={isSaving}
+                        className={`p-1.5 rounded-lg transition-opacity ${
+                          isUser 
+                            ? 'hover:bg-blue-700 text-blue-100' 
+                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
+                        } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Cancel edit</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving || !editContent.trim() || editContent.trim() === message.content}
+                        className={`p-1.5 rounded-lg transition-opacity ${
+                          isUser 
+                            ? 'hover:bg-blue-700 text-blue-100' 
+                            : 'hover:bg-green-100 dark:hover:bg-green-900 text-green-600 dark:text-green-400'
+                        } ${(isSaving || !editContent.trim() || editContent.trim() === message.content) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <Save className="w-3 h-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{isSaving ? 'Saving...' : 'Save changes'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              ) : (
+                <>
+                  {/* Edit Button - Only for user messages */}
+                  {canEdit && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleEdit}
+                          className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
+                            isUser 
+                              ? 'hover:bg-blue-700 text-blue-100' 
+                              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
+                          }`}
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Edit message</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  
+                  {/* Copy Button */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={handleCopy}
+                        className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
+                          isUser 
+                            ? 'hover:bg-blue-700 text-blue-100' 
+                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
                         }`}
                       >
-                        {children}
-                      </code>
-                    );
-                  }
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
+                        {copied ? (
+                          <Check className="w-3 h-3" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{copied ? 'Copied!' : 'Copy message'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              )}
             </div>
-
-            {/* Copy Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleCopy}
-                  className={`absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
-                    isUser 
-                      ? 'hover:bg-blue-700 text-blue-100' 
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
-                  }`}
-                >
-                  {copied ? (
-                    <Check className="w-3 h-3" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{copied ? 'Copied!' : 'Copy message'}</p>
-              </TooltipContent>
-            </Tooltip>
           </div>
 
           {/* Message Metadata */}

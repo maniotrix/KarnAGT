@@ -93,6 +93,7 @@ export const Chat: React.FC<ChatProps> = ({
     hasConversation,
     loadMoreMessages,
     hasMoreMessages,
+    editMessage,
   } = useChat({
     conversationId,
     memoryEnabled: true,
@@ -316,6 +317,7 @@ export const Chat: React.FC<ChatProps> = ({
           conversationId={conversation?.conversation_id}
           hasMoreMessages={hasMoreMessages}
           onScrollStateChange={handleScrollStateChange}
+          onEdit={editMessage}
         />
         
         {/* Scroll to bottom button - Centered in chat area */}

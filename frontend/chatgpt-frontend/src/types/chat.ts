@@ -9,6 +9,12 @@ export interface MessageCreate {
   metadata?: Record<string, any>;
 }
 
+// MessageUpdate interface for editing messages
+export interface MessageUpdate {
+  content?: string;
+  metadata?: Record<string, any>;
+}
+
 // Exact MessageResponse from your backend line 121
 export interface MessageResponse {
   id: number;
