@@ -260,10 +260,10 @@ class StreamingService:
                         "conversation_id": message.conversation_id,
                         "content": message.content,
                         "role": message.role,
-                        "message_type": message.message_type,
-                        "status": message.status,
+                        "message_type": getattr(message, 'message_type', 'text'),
+                        "status": getattr(message, 'status', 'completed'),
                         "created_at": message.created_at.isoformat(),
-                        "metadata": message.extra_metadata
+                        "metadata": message.extra_metadata or {}
                     },
                     "index": i,
                     "total": len(messages)
@@ -398,6 +398,200 @@ class StreamingService:
             streaming_manager.remove_stream(stream_id)
         
         logger.info(f"Cleaned up {len(user_streams)} streams for user {self.user_uuid}")
+    
+    async def stream_edit_message_response(
+        self,
+        conversation_id: str,
+        message_id: str,
+        content: str,
+        message_type: str = "text",
+        model: Optional[str] = None
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream an edit message response using Server-Sent Events
+        
+        This method handles editing a user message and streaming the new AI response.
+        It performs the same edit operations as the non-streaming version but with real-time streaming.
+        
+        Args:
+            conversation_id: The conversation ID
+            message_id: The message ID to edit
+            content: New message content
+            message_type: Type of message
+            model: Optional model override
+            
+        Yields:
+            SSE-formatted streaming events
+        """
+        logger.info(f"Starting edit message stream for message {message_id} in conversation {conversation_id}")
+        
+        # Create streaming handler
+        stream_handler = streaming_manager.create_stream(self.user_id, conversation_id)
+        
+        try:
+            # Start the streaming generator
+            stream_generator = stream_handler.start_streaming()
+            
+            # Create a task to process the edit in the background
+            edit_task = asyncio.create_task(
+                self._process_streaming_edit_message(
+                    stream_handler,
+                    conversation_id,
+                    message_id,
+                    content,
+                    message_type,
+                    model
+                )
+            )
+            
+            # Yield streaming events
+            async for event in stream_generator:
+                yield event
+            
+            # Wait for edit processing to complete and get the result
+            try:
+                final_response = await edit_task
+                logger.info(f"Edit message task completed with response: {type(final_response)}")
+                
+            except Exception as e:
+                logger.error(f"Error in edit message processing task: {e}")
+                error_event = stream_handler._format_sse_event("error", {
+                    "error": str(e),
+                    "stream_id": stream_handler.stream_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                yield error_event
+            
+        except Exception as e:
+            logger.error(f"Error in streaming edit response: {e}")
+            
+            # Send error event
+            error_event = stream_handler._format_sse_event("error", {
+                "error": str(e),
+                "stream_id": stream_handler.stream_id,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            yield error_event
+            
+        finally:
+            # Clean up the stream
+            streaming_manager.remove_stream(stream_handler.stream_id)
+            logger.info(f"Completed edit message stream for conversation {conversation_id}")
+    
+    async def _process_streaming_edit_message(
+        self,
+        stream_handler: StreamingHandler,
+        conversation_id: str,
+        message_id: str,
+        content: str,
+        message_type: str,
+        model: Optional[str]
+    ):
+        """
+        Process the edit message with streaming in the background
+        
+        Args:
+            stream_handler: The streaming handler
+            conversation_id: The conversation ID
+            message_id: The message ID to edit
+            content: New message content
+            message_type: Type of message
+            model: Optional model override
+            
+        Returns:
+            MessageResponse or None
+        """
+        try:
+            # Get assistant client and set it on the streaming handler for cancellation
+            from app.integrations.openai.assistant_client import assistant_manager
+            assistant_client = assistant_manager.get_client(self.user.user_id, conversation_id)
+            stream_handler.set_assistant_client(assistant_client)
+            
+            # Import necessary services and modules for edit operations
+            from app.services.chat.message_service import MessageService
+            from app.services.chat.conversation_service import ConversationService
+            from app.models.schemas.chat_schemas import MessageUpdate
+            from sqlalchemy import update
+            from sqlalchemy.sql import func
+            from app.models.database.message import Message
+            from app.core.exceptions import ConversationNotFoundException
+            from fastapi import HTTPException, status
+            
+            # Step 1: Verify and update the original message
+            message_service = MessageService(self.chat_service.db, self.user)
+            conversation_service = ConversationService(self.chat_service.db, self.user)
+            
+            # Verify conversation exists and belongs to user
+            conversation = await conversation_service.get_conversation(conversation_id)
+            if not conversation:
+                raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
+            
+            # Get the original message and verify it's a user message
+            original_message = await message_service.get_message(message_id)
+            if not original_message:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Message {message_id} not found"
+                )
+            
+            # Verify it's a user message (using string comparison to avoid SQLAlchemy issues)
+            original_role = str(original_message.role) if hasattr(original_message.role, '__str__') else original_message.role
+            if str(original_role) != "user":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Can only edit and resend user messages"
+                )
+            
+            if not content or not content.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Content is required for edit and resend"
+                )
+            
+            # Update the message content
+            update_data = MessageUpdate(content=content, metadata={})
+            updated_message = await message_service.update_message(message_id, update_data)
+            
+            # Mark as edited
+            edit_query = update(Message).where(
+                Message.message_id == message_id
+            ).values(
+                is_edited=True,
+                edit_count=Message.edit_count + 1,
+                updated_at=func.now()
+            )
+            await self.chat_service.db.execute(edit_query)
+            await self.chat_service.db.commit()
+            
+            # Step 2: Delete all subsequent messages
+            deleted_count = await message_service.delete_messages_after(message_id)
+            logger.info(f"Deleted {deleted_count} subsequent messages")
+            
+            # Step 3: Generate new AI response with streaming
+            response = await self.chat_service.generate_ai_response_only_streaming(
+                conversation_id=conversation_id,
+                content=content,
+                streaming_callback=stream_handler.streaming_callback,
+                message_type=message_type,
+                model=model
+            )
+            
+            logger.info(f"Streaming edit message processing completed for conversation {conversation_id}")
+            
+            # Only stop streaming if not cancelled (let cancellation handling do its work)
+            if not stream_handler.is_cancelled:
+                stream_handler.stop_streaming()
+                logger.info(f"Edit streaming stopped normally for conversation {conversation_id}")
+            else:
+                logger.info(f"Edit streaming was cancelled for conversation {conversation_id}")
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error processing streaming edit message: {e}")
+            # Stop streaming on error
+            stream_handler.stop_streaming()
+            raise
 
 
 # Utility functions for creating streaming responses
@@ -452,4 +646,36 @@ async def create_history_stream(
     streaming_service = StreamingService(chat_service, user)
     
     async for event in streaming_service.stream_conversation_history(conversation_id, limit):
+        yield event
+
+
+async def create_edit_message_stream(
+    chat_service: ChatService,
+    user: User,
+    conversation_id: str,
+    message_id: str,
+    content: str,
+    message_type: str = "text",
+    model: Optional[str] = None
+) -> AsyncGenerator[str, None]:
+    """
+    Utility function to create an edit message streaming response
+    
+    Args:
+        chat_service: ChatService instance
+        user: User instance
+        conversation_id: The conversation ID
+        message_id: The message ID to edit
+        content: New message content
+        message_type: Type of message
+        model: Optional model override
+        
+    Yields:
+        SSE-formatted streaming events
+    """
+    streaming_service = StreamingService(chat_service, user)
+    
+    async for event in streaming_service.stream_edit_message_response(
+        conversation_id, message_id, content, message_type, model
+    ):
         yield event 

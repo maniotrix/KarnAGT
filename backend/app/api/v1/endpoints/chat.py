@@ -551,7 +551,6 @@ async def get_conversation_messages(
         )
 
 
-
 @router.post("/conversations/{conversation_id}/messages/{message_id}/edit", response_model=MessageResponse)
 async def edit_and_resend_message(
     conversation_id: str,
@@ -651,6 +650,91 @@ async def edit_and_resend_message(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to edit and resend message"
+        )
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/edit/stream")
+async def edit_and_resend_message_streaming(
+    conversation_id: str,
+    message_id: str,
+    update_data: MessageUpdate,
+    current_user: User = Depends(check_chat_quota),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None
+):
+    """
+    Edit a user message and stream the new AI response in real-time
+    
+    This endpoint:
+    1. Updates the user message content
+    2. Deletes all subsequent messages in the conversation  
+    3. Streams a new AI response based on the edited message
+    
+    Only user messages can be edited and resent.
+    
+    The response will be a stream of SSE events:
+    - `token`: Individual tokens as they're generated
+    - `completion`: Final message with metadata
+    - `error`: Any errors that occur during streaming
+    - `cancelled`: Stream was cancelled due to client disconnection
+    """
+    logger.info(f"Edit and stream message {message_id} in conversation {conversation_id}")
+    
+    try:
+        chat_service = ChatService(db, current_user)
+        streaming_service = StreamingService(chat_service, current_user)
+        
+        # Create the streaming generator with client disconnection detection
+        async def stream_edit_with_disconnection_detection():
+            """Wrapper generator that detects client disconnection for edit streaming"""
+            stream_generator = streaming_service.stream_edit_message_response(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                content=update_data.content,
+                message_type="text"
+            )
+            
+            try:
+                async for event in stream_generator:
+                    # Check if client is still connected
+                    if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
+                        logger.info(f"Client disconnected for edit stream in conversation {conversation_id}")
+                        # Cancel any active streams for this user
+                        await streaming_service.cancel_user_streams("client_disconnected")
+                        break
+                    
+                    yield event
+                    
+            except Exception as e:
+                logger.error(f"Error in edit stream with disconnection detection: {e}")
+                # Try to cancel streams on error
+                try:
+                    await streaming_service.cancel_user_streams("stream_error")
+                except:
+                    pass
+                raise
+        
+        # Return as Server-Sent Events stream
+        return StreamingResponse(
+            stream_edit_with_disconnection_detection(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # Disable Nginx buffering
+            }
+        )
+        
+    except ConversationNotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error starting edit stream: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to start edit streaming"
         )
 
 
@@ -866,6 +950,47 @@ async def test_streaming(
     
     return StreamingResponse(
         generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/stream/test-edit")
+async def test_edit_streaming(
+    current_user: User = Depends(get_current_verified_user)
+):
+    """
+    Test endpoint for edit SSE streaming
+    
+    Useful for testing client-side edit streaming implementation
+    """
+    async def generate_edit_test():
+        import asyncio
+        import json
+        
+        # Send initial event
+        yield f"data: {json.dumps({'type': 'edit_start', 'message': 'Starting edit stream test'})}\n\n"
+        
+        # Send edit update event
+        yield f"data: {json.dumps({'type': 'edit_update', 'message': 'Message edited successfully'})}\n\n"
+        
+        # Send some test tokens for the AI response
+        test_response = "This is the new AI response after editing. It appears token by token."
+        words = test_response.split()
+        
+        for word in words:
+            await asyncio.sleep(0.1)  # Simulate delay
+            yield f"data: {json.dumps({'type': 'token', 'content': word + ' '})}\n\n"
+        
+        # Send completion event
+        yield f"data: {json.dumps({'type': 'completion', 'message': 'Edit stream test completed'})}\n\n"
+    
+    return StreamingResponse(
+        generate_edit_test(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
