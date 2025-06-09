@@ -181,7 +181,11 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   disabled={isSaving}
                   autoFocus
                 />
-                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <div className={`flex items-center gap-2 mt-2 text-xs ${
+                  isUser 
+                    ? 'text-blue-100' 
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}>
                   <span>Press Ctrl+Enter to save, Esc to cancel</span>
                 </div>
               </div>
@@ -238,43 +242,29 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             {/* Edit Mode Buttons */}
             {isEditing ? (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handleCancel}
-                      disabled={isSaving}
-                      className={`p-1.5 rounded-lg transition-opacity ${
-                        isUser 
-                          ? 'hover:bg-blue-100 text-blue-600' 
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
-                      } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Cancel edit</p>
-                  </TooltipContent>
-                </Tooltip>
+                <button
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isUser 
+                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  Cancel
+                </button>
                 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving || !editContent.trim() || editContent.trim() === message.content}
-                      className={`p-1.5 rounded-lg transition-opacity ${
-                        isUser 
-                          ? 'hover:bg-green-100 text-green-600' 
-                          : 'hover:bg-green-100 dark:hover:bg-green-900 text-green-600 dark:text-green-400'
-                      } ${(isSaving || !editContent.trim() || editContent.trim() === message.content) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <Save className="w-3 h-3" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>{isSaving ? 'Saving...' : 'Save changes'}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || !editContent.trim() || editContent.trim() === message.content}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isUser 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  } ${(isSaving || !editContent.trim() || editContent.trim() === message.content) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isSaving ? 'Saving...' : 'Send'}
+                </button>
               </>
             ) : (
               <>
