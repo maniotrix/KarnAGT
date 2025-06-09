@@ -12,6 +12,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func
 
 from app.core.database import get_db
 from app.core.exceptions import (
@@ -34,7 +35,8 @@ from app.models.schemas.chat_schemas import (
     ConversationShareResponse,
     ConversationSearchRequest,
     ConversationBulkAction,
-    ConversationBulkResponse
+    ConversationBulkResponse,
+    MessageUpdate
 )
 from app.models.schemas.common_schemas import BaseResponse
 from app.api.v1.dependencies.auth import (
@@ -546,6 +548,109 @@ async def get_conversation_messages(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve messages"
+        )
+
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/edit", response_model=MessageResponse)
+async def edit_and_resend_message(
+    conversation_id: str,
+    message_id: str,
+    update_data: MessageUpdate,
+    current_user: User = Depends(check_chat_quota),
+    db: AsyncSession = Depends(get_db)
+) -> MessageResponse:
+    """
+    Edit a user message and generate a new AI response
+    
+    This endpoint:
+    1. Updates the user message content
+    2. Deletes all subsequent messages in the conversation  
+    3. Generates a new AI response based on the edited message
+    
+    Only user messages can be edited and resent.
+    """
+    logger.info(f"Edit and resend message {message_id} in conversation {conversation_id}")
+    
+    try:
+        from app.services.chat.message_service import MessageService
+        message_service = MessageService(db, current_user)
+        
+        # Verify conversation exists and belongs to user
+        from app.services.chat.conversation_service import ConversationService
+        conversation_service = ConversationService(db, current_user)
+        conversation = await conversation_service.get_conversation(conversation_id)
+        
+        if not conversation:
+            raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
+        
+        # Get the original message and verify it's a user message
+        original_message = await message_service.get_message(message_id)
+        if not original_message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Message {message_id} not found"
+            )
+        
+        if original_message.role != "user":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only edit and resend user messages"
+            )
+        
+        if not update_data.content or not update_data.content.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content is required for edit and resend"
+            )
+        
+        # Step 1: Update the message content
+        updated_message = await message_service.update_message(message_id, update_data)
+        
+        # Mark as edited
+        from sqlalchemy import update, delete, select
+        from app.models.database.message import Message
+        
+        edit_query = update(Message).where(
+            Message.message_id == message_id
+        ).values(
+            is_edited=True,
+            edit_count=Message.edit_count + 1,
+            updated_at=func.now()
+        )
+        await db.execute(edit_query)
+        await db.commit()
+        
+        # Step 2: Delete all subsequent messages using the service method
+        deleted_count = await message_service.delete_messages_after(message_id)
+        logger.info(f"Deleted {deleted_count} subsequent messages")
+        
+        # Step 3: Generate new AI response
+        chat_service = ChatService(db, current_user)
+        
+        # Generate AI response with the edited content
+        ai_response = await chat_service.generate_ai_response_only(
+            conversation_id=conversation_id,
+            content=update_data.content,
+            message_type="text"
+        )
+        
+        logger.info(f"Successfully edited message {message_id} and generated new AI response")
+        return ai_response
+        
+    except ConversationNotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error in edit and resend for message {message_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to edit and resend message"
         )
 
 

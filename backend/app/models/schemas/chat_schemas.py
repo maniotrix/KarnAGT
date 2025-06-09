@@ -93,7 +93,7 @@ class MessageCreate(BaseSchema):
 
 class MessageUpdate(BaseSchema):
     """Update message request schema"""
-    content: Optional[str] = Field(None, min_length=1, max_length=32000, description="Message content")
+    content: Optional[str] = Field(None, max_length=32000, description="Message content")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Message metadata")
 
 
