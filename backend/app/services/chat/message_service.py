@@ -259,7 +259,8 @@ class MessageService:
             if message_data.content is not None:
                 update_data['content'] = message_data.content
             if message_data.metadata is not None:
-                update_data['metadata'] = message_data.metadata
+                # Map 'metadata' from schema to 'extra_metadata' in database
+                update_data['extra_metadata'] = message_data.metadata
             
             if update_data:
                 update_data['updated_at'] = datetime.utcnow()
