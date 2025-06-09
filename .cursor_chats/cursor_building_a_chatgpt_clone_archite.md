@@ -1,5 +1,5 @@
 # Building a ChatGPT clone architecture
-_Exported on 6/9/2025 at 17:08:40 GMT+5:30 from Cursor (1.0.0)_
+_Exported on 6/10/2025 at 03:35:45 GMT+5:30 from Cursor (1.0.0)_
 
 ---
 
@@ -2068,5 +2068,5299 @@ async def get_chat_service(
 ) -> ChatService:
     """Dependency to get chat service"""
     return await container.get_chat_service(db, current_user)
+```
+
+---
+
+**User**
+
+@/agents 
+
+---
+
+**Cursor**
+
+Looking at the OpenAI Agents SDK structure and your current usage, I can see how your `aicore` is tightly coupled to this specific SDK. Let me analyze the abstraction strategy needed for minimal LLM dependency:
+
+## 🔍 **OpenAI Agents SDK Analysis**
+
+### **Current Tight Coupling in Your Code:**
+```python
+# aicore/code_executor/code_agent.py - Lines 45-49
+super().__init__(
+    name=name,
+    instructions=self._get_dynamic_instructions,
+    tools=[execute_code, execute_system_command, websearch_tool]
+)
+```
+
+**Dependencies:**
+- `agents.Agent` - Base agent class
+- `agents.Runner` - Execution runner
+- `agents.function_tool` - Tool decorator
+- `agents.WebSearchTool` - Web search functionality
+
+---
+
+## 🚀 **Abstraction Strategy: Provider-Agnostic Agent Framework**
+
+### **1. Create Your Own Agent Abstraction Layer**
+
+Instead of inheriting from `agents.Agent`, create your own base:
+
+```python
+# app/core/agents/base_agent.py
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any, Optional, AsyncGenerator
+
+class BaseAgent(ABC):
+    """Provider-agnostic agent interface"""
+    
+    def __init__(
+        self, 
+        name: str,
+        instructions: str,
+        tools: List['BaseTool'] = None,
+        provider_config: Dict[str, Any] = None
+    ):
+        self.name = name
+        self.instructions = instructions
+        self.tools = tools or []
+        self.provider_config = provider_config or {}
+        
+    @abstractmethod
+    async def run(self, input_text: str, **kwargs) -> 'AgentResult':
+        """Execute agent with input"""
+        pass
+        
+    @abstractmethod
+    async def run_streaming(self, input_text: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Execute agent with streaming response"""
+        pass
+        
+    @abstractmethod
+    async def add_tool(self, tool: 'BaseTool'):
+        """Add a tool to the agent"""
+        pass
+
+class AgentResult:
+    """Standardized agent result"""
+    def __init__(
+        self, 
+        final_output: str,
+        usage: Dict[str, Any],
+        metadata: Dict[str, Any] = None,
+        plots: List[str] = None
+    ):
+        self.final_output = final_output
+        self.usage = usage
+        self.metadata = metadata or {}
+        self.plots = plots or []
+```
+
+### **2. Provider-Specific Agent Implementations**
+
+```python
+# app/core/agents/providers/openai_agent.py
+from agents import Agent, Runner  # Your existing SDK
+from app.core.agents.base_agent import BaseAgent, AgentResult
+
+class OpenAIAgent(BaseAgent):
+    """OpenAI Agents SDK wrapper"""
+    
+    def __init__(self, name: str, instructions: str, tools: List = None, **kwargs):
+        super().__init__(name, instructions, tools, **kwargs)
+        
+        # Convert our tools to OpenAI SDK tools
+        sdk_tools = self._convert_tools_to_openai(tools)
+        
+        # Create the actual OpenAI agent
+        self._openai_agent = Agent(
+            name=name,
+            instructions=instructions,
+            tools=sdk_tools
+        )
+    
+    async def run(self, input_text: str, **kwargs) -> AgentResult:
+        """Run using OpenAI SDK"""
+        result = await Runner.run(self._openai_agent, input=input_text, **kwargs)
+        
+        return AgentResult(
+            final_output=result.final_output,
+            usage=self._extract_usage(result),
+            metadata={"provider": "openai", "model": "gpt-4"},
+            plots=self._extract_plots(result)
+        )
+    
+    async def run_streaming(self, input_text: str, **kwargs):
+        """Stream using OpenAI SDK"""
+        result = Runner.run_streamed(self._openai_agent, input=input_text, **kwargs)
+        async for chunk in result.stream_events():
+            if hasattr(chunk, 'content'):
+                yield chunk.content
+                
+# app/core/agents/providers/ollama_agent.py  
+class OllamaAgent(BaseAgent):
+    """Local Ollama agent implementation"""
+    
+    async def run(self, input_text: str, **kwargs) -> AgentResult:
+        """Run using Ollama API"""
+        # Direct HTTP calls to Ollama
+        response = await self._call_ollama_api(input_text)
+        
+        return AgentResult(
+            final_output=response['message']['content'],
+            usage={"tokens": len(response['message']['content'].split())},
+            metadata={"provider": "ollama", "model": self.provider_config.get("model", "llama3.2")}
+        )
+        
+# app/core/agents/providers/anthropic_agent.py
+class AnthropicAgent(BaseAgent):
+    """Anthropic Claude agent implementation"""
+    
+    async def run(self, input_text: str, **kwargs) -> AgentResult:
+        """Run using Anthropic API"""
+        # Direct calls to Claude API
+        pass
+```
+
+### **3. Tool Abstraction Layer**
+
+```python
+# app/core/tools/base_tool.py
+from abc import ABC, abstractmethod
+from typing import Any, Dict
+
+class BaseTool(ABC):
+    """Provider-agnostic tool interface"""
+    
+    def __init__(self, name: str, description: str):
+        self.name = name
+        self.description = description
+        
+    @abstractmethod
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Execute the tool"""
+        pass
+        
+    def to_openai_tool(self):
+        """Convert to OpenAI SDK tool format"""
+        from agents import function_tool
+        
+        @function_tool
+        async def wrapper(**kwargs):
+            return await self.execute(**kwargs)
+        wrapper.__name__ = self.name
+        wrapper.__doc__ = self.description
+        return wrapper
+        
+    def to_ollama_tool(self):
+        """Convert to Ollama tool format"""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self._get_parameters_schema()
+            }
+        }
+
+# app/core/tools/code_execution_tool.py
+class CodeExecutionTool(BaseTool):
+    """Provider-agnostic code execution"""
+    
+    def __init__(self, plots_dir: str):
+        super().__init__(
+            name="execute_code",
+            description="Execute Python code and return results"
+        )
+        self.plots_dir = plots_dir
+        
+    async def execute(self, code: str) -> Dict[str, Any]:
+        """Execute code - same logic regardless of provider"""
+        # Your existing code execution logic here
+        from aicore.code_executor.code_tool import execute_code
+        result = execute_code(code)
+        
+        return {
+            "result": result.result,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "status": result.status,
+            "plots": self._find_plots()
+        }
+```
+
+### **4. Agent Factory with Provider Selection**
+
+```python
+# app/core/agents/agent_factory.py
+from typing import Dict, List, Optional
+from app.core.agents.base_agent import BaseAgent
+from app.core.agents.providers.openai_agent import OpenAIAgent
+from app.core.agents.providers.ollama_agent import OllamaAgent
+from app.core.agents.providers.anthropic_agent import AnthropicAgent
+
+class AgentFactory:
+    """Factory for creating provider-specific agents"""
+    
+    def __init__(self, settings):
+        self.settings = settings
+        
+    def create_code_executor_agent(
+        self, 
+        provider: str = None,
+        plots_dir: str = None,
+        **kwargs
+    ) -> BaseAgent:
+        """Create a code executor agent with specified provider"""
+        
+        provider = provider or self.settings.LLM_PRIMARY_PROVIDER
+        
+        # Create tools (provider-agnostic)
+        tools = [
+            CodeExecutionTool(plots_dir),
+            SystemCommandTool(),
+            WebSearchTool()
+        ]
+        
+        # Create agent based on provider
+        if provider == "openai":
+            return OpenAIAgent(
+                name="Code Executor",
+                instructions=self._get_code_executor_instructions(plots_dir),
+                tools=tools,
+                **kwargs
+            )
+        elif provider == "ollama":
+            return OllamaAgent(
+                name="Code Executor", 
+                instructions=self._get_code_executor_instructions(plots_dir),
+                tools=tools,
+                provider_config={"model": self.settings.OLLAMA_MODEL},
+                **kwargs
+            )
+        elif provider == "anthropic":
+            return AnthropicAgent(
+                name="Code Executor",
+                instructions=self._get_code_executor_instructions(plots_dir), 
+                tools=tools,
+                **kwargs
+            )
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
+```
+
+### **5. Refactored AiCore Assistant**
+
+```python
+# aicore/assistant.py (refactored from openai_assistant.py)
+class AIAssistant:
+    """Provider-agnostic AI assistant"""
+    
+    def __init__(
+        self, 
+        provider: str = "ollama",
+        fallback_provider: str = "openai",
+        streaming_callback=None,
+        plots_dir: str = None
+    ):
+        self.provider = provider
+        self.fallback_provider = fallback_provider
+        self.streaming_callback = streaming_callback
+        
+        # Create agent factory
+        from app.core.config import settings
+        self.agent_factory = AgentFactory(settings)
+        
+        # Create primary agent
+        self.agent = self.agent_factory.create_code_executor_agent(
+            provider=provider,
+            plots_dir=plots_dir
+        )
+        
+        # Create fallback agent if different
+        if fallback_provider != provider:
+            self.fallback_agent = self.agent_factory.create_code_executor_agent(
+                provider=fallback_provider,
+                plots_dir=plots_dir
+            )
+        else:
+            self.fallback_agent = None
+            
+        self.messages = []
+        
+    async def process_message(self, user_message: str) -> Dict[str, Any]:
+        """Process message with provider fallback"""
+        try:
+            # Try primary provider
+            result = await self.agent.run(user_message)
+            
+            return {
+                "content": result.final_output,
+                "provider_used": self.provider,
+                "usage": result.usage,
+                "plots": result.plots,
+                "was_cancelled": False
+            }
+            
+        except Exception as e:
+            logger.warning(f"Primary provider {self.provider} failed: {e}")
+            
+            if self.fallback_agent:
+                logger.info(f"Trying fallback provider {self.fallback_provider}")
+                try:
+                    result = await self.fallback_agent.run(user_message)
+                    
+                    return {
+                        "content": result.final_output,
+                        "provider_used": self.fallback_provider,
+                        "usage": result.usage,
+                        "plots": result.plots,
+                        "was_cancelled": False,
+                        "used_fallback": True
+                    }
+                except Exception as fallback_error:
+                    logger.error(f"Fallback provider also failed: {fallback_error}")
+                    raise
+            else:
+                raise
+
+# For backward compatibility
+class OpenAIAssistant(AIAssistant):
+    """Backward compatible OpenAI assistant"""
+    def __init__(self, streaming_callback=None):
+        super().__init__(
+            provider="openai",
+            streaming_callback=streaming_callback
+        )
+```
+
+### **6. Usage Examples**
+
+```python
+# Old way (still works)
+assistant = OpenAIAssistant()
+
+# New way - provider choice
+assistant = AIAssistant(provider="ollama", fallback_provider="openai")
+assistant = AIAssistant(provider="anthropic", fallback_provider="ollama") 
+
+# Process message (same interface)
+result = await assistant.process_message("Calculate fibonacci sequence")
+
+# Result includes provider info
+print(f"Response from {result['provider_used']}: {result['content']}")
+if result.get('used_fallback'):
+    print("Primary provider failed, used fallback")
+```
+
+---
+
+## 🎯 **Key Benefits of This Abstraction**
+
+### **Provider Independence:**
+✅ **Switch providers** without code changes  
+✅ **Automatic fallback** when primary provider fails  
+✅ **Zero vendor lock-in** - not dependent on any single SDK  
+
+### **Cost Optimization:**
+✅ **Use free local models** (Ollama) for most tasks  
+✅ **Fallback to paid APIs** only when needed  
+✅ **Smart provider selection** based on task complexity  
+
+### **Backward Compatibility:**
+✅ **Existing code works unchanged** via `OpenAIAssistant`wrapper  
+✅ **Gradual migration** to new provider-agnostic system  
+✅ **Same tool system** works across all providers  
+
+### **Extensibility:**
+✅ **Easy to add new providers** (Google, Azure, etc.)  
+✅ **Provider-specific optimizations** while maintaining common interface  
+✅ **Tool system works across all providers**  
+
+This abstraction strategy decouples your excellent agent and tool system from the OpenAI Agents SDK while preserving all functionality. You get the flexibility to use any provider while keeping your robust code execution, plotting, and streaming capabilities.
+
+```python
+# aicore/code_executor/code_agent.py - Lines 45-49
+super().__init__(
+    name=name,
+    instructions=self._get_dynamic_instructions,
+    tools=[execute_code, execute_system_command, websearch_tool]
+)
+```
+
+```python
+# app/core/agents/base_agent.py
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any, Optional, AsyncGenerator
+
+class BaseAgent(ABC):
+    """Provider-agnostic agent interface"""
+    
+    def __init__(
+        self, 
+        name: str,
+        instructions: str,
+        tools: List['BaseTool'] = None,
+        provider_config: Dict[str, Any] = None
+    ):
+        self.name = name
+        self.instructions = instructions
+        self.tools = tools or []
+        self.provider_config = provider_config or {}
+        
+    @abstractmethod
+    async def run(self, input_text: str, **kwargs) -> 'AgentResult':
+        """Execute agent with input"""
+        pass
+        
+    @abstractmethod
+    async def run_streaming(self, input_text: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Execute agent with streaming response"""
+        pass
+        
+    @abstractmethod
+    async def add_tool(self, tool: 'BaseTool'):
+        """Add a tool to the agent"""
+        pass
+
+class AgentResult:
+    """Standardized agent result"""
+    def __init__(
+        self, 
+        final_output: str,
+        usage: Dict[str, Any],
+        metadata: Dict[str, Any] = None,
+        plots: List[str] = None
+    ):
+        self.final_output = final_output
+        self.usage = usage
+        self.metadata = metadata or {}
+        self.plots = plots or []
+```
+
+```python
+# app/core/agents/providers/openai_agent.py
+from agents import Agent, Runner  # Your existing SDK
+from app.core.agents.base_agent import BaseAgent, AgentResult
+
+class OpenAIAgent(BaseAgent):
+    """OpenAI Agents SDK wrapper"""
+    
+    def __init__(self, name: str, instructions: str, tools: List = None, **kwargs):
+        super().__init__(name, instructions, tools, **kwargs)
+        
+        # Convert our tools to OpenAI SDK tools
+        sdk_tools = self._convert_tools_to_openai(tools)
+        
+        # Create the actual OpenAI agent
+        self._openai_agent = Agent(
+            name=name,
+            instructions=instructions,
+            tools=sdk_tools
+        )
+    
+    async def run(self, input_text: str, **kwargs) -> AgentResult:
+        """Run using OpenAI SDK"""
+        result = await Runner.run(self._openai_agent, input=input_text, **kwargs)
+        
+        return AgentResult(
+            final_output=result.final_output,
+            usage=self._extract_usage(result),
+            metadata={"provider": "openai", "model": "gpt-4"},
+            plots=self._extract_plots(result)
+        )
+    
+    async def run_streaming(self, input_text: str, **kwargs):
+        """Stream using OpenAI SDK"""
+        result = Runner.run_streamed(self._openai_agent, input=input_text, **kwargs)
+        async for chunk in result.stream_events():
+            if hasattr(chunk, 'content'):
+                yield chunk.content
+                
+# app/core/agents/providers/ollama_agent.py  
+class OllamaAgent(BaseAgent):
+    """Local Ollama agent implementation"""
+    
+    async def run(self, input_text: str, **kwargs) -> AgentResult:
+        """Run using Ollama API"""
+        # Direct HTTP calls to Ollama
+        response = await self._call_ollama_api(input_text)
+        
+        return AgentResult(
+            final_output=response['message']['content'],
+            usage={"tokens": len(response['message']['content'].split())},
+            metadata={"provider": "ollama", "model": self.provider_config.get("model", "llama3.2")}
+        )
+        
+# app/core/agents/providers/anthropic_agent.py
+class AnthropicAgent(BaseAgent):
+    """Anthropic Claude agent implementation"""
+    
+    async def run(self, input_text: str, **kwargs) -> AgentResult:
+        """Run using Anthropic API"""
+        # Direct calls to Claude API
+        pass
+```
+
+```python
+# app/core/tools/base_tool.py
+from abc import ABC, abstractmethod
+from typing import Any, Dict
+
+class BaseTool(ABC):
+    """Provider-agnostic tool interface"""
+    
+    def __init__(self, name: str, description: str):
+        self.name = name
+        self.description = description
+        
+    @abstractmethod
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Execute the tool"""
+        pass
+        
+    def to_openai_tool(self):
+        """Convert to OpenAI SDK tool format"""
+        from agents import function_tool
+        
+        @function_tool
+        async def wrapper(**kwargs):
+            return await self.execute(**kwargs)
+        wrapper.__name__ = self.name
+        wrapper.__doc__ = self.description
+        return wrapper
+        
+    def to_ollama_tool(self):
+        """Convert to Ollama tool format"""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self._get_parameters_schema()
+            }
+        }
+
+# app/core/tools/code_execution_tool.py
+class CodeExecutionTool(BaseTool):
+    """Provider-agnostic code execution"""
+    
+    def __init__(self, plots_dir: str):
+        super().__init__(
+            name="execute_code",
+            description="Execute Python code and return results"
+        )
+        self.plots_dir = plots_dir
+        
+    async def execute(self, code: str) -> Dict[str, Any]:
+        """Execute code - same logic regardless of provider"""
+        # Your existing code execution logic here
+        from aicore.code_executor.code_tool import execute_code
+        result = execute_code(code)
+        
+        return {
+            "result": result.result,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "status": result.status,
+            "plots": self._find_plots()
+        }
+```
+
+```python
+# app/core/agents/agent_factory.py
+from typing import Dict, List, Optional
+from app.core.agents.base_agent import BaseAgent
+from app.core.agents.providers.openai_agent import OpenAIAgent
+from app.core.agents.providers.ollama_agent import OllamaAgent
+from app.core.agents.providers.anthropic_agent import AnthropicAgent
+
+class AgentFactory:
+    """Factory for creating provider-specific agents"""
+    
+    def __init__(self, settings):
+        self.settings = settings
+        
+    def create_code_executor_agent(
+        self, 
+        provider: str = None,
+        plots_dir: str = None,
+        **kwargs
+    ) -> BaseAgent:
+        """Create a code executor agent with specified provider"""
+        
+        provider = provider or self.settings.LLM_PRIMARY_PROVIDER
+        
+        # Create tools (provider-agnostic)
+        tools = [
+            CodeExecutionTool(plots_dir),
+            SystemCommandTool(),
+            WebSearchTool()
+        ]
+        
+        # Create agent based on provider
+        if provider == "openai":
+            return OpenAIAgent(
+                name="Code Executor",
+                instructions=self._get_code_executor_instructions(plots_dir),
+                tools=tools,
+                **kwargs
+            )
+        elif provider == "ollama":
+            return OllamaAgent(
+                name="Code Executor", 
+                instructions=self._get_code_executor_instructions(plots_dir),
+                tools=tools,
+                provider_config={"model": self.settings.OLLAMA_MODEL},
+                **kwargs
+            )
+        elif provider == "anthropic":
+            return AnthropicAgent(
+                name="Code Executor",
+                instructions=self._get_code_executor_instructions(plots_dir), 
+                tools=tools,
+                **kwargs
+            )
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
+```
+
+```python
+# aicore/assistant.py (refactored from openai_assistant.py)
+class AIAssistant:
+    """Provider-agnostic AI assistant"""
+    
+    def __init__(
+        self, 
+        provider: str = "ollama",
+        fallback_provider: str = "openai",
+        streaming_callback=None,
+        plots_dir: str = None
+    ):
+        self.provider = provider
+        self.fallback_provider = fallback_provider
+        self.streaming_callback = streaming_callback
+        
+        # Create agent factory
+        from app.core.config import settings
+        self.agent_factory = AgentFactory(settings)
+        
+        # Create primary agent
+        self.agent = self.agent_factory.create_code_executor_agent(
+            provider=provider,
+            plots_dir=plots_dir
+        )
+        
+        # Create fallback agent if different
+        if fallback_provider != provider:
+            self.fallback_agent = self.agent_factory.create_code_executor_agent(
+                provider=fallback_provider,
+                plots_dir=plots_dir
+            )
+        else:
+            self.fallback_agent = None
+            
+        self.messages = []
+        
+    async def process_message(self, user_message: str) -> Dict[str, Any]:
+        """Process message with provider fallback"""
+        try:
+            # Try primary provider
+            result = await self.agent.run(user_message)
+            
+            return {
+                "content": result.final_output,
+                "provider_used": self.provider,
+                "usage": result.usage,
+                "plots": result.plots,
+                "was_cancelled": False
+            }
+            
+        except Exception as e:
+            logger.warning(f"Primary provider {self.provider} failed: {e}")
+            
+            if self.fallback_agent:
+                logger.info(f"Trying fallback provider {self.fallback_provider}")
+                try:
+                    result = await self.fallback_agent.run(user_message)
+                    
+                    return {
+                        "content": result.final_output,
+                        "provider_used": self.fallback_provider,
+                        "usage": result.usage,
+                        "plots": result.plots,
+                        "was_cancelled": False,
+                        "used_fallback": True
+                    }
+                except Exception as fallback_error:
+                    logger.error(f"Fallback provider also failed: {fallback_error}")
+                    raise
+            else:
+                raise
+
+# For backward compatibility
+class OpenAIAssistant(AIAssistant):
+    """Backward compatible OpenAI assistant"""
+    def __init__(self, streaming_callback=None):
+        super().__init__(
+            provider="openai",
+            streaming_callback=streaming_callback
+        )
+```
+
+```python
+# Old way (still works)
+assistant = OpenAIAssistant()
+
+# New way - provider choice
+assistant = AIAssistant(provider="ollama", fallback_provider="openai")
+assistant = AIAssistant(provider="anthropic", fallback_provider="ollama") 
+
+# Process message (same interface)
+result = await assistant.process_message("Calculate fibonacci sequence")
+
+# Result includes provider info
+print(f"Response from {result['provider_used']}: {result['content']}")
+if result.get('used_fallback'):
+    print("Primary provider failed, used fallback")
+```
+
+---
+
+**User**
+
+I am talking about how u pass context to llm where u may need to pass chat history, user memory and doc rag?
+
+---
+
+**Cursor**
+
+Ah, you're asking about the **context building and injection strategy** - how to actually combine and pass the three memory layers (chat history, user memory, RAG documents) to the LLM. This is crucial for the memory system to work effectively.
+
+Let me show you the **context orchestration architecture**:
+
+---
+
+## 🧠 **Context Building & Injection Strategy**
+
+### **1. Context Manager - The Central Orchestrator**
+
+```python
+# app/services/memory/context_manager.py
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from enum import Enum
+
+class ContextType(Enum):
+    SYSTEM = "system"
+    SESSION_HISTORY = "session_history" 
+    USER_MEMORY = "user_memory"
+    KNOWLEDGE_RAG = "knowledge_rag"
+    CURRENT_USER = "current_user"
+
+@dataclass
+class ContextChunk:
+    """Individual piece of context"""
+    content: str
+    context_type: ContextType
+    importance: float  # 0.0 - 1.0
+    token_count: int
+    timestamp: Optional[datetime] = None
+    source: Optional[str] = None
+
+class ContextManager:
+    """Orchestrates context from all memory layers"""
+    
+    def __init__(self, max_context_tokens: int = 8000):
+        self.max_context_tokens = max_context_tokens
+        self.token_counter = tiktoken.get_encoding("cl100k_base")
+        
+    async def build_context(
+        self,
+        user_id: str,
+        session_id: str,
+        current_message: str,
+        model_name: str = "gpt-4"
+    ) -> List[Dict[str, str]]:
+        """Build complete context from all memory layers"""
+        
+        # 1. Collect context from all sources
+        context_chunks = []
+        
+        # Session context (chat history)
+        session_chunks = await self._get_session_context(session_id, current_message)
+        context_chunks.extend(session_chunks)
+        
+        # User memory (long-term facts)
+        memory_chunks = await self._get_user_memory_context(user_id, current_message)
+        context_chunks.extend(memory_chunks)
+        
+        # Knowledge RAG (documents)
+        rag_chunks = await self._get_rag_context(user_id, current_message)
+        context_chunks.extend(rag_chunks)
+        
+        # 2. Prioritize and compress context
+        optimized_chunks = await self._optimize_context(context_chunks, current_message)
+        
+        # 3. Build final context structure
+        return self._build_messages_array(optimized_chunks, current_message)
+```
+
+### **2. Session Context (Chat History)**
+
+```python
+async def _get_session_context(
+    self, 
+    session_id: str, 
+    current_message: str
+) -> List[ContextChunk]:
+    """Get recent conversation history with smart truncation"""
+    
+    # Get recent messages from database
+    recent_messages = await self.message_service.get_recent_messages(
+        session_id, limit=50  # Get more than we need
+    )
+    
+    context_chunks = []
+    total_tokens = 0
+    max_session_tokens = int(self.max_context_tokens * 0.4)  # 40% for session
+    
+    # Start from most recent and work backwards
+    for message in reversed(recent_messages):
+        chunk_content = f"{message.role}: {message.content}"
+        chunk_tokens = len(self.token_counter.encode(chunk_content))
+        
+        if total_tokens + chunk_tokens > max_session_tokens:
+            # Compress older messages instead of dropping them
+            if len(context_chunks) > 10:  # Keep recent 10 messages full
+                compressed = await self._compress_old_messages(context_chunks[:-10])
+                context_chunks = context_chunks[-10:] + compressed
+            break
+            
+        context_chunks.append(ContextChunk(
+            content=chunk_content,
+            context_type=ContextType.SESSION_HISTORY,
+            importance=self._calculate_message_importance(message, current_message),
+            token_count=chunk_tokens,
+            timestamp=message.created_at
+        ))
+        
+        total_tokens += chunk_tokens
+    
+    return context_chunks
+```
+
+### **3. User Memory Context (Long-term Facts)**
+
+```python
+async def _get_user_memory_context(
+    self, 
+    user_id: str, 
+    current_message: str
+) -> List[ContextChunk]:
+    """Get relevant user memories and facts"""
+    
+    # Semantic search for relevant memories
+    relevant_memories = await self.memory_service.search_memories(
+        user_id=user_id,
+        query=current_message,
+        limit=10,
+        min_importance=0.6
+    )
+    
+    context_chunks = []
+    max_memory_tokens = int(self.max_context_tokens * 0.2)  # 20% for user memory
+    total_tokens = 0
+    
+    for memory in relevant_memories:
+        # Format memory as context
+        memory_text = self._format_user_memory(memory)
+        memory_tokens = len(self.token_counter.encode(memory_text))
+        
+        if total_tokens + memory_tokens > max_memory_tokens:
+            break
+            
+        context_chunks.append(ContextChunk(
+            content=memory_text,
+            context_type=ContextType.USER_MEMORY,
+            importance=memory.importance_score,
+            token_count=memory_tokens,
+            source=f"memory_{memory.id}"
+        ))
+        
+        total_tokens += memory_tokens
+    
+    return context_chunks
+
+def _format_user_memory(self, memory) -> str:
+    """Format user memory for context injection"""
+    return f"""User Memory: {memory.fact_text}
+Context: {memory.context or 'General'}
+Confidence: {memory.importance_score:.2f}
+Last Updated: {memory.updated_at.strftime('%Y-%m-%d')}"""
+```
+
+### **4. Knowledge RAG Context (Documents)**
+
+```python
+async def _get_rag_context(
+    self, 
+    user_id: str, 
+    current_message: str
+) -> List[ContextChunk]:
+    """Get relevant document chunks via RAG"""
+    
+    # Semantic search in user's knowledge base
+    relevant_docs = await self.knowledge_service.hybrid_search(
+        query=current_message,
+        user_id=user_id,
+        limit=5,
+        min_similarity=0.7
+    )
+    
+    context_chunks = []
+    max_rag_tokens = int(self.max_context_tokens * 0.3)  # 30% for RAG
+    total_tokens = 0
+    
+    for doc_chunk in relevant_docs:
+        # Format document chunk
+        doc_text = self._format_document_chunk(doc_chunk)
+        doc_tokens = len(self.token_counter.encode(doc_text))
+        
+        if total_tokens + doc_tokens > max_rag_tokens:
+            break
+            
+        context_chunks.append(ContextChunk(
+            content=doc_text,
+            context_type=ContextType.KNOWLEDGE_RAG,
+            importance=doc_chunk.similarity_score,
+            token_count=doc_tokens,
+            source=f"doc_{doc_chunk.file_id}"
+        ))
+        
+        total_tokens += doc_tokens
+    
+    return context_chunks
+
+def _format_document_chunk(self, doc_chunk) -> str:
+    """Format document chunk for context injection"""
+    return f"""Document: {doc_chunk.filename}
+Section: {doc_chunk.section_title or 'Unknown'}
+Content: {doc_chunk.content}
+Relevance: {doc_chunk.similarity_score:.2f}"""
+```
+
+### **5. Context Optimization & Compression**
+
+```python
+async def _optimize_context(
+    self, 
+    context_chunks: List[ContextChunk], 
+    current_message: str
+) -> List[ContextChunk]:
+    """Optimize context based on importance and token limits"""
+    
+    # Sort by importance
+    sorted_chunks = sorted(context_chunks, key=lambda x: x.importance, reverse=True)
+    
+    # Calculate total tokens
+    total_tokens = sum(chunk.token_count for chunk in sorted_chunks)
+    
+    if total_tokens <= self.max_context_tokens:
+        return sorted_chunks
+    
+    # Need to compress/prioritize
+    optimized_chunks = []
+    current_tokens = 0
+    
+    # Always include high-importance chunks first
+    for chunk in sorted_chunks:
+        if chunk.importance > 0.8:  # High importance
+            optimized_chunks.append(chunk)
+            current_tokens += chunk.token_count
+            
+    # Add remaining chunks until token limit
+    for chunk in sorted_chunks:
+        if chunk.importance <= 0.8:
+            if current_tokens + chunk.token_count <= self.max_context_tokens:
+                optimized_chunks.append(chunk)
+                current_tokens += chunk.token_count
+            else:
+                # Try to compress this chunk
+                compressed = await self._compress_chunk(chunk)
+                if current_tokens + compressed.token_count <= self.max_context_tokens:
+                    optimized_chunks.append(compressed)
+                    current_tokens += compressed.token_count
+    
+    return optimized_chunks
+```
+
+### **6. Final Context Assembly**
+
+```python
+def _build_messages_array(
+    self, 
+    context_chunks: List[ContextChunk], 
+    current_message: str
+) -> List[Dict[str, str]]:
+    """Build final messages array for LLM"""
+    
+    messages = []
+    
+    # 1. System message with context
+    system_context = self._build_system_context(context_chunks)
+    messages.append({
+        "role": "system",
+        "content": system_context
+    })
+    
+    # 2. Session history messages
+    session_chunks = [c for c in context_chunks if c.context_type == ContextType.SESSION_HISTORY]
+    for chunk in sorted(session_chunks, key=lambda x: x.timestamp or datetime.min):
+        # Parse role and content from chunk
+        if ": " in chunk.content:
+            role, content = chunk.content.split(": ", 1)
+            messages.append({
+                "role": role.lower(),
+                "content": content
+            })
+    
+    # 3. Current user message
+    messages.append({
+        "role": "user", 
+        "content": current_message
+    })
+    
+    return messages
+
+def _build_system_context(self, context_chunks: List[ContextChunk]) -> str:
+    """Build system message with user memory and RAG context"""
+    
+    system_parts = [
+        "You are a helpful AI assistant with access to the user's personal context and knowledge base.",
+        ""
+    ]
+    
+    # Add user memory context
+    memory_chunks = [c for c in context_chunks if c.context_type == ContextType.USER_MEMORY]
+    if memory_chunks:
+        system_parts.append("=== USER CONTEXT ===")
+        for chunk in memory_chunks:
+            system_parts.append(chunk.content)
+        system_parts.append("")
+    
+    # Add RAG context
+    rag_chunks = [c for c in context_chunks if c.context_type == ContextType.KNOWLEDGE_RAG]
+    if rag_chunks:
+        system_parts.append("=== RELEVANT DOCUMENTS ===")
+        for chunk in rag_chunks:
+            system_parts.append(chunk.content)
+        system_parts.append("")
+    
+    system_parts.append("Use this context to provide more personalized and accurate responses.")
+    
+    return "\n".join(system_parts)
+```
+
+### **7. Integration with Chat Service**
+
+```python
+# app/services/chat/enhanced_chat_service.py
+class EnhancedChatService(ChatService):
+    
+    def __init__(self, db: AsyncSession, user: User):
+        super().__init__(db, user)
+        self.context_manager = ContextManager(max_context_tokens=8000)
+        
+    async def send_message_with_context(
+        self,
+        conversation_id: str,
+        content: str,
+        model: str = "gpt-4"
+    ) -> MessageResponse:
+        """Send message with full context from all memory layers"""
+        
+        # Build comprehensive context
+        messages = await self.context_manager.build_context(
+            user_id=str(self.user_id),
+            session_id=conversation_id,
+            current_message=content,
+            model_name=model
+        )
+        
+        # Get LLM provider
+        llm_provider = await self.provider_factory.get_llm_provider()
+        
+        # Generate response with full context
+        response = await llm_provider.chat_completion(
+            messages=messages,
+            model=model,
+            temperature=0.7
+        )
+        
+        # Store both user message and AI response
+        await self._store_conversation_turn(conversation_id, content, response.content)
+        
+        # Update memories based on the interaction
+        await self._update_memories_from_interaction(content, response.content)
+        
+        return MessageResponse(
+            content=response.content,
+            role="assistant",
+            metadata={
+                "context_tokens_used": sum(len(self.context_manager.token_counter.encode(msg["content"])) for msg in messages),
+                "context_sources": self._get_context_sources_summary(messages)
+            }
+        )
+```
+
+### **8. Context Sources Summary**
+
+```python
+def _get_context_sources_summary(self, messages: List[Dict]) -> Dict[str, int]:
+    """Summarize what context sources were used"""
+    return {
+        "chat_history_messages": len([m for m in messages if m["role"] in ["user", "assistant"]]),
+        "user_memories_included": len([c for c in self.last_context_chunks if c.context_type == ContextType.USER_MEMORY]),
+        "documents_referenced": len([c for c in self.last_context_chunks if c.context_type == ContextType.KNOWLEDGE_RAG]),
+        "total_context_tokens": sum(len(self.context_manager.token_counter.encode(m["content"])) for m in messages)
+    }
+```
+
+---
+
+## 🎯 **Key Benefits of This Context Strategy**
+
+### **Smart Context Management:**
+✅ **Token-aware** - Never exceeds model context limits  
+✅ **Importance-based prioritization** - Most relevant context first  
+✅ **Automatic compression** - Older context gets summarized  
+✅ **Multi-source integration** - Seamlessly combines all memory layers  
+
+### **Provider Agnostic:**
+✅ **Same context structure** works with OpenAI, Ollama, Claude  
+✅ **Adjustable token limits** per model (GPT-4: 8K, Claude: 100K)  
+✅ **Format flexibility** - Can adapt to different prompt formats  
+
+### **Memory Integration:**
+✅ **Contextual relevance** - Only includes relevant memories/documents  
+✅ **Temporal awareness** - Recent context weighted higher  
+✅ **Source tracking** - Know what influenced each response  
+
+This architecture ensures that regardless of which LLM provider you use, they all get the same rich, contextual information from your three memory layers, enabling truly personalized and knowledge-aware conversations.
+
+```python
+# app/services/memory/context_manager.py
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from enum import Enum
+
+class ContextType(Enum):
+    SYSTEM = "system"
+    SESSION_HISTORY = "session_history" 
+    USER_MEMORY = "user_memory"
+    KNOWLEDGE_RAG = "knowledge_rag"
+    CURRENT_USER = "current_user"
+
+@dataclass
+class ContextChunk:
+    """Individual piece of context"""
+    content: str
+    context_type: ContextType
+    importance: float  # 0.0 - 1.0
+    token_count: int
+    timestamp: Optional[datetime] = None
+    source: Optional[str] = None
+
+class ContextManager:
+    """Orchestrates context from all memory layers"""
+    
+    def __init__(self, max_context_tokens: int = 8000):
+        self.max_context_tokens = max_context_tokens
+        self.token_counter = tiktoken.get_encoding("cl100k_base")
+        
+    async def build_context(
+        self,
+        user_id: str,
+        session_id: str,
+        current_message: str,
+        model_name: str = "gpt-4"
+    ) -> List[Dict[str, str]]:
+        """Build complete context from all memory layers"""
+        
+        # 1. Collect context from all sources
+        context_chunks = []
+        
+        # Session context (chat history)
+        session_chunks = await self._get_session_context(session_id, current_message)
+        context_chunks.extend(session_chunks)
+        
+        # User memory (long-term facts)
+        memory_chunks = await self._get_user_memory_context(user_id, current_message)
+        context_chunks.extend(memory_chunks)
+        
+        # Knowledge RAG (documents)
+        rag_chunks = await self._get_rag_context(user_id, current_message)
+        context_chunks.extend(rag_chunks)
+        
+        # 2. Prioritize and compress context
+        optimized_chunks = await self._optimize_context(context_chunks, current_message)
+        
+        # 3. Build final context structure
+        return self._build_messages_array(optimized_chunks, current_message)
+```
+
+```python
+async def _get_session_context(
+    self, 
+    session_id: str, 
+    current_message: str
+) -> List[ContextChunk]:
+    """Get recent conversation history with smart truncation"""
+    
+    # Get recent messages from database
+    recent_messages = await self.message_service.get_recent_messages(
+        session_id, limit=50  # Get more than we need
+    )
+    
+    context_chunks = []
+    total_tokens = 0
+    max_session_tokens = int(self.max_context_tokens * 0.4)  # 40% for session
+    
+    # Start from most recent and work backwards
+    for message in reversed(recent_messages):
+        chunk_content = f"{message.role}: {message.content}"
+        chunk_tokens = len(self.token_counter.encode(chunk_content))
+        
+        if total_tokens + chunk_tokens > max_session_tokens:
+            # Compress older messages instead of dropping them
+            if len(context_chunks) > 10:  # Keep recent 10 messages full
+                compressed = await self._compress_old_messages(context_chunks[:-10])
+                context_chunks = context_chunks[-10:] + compressed
+            break
+            
+        context_chunks.append(ContextChunk(
+            content=chunk_content,
+            context_type=ContextType.SESSION_HISTORY,
+            importance=self._calculate_message_importance(message, current_message),
+            token_count=chunk_tokens,
+            timestamp=message.created_at
+        ))
+        
+        total_tokens += chunk_tokens
+    
+    return context_chunks
+```
+
+```python
+async def _get_user_memory_context(
+    self, 
+    user_id: str, 
+    current_message: str
+) -> List[ContextChunk]:
+    """Get relevant user memories and facts"""
+    
+    # Semantic search for relevant memories
+    relevant_memories = await self.memory_service.search_memories(
+        user_id=user_id,
+        query=current_message,
+        limit=10,
+        min_importance=0.6
+    )
+    
+    context_chunks = []
+    max_memory_tokens = int(self.max_context_tokens * 0.2)  # 20% for user memory
+    total_tokens = 0
+    
+    for memory in relevant_memories:
+        # Format memory as context
+        memory_text = self._format_user_memory(memory)
+        memory_tokens = len(self.token_counter.encode(memory_text))
+        
+        if total_tokens + memory_tokens > max_memory_tokens:
+            break
+            
+        context_chunks.append(ContextChunk(
+            content=memory_text,
+            context_type=ContextType.USER_MEMORY,
+            importance=memory.importance_score,
+            token_count=memory_tokens,
+            source=f"memory_{memory.id}"
+        ))
+        
+        total_tokens += memory_tokens
+    
+    return context_chunks
+
+def _format_user_memory(self, memory) -> str:
+    """Format user memory for context injection"""
+    return f"""User Memory: {memory.fact_text}
+Context: {memory.context or 'General'}
+Confidence: {memory.importance_score:.2f}
+Last Updated: {memory.updated_at.strftime('%Y-%m-%d')}"""
+```
+
+```python
+async def _get_rag_context(
+    self, 
+    user_id: str, 
+    current_message: str
+) -> List[ContextChunk]:
+    """Get relevant document chunks via RAG"""
+    
+    # Semantic search in user's knowledge base
+    relevant_docs = await self.knowledge_service.hybrid_search(
+        query=current_message,
+        user_id=user_id,
+        limit=5,
+        min_similarity=0.7
+    )
+    
+    context_chunks = []
+    max_rag_tokens = int(self.max_context_tokens * 0.3)  # 30% for RAG
+    total_tokens = 0
+    
+    for doc_chunk in relevant_docs:
+        # Format document chunk
+        doc_text = self._format_document_chunk(doc_chunk)
+        doc_tokens = len(self.token_counter.encode(doc_text))
+        
+        if total_tokens + doc_tokens > max_rag_tokens:
+            break
+            
+        context_chunks.append(ContextChunk(
+            content=doc_text,
+            context_type=ContextType.KNOWLEDGE_RAG,
+            importance=doc_chunk.similarity_score,
+            token_count=doc_tokens,
+            source=f"doc_{doc_chunk.file_id}"
+        ))
+        
+        total_tokens += doc_tokens
+    
+    return context_chunks
+
+def _format_document_chunk(self, doc_chunk) -> str:
+    """Format document chunk for context injection"""
+    return f"""Document: {doc_chunk.filename}
+Section: {doc_chunk.section_title or 'Unknown'}
+Content: {doc_chunk.content}
+Relevance: {doc_chunk.similarity_score:.2f}"""
+```
+
+```python
+async def _optimize_context(
+    self, 
+    context_chunks: List[ContextChunk], 
+    current_message: str
+) -> List[ContextChunk]:
+    """Optimize context based on importance and token limits"""
+    
+    # Sort by importance
+    sorted_chunks = sorted(context_chunks, key=lambda x: x.importance, reverse=True)
+    
+    # Calculate total tokens
+    total_tokens = sum(chunk.token_count for chunk in sorted_chunks)
+    
+    if total_tokens <= self.max_context_tokens:
+        return sorted_chunks
+    
+    # Need to compress/prioritize
+    optimized_chunks = []
+    current_tokens = 0
+    
+    # Always include high-importance chunks first
+    for chunk in sorted_chunks:
+        if chunk.importance > 0.8:  # High importance
+            optimized_chunks.append(chunk)
+            current_tokens += chunk.token_count
+            
+    # Add remaining chunks until token limit
+    for chunk in sorted_chunks:
+        if chunk.importance <= 0.8:
+            if current_tokens + chunk.token_count <= self.max_context_tokens:
+                optimized_chunks.append(chunk)
+                current_tokens += chunk.token_count
+            else:
+                # Try to compress this chunk
+                compressed = await self._compress_chunk(chunk)
+                if current_tokens + compressed.token_count <= self.max_context_tokens:
+                    optimized_chunks.append(compressed)
+                    current_tokens += compressed.token_count
+    
+    return optimized_chunks
+```
+
+```python
+def _build_messages_array(
+    self, 
+    context_chunks: List[ContextChunk], 
+    current_message: str
+) -> List[Dict[str, str]]:
+    """Build final messages array for LLM"""
+    
+    messages = []
+    
+    # 1. System message with context
+    system_context = self._build_system_context(context_chunks)
+    messages.append({
+        "role": "system",
+        "content": system_context
+    })
+    
+    # 2. Session history messages
+    session_chunks = [c for c in context_chunks if c.context_type == ContextType.SESSION_HISTORY]
+    for chunk in sorted(session_chunks, key=lambda x: x.timestamp or datetime.min):
+        # Parse role and content from chunk
+        if ": " in chunk.content:
+            role, content = chunk.content.split(": ", 1)
+            messages.append({
+                "role": role.lower(),
+                "content": content
+            })
+    
+    # 3. Current user message
+    messages.append({
+        "role": "user", 
+        "content": current_message
+    })
+    
+    return messages
+
+def _build_system_context(self, context_chunks: List[ContextChunk]) -> str:
+    """Build system message with user memory and RAG context"""
+    
+    system_parts = [
+        "You are a helpful AI assistant with access to the user's personal context and knowledge base.",
+        ""
+    ]
+    
+    # Add user memory context
+    memory_chunks = [c for c in context_chunks if c.context_type == ContextType.USER_MEMORY]
+    if memory_chunks:
+        system_parts.append("=== USER CONTEXT ===")
+        for chunk in memory_chunks:
+            system_parts.append(chunk.content)
+        system_parts.append("")
+    
+    # Add RAG context
+    rag_chunks = [c for c in context_chunks if c.context_type == ContextType.KNOWLEDGE_RAG]
+    if rag_chunks:
+        system_parts.append("=== RELEVANT DOCUMENTS ===")
+        for chunk in rag_chunks:
+            system_parts.append(chunk.content)
+        system_parts.append("")
+    
+    system_parts.append("Use this context to provide more personalized and accurate responses.")
+    
+    return "\n".join(system_parts)
+```
+
+```python
+# app/services/chat/enhanced_chat_service.py
+class EnhancedChatService(ChatService):
+    
+    def __init__(self, db: AsyncSession, user: User):
+        super().__init__(db, user)
+        self.context_manager = ContextManager(max_context_tokens=8000)
+        
+    async def send_message_with_context(
+        self,
+        conversation_id: str,
+        content: str,
+        model: str = "gpt-4"
+    ) -> MessageResponse:
+        """Send message with full context from all memory layers"""
+        
+        # Build comprehensive context
+        messages = await self.context_manager.build_context(
+            user_id=str(self.user_id),
+            session_id=conversation_id,
+            current_message=content,
+            model_name=model
+        )
+        
+        # Get LLM provider
+        llm_provider = await self.provider_factory.get_llm_provider()
+        
+        # Generate response with full context
+        response = await llm_provider.chat_completion(
+            messages=messages,
+            model=model,
+            temperature=0.7
+        )
+        
+        # Store both user message and AI response
+        await self._store_conversation_turn(conversation_id, content, response.content)
+        
+        # Update memories based on the interaction
+        await self._update_memories_from_interaction(content, response.content)
+        
+        return MessageResponse(
+            content=response.content,
+            role="assistant",
+            metadata={
+                "context_tokens_used": sum(len(self.context_manager.token_counter.encode(msg["content"])) for msg in messages),
+                "context_sources": self._get_context_sources_summary(messages)
+            }
+        )
+```
+
+```python
+def _get_context_sources_summary(self, messages: List[Dict]) -> Dict[str, int]:
+    """Summarize what context sources were used"""
+    return {
+        "chat_history_messages": len([m for m in messages if m["role"] in ["user", "assistant"]]),
+        "user_memories_included": len([c for c in self.last_context_chunks if c.context_type == ContextType.USER_MEMORY]),
+        "documents_referenced": len([c for c in self.last_context_chunks if c.context_type == ContextType.KNOWLEDGE_RAG]),
+        "total_context_tokens": sum(len(self.context_manager.token_counter.encode(m["content"])) for m in messages)
+    }
+```
+
+---
+
+**User**
+
+do u pass context as instructions to llm agent?
+
+---
+
+**Cursor**
+
+```python
+super().__init__(
+    name=name,
+    instructions=self._get_dynamic_instructions,  # This is a function that returns dynamic instructions
+    tools=[execute_code, execute_system_command, websearch_tool]
+)
+```
+
+Great question! You're hitting on a **critical architectural decision**. Looking at your code, you're already using dynamic instructions with `self._get_dynamic_instructions`, but let me show you the **different approaches** for context injection and their trade-offs:
+
+---
+
+## 🎯 **Context Injection Strategies**
+
+### **Approach 1: Dynamic Instructions (What You're Currently Doing)**
+
+```python
+# aicore/code_executor/code_agent.py - Your current approach
+super().__init__(
+    name=name,
+    instructions=self._get_dynamic_instructions,  # Function that can change
+    tools=[execute_code, execute_system_command, websearch_tool]
+)
+
+def _get_dynamic_instructions(self, run_context: RunContextWrapper, agent: Agent) -> str:
+    """Generate instructions with current context"""
+    # This gets called for EVERY message
+    return self.instructions_template.replace("{message_id}", self.current_message_id)
+```
+
+**Problem with this approach for memory/context:**
+- Instructions are meant to be **agent behavior**, not **conversation context**
+- Instructions get **regenerated for every tool call**, not just user messages
+- **Performance overhead** - rebuilding instructions constantly
+- **Token waste** - instructions count toward context limit but aren't conversation
+
+---
+
+### **Approach 2: Context as Conversation Messages (Recommended)**
+
+```python
+# Enhanced approach - separate instructions from context
+class ContextAwareAgent(BaseAgent):
+    
+    def __init__(self, name: str, plots_dir: str):
+        # STATIC instructions - agent behavior only
+        static_instructions = f"""You are a code execution assistant.
+        
+Your capabilities:
+- Execute Python code
+- Generate plots and save to {plots_dir}
+- Run system commands
+- Search the web
+
+IMPORTANT: Save plots with unique filenames using provided message_id."""
+        
+        super().__init__(
+            name=name,
+            instructions=static_instructions,  # Static - never changes
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+        
+    async def run_with_context(
+        self, 
+        user_message: str,
+        user_context: Dict[str, Any] = None
+    ) -> AgentResult:
+        """Run agent with dynamic context as conversation messages"""
+        
+        # Build messages array with context
+        messages = self._build_context_messages(user_message, user_context)
+        
+        # Pass to underlying agent
+        return await self._execute_with_messages(messages)
+        
+    def _build_context_messages(
+        self, 
+        user_message: str, 
+        user_context: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        """Build conversation messages with context"""
+        
+        messages = []
+        
+        # 1. System message with dynamic context (NOT instructions)
+        if user_context:
+            system_context = self._format_context_for_system(user_context)
+            messages.append({
+                "role": "system",
+                "content": system_context
+            })
+        
+        # 2. Chat history from context
+        if user_context and 'chat_history' in user_context:
+            for msg in user_context['chat_history']:
+                messages.append({
+                    "role": msg['role'],
+                    "content": msg['content']
+                })
+        
+        # 3. Current user message
+        messages.append({
+            "role": "user",
+            "content": user_message
+        })
+        
+        return messages
+```
+
+### **Approach 3: Hybrid - Static Instructions + Dynamic System Messages**
+
+```python
+class HybridContextAgent(BaseAgent):
+    
+    def __init__(self, name: str, plots_dir: str):
+        # Static instructions for agent behavior
+        self.base_instructions = f"""You are a helpful AI assistant with code execution capabilities.
+
+Core Behavior:
+- Always be helpful and accurate
+- Execute code when requested
+- Save plots to {plots_dir} with unique filenames
+- Use provided tools appropriately
+
+Tool Usage Guidelines:
+[Tool descriptions here...]"""
+        
+        super().__init__(
+            name=name,
+            instructions=self.base_instructions,  # Always the same
+            tools=[...]
+        )
+        
+    def _format_full_context(
+        self, 
+        user_message: str,
+        memory_context: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        """Combine static instructions with dynamic context"""
+        
+        messages = []
+        
+        # 1. Static system instructions
+        messages.append({
+            "role": "system", 
+            "content": self.base_instructions
+        })
+        
+        # 2. Dynamic context as separate system message
+        if memory_context:
+            context_content = self._build_dynamic_context(memory_context)
+            messages.append({
+                "role": "system",
+                "content": f"=== CURRENT USER CONTEXT ===\n{context_content}"
+            })
+        
+        # 3. Chat history
+        for msg in memory_context.get('chat_history', []):
+            messages.append(msg)
+            
+        # 4. Current message
+        messages.append({
+            "role": "user",
+            "content": user_message
+        })
+        
+        return messages
+        
+    def _build_dynamic_context(self, memory_context: Dict[str, Any]) -> str:
+        """Build dynamic context string"""
+        context_parts = []
+        
+        # User memories
+        if memory_context.get('user_memories'):
+            context_parts.append("USER MEMORIES:")
+            for memory in memory_context['user_memories']:
+                context_parts.append(f"- {memory['fact']}")
+            context_parts.append("")
+        
+        # RAG documents
+        if memory_context.get('relevant_docs'):
+            context_parts.append("RELEVANT DOCUMENTS:")
+            for doc in memory_context['relevant_docs']:
+                context_parts.append(f"- {doc['title']}: {doc['content'][:200]}...")
+            context_parts.append("")
+            
+        # Current user preferences
+        if memory_context.get('user_preferences'):
+            context_parts.append("USER PREFERENCES:")
+            prefs = memory_context['user_preferences']
+            context_parts.append(f"- Communication style: {prefs.get('style', 'default')}")
+            context_parts.append(f"- Expertise level: {prefs.get('expertise', 'beginner')}")
+            
+        return "\n".join(context_parts)
+```
+
+---
+
+## 🔧 **Integration with Your Current Architecture**
+
+### **Refactor Your Agent to Use Message-Based Context:**
+
+```python
+# aicore/enhanced_code_agent.py
+class EnhancedCodeExecutorAgent:
+    """Context-aware version of your CodeExecutorAgent"""
+    
+    def __init__(self, name: str, root_plots_dir: str):
+        self.name = name
+        self.root_plots_dir = root_plots_dir
+        
+        # Create unique plots directory
+        unique_id = str(uuid.uuid4())[:8]
+        self.unique_plots_dir = os.path.join(root_plots_dir, unique_id)
+        os.makedirs(self.unique_plots_dir, exist_ok=True)
+        
+        # STATIC instructions - never change
+        self.static_instructions = self._get_static_instructions()
+        
+        # Current message ID
+        self.current_message_id = str(uuid.uuid4())[:8]
+        
+    def _get_static_instructions(self) -> str:
+        """Static agent behavior instructions"""
+        return f"""You are a code execution assistant with the following capabilities:
+
+TOOLS AVAILABLE:
+1. execute_code(code: str) - Execute Python code
+2. execute_system_command(command: str) - Run system commands  
+3. Web search tool for information lookup
+
+CODE EXECUTION RULES:
+- Code runs as standalone scripts (no memory between executions)
+- Include all necessary imports in each script
+- Assign results to 'result' variable for output
+- Save plots to: {self.unique_plots_dir}
+- Use filename format: {{message_id}}_plot_{{timestamp}}.png
+- NEVER use plt.show() - always save plots
+
+Your current message ID is: {self.current_message_id}
+
+Be helpful, accurate, and follow the code execution guidelines precisely."""
+
+    async def process_with_context(
+        self,
+        user_message: str,
+        context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Process message with memory context"""
+        
+        # Build messages with context
+        messages = self._build_messages_with_context(user_message, context)
+        
+        # Create underlying agent with static instructions
+        agent = Agent(
+            name=self.name,
+            instructions=self.static_instructions,  # Static only
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+        
+        # Execute with message context (not instruction context)
+        result = await Runner.run(
+            agent,
+            input=user_message,
+            messages=messages  # Pass context as messages
+        )
+        
+        return {
+            'response': result.final_output,
+            'message_id': self.current_message_id,
+            'plots': glob.glob(f"{self.unique_plots_dir}/{self.current_message_id}_*.png"),
+            'context_used': bool(context)
+        }
+        
+    def _build_messages_with_context(
+        self, 
+        user_message: str, 
+        context: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        """Build conversation messages with memory context"""
+        
+        messages = []
+        
+        # Add context as system message (separate from instructions)
+        if context:
+            context_content = self._format_context(context)
+            messages.append({
+                "role": "system",
+                "content": f"=== USER CONTEXT ===\n{context_content}"
+            })
+        
+        # Add chat history
+        if context and 'chat_history' in context:
+            messages.extend(context['chat_history'])
+            
+        return messages
+```
+
+### **Usage in Your Chat Service:**
+
+```python
+# app/services/chat/enhanced_chat_service.py
+async def send_message_with_memory(
+    self,
+    conversation_id: str,
+    content: str
+) -> MessageResponse:
+    """Send message with full memory context"""
+    
+    # Build context from all memory layers
+    context = await self.context_manager.build_context(
+        user_id=str(self.user_id),
+        session_id=conversation_id,
+        current_message=content
+    )
+    
+    # Create enhanced agent
+    agent = EnhancedCodeExecutorAgent(
+        name="Code Assistant",
+        root_plots_dir=PLOTS_DIR
+    )
+    
+    # Process with context (context passed as messages, not instructions)
+    result = await agent.process_with_context(
+        user_message=content,
+        context={
+            'user_memories': context.get('user_memories', []),
+            'relevant_docs': context.get('relevant_docs', []), 
+            'chat_history': context.get('chat_history', []),
+            'user_preferences': await self._get_user_preferences()
+        }
+    )
+    
+    return MessageResponse(
+        content=result['response'],
+        plots=result['plots'],
+        metadata={
+            'context_used': result['context_used'],
+            'message_id': result['message_id']
+        }
+    )
+```
+
+---
+
+## 🎯 **Key Principles**
+
+### **✅ DO: Separate Instructions from Context**
+- **Instructions** = Agent behavior, tool usage, formatting rules
+- **Context** = User memory, chat history, RAG documents
+
+### **✅ DO: Pass Context as Messages**
+- System messages for user context
+- User/assistant messages for chat history
+- Current user message last
+
+### **❌ DON'T: Mix Context into Instructions**
+- Instructions shouldn't change per conversation
+- Context is conversation-specific, instructions are agent-specific
+
+### **🎯 Best Practice:**
+```python
+# GOOD
+instructions = "You are a helpful assistant with code execution"  # Static
+context = {"user_memories": [...], "docs": [...]}  # Dynamic per message
+
+# BAD  
+instructions = f"You are assistant. User likes {user.preference}..."  # Mixed
+```
+
+This approach gives you **clean separation**, **better performance**, and **easier debugging** of what context is being passed to your LLM agents.
+
+```python
+# aicore/code_executor/code_agent.py - Your current approach
+super().__init__(
+    name=name,
+    instructions=self._get_dynamic_instructions,  # Function that can change
+    tools=[execute_code, execute_system_command, websearch_tool]
+)
+
+def _get_dynamic_instructions(self, run_context: RunContextWrapper, agent: Agent) -> str:
+    """Generate instructions with current context"""
+    # This gets called for EVERY message
+    return self.instructions_template.replace("{message_id}", self.current_message_id)
+```
+
+```python
+# Enhanced approach - separate instructions from context
+class ContextAwareAgent(BaseAgent):
+    
+    def __init__(self, name: str, plots_dir: str):
+        # STATIC instructions - agent behavior only
+        static_instructions = f"""You are a code execution assistant.
+        
+Your capabilities:
+- Execute Python code
+- Generate plots and save to {plots_dir}
+- Run system commands
+- Search the web
+
+IMPORTANT: Save plots with unique filenames using provided message_id."""
+        
+        super().__init__(
+            name=name,
+            instructions=static_instructions,  # Static - never changes
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+        
+    async def run_with_context(
+        self, 
+        user_message: str,
+        user_context: Dict[str, Any] = None
+    ) -> AgentResult:
+        """Run agent with dynamic context as conversation messages"""
+        
+        # Build messages array with context
+        messages = self._build_context_messages(user_message, user_context)
+        
+        # Pass to underlying agent
+        return await self._execute_with_messages(messages)
+        
+    def _build_context_messages(
+        self, 
+        user_message: str, 
+        user_context: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        """Build conversation messages with context"""
+        
+        messages = []
+        
+        # 1. System message with dynamic context (NOT instructions)
+        if user_context:
+            system_context = self._format_context_for_system(user_context)
+            messages.append({
+                "role": "system",
+                "content": system_context
+            })
+        
+        # 2. Chat history from context
+        if user_context and 'chat_history' in user_context:
+            for msg in user_context['chat_history']:
+                messages.append({
+                    "role": msg['role'],
+                    "content": msg['content']
+                })
+        
+        # 3. Current user message
+        messages.append({
+            "role": "user",
+            "content": user_message
+        })
+        
+        return messages
+```
+
+```python
+class HybridContextAgent(BaseAgent):
+    
+    def __init__(self, name: str, plots_dir: str):
+        # Static instructions for agent behavior
+        self.base_instructions = f"""You are a helpful AI assistant with code execution capabilities.
+
+Core Behavior:
+- Always be helpful and accurate
+- Execute code when requested
+- Save plots to {plots_dir} with unique filenames
+- Use provided tools appropriately
+
+Tool Usage Guidelines:
+[Tool descriptions here...]"""
+        
+        super().__init__(
+            name=name,
+            instructions=self.base_instructions,  # Always the same
+            tools=[...]
+        )
+        
+    def _format_full_context(
+        self, 
+        user_message: str,
+        memory_context: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        """Combine static instructions with dynamic context"""
+        
+        messages = []
+        
+        # 1. Static system instructions
+        messages.append({
+            "role": "system", 
+            "content": self.base_instructions
+        })
+        
+        # 2. Dynamic context as separate system message
+        if memory_context:
+            context_content = self._build_dynamic_context(memory_context)
+            messages.append({
+                "role": "system",
+                "content": f"=== CURRENT USER CONTEXT ===\n{context_content}"
+            })
+        
+        # 3. Chat history
+        for msg in memory_context.get('chat_history', []):
+            messages.append(msg)
+            
+        # 4. Current message
+        messages.append({
+            "role": "user",
+            "content": user_message
+        })
+        
+        return messages
+        
+    def _build_dynamic_context(self, memory_context: Dict[str, Any]) -> str:
+        """Build dynamic context string"""
+        context_parts = []
+        
+        # User memories
+        if memory_context.get('user_memories'):
+            context_parts.append("USER MEMORIES:")
+            for memory in memory_context['user_memories']:
+                context_parts.append(f"- {memory['fact']}")
+            context_parts.append("")
+        
+        # RAG documents
+        if memory_context.get('relevant_docs'):
+            context_parts.append("RELEVANT DOCUMENTS:")
+            for doc in memory_context['relevant_docs']:
+                context_parts.append(f"- {doc['title']}: {doc['content'][:200]}...")
+            context_parts.append("")
+            
+        # Current user preferences
+        if memory_context.get('user_preferences'):
+            context_parts.append("USER PREFERENCES:")
+            prefs = memory_context['user_preferences']
+            context_parts.append(f"- Communication style: {prefs.get('style', 'default')}")
+            context_parts.append(f"- Expertise level: {prefs.get('expertise', 'beginner')}")
+            
+        return "\n".join(context_parts)
+```
+
+```python
+# aicore/enhanced_code_agent.py
+class EnhancedCodeExecutorAgent:
+    """Context-aware version of your CodeExecutorAgent"""
+    
+    def __init__(self, name: str, root_plots_dir: str):
+        self.name = name
+        self.root_plots_dir = root_plots_dir
+        
+        # Create unique plots directory
+        unique_id = str(uuid.uuid4())[:8]
+        self.unique_plots_dir = os.path.join(root_plots_dir, unique_id)
+        os.makedirs(self.unique_plots_dir, exist_ok=True)
+        
+        # STATIC instructions - never change
+        self.static_instructions = self._get_static_instructions()
+        
+        # Current message ID
+        self.current_message_id = str(uuid.uuid4())[:8]
+        
+    def _get_static_instructions(self) -> str:
+        """Static agent behavior instructions"""
+        return f"""You are a code execution assistant with the following capabilities:
+
+TOOLS AVAILABLE:
+1. execute_code(code: str) - Execute Python code
+2. execute_system_command(command: str) - Run system commands  
+3. Web search tool for information lookup
+
+CODE EXECUTION RULES:
+- Code runs as standalone scripts (no memory between executions)
+- Include all necessary imports in each script
+- Assign results to 'result' variable for output
+- Save plots to: {self.unique_plots_dir}
+- Use filename format: {{message_id}}_plot_{{timestamp}}.png
+- NEVER use plt.show() - always save plots
+
+Your current message ID is: {self.current_message_id}
+
+Be helpful, accurate, and follow the code execution guidelines precisely."""
+
+    async def process_with_context(
+        self,
+        user_message: str,
+        context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Process message with memory context"""
+        
+        # Build messages with context
+        messages = self._build_messages_with_context(user_message, context)
+        
+        # Create underlying agent with static instructions
+        agent = Agent(
+            name=self.name,
+            instructions=self.static_instructions,  # Static only
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+        
+        # Execute with message context (not instruction context)
+        result = await Runner.run(
+            agent,
+            input=user_message,
+            messages=messages  # Pass context as messages
+        )
+        
+        return {
+            'response': result.final_output,
+            'message_id': self.current_message_id,
+            'plots': glob.glob(f"{self.unique_plots_dir}/{self.current_message_id}_*.png"),
+            'context_used': bool(context)
+        }
+        
+    def _build_messages_with_context(
+        self, 
+        user_message: str, 
+        context: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        """Build conversation messages with memory context"""
+        
+        messages = []
+        
+        # Add context as system message (separate from instructions)
+        if context:
+            context_content = self._format_context(context)
+            messages.append({
+                "role": "system",
+                "content": f"=== USER CONTEXT ===\n{context_content}"
+            })
+        
+        # Add chat history
+        if context and 'chat_history' in context:
+            messages.extend(context['chat_history'])
+            
+        return messages
+```
+
+```python
+# app/services/chat/enhanced_chat_service.py
+async def send_message_with_memory(
+    self,
+    conversation_id: str,
+    content: str
+) -> MessageResponse:
+    """Send message with full memory context"""
+    
+    # Build context from all memory layers
+    context = await self.context_manager.build_context(
+        user_id=str(self.user_id),
+        session_id=conversation_id,
+        current_message=content
+    )
+    
+    # Create enhanced agent
+    agent = EnhancedCodeExecutorAgent(
+        name="Code Assistant",
+        root_plots_dir=PLOTS_DIR
+    )
+    
+    # Process with context (context passed as messages, not instructions)
+    result = await agent.process_with_context(
+        user_message=content,
+        context={
+            'user_memories': context.get('user_memories', []),
+            'relevant_docs': context.get('relevant_docs', []), 
+            'chat_history': context.get('chat_history', []),
+            'user_preferences': await self._get_user_preferences()
+        }
+    )
+    
+    return MessageResponse(
+        content=result['response'],
+        plots=result['plots'],
+        metadata={
+            'context_used': result['context_used'],
+            'message_id': result['message_id']
+        }
+    )
+```
+
+```python
+# GOOD
+instructions = "You are a helpful assistant with code execution"  # Static
+context = {"user_memories": [...], "docs": [...]}  # Dynamic per message
+
+# BAD  
+instructions = f"You are assistant. User likes {user.preference}..."  # Mixed
+```
+
+---
+
+**User**
+
+how do you pass all context to the user@run.py @run_context.py 
+
+---
+
+**Cursor**
+
+```python
+async def run(
+    cls,
+    starting_agent: Agent[TContext],
+    input: str | list[TResponseInputItem],
+    *,
+    context: TContext | None = None,  # <-- This is the context parameter
+    max_turns: int = DEFAULT_MAX_TURNS,
+    hooks: RunHooks[TContext] | None = None,
+    run_config: RunConfig | None = None,
+    previous_response_id: str | None = None,
+) -> RunResult:
+```
+
+```python
+@dataclass
+class RunContextWrapper(Generic[TContext]):
+    """This wraps the context object that you passed to `Runner.run()`. It also contains
+    information about the usage of the agent run so far.
+
+    NOTE: Contexts are not passed to the LLM. They're a way to pass dependencies and data to code
+    you implement, like tool functions, callbacks, hooks, etc.
+    """
+
+    context: TContext
+    """The context object (or None), passed by you to `Runner.run()`"""
+```
+
+```python
+result = Runner.run_streamed(
+    self.agent,
+    input=user_message,
+    previous_response_id=self.last_response_id
+)
+```
+
+Great question! Looking at the OpenAI Agents SDK code, there's a **crucial distinction** to understand about the `context` parameter in `Runner.run()`:
+
+## 🔍 **Context Parameter vs LLM Context (Different Things!)**
+
+### **The `context` Parameter (NOT for LLM context)**
+
+From `run_context.py`:
+```python
+@dataclass
+class RunContextWrapper(Generic[TContext]):
+    """This wraps the context object that you passed to `Runner.run()`. It also contains
+    information about the usage of the agent run so far.
+
+    NOTE: Contexts are not passed to the LLM. They're a way to pass dependencies and data to code
+    you implement, like tool functions, callbacks, hooks, etc.
+    """
+```
+
+**Key Point**: The `context` parameter is **NOT sent to the LLM**. It's for passing data to your own code (tools, hooks, callbacks).
+
+---
+
+## 🎯 **How to Actually Pass Memory/RAG Context to LLM**
+
+### **Method 1: Enhanced Input Structure (Recommended)**
+
+```python
+# Instead of just passing a string:
+result = Runner.run_streamed(
+    self.agent,
+    input=user_message,  # ❌ Simple string - no context
+    previous_response_id=self.last_response_id
+)
+
+# Pass structured input with context:
+async def run_with_memory_context(
+    self,
+    user_message: str,
+    memory_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    
+    # Build enhanced input with memory context
+    enhanced_input = self._build_contextual_input(user_message, memory_context)
+    
+    result = Runner.run_streamed(
+        self.agent,
+        input=enhanced_input,  # ✅ Rich input with context
+        context=self._build_tool_context(),  # For your tools/hooks
+        previous_response_id=self.last_response_id
+    )
+    
+    return result
+
+def _build_contextual_input(
+    self, 
+    user_message: str, 
+    memory_context: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """Build input with memory context for LLM"""
+    
+    messages = []
+    
+    # 1. System message with memory context
+    if memory_context:
+        system_context = self._format_memory_context(memory_context)
+        messages.append({
+            "role": "system",
+            "content": system_context
+        })
+    
+    # 2. Chat history from memory
+    if memory_context.get('chat_history'):
+        messages.extend(memory_context['chat_history'])
+    
+    # 3. Current user message
+    messages.append({
+        "role": "user", 
+        "content": user_message
+    })
+    
+    return messages
+
+def _build_tool_context(self) -> Dict[str, Any]:
+    """Build context for your tools/hooks (separate from LLM context)"""
+    return {
+        "user_id": self.user_id,
+        "session_id": self.session_id,
+        "plots_dir": self.unique_plots_dir,
+        "current_message_id": self.current_message_id,
+        # This data is available to your tools, not the LLM
+    }
+```
+
+### **Method 2: Dynamic Instructions (Current Approach Enhanced)**
+
+```python
+class MemoryAwareCodeAgent(Agent):
+    """Enhanced agent with memory-aware instructions"""
+    
+    def __init__(self, name: str, plots_dir: str):
+        self.plots_dir = plots_dir
+        self.current_memory_context = {}
+        
+        super().__init__(
+            name=name,
+            instructions=self._get_dynamic_instructions_with_memory,
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+    
+    def set_memory_context(self, memory_context: Dict[str, Any]):
+        """Set memory context for next interaction"""
+        self.current_memory_context = memory_context
+    
+    def _get_dynamic_instructions_with_memory(
+        self, 
+        run_context: RunContextWrapper, 
+        agent: Agent
+    ) -> str:
+        """Generate instructions with memory context"""
+        
+        base_instructions = f"""You are a code execution assistant.
+
+Your capabilities:
+- Execute Python code with the tools provided
+- Save plots to {self.plots_dir}
+- Run system commands
+- Search the web
+
+Current message ID: {self.current_message_id}"""
+        
+        # Add memory context to instructions
+        if self.current_memory_context:
+            memory_section = self._format_memory_for_instructions(
+                self.current_memory_context
+            )
+            return f"{base_instructions}\n\n=== USER CONTEXT ===\n{memory_section}"
+        
+        return base_instructions
+```
+
+### **Method 3: Tool-Based Context Injection**
+
+```python
+# Pass context via the context parameter for tools to access
+async def process_with_context(
+    self,
+    user_message: str,
+    memory_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    
+    # Context for tools/hooks (not LLM)
+    tool_context = {
+        "memory_context": memory_context,
+        "user_id": self.user_id,
+        "plots_dir": self.unique_plots_dir
+    }
+    
+    result = await Runner.run(
+        self.agent,
+        input=user_message,
+        context=tool_context,  # Available to your tools
+        previous_response_id=self.last_response_id
+    )
+    
+    return result
+
+# In your tools, access the context:
+@function_tool
+async def execute_code_with_context(
+    code: str, 
+    run_context: RunContextWrapper
+) -> Dict[str, Any]:
+    """Execute code with access to memory context"""
+    
+    # Access memory context passed via Runner.run(context=...)
+    memory_context = run_context.context.get("memory_context", {})
+    user_id = run_context.context.get("user_id")
+    
+    # Use context in your tool logic
+    if memory_context.get("user_preferences"):
+        # Adjust code execution based on user preferences
+        pass
+    
+    # Execute code normally
+    result = execute_code(code)
+    return result
+```
+
+---
+
+## 🎯 **Your Current Usage vs Enhanced Usage**
+
+### **Current (No Memory Context):**
+```python
+# aicore/openai_assistant.py
+result = Runner.run_streamed(
+    self.agent,
+    input=user_message,
+    previous_response_id=self.last_response_id
+)
+```
+
+### **Enhanced (With Memory Context):**
+```python
+# Enhanced approach
+async def process_message_with_memory(
+    self,
+    user_message: str,
+    user_id: str,
+    session_id: str
+) -> Dict[str, Any]:
+    
+    # 1. Build memory context from all layers
+    memory_context = await self._build_memory_context(
+        user_id, session_id, user_message
+    )
+    
+    # 2. Build contextual input for LLM
+    contextual_input = self._build_contextual_input(user_message, memory_context)
+    
+    # 3. Build tool context
+    tool_context = {
+        "user_id": user_id,
+        "session_id": session_id,
+        "memory_context": memory_context,
+        "plots_dir": self.unique_plots_dir
+    }
+    
+    # 4. Run with both types of context
+    result = Runner.run_streamed(
+        self.agent,
+        input=contextual_input,  # Memory context for LLM
+        context=tool_context,    # Dependencies for your tools
+        previous_response_id=self.last_response_id
+    )
+    
+    return result
+
+async def _build_memory_context(
+    self, 
+    user_id: str, 
+    session_id: str, 
+    current_message: str
+) -> Dict[str, Any]:
+    """Build complete memory context from all layers"""
+    return {
+        "chat_history": await self._get_chat_history(session_id),
+        "user_memories": await self._get_user_memories(user_id, current_message),
+        "relevant_docs": await self._get_rag_context(user_id, current_message),
+        "user_preferences": await self._get_user_preferences(user_id)
+    }
+```
+
+---
+
+## 🔑 **Key Takeaways**
+
+### **Two Types of Context:**
+1. **LLM Context** → Pass via `input` parameter (messages array)
+2. **Tool/Code Context** → Pass via `context` parameter
+
+### **For Memory/RAG Integration:**
+✅ **Use `input` parameter** with structured messages  
+✅ **Use dynamic instructions** with memory injection  
+❌ **Don't use `context` parameter** for LLM context  
+
+### **The `context` Parameter is For:**
+- Passing dependencies to your tools
+- Sharing data between hooks/callbacks
+- Tool configuration and state
+- **NOT for LLM conversation context**
+
+This separation allows you to have rich memory context sent to the LLM while also providing your tools with the dependencies they need to function properly.
+
+```python
+@dataclass
+class RunContextWrapper(Generic[TContext]):
+    """This wraps the context object that you passed to `Runner.run()`. It also contains
+    information about the usage of the agent run so far.
+
+    NOTE: Contexts are not passed to the LLM. They're a way to pass dependencies and data to code
+    you implement, like tool functions, callbacks, hooks, etc.
+    """
+```
+
+```python
+# Instead of just passing a string:
+result = Runner.run_streamed(
+    self.agent,
+    input=user_message,  # ❌ Simple string - no context
+    previous_response_id=self.last_response_id
+)
+
+# Pass structured input with context:
+async def run_with_memory_context(
+    self,
+    user_message: str,
+    memory_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    
+    # Build enhanced input with memory context
+    enhanced_input = self._build_contextual_input(user_message, memory_context)
+    
+    result = Runner.run_streamed(
+        self.agent,
+        input=enhanced_input,  # ✅ Rich input with context
+        context=self._build_tool_context(),  # For your tools/hooks
+        previous_response_id=self.last_response_id
+    )
+    
+    return result
+
+def _build_contextual_input(
+    self, 
+    user_message: str, 
+    memory_context: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """Build input with memory context for LLM"""
+    
+    messages = []
+    
+    # 1. System message with memory context
+    if memory_context:
+        system_context = self._format_memory_context(memory_context)
+        messages.append({
+            "role": "system",
+            "content": system_context
+        })
+    
+    # 2. Chat history from memory
+    if memory_context.get('chat_history'):
+        messages.extend(memory_context['chat_history'])
+    
+    # 3. Current user message
+    messages.append({
+        "role": "user", 
+        "content": user_message
+    })
+    
+    return messages
+
+def _build_tool_context(self) -> Dict[str, Any]:
+    """Build context for your tools/hooks (separate from LLM context)"""
+    return {
+        "user_id": self.user_id,
+        "session_id": self.session_id,
+        "plots_dir": self.unique_plots_dir,
+        "current_message_id": self.current_message_id,
+        # This data is available to your tools, not the LLM
+    }
+```
+
+```python
+class MemoryAwareCodeAgent(Agent):
+    """Enhanced agent with memory-aware instructions"""
+    
+    def __init__(self, name: str, plots_dir: str):
+        self.plots_dir = plots_dir
+        self.current_memory_context = {}
+        
+        super().__init__(
+            name=name,
+            instructions=self._get_dynamic_instructions_with_memory,
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+    
+    def set_memory_context(self, memory_context: Dict[str, Any]):
+        """Set memory context for next interaction"""
+        self.current_memory_context = memory_context
+    
+    def _get_dynamic_instructions_with_memory(
+        self, 
+        run_context: RunContextWrapper, 
+        agent: Agent
+    ) -> str:
+        """Generate instructions with memory context"""
+        
+        base_instructions = f"""You are a code execution assistant.
+
+Your capabilities:
+- Execute Python code with the tools provided
+- Save plots to {self.plots_dir}
+- Run system commands
+- Search the web
+
+Current message ID: {self.current_message_id}"""
+        
+        # Add memory context to instructions
+        if self.current_memory_context:
+            memory_section = self._format_memory_for_instructions(
+                self.current_memory_context
+            )
+            return f"{base_instructions}\n\n=== USER CONTEXT ===\n{memory_section}"
+        
+        return base_instructions
+```
+
+```python
+# Pass context via the context parameter for tools to access
+async def process_with_context(
+    self,
+    user_message: str,
+    memory_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    
+    # Context for tools/hooks (not LLM)
+    tool_context = {
+        "memory_context": memory_context,
+        "user_id": self.user_id,
+        "plots_dir": self.unique_plots_dir
+    }
+    
+    result = await Runner.run(
+        self.agent,
+        input=user_message,
+        context=tool_context,  # Available to your tools
+        previous_response_id=self.last_response_id
+    )
+    
+    return result
+
+# In your tools, access the context:
+@function_tool
+async def execute_code_with_context(
+    code: str, 
+    run_context: RunContextWrapper
+) -> Dict[str, Any]:
+    """Execute code with access to memory context"""
+    
+    # Access memory context passed via Runner.run(context=...)
+    memory_context = run_context.context.get("memory_context", {})
+    user_id = run_context.context.get("user_id")
+    
+    # Use context in your tool logic
+    if memory_context.get("user_preferences"):
+        # Adjust code execution based on user preferences
+        pass
+    
+    # Execute code normally
+    result = execute_code(code)
+    return result
+```
+
+```python
+# aicore/openai_assistant.py
+result = Runner.run_streamed(
+    self.agent,
+    input=user_message,
+    previous_response_id=self.last_response_id
+)
+```
+
+```python
+# Enhanced approach
+async def process_message_with_memory(
+    self,
+    user_message: str,
+    user_id: str,
+    session_id: str
+) -> Dict[str, Any]:
+    
+    # 1. Build memory context from all layers
+    memory_context = await self._build_memory_context(
+        user_id, session_id, user_message
+    )
+    
+    # 2. Build contextual input for LLM
+    contextual_input = self._build_contextual_input(user_message, memory_context)
+    
+    # 3. Build tool context
+    tool_context = {
+        "user_id": user_id,
+        "session_id": session_id,
+        "memory_context": memory_context,
+        "plots_dir": self.unique_plots_dir
+    }
+    
+    # 4. Run with both types of context
+    result = Runner.run_streamed(
+        self.agent,
+        input=contextual_input,  # Memory context for LLM
+        context=tool_context,    # Dependencies for your tools
+        previous_response_id=self.last_response_id
+    )
+    
+    return result
+
+async def _build_memory_context(
+    self, 
+    user_id: str, 
+    session_id: str, 
+    current_message: str
+) -> Dict[str, Any]:
+    """Build complete memory context from all layers"""
+    return {
+        "chat_history": await self._get_chat_history(session_id),
+        "user_memories": await self._get_user_memories(user_id, current_message),
+        "relevant_docs": await self._get_rag_context(user_id, current_message),
+        "user_preferences": await self._get_user_preferences(user_id)
+    }
+```
+
+---
+
+**User**
+
+find in agent sdk @/agents , how do u define system , user and assistant messages?
+
+---
+
+**Cursor**
+
+I'll examine the OpenAI Agents SDK to find how system, user, and assistant messages are defined. Let me check the key files:
+
+Perfect! Now I can see how messages are defined in the OpenAI Agents SDK. Let me check one more thing to confirm the message structure:
+
+## 🎯 **Message Structure in OpenAI Agents SDK**
+
+Based on my analysis of the OpenAI Agents SDK, here's how you define **system, user, and assistant messages**:
+
+---
+
+## 📋 **Message Format Structure**
+
+### **1. Basic Message Structure**
+
+From `items.py`, line 217-223:
+```python
+def input_to_new_input_list(
+    cls, input: str | list[TResponseInputItem]
+) -> list[TResponseInputItem]:
+    """Converts a string or list of input items into a list of input items."""
+    if isinstance(input, str):
+        return [
+            {
+                "content": input,
+                "role": "user",
+            }
+        ]
+    return copy.deepcopy(input)
+```
+
+**Key Finding**: Messages are **dictionaries** with `"content"` and `"role"` keys.
+
+---
+
+## 🔧 **How to Define Messages**
+
+### **1. User Message**
+```python
+user_message = {
+    "content": "Write a Python function to calculate fibonacci",
+    "role": "user"
+}
+```
+
+### **2. Assistant Message**
+```python
+assistant_message = {
+    "content": "Here's a Python function for fibonacci calculation...",
+    "role": "assistant"
+}
+```
+
+### **3. System Message**
+```python
+system_message = {
+    "content": "You are a helpful coding assistant with access to Python execution tools.",
+    "role": "system"
+}
+```
+
+---
+
+## 💡 **How to Pass Multiple Messages to Agents SDK**
+
+### **Method 1: Pass List of Messages**
+```python
+# Build conversation with all message types
+messages = [
+    {
+        "content": "You are a helpful assistant with memory of the user's preferences.",
+        "role": "system"
+    },
+    {
+        "content": "Hello, I prefer concise explanations",
+        "role": "user"
+    },
+    {
+        "content": "Understood! I'll keep my responses concise.",
+        "role": "assistant"
+    },
+    {
+        "content": "Explain machine learning",
+        "role": "user"
+    }
+]
+
+# Pass to agent
+result = await Runner.run(
+    self.agent,
+    input=messages,  # List of message dicts
+    context=your_tool_context
+)
+```
+
+### **Method 2: Single String (Converts to User Message)**
+```python
+# This automatically becomes a user message
+result = await Runner.run(
+    self.agent,
+    input="Hello, explain machine learning",  # Becomes {"role": "user", "content": "..."}
+    context=your_tool_context
+)
+```
+
+---
+
+## 🧠 **Enhanced Context Implementation for Your aicore**
+
+### **Refactor Your OpenAI Assistant with Memory Context**
+
+```python
+# aicore/enhanced_openai_assistant.py
+class EnhancedOpenAIAssistant(OpenAIAssistant):
+    """Enhanced assistant with memory context support"""
+    
+    async def process_message_with_memory(
+        self,
+        user_message: str,
+        memory_context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Process message with memory context"""
+        
+        # Build messages with memory context
+        contextual_input = self._build_contextual_input(user_message, memory_context)
+        
+        # Process with existing agent
+        result = await self._async_process_message_with_input(contextual_input)
+        
+        return result
+    
+    def _build_contextual_input(
+        self, 
+        user_message: str, 
+        memory_context: Dict[str, Any] = None
+    ) -> List[Dict[str, str]]:
+        """Build input messages with memory context"""
+        
+        messages = []
+        
+        # 1. System message with memory context
+        if memory_context:
+            system_content = self._build_system_context(memory_context)
+            messages.append({
+                "content": system_content,
+                "role": "system"
+            })
+        
+        # 2. Recent chat history (last 10 messages)
+        if memory_context and 'chat_history' in memory_context:
+            for msg in memory_context['chat_history'][-10:]:  # Last 10 messages
+                messages.append({
+                    "content": msg['content'],
+                    "role": msg['role']  # user, assistant, or system
+                })
+        
+        # 3. Current user message
+        messages.append({
+            "content": user_message,
+            "role": "user"
+        })
+        
+        return messages
+    
+    def _build_system_context(self, memory_context: Dict[str, Any]) -> str:
+        """Build system message with memory context"""
+        
+        context_parts = [
+            "You are a helpful AI assistant with access to the user's context and history.",
+            ""
+        ]
+        
+        # Add user memories
+        if memory_context.get('user_memories'):
+            context_parts.append("=== USER CONTEXT ===")
+            for memory in memory_context['user_memories']:
+                context_parts.append(f"• {memory['fact']}")
+            context_parts.append("")
+        
+        # Add relevant documents
+        if memory_context.get('relevant_docs'):
+            context_parts.append("=== RELEVANT DOCUMENTS ===")
+            for doc in memory_context['relevant_docs']:
+                context_parts.append(f"• {doc['title']}: {doc['summary']}")
+            context_parts.append("")
+        
+        # Add user preferences
+        if memory_context.get('user_preferences'):
+            context_parts.append("=== USER PREFERENCES ===")
+            prefs = memory_context['user_preferences']
+            context_parts.append(f"• Communication style: {prefs.get('style', 'default')}")
+            context_parts.append(f"• Expertise level: {prefs.get('level', 'intermediate')}")
+            context_parts.append("")
+        
+        context_parts.append("Use this context to provide personalized and relevant responses.")
+        
+        return "\n".join(context_parts)
+    
+    async def _async_process_message_with_input(
+        self, 
+        input_messages: List[Dict[str, str]]
+    ) -> Dict[str, Any]:
+        """Process with list of messages instead of single string"""
+        
+        try:
+            # Check streaming
+            if self.streaming_callback:
+                return await self._stream_response_with_input(input_messages)
+            else:
+                # Run with message list
+                _message_id = self.agent.set_message_id()
+                with execution_cleanup():
+                    result = await Runner.run(
+                        self.agent,
+                        input=input_messages,  # Pass message list
+                        previous_response_id=self.last_response_id
+                    )
+                
+                response = result.final_output
+                self.last_response_id = result.last_response_id
+                
+                return {
+                    "content": response,
+                    "message_id": _message_id,
+                    "plots": glob.glob(f"{self.agent.unique_plots_dir}/{_message_id}_*.png"),
+                    "was_cancelled": False,
+                    "context_used": len(input_messages) > 1
+                }
+                
+        except Exception as e:
+            logger.error(f"Error during enhanced agent execution: {e}")
+            raise
+```
+
+---
+
+## 🎯 **Usage Examples**
+
+### **Example 1: Simple Message (No Context)**
+```python
+assistant = EnhancedOpenAIAssistant()
+
+# Simple usage (same as before)
+result = await assistant.process_message("Calculate fibonacci sequence")
+```
+
+### **Example 2: With Memory Context**
+```python
+memory_context = {
+    'user_memories': [
+        {'fact': 'User prefers Python over JavaScript'},
+        {'fact': 'User is working on a data science project'}
+    ],
+    'relevant_docs': [
+        {'title': 'Python Best Practices', 'summary': 'Guidelines for clean Python code'},
+    ],
+    'chat_history': [
+        {'role': 'user', 'content': 'I need help with algorithms'},
+        {'role': 'assistant', 'content': 'I can help! What specific algorithm?'}
+    ],
+    'user_preferences': {
+        'style': 'concise',
+        'level': 'intermediate'
+    }
+}
+
+# Enhanced usage with memory
+result = await assistant.process_message_with_memory(
+    "Calculate fibonacci sequence",
+    memory_context=memory_context
+)
+```
+
+### **Resulting Messages Sent to LLM:**
+```python
+[
+    {
+        "role": "system",
+        "content": """You are a helpful AI assistant with access to the user's context and history.
+
+=== USER CONTEXT ===
+• User prefers Python over JavaScript
+• User is working on a data science project
+
+=== RELEVANT DOCUMENTS ===
+• Python Best Practices: Guidelines for clean Python code
+
+=== USER PREFERENCES ===
+• Communication style: concise
+• Expertise level: intermediate
+
+Use this context to provide personalized and relevant responses."""
+    },
+    {
+        "role": "user", 
+        "content": "I need help with algorithms"
+    },
+    {
+        "role": "assistant",
+        "content": "I can help! What specific algorithm?"
+    },
+    {
+        "role": "user",
+        "content": "Calculate fibonacci sequence"
+    }
+]
+```
+
+This approach gives you **rich memory context** while working seamlessly with the OpenAI Agents SDK's message structure.
+
+```python
+def input_to_new_input_list(
+    cls, input: str | list[TResponseInputItem]
+) -> list[TResponseInputItem]:
+    """Converts a string or list of input items into a list of input items."""
+    if isinstance(input, str):
+        return [
+            {
+                "content": input,
+                "role": "user",
+            }
+        ]
+    return copy.deepcopy(input)
+```
+
+```python
+user_message = {
+    "content": "Write a Python function to calculate fibonacci",
+    "role": "user"
+}
+```
+
+```python
+assistant_message = {
+    "content": "Here's a Python function for fibonacci calculation...",
+    "role": "assistant"
+}
+```
+
+```python
+system_message = {
+    "content": "You are a helpful coding assistant with access to Python execution tools.",
+    "role": "system"
+}
+```
+
+```python
+# Build conversation with all message types
+messages = [
+    {
+        "content": "You are a helpful assistant with memory of the user's preferences.",
+        "role": "system"
+    },
+    {
+        "content": "Hello, I prefer concise explanations",
+        "role": "user"
+    },
+    {
+        "content": "Understood! I'll keep my responses concise.",
+        "role": "assistant"
+    },
+    {
+        "content": "Explain machine learning",
+        "role": "user"
+    }
+]
+
+# Pass to agent
+result = await Runner.run(
+    self.agent,
+    input=messages,  # List of message dicts
+    context=your_tool_context
+)
+```
+
+```python
+# This automatically becomes a user message
+result = await Runner.run(
+    self.agent,
+    input="Hello, explain machine learning",  # Becomes {"role": "user", "content": "..."}
+    context=your_tool_context
+)
+```
+
+```python
+# aicore/enhanced_openai_assistant.py
+class EnhancedOpenAIAssistant(OpenAIAssistant):
+    """Enhanced assistant with memory context support"""
+    
+    async def process_message_with_memory(
+        self,
+        user_message: str,
+        memory_context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Process message with memory context"""
+        
+        # Build messages with memory context
+        contextual_input = self._build_contextual_input(user_message, memory_context)
+        
+        # Process with existing agent
+        result = await self._async_process_message_with_input(contextual_input)
+        
+        return result
+    
+    def _build_contextual_input(
+        self, 
+        user_message: str, 
+        memory_context: Dict[str, Any] = None
+    ) -> List[Dict[str, str]]:
+        """Build input messages with memory context"""
+        
+        messages = []
+        
+        # 1. System message with memory context
+        if memory_context:
+            system_content = self._build_system_context(memory_context)
+            messages.append({
+                "content": system_content,
+                "role": "system"
+            })
+        
+        # 2. Recent chat history (last 10 messages)
+        if memory_context and 'chat_history' in memory_context:
+            for msg in memory_context['chat_history'][-10:]:  # Last 10 messages
+                messages.append({
+                    "content": msg['content'],
+                    "role": msg['role']  # user, assistant, or system
+                })
+        
+        # 3. Current user message
+        messages.append({
+            "content": user_message,
+            "role": "user"
+        })
+        
+        return messages
+    
+    def _build_system_context(self, memory_context: Dict[str, Any]) -> str:
+        """Build system message with memory context"""
+        
+        context_parts = [
+            "You are a helpful AI assistant with access to the user's context and history.",
+            ""
+        ]
+        
+        # Add user memories
+        if memory_context.get('user_memories'):
+            context_parts.append("=== USER CONTEXT ===")
+            for memory in memory_context['user_memories']:
+                context_parts.append(f"• {memory['fact']}")
+            context_parts.append("")
+        
+        # Add relevant documents
+        if memory_context.get('relevant_docs'):
+            context_parts.append("=== RELEVANT DOCUMENTS ===")
+            for doc in memory_context['relevant_docs']:
+                context_parts.append(f"• {doc['title']}: {doc['summary']}")
+            context_parts.append("")
+        
+        # Add user preferences
+        if memory_context.get('user_preferences'):
+            context_parts.append("=== USER PREFERENCES ===")
+            prefs = memory_context['user_preferences']
+            context_parts.append(f"• Communication style: {prefs.get('style', 'default')}")
+            context_parts.append(f"• Expertise level: {prefs.get('level', 'intermediate')}")
+            context_parts.append("")
+        
+        context_parts.append("Use this context to provide personalized and relevant responses.")
+        
+        return "\n".join(context_parts)
+    
+    async def _async_process_message_with_input(
+        self, 
+        input_messages: List[Dict[str, str]]
+    ) -> Dict[str, Any]:
+        """Process with list of messages instead of single string"""
+        
+        try:
+            # Check streaming
+            if self.streaming_callback:
+                return await self._stream_response_with_input(input_messages)
+            else:
+                # Run with message list
+                _message_id = self.agent.set_message_id()
+                with execution_cleanup():
+                    result = await Runner.run(
+                        self.agent,
+                        input=input_messages,  # Pass message list
+                        previous_response_id=self.last_response_id
+                    )
+                
+                response = result.final_output
+                self.last_response_id = result.last_response_id
+                
+                return {
+                    "content": response,
+                    "message_id": _message_id,
+                    "plots": glob.glob(f"{self.agent.unique_plots_dir}/{_message_id}_*.png"),
+                    "was_cancelled": False,
+                    "context_used": len(input_messages) > 1
+                }
+                
+        except Exception as e:
+            logger.error(f"Error during enhanced agent execution: {e}")
+            raise
+```
+
+```python
+assistant = EnhancedOpenAIAssistant()
+
+# Simple usage (same as before)
+result = await assistant.process_message("Calculate fibonacci sequence")
+```
+
+```python
+memory_context = {
+    'user_memories': [
+        {'fact': 'User prefers Python over JavaScript'},
+        {'fact': 'User is working on a data science project'}
+    ],
+    'relevant_docs': [
+        {'title': 'Python Best Practices', 'summary': 'Guidelines for clean Python code'},
+    ],
+    'chat_history': [
+        {'role': 'user', 'content': 'I need help with algorithms'},
+        {'role': 'assistant', 'content': 'I can help! What specific algorithm?'}
+    ],
+    'user_preferences': {
+        'style': 'concise',
+        'level': 'intermediate'
+    }
+}
+
+# Enhanced usage with memory
+result = await assistant.process_message_with_memory(
+    "Calculate fibonacci sequence",
+    memory_context=memory_context
+)
+```
+
+```python
+[
+    {
+        "role": "system",
+        "content": """You are a helpful AI assistant with access to the user's context and history.
+
+=== USER CONTEXT ===
+• User prefers Python over JavaScript
+• User is working on a data science project
+
+=== RELEVANT DOCUMENTS ===
+• Python Best Practices: Guidelines for clean Python code
+
+=== USER PREFERENCES ===
+• Communication style: concise
+• Expertise level: intermediate
+
+Use this context to provide personalized and relevant responses."""
+    },
+    {
+        "role": "user", 
+        "content": "I need help with algorithms"
+    },
+    {
+        "role": "assistant",
+        "content": "I can help! What specific algorithm?"
+    },
+    {
+        "role": "user",
+        "content": "Calculate fibonacci sequence"
+    }
+]
+```
+
+---
+
+**User**
+
+the agent accepts input from me in two points..one in agent instructions object reference..second in run method input reference...whats the best way to pass all 3 layered context?
+
+---
+
+**Cursor**
+
+Excellent question! You're right that there are **two entry points** for passing context to the OpenAI Agents SDK. Let me break down the **best strategy** for distributing your 3-layered context across these entry points:
+
+---
+
+## 🎯 **Two Context Entry Points in Agents SDK**
+
+### **Entry Point 1: Agent Instructions**
+```python
+Agent(
+    instructions=...,  # Can be string or function
+    tools=[...]
+)
+```
+
+### **Entry Point 2: Runner Input**
+```python
+Runner.run(
+    agent=agent,
+    input=...,  # Can be string or list of messages
+    context=...  # For tools/hooks, NOT for LLM
+)
+```
+
+---
+
+## 🏗️ **Best Practice: Hybrid Context Distribution**
+
+### **Strategy: Separate Static vs Dynamic Context**
+
+```python
+# Entry Point 1: STATIC agent behavior in instructions
+# Entry Point 2: DYNAMIC conversation context in input messages
+# Entry Point 3: Tool dependencies in context parameter
+```
+
+---
+
+## 🔧 **Implementation Strategy**
+
+### **1. Static Instructions (Agent Definition)**
+
+```python
+class ContextAwareCodeAgent(Agent):
+    """Agent with static instructions, dynamic context via input"""
+    
+    def __init__(self, name: str, plots_dir: str):
+        self.plots_dir = plots_dir
+        self.current_message_id = str(uuid.uuid4())[:8]
+        
+        # STATIC instructions - define agent behavior only
+        static_instructions = f"""You are an intelligent AI assistant with code execution capabilities.
+
+CORE CAPABILITIES:
+- Execute Python code using provided tools
+- Generate and save plots to {plots_dir}
+- Run system commands for environment setup  
+- Search the web for information
+- Provide clear, helpful explanations
+
+CODE EXECUTION RULES:
+- Save plots using format: {{message_id}}_plot_{{timestamp}}.png
+- Include all imports in code blocks
+- Assign results to 'result' variable
+- Never use plt.show() - always save plots
+
+RESPONSE STYLE:
+- Be helpful and accurate
+- Provide clear explanations
+- Use context provided in conversation history
+- Adapt communication style based on user preferences"""
+
+        super().__init__(
+            name=name,
+            instructions=static_instructions,  # STATIC - never changes
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+```
+
+### **2. Dynamic Context (Input Messages)**
+
+```python
+class ContextualInputBuilder:
+    """Builds rich input messages with 3-layer context"""
+    
+    def __init__(self, context_manager: ContextManager):
+        self.context_manager = context_manager
+    
+    async def build_contextual_input(
+        self,
+        user_id: str,
+        session_id: str, 
+        current_message: str
+    ) -> List[Dict[str, str]]:
+        """Build input with all 3 context layers"""
+        
+        # Get context from all layers
+        context_data = await self.context_manager.build_context(
+            user_id=user_id,
+            session_id=session_id,
+            current_message=current_message
+        )
+        
+        messages = []
+        
+        # 1. SYSTEM MESSAGE with Layer 2 & 3 context
+        system_context = self._build_system_context(context_data)
+        if system_context:
+            messages.append({
+                "role": "system",
+                "content": system_context
+            })
+        
+        # 2. CONVERSATION HISTORY (Layer 1 - Session Context)
+        chat_history = context_data.get('session_history', [])
+        for msg in chat_history[-15:]:  # Last 15 messages
+            messages.append({
+                "role": msg['role'],
+                "content": msg['content']
+            })
+        
+        # 3. CURRENT USER MESSAGE
+        messages.append({
+            "role": "user",
+            "content": current_message
+        })
+        
+        return messages
+    
+    def _build_system_context(self, context_data: Dict[str, Any]) -> str:
+        """Build system message with Layer 2 & 3 context"""
+        
+        context_parts = []
+        
+        # Layer 2: User Memory (Long-term facts)
+        user_memories = context_data.get('user_memories', [])
+        if user_memories:
+            context_parts.append("=== USER CONTEXT & PREFERENCES ===")
+            for memory in user_memories:
+                context_parts.append(f"• {memory['fact']} (confidence: {memory['importance']:.1f})")
+            context_parts.append("")
+        
+        # Layer 3: Knowledge/RAG (Documents)
+        relevant_docs = context_data.get('knowledge_rag', [])
+        if relevant_docs:
+            context_parts.append("=== RELEVANT KNOWLEDGE BASE ===")
+            for doc in relevant_docs:
+                context_parts.append(f"• {doc['title']}: {doc['content'][:200]}...")
+                context_parts.append(f"  Source: {doc['source']} | Relevance: {doc['similarity']:.1f}")
+            context_parts.append("")
+        
+        if context_parts:
+            context_parts.insert(0, "=== CONTEXT FOR THIS CONVERSATION ===")
+            context_parts.append("Use this context to provide personalized, relevant responses.")
+            return "\n".join(context_parts)
+        
+        return ""
+```
+
+### **3. Tool Context (Runner Context Parameter)**
+
+```python
+class EnhancedAgentRunner:
+    """Runs agent with proper context distribution"""
+    
+    def __init__(self):
+        self.agent = ContextAwareCodeAgent("Code Assistant", PLOTS_DIR)
+        self.input_builder = ContextualInputBuilder(ContextManager())
+    
+    async def run_with_full_context(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str,
+        streaming_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """Run agent with all 3 context layers properly distributed"""
+        
+        # 1. Build contextual input messages (Layers 1, 2, 3)
+        contextual_input = await self.input_builder.build_contextual_input(
+            user_id=user_id,
+            session_id=session_id,
+            current_message=user_message
+        )
+        
+        # 2. Build tool context (for your tools, not LLM)
+        tool_context = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "plots_dir": self.agent.plots_dir,
+            "message_id": self.agent.current_message_id,
+            "streaming_callback": streaming_callback
+        }
+        
+        # 3. Run with distributed context
+        if streaming_callback:
+            result = Runner.run_streamed(
+                starting_agent=self.agent,
+                input=contextual_input,     # Layer 1,2,3 context
+                context=tool_context        # Tool dependencies
+            )
+        else:
+            result = await Runner.run(
+                starting_agent=self.agent,
+                input=contextual_input,     # Layer 1,2,3 context  
+                context=tool_context        # Tool dependencies
+            )
+        
+        return result
+```
+
+---
+
+## 📊 **Context Distribution Strategy**
+
+| Context Layer | Where to Pass | Why |
+|--------------|---------------|-----|
+| **Agent Behavior** | `Agent.instructions` (static string) | Defines consistent agent personality/capabilities |
+| **Session History** | `Runner.run(input=[messages])` | Conversation flow, recent context |
+| **User Memory** | `Runner.run(input=[{role: "system", content: "user facts"}])` | Personalization, long-term facts |
+| **Knowledge/RAG** | `Runner.run(input=[{role: "system", content: "docs"}])` | Relevant documents, knowledge base |
+| **Tool Dependencies** | `Runner.run(context={...})` | Data your tools need (not LLM context) |
+
+---
+
+## 🎯 **Complete Integration Example**
+
+```python
+# aicore/enhanced_openai_assistant.py
+class EnhancedOpenAIAssistant:
+    """Enhanced assistant with proper context distribution"""
+    
+    def __init__(self):
+        self.agent = ContextAwareCodeAgent("Enhanced Code Assistant", PLOTS_DIR)
+        self.input_builder = ContextualInputBuilder(ContextManager())
+        
+    async def process_with_memory(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str,
+        streaming_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """Process message with full memory integration"""
+        
+        try:
+            # Generate new message ID
+            message_id = self.agent.set_message_id()
+            
+            # Build contextual input with all 3 layers
+            contextual_input = await self.input_builder.build_contextual_input(
+                user_id=user_id,
+                session_id=session_id,
+                current_message=user_message
+            )
+            
+            # Tool context
+            tool_context = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "message_id": message_id,
+                "plots_dir": self.agent.unique_plots_dir
+            }
+            
+            # Execute with proper context distribution
+            with execution_cleanup():
+                if streaming_callback:
+                    result = Runner.run_streamed(
+                        starting_agent=self.agent,
+                        input=contextual_input,  # All conversation context
+                        context=tool_context     # Tool dependencies
+                    )
+                    return await self._handle_streaming(result, streaming_callback)
+                else:
+                    result = await Runner.run(
+                        starting_agent=self.agent,
+                        input=contextual_input,  # All conversation context
+                        context=tool_context     # Tool dependencies
+                    )
+                    
+                    return {
+                        "content": result.final_output,
+                        "message_id": message_id,
+                        "plots": glob.glob(f"{self.agent.unique_plots_dir}/{message_id}_*.png"),
+                        "context_layers_used": {
+                            "session_history": len([m for m in contextual_input if m["role"] in ["user", "assistant"]]),
+                            "system_context": len([m for m in contextual_input if m["role"] == "system"]),
+                            "total_messages": len(contextual_input)
+                        }
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error in enhanced processing: {e}")
+            raise
+```
+
+---
+
+## 🔑 **Key Benefits of This Approach**
+
+### ✅ **Clean Separation:**
+- **Instructions**: Static agent behavior/personality
+- **Input Messages**: Dynamic conversation context  
+- **Context Parameter**: Tool dependencies
+
+### ✅ **Performance:**
+- Instructions don't regenerate on every turn
+- Context only passed when needed
+- Minimal token overhead
+
+### ✅ **Flexibility:**
+- Easy to adjust context per conversation
+- Can disable layers selectively
+- Backward compatible
+
+### ✅ **Scalability:**
+- Works with any number of context layers
+- Memory-efficient
+- Provider-agnostic
+
+This hybrid approach gives you **maximum flexibility** while **minimizing performance overhead** and maintaining **clean separation of concerns** between static agent behavior and dynamic conversation context.
+
+```python
+Agent(
+    instructions=...,  # Can be string or function
+    tools=[...]
+)
+```
+
+```python
+Runner.run(
+    agent=agent,
+    input=...,  # Can be string or list of messages
+    context=...  # For tools/hooks, NOT for LLM
+)
+```
+
+```python
+# Entry Point 1: STATIC agent behavior in instructions
+# Entry Point 2: DYNAMIC conversation context in input messages
+# Entry Point 3: Tool dependencies in context parameter
+```
+
+```python
+class ContextAwareCodeAgent(Agent):
+    """Agent with static instructions, dynamic context via input"""
+    
+    def __init__(self, name: str, plots_dir: str):
+        self.plots_dir = plots_dir
+        self.current_message_id = str(uuid.uuid4())[:8]
+        
+        # STATIC instructions - define agent behavior only
+        static_instructions = f"""You are an intelligent AI assistant with code execution capabilities.
+
+CORE CAPABILITIES:
+- Execute Python code using provided tools
+- Generate and save plots to {plots_dir}
+- Run system commands for environment setup  
+- Search the web for information
+- Provide clear, helpful explanations
+
+CODE EXECUTION RULES:
+- Save plots using format: {{message_id}}_plot_{{timestamp}}.png
+- Include all imports in code blocks
+- Assign results to 'result' variable
+- Never use plt.show() - always save plots
+
+RESPONSE STYLE:
+- Be helpful and accurate
+- Provide clear explanations
+- Use context provided in conversation history
+- Adapt communication style based on user preferences"""
+
+        super().__init__(
+            name=name,
+            instructions=static_instructions,  # STATIC - never changes
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+```
+
+```python
+class ContextualInputBuilder:
+    """Builds rich input messages with 3-layer context"""
+    
+    def __init__(self, context_manager: ContextManager):
+        self.context_manager = context_manager
+    
+    async def build_contextual_input(
+        self,
+        user_id: str,
+        session_id: str, 
+        current_message: str
+    ) -> List[Dict[str, str]]:
+        """Build input with all 3 context layers"""
+        
+        # Get context from all layers
+        context_data = await self.context_manager.build_context(
+            user_id=user_id,
+            session_id=session_id,
+            current_message=current_message
+        )
+        
+        messages = []
+        
+        # 1. SYSTEM MESSAGE with Layer 2 & 3 context
+        system_context = self._build_system_context(context_data)
+        if system_context:
+            messages.append({
+                "role": "system",
+                "content": system_context
+            })
+        
+        # 2. CONVERSATION HISTORY (Layer 1 - Session Context)
+        chat_history = context_data.get('session_history', [])
+        for msg in chat_history[-15:]:  # Last 15 messages
+            messages.append({
+                "role": msg['role'],
+                "content": msg['content']
+            })
+        
+        # 3. CURRENT USER MESSAGE
+        messages.append({
+            "role": "user",
+            "content": current_message
+        })
+        
+        return messages
+    
+    def _build_system_context(self, context_data: Dict[str, Any]) -> str:
+        """Build system message with Layer 2 & 3 context"""
+        
+        context_parts = []
+        
+        # Layer 2: User Memory (Long-term facts)
+        user_memories = context_data.get('user_memories', [])
+        if user_memories:
+            context_parts.append("=== USER CONTEXT & PREFERENCES ===")
+            for memory in user_memories:
+                context_parts.append(f"• {memory['fact']} (confidence: {memory['importance']:.1f})")
+            context_parts.append("")
+        
+        # Layer 3: Knowledge/RAG (Documents)
+        relevant_docs = context_data.get('knowledge_rag', [])
+        if relevant_docs:
+            context_parts.append("=== RELEVANT KNOWLEDGE BASE ===")
+            for doc in relevant_docs:
+                context_parts.append(f"• {doc['title']}: {doc['content'][:200]}...")
+                context_parts.append(f"  Source: {doc['source']} | Relevance: {doc['similarity']:.1f}")
+            context_parts.append("")
+        
+        if context_parts:
+            context_parts.insert(0, "=== CONTEXT FOR THIS CONVERSATION ===")
+            context_parts.append("Use this context to provide personalized, relevant responses.")
+            return "\n".join(context_parts)
+        
+        return ""
+```
+
+```python
+class EnhancedAgentRunner:
+    """Runs agent with proper context distribution"""
+    
+    def __init__(self):
+        self.agent = ContextAwareCodeAgent("Code Assistant", PLOTS_DIR)
+        self.input_builder = ContextualInputBuilder(ContextManager())
+    
+    async def run_with_full_context(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str,
+        streaming_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """Run agent with all 3 context layers properly distributed"""
+        
+        # 1. Build contextual input messages (Layers 1, 2, 3)
+        contextual_input = await self.input_builder.build_contextual_input(
+            user_id=user_id,
+            session_id=session_id,
+            current_message=user_message
+        )
+        
+        # 2. Build tool context (for your tools, not LLM)
+        tool_context = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "plots_dir": self.agent.plots_dir,
+            "message_id": self.agent.current_message_id,
+            "streaming_callback": streaming_callback
+        }
+        
+        # 3. Run with distributed context
+        if streaming_callback:
+            result = Runner.run_streamed(
+                starting_agent=self.agent,
+                input=contextual_input,     # Layer 1,2,3 context
+                context=tool_context        # Tool dependencies
+            )
+        else:
+            result = await Runner.run(
+                starting_agent=self.agent,
+                input=contextual_input,     # Layer 1,2,3 context  
+                context=tool_context        # Tool dependencies
+            )
+        
+        return result
+```
+
+```python
+# aicore/enhanced_openai_assistant.py
+class EnhancedOpenAIAssistant:
+    """Enhanced assistant with proper context distribution"""
+    
+    def __init__(self):
+        self.agent = ContextAwareCodeAgent("Enhanced Code Assistant", PLOTS_DIR)
+        self.input_builder = ContextualInputBuilder(ContextManager())
+        
+    async def process_with_memory(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str,
+        streaming_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """Process message with full memory integration"""
+        
+        try:
+            # Generate new message ID
+            message_id = self.agent.set_message_id()
+            
+            # Build contextual input with all 3 layers
+            contextual_input = await self.input_builder.build_contextual_input(
+                user_id=user_id,
+                session_id=session_id,
+                current_message=user_message
+            )
+            
+            # Tool context
+            tool_context = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "message_id": message_id,
+                "plots_dir": self.agent.unique_plots_dir
+            }
+            
+            # Execute with proper context distribution
+            with execution_cleanup():
+                if streaming_callback:
+                    result = Runner.run_streamed(
+                        starting_agent=self.agent,
+                        input=contextual_input,  # All conversation context
+                        context=tool_context     # Tool dependencies
+                    )
+                    return await self._handle_streaming(result, streaming_callback)
+                else:
+                    result = await Runner.run(
+                        starting_agent=self.agent,
+                        input=contextual_input,  # All conversation context
+                        context=tool_context     # Tool dependencies
+                    )
+                    
+                    return {
+                        "content": result.final_output,
+                        "message_id": message_id,
+                        "plots": glob.glob(f"{self.agent.unique_plots_dir}/{message_id}_*.png"),
+                        "context_layers_used": {
+                            "session_history": len([m for m in contextual_input if m["role"] in ["user", "assistant"]]),
+                            "system_context": len([m for m in contextual_input if m["role"] == "system"]),
+                            "total_messages": len(contextual_input)
+                        }
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error in enhanced processing: {e}")
+            raise
+```
+
+---
+
+**User**
+
+ignore runner context parameter
+
+---
+
+**Cursor**
+
+Got it! Focusing only on the **two main entry points** without the runner context parameter. Here's the best strategy:
+
+---
+
+## 🎯 **Two Entry Points Only: Instructions + Input**
+
+### **Entry Point 1: Agent Instructions** (Static or Dynamic)
+### **Entry Point 2: Runner Input** (Messages)
+
+---
+
+## 🏗️ **Best Strategy: Dynamic Instructions + Rich Input**
+
+### **Option A: Put All Context in Input Messages (Recommended)**
+
+```python
+class EnhancedOpenAIAssistant:
+    """Enhanced assistant using only instructions + input"""
+    
+    def __init__(self):
+        # STATIC instructions - agent behavior only
+        static_instructions = f"""You are an intelligent AI assistant with code execution capabilities.
+
+CORE CAPABILITIES:
+- Execute Python code using provided tools
+- Generate and save plots to {PLOTS_DIR}
+- Run system commands for environment setup
+- Search the web for information
+
+CODE EXECUTION RULES:
+- Save plots using format: {{message_id}}_plot_{{timestamp}}.png
+- Include all imports in code blocks
+- Assign results to 'result' variable
+- Never use plt.show() - always save plots
+
+RESPONSE STYLE:
+- Use any context provided in the conversation history
+- Adapt to user preferences mentioned in context
+- Be helpful and provide clear explanations"""
+
+        self.agent = Agent(
+            name="Enhanced Code Assistant",
+            instructions=static_instructions,  # STATIC - never changes
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+        
+    async def process_with_memory(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str
+    ) -> Dict[str, Any]:
+        """Process with all 3 context layers in input messages"""
+        
+        # Build rich input with all 3 context layers
+        contextual_input = await self._build_full_contextual_input(
+            user_id, session_id, user_message
+        )
+        
+        # Run with rich input only
+        result = await Runner.run(
+            starting_agent=self.agent,
+            input=contextual_input  # ALL context here
+        )
+        
+        return {
+            "content": result.final_output,
+            "context_summary": self._summarize_context_used(contextual_input)
+        }
+    
+    async def _build_full_contextual_input(
+        self, 
+        user_id: str, 
+        session_id: str, 
+        current_message: str
+    ) -> List[Dict[str, str]]:
+        """Build input with all 3 context layers"""
+        
+        messages = []
+        
+        # 1. SYSTEM MESSAGE: Layer 2 (User Memory) + Layer 3 (Knowledge/RAG)
+        system_context = await self._build_system_context(user_id, current_message)
+        if system_context:
+            messages.append({
+                "role": "system",
+                "content": system_context
+            })
+        
+        # 2. CONVERSATION HISTORY: Layer 1 (Session Context)
+        chat_history = await self._get_session_context(session_id)
+        messages.extend(chat_history)
+        
+        # 3. CURRENT USER MESSAGE
+        messages.append({
+            "role": "user",
+            "content": current_message
+        })
+        
+        return messages
+    
+    async def _build_system_context(self, user_id: str, current_message: str) -> str:
+        """Combine Layer 2 + Layer 3 in system message"""
+        
+        context_parts = ["=== CONTEXT FOR THIS CONVERSATION ===", ""]
+        
+        # Layer 2: User Memory (Long-term facts)
+        user_memories = await self._get_user_memories(user_id, current_message)
+        if user_memories:
+            context_parts.append("USER CONTEXT & PREFERENCES:")
+            for memory in user_memories:
+                context_parts.append(f"• {memory['fact']}")
+            context_parts.append("")
+        
+        # Layer 3: Knowledge/RAG (Relevant documents)
+        relevant_docs = await self._get_knowledge_context(user_id, current_message)
+        if relevant_docs:
+            context_parts.append("RELEVANT KNOWLEDGE:")
+            for doc in relevant_docs:
+                context_parts.append(f"• {doc['title']}: {doc['content'][:150]}...")
+            context_parts.append("")
+        
+        context_parts.append("Use this context to provide personalized and accurate responses.")
+        
+        return "\n".join(context_parts) if len(context_parts) > 3 else ""
+    
+    async def _get_session_context(self, session_id: str) -> List[Dict[str, str]]:
+        """Layer 1: Recent conversation history"""
+        
+        # Get recent messages from database/storage
+        recent_messages = await self.get_recent_chat_history(session_id, limit=10)
+        
+        formatted_messages = []
+        for msg in recent_messages:
+            formatted_messages.append({
+                "role": msg['role'],  # user, assistant
+                "content": msg['content']
+            })
+        
+        return formatted_messages
+```
+
+---
+
+## 🔧 **Option B: Dynamic Instructions with Context**
+
+```python
+class DynamicInstructionsAssistant:
+    """All context passed via dynamic instructions"""
+    
+    def __init__(self):
+        self.current_context = {}
+        
+        self.agent = Agent(
+            name="Dynamic Context Assistant",
+            instructions=self._get_dynamic_instructions,  # FUNCTION - changes per call
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+    
+    def _get_dynamic_instructions(
+        self, 
+        run_context: RunContextWrapper, 
+        agent: Agent
+    ) -> str:
+        """Generate instructions with current context"""
+        
+        base_instructions = f"""You are an intelligent AI assistant with code execution capabilities.
+
+CORE CAPABILITIES:
+- Execute Python code using provided tools
+- Generate and save plots to {PLOTS_DIR}
+- Run system commands for environment setup
+- Search the web for information"""
+
+        # Add current context to instructions
+        if self.current_context:
+            context_section = self._format_context_for_instructions(self.current_context)
+            return f"{base_instructions}\n\n{context_section}"
+        
+        return base_instructions
+    
+    async def process_with_memory(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str
+    ) -> Dict[str, Any]:
+        """Process with context in instructions"""
+        
+        # Build context for instructions
+        self.current_context = await self._build_full_context(
+            user_id, session_id, user_message
+        )
+        
+        # Build input with chat history
+        input_messages = await self._build_input_with_history(session_id, user_message)
+        
+        # Run with dynamic instructions + input
+        result = await Runner.run(
+            starting_agent=self.agent,
+            input=input_messages  # Chat history + current message
+        )
+        
+        return {"content": result.final_output}
+    
+    def _format_context_for_instructions(self, context: Dict[str, Any]) -> str:
+        """Format context for inclusion in instructions"""
+        
+        context_parts = ["=== CURRENT USER CONTEXT ==="]
+        
+        # User memories
+        if context.get('user_memories'):
+            context_parts.append("\nUSER CONTEXT:")
+            for memory in context['user_memories']:
+                context_parts.append(f"- {memory['fact']}")
+        
+        # Knowledge docs
+        if context.get('relevant_docs'):
+            context_parts.append("\nRELEVANT KNOWLEDGE:")
+            for doc in context['relevant_docs']:
+                context_parts.append(f"- {doc['title']}: {doc['summary']}")
+        
+        context_parts.append("\nUse this context in your responses.")
+        
+        return "\n".join(context_parts)
+```
+
+---
+
+## 🎯 **Recommended Approach: Option A (Rich Input Messages)**
+
+### **Why Option A is Better:**
+
+✅ **Performance**: Instructions don't regenerate constantly  
+✅ **Token Efficiency**: Context only sent when relevant  
+✅ **Conversation Flow**: Natural message history  
+✅ **Debugging**: Easy to see what context was sent  
+✅ **Standard Pattern**: Follows typical chat API patterns  
+
+### **Complete Implementation:**
+
+```python
+class ContextAwareAssistant:
+    """Final implementation using rich input messages"""
+    
+    def __init__(self):
+        # Static instructions - define agent behavior
+        self.agent = Agent(
+            name="Context-Aware Assistant",
+            instructions="""You are an intelligent AI assistant with code execution capabilities.
+
+You excel at:
+- Executing Python code safely and effectively
+- Generating visualizations and saving plots
+- Providing clear, contextual explanations
+- Adapting responses based on user context provided in conversation
+
+Use any context provided in the conversation to personalize your responses.""",
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+    
+    async def process_message(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str
+    ) -> Dict[str, Any]:
+        """Process with all context in input messages"""
+        
+        # Build comprehensive input
+        full_input = await self._build_comprehensive_input(
+            user_id, session_id, user_message
+        )
+        
+        # Single point of execution
+        result = await Runner.run(
+            starting_agent=self.agent,
+            input=full_input
+        )
+        
+        return {
+            "content": result.final_output,
+            "context_layers": {
+                "total_messages": len(full_input),
+                "has_system_context": any(m["role"] == "system" for m in full_input),
+                "history_length": len([m for m in full_input if m["role"] in ["user", "assistant"]])
+            }
+        }
+    
+    async def _build_comprehensive_input(
+        self, 
+        user_id: str, 
+        session_id: str, 
+        current_message: str
+    ) -> List[Dict[str, str]]:
+        """Build input with all 3 context layers"""
+        
+        messages = []
+        
+        # Layer 2 + 3: System message with user memory and knowledge
+        system_content = await self._get_system_context(user_id, current_message)
+        if system_content:
+            messages.append({
+                "role": "system",
+                "content": system_content
+            })
+        
+        # Layer 1: Session history
+        history = await self._get_chat_history(session_id)
+        messages.extend(history)
+        
+        # Current message
+        messages.append({
+            "role": "user",
+            "content": current_message
+        })
+        
+        return messages
+    
+    async def _get_system_context(self, user_id: str, query: str) -> str:
+        """Combine user memory + knowledge into system message"""
+        
+        parts = []
+        
+        # Get user memories
+        memories = await self.memory_service.get_relevant_memories(user_id, query)
+        if memories:
+            parts.append("USER CONTEXT:")
+            parts.extend([f"• {m['fact']}" for m in memories])
+            parts.append("")
+        
+        # Get relevant documents
+        docs = await self.knowledge_service.search_documents(user_id, query)
+        if docs:
+            parts.append("RELEVANT KNOWLEDGE:")
+            parts.extend([f"• {d['title']}: {d['snippet']}" for d in docs])
+            parts.append("")
+        
+        if parts:
+            parts.insert(0, "=== CONTEXT ===")
+            parts.append("Use this context to provide accurate, personalized responses.")
+            return "\n".join(parts)
+        
+        return ""
+```
+
+---
+
+## 🔑 **Final Architecture**
+
+### **Context Distribution:**
+- **Static Agent Behavior** → `Agent.instructions` (string)
+- **All Dynamic Context** → `Runner.run(input=[messages])`
+  - System message: User memory + Knowledge/RAG  
+  - Message history: Session context
+  - Current message: User input
+
+### **Benefits:**
+✅ **Simple**: Only two entry points to manage  
+✅ **Efficient**: Context sent only when needed  
+✅ **Standard**: Follows chat API patterns  
+✅ **Flexible**: Easy to adjust context per conversation  
+✅ **Debuggable**: Clear visibility into what context is sent  
+
+This approach gives you **maximum context power** with **minimal complexity**.
+
+```python
+class EnhancedOpenAIAssistant:
+    """Enhanced assistant using only instructions + input"""
+    
+    def __init__(self):
+        # STATIC instructions - agent behavior only
+        static_instructions = f"""You are an intelligent AI assistant with code execution capabilities.
+
+CORE CAPABILITIES:
+- Execute Python code using provided tools
+- Generate and save plots to {PLOTS_DIR}
+- Run system commands for environment setup
+- Search the web for information
+
+CODE EXECUTION RULES:
+- Save plots using format: {{message_id}}_plot_{{timestamp}}.png
+- Include all imports in code blocks
+- Assign results to 'result' variable
+- Never use plt.show() - always save plots
+
+RESPONSE STYLE:
+- Use any context provided in the conversation history
+- Adapt to user preferences mentioned in context
+- Be helpful and provide clear explanations"""
+
+        self.agent = Agent(
+            name="Enhanced Code Assistant",
+            instructions=static_instructions,  # STATIC - never changes
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+        
+    async def process_with_memory(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str
+    ) -> Dict[str, Any]:
+        """Process with all 3 context layers in input messages"""
+        
+        # Build rich input with all 3 context layers
+        contextual_input = await self._build_full_contextual_input(
+            user_id, session_id, user_message
+        )
+        
+        # Run with rich input only
+        result = await Runner.run(
+            starting_agent=self.agent,
+            input=contextual_input  # ALL context here
+        )
+        
+        return {
+            "content": result.final_output,
+            "context_summary": self._summarize_context_used(contextual_input)
+        }
+    
+    async def _build_full_contextual_input(
+        self, 
+        user_id: str, 
+        session_id: str, 
+        current_message: str
+    ) -> List[Dict[str, str]]:
+        """Build input with all 3 context layers"""
+        
+        messages = []
+        
+        # 1. SYSTEM MESSAGE: Layer 2 (User Memory) + Layer 3 (Knowledge/RAG)
+        system_context = await self._build_system_context(user_id, current_message)
+        if system_context:
+            messages.append({
+                "role": "system",
+                "content": system_context
+            })
+        
+        # 2. CONVERSATION HISTORY: Layer 1 (Session Context)
+        chat_history = await self._get_session_context(session_id)
+        messages.extend(chat_history)
+        
+        # 3. CURRENT USER MESSAGE
+        messages.append({
+            "role": "user",
+            "content": current_message
+        })
+        
+        return messages
+    
+    async def _build_system_context(self, user_id: str, current_message: str) -> str:
+        """Combine Layer 2 + Layer 3 in system message"""
+        
+        context_parts = ["=== CONTEXT FOR THIS CONVERSATION ===", ""]
+        
+        # Layer 2: User Memory (Long-term facts)
+        user_memories = await self._get_user_memories(user_id, current_message)
+        if user_memories:
+            context_parts.append("USER CONTEXT & PREFERENCES:")
+            for memory in user_memories:
+                context_parts.append(f"• {memory['fact']}")
+            context_parts.append("")
+        
+        # Layer 3: Knowledge/RAG (Relevant documents)
+        relevant_docs = await self._get_knowledge_context(user_id, current_message)
+        if relevant_docs:
+            context_parts.append("RELEVANT KNOWLEDGE:")
+            for doc in relevant_docs:
+                context_parts.append(f"• {doc['title']}: {doc['content'][:150]}...")
+            context_parts.append("")
+        
+        context_parts.append("Use this context to provide personalized and accurate responses.")
+        
+        return "\n".join(context_parts) if len(context_parts) > 3 else ""
+    
+    async def _get_session_context(self, session_id: str) -> List[Dict[str, str]]:
+        """Layer 1: Recent conversation history"""
+        
+        # Get recent messages from database/storage
+        recent_messages = await self.get_recent_chat_history(session_id, limit=10)
+        
+        formatted_messages = []
+        for msg in recent_messages:
+            formatted_messages.append({
+                "role": msg['role'],  # user, assistant
+                "content": msg['content']
+            })
+        
+        return formatted_messages
+```
+
+```python
+class DynamicInstructionsAssistant:
+    """All context passed via dynamic instructions"""
+    
+    def __init__(self):
+        self.current_context = {}
+        
+        self.agent = Agent(
+            name="Dynamic Context Assistant",
+            instructions=self._get_dynamic_instructions,  # FUNCTION - changes per call
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+    
+    def _get_dynamic_instructions(
+        self, 
+        run_context: RunContextWrapper, 
+        agent: Agent
+    ) -> str:
+        """Generate instructions with current context"""
+        
+        base_instructions = f"""You are an intelligent AI assistant with code execution capabilities.
+
+CORE CAPABILITIES:
+- Execute Python code using provided tools
+- Generate and save plots to {PLOTS_DIR}
+- Run system commands for environment setup
+- Search the web for information"""
+
+        # Add current context to instructions
+        if self.current_context:
+            context_section = self._format_context_for_instructions(self.current_context)
+            return f"{base_instructions}\n\n{context_section}"
+        
+        return base_instructions
+    
+    async def process_with_memory(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str
+    ) -> Dict[str, Any]:
+        """Process with context in instructions"""
+        
+        # Build context for instructions
+        self.current_context = await self._build_full_context(
+            user_id, session_id, user_message
+        )
+        
+        # Build input with chat history
+        input_messages = await self._build_input_with_history(session_id, user_message)
+        
+        # Run with dynamic instructions + input
+        result = await Runner.run(
+            starting_agent=self.agent,
+            input=input_messages  # Chat history + current message
+        )
+        
+        return {"content": result.final_output}
+    
+    def _format_context_for_instructions(self, context: Dict[str, Any]) -> str:
+        """Format context for inclusion in instructions"""
+        
+        context_parts = ["=== CURRENT USER CONTEXT ==="]
+        
+        # User memories
+        if context.get('user_memories'):
+            context_parts.append("\nUSER CONTEXT:")
+            for memory in context['user_memories']:
+                context_parts.append(f"- {memory['fact']}")
+        
+        # Knowledge docs
+        if context.get('relevant_docs'):
+            context_parts.append("\nRELEVANT KNOWLEDGE:")
+            for doc in context['relevant_docs']:
+                context_parts.append(f"- {doc['title']}: {doc['summary']}")
+        
+        context_parts.append("\nUse this context in your responses.")
+        
+        return "\n".join(context_parts)
+```
+
+```python
+class ContextAwareAssistant:
+    """Final implementation using rich input messages"""
+    
+    def __init__(self):
+        # Static instructions - define agent behavior
+        self.agent = Agent(
+            name="Context-Aware Assistant",
+            instructions="""You are an intelligent AI assistant with code execution capabilities.
+
+You excel at:
+- Executing Python code safely and effectively
+- Generating visualizations and saving plots
+- Providing clear, contextual explanations
+- Adapting responses based on user context provided in conversation
+
+Use any context provided in the conversation to personalize your responses.""",
+            tools=[execute_code, execute_system_command, websearch_tool]
+        )
+    
+    async def process_message(
+        self,
+        user_id: str,
+        session_id: str,
+        user_message: str
+    ) -> Dict[str, Any]:
+        """Process with all context in input messages"""
+        
+        # Build comprehensive input
+        full_input = await self._build_comprehensive_input(
+            user_id, session_id, user_message
+        )
+        
+        # Single point of execution
+        result = await Runner.run(
+            starting_agent=self.agent,
+            input=full_input
+        )
+        
+        return {
+            "content": result.final_output,
+            "context_layers": {
+                "total_messages": len(full_input),
+                "has_system_context": any(m["role"] == "system" for m in full_input),
+                "history_length": len([m for m in full_input if m["role"] in ["user", "assistant"]])
+            }
+        }
+    
+    async def _build_comprehensive_input(
+        self, 
+        user_id: str, 
+        session_id: str, 
+        current_message: str
+    ) -> List[Dict[str, str]]:
+        """Build input with all 3 context layers"""
+        
+        messages = []
+        
+        # Layer 2 + 3: System message with user memory and knowledge
+        system_content = await self._get_system_context(user_id, current_message)
+        if system_content:
+            messages.append({
+                "role": "system",
+                "content": system_content
+            })
+        
+        # Layer 1: Session history
+        history = await self._get_chat_history(session_id)
+        messages.extend(history)
+        
+        # Current message
+        messages.append({
+            "role": "user",
+            "content": current_message
+        })
+        
+        return messages
+    
+    async def _get_system_context(self, user_id: str, query: str) -> str:
+        """Combine user memory + knowledge into system message"""
+        
+        parts = []
+        
+        # Get user memories
+        memories = await self.memory_service.get_relevant_memories(user_id, query)
+        if memories:
+            parts.append("USER CONTEXT:")
+            parts.extend([f"• {m['fact']}" for m in memories])
+            parts.append("")
+        
+        # Get relevant documents
+        docs = await self.knowledge_service.search_documents(user_id, query)
+        if docs:
+            parts.append("RELEVANT KNOWLEDGE:")
+            parts.extend([f"• {d['title']}: {d['snippet']}" for d in docs])
+            parts.append("")
+        
+        if parts:
+            parts.insert(0, "=== CONTEXT ===")
+            parts.append("Use this context to provide accurate, personalized responses.")
+            return "\n".join(parts)
+        
+        return ""
+```
+
+---
+
+**User**
+
+but you have to create proepr role based input and how do you provide rag and uer memory..dont write code
+
+---
+
+**Cursor**
+
+You're absolutely right! Let me break down the **conceptual strategy** for proper role-based input and context injection:
+
+---
+
+## 🎯 **Role-Based Message Structure Strategy**
+
+### **Role Distribution Logic:**
+
+**SYSTEM Role** → Static agent behavior + Current context injection
+**USER/ASSISTANT Roles** → Actual conversation history  
+**USER Role** → Current user message
+
+---
+
+## 🧠 **Context Injection Strategy**
+
+### **1. RAG Context (Retrieved Documents)**
+
+**Where:** System message (separate from instructions)
+**Why:** Documents aren't part of conversation - they're contextual knowledge
+**Format:** Present as "available knowledge" or "relevant documents"
+**Challenge:** Documents can be token-heavy, need summarization/chunking
+
+### **2. User Memory (Long-term facts)**
+
+**Where:** System message alongside RAG
+**Why:** User facts aren't conversation - they're persistent context
+**Format:** Present as "user profile" or "known preferences"
+**Challenge:** Determining relevance and importance scoring
+
+### **3. Session History (Chat context)**
+
+**Where:** Actual user/assistant message pairs
+**Why:** This IS the conversation - natural flow
+**Format:** Chronological message sequence
+**Challenge:** Token window management, conversation compression
+
+---
+
+## 📋 **Message Array Structure**
+
+### **Conceptual Flow:**
+1. **System Message #1:** Static agent instructions/behavior
+2. **System Message #2:** Current context (RAG + User Memory)  
+3. **User Message:** Historical conversation turn 1
+4. **Assistant Message:** Historical response 1
+5. **User Message:** Historical conversation turn 2
+6. **Assistant Message:** Historical response 2
+7. **...** (more history)
+8. **User Message:** Current user input
+
+---
+
+## 🔄 **Context Injection Challenges & Solutions**
+
+### **RAG Context Challenges:**
+- **Token Explosion:** Retrieved docs can be massive
+- **Relevance Decay:** Not all retrieved docs stay relevant 
+- **Context Pollution:** Too much doc context confuses the model
+- **Solution Approach:** Semantic chunking, relevance scoring, dynamic filtering
+
+### **User Memory Challenges:**
+- **Staleness:** Old user facts may be outdated
+- **Relevance:** Not all user facts apply to current query
+- **Privacy:** Sensitive user data exposure
+- **Solution Approach:** Importance decay, relevance matching, selective injection
+
+### **Session History Challenges:**
+- **Token Limits:** Long conversations exceed context windows
+- **Context Dilution:** Old messages lose relevance
+- **Conversation Threading:** Multiple topics in one session
+- **Solution Approach:** Smart truncation, conversation summarization, importance weighting
+
+---
+
+## 🎯 **Context Prioritization Strategy**
+
+### **Token Budget Allocation:**
+- **20%** → System instructions (static)
+- **30%** → RAG + User Memory (dynamic context)
+- **40%** → Recent conversation history (session context)  
+- **10%** → Current user message + buffer
+
+### **Dynamic Context Ranking:**
+1. **High Priority:** Recent conversation (last 5-10 turns)
+2. **Medium Priority:** Highly relevant user memories (importance > 0.8)
+3. **Medium Priority:** RAG docs with high semantic similarity (> 0.7)
+4. **Low Priority:** Older conversation history
+5. **Low Priority:** Less relevant user facts and documents
+
+---
+
+## 🔧 **Context Injection Patterns**
+
+### **Pattern A: Separate System Messages**
+- System Message 1: Agent instructions
+- System Message 2: "Here's what I know about you: [user memories]"
+- System Message 3: "Relevant information: [RAG docs]"
+- Then conversation history
+- Current user message
+
+### **Pattern B: Combined Context System Message**
+- System Message: Instructions + "Current context: [user memories + RAG]"
+- Then conversation history  
+- Current user message
+
+### **Pattern C: Context-as-Assistant Messages**
+- System Message: Just instructions
+- Assistant Message: "I recall that you [user memory facts]"
+- Assistant Message: "Based on relevant documents: [RAG summary]"
+- Then actual conversation history
+- Current user message
+
+---
+
+## ⚖️ **Trade-offs & Considerations**
+
+### **System Message Approach:**
+✅ **Clean separation** of context vs conversation
+✅ **Model understands** this is background context
+❌ **Token heavy** - system messages count toward limits
+❌ **Less natural** - context feels injected
+
+### **Conversation Integration Approach:**  
+✅ **Natural flow** - context feels like part of conversation
+✅ **Token efficient** - can replace older messages
+❌ **Context confusion** - model may think it said things it didn't
+❌ **Complex management** - harder to track what's real vs injected
+
+### **Hybrid Approach:**
+✅ **Flexible** - can adjust per situation
+✅ **Optimized** - use best method per context type
+❌ **Complex** - more logic to manage
+❌ **Inconsistent** - harder to debug
+
+---
+
+## 🎯 **Practical Decision Framework**
+
+### **For RAG Context:**
+- **Short docs** → System message with full content
+- **Long docs** → System message with summaries + metadata
+- **Many docs** → System message with ranked/filtered excerpts
+
+### **For User Memory:**
+- **Recent facts** → System message as user profile
+- **Behavioral patterns** → Integrate into agent instructions
+- **Preferences** → System message as current context
+
+### **For Session History:**
+- **Recent turns** → Full message pairs
+- **Older turns** → Compressed/summarized versions
+- **Different topics** → Extract relevant segments only
+
+The key insight is that **context type determines injection method**, and you need **dynamic token budget management** to balance all three layers effectively while maintaining conversation quality.
+
+---
+
+**User**
+
+my question in runner input you pass only chat histoy or other context like user memory and rag?
+
+---
+
+**Cursor**
+
+Ah, you're asking about the **specific content strategy** for the `Runner.run(input=...)` parameter! Great question.
+
+---
+
+## 🎯 **Two Main Approaches for Runner Input**
+
+### **Approach A: ONLY Chat History**
+```python
+Runner.run(
+    input=[
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi there!"},
+        {"role": "user", "content": "Current message"}
+    ]
+)
+```
+
+### **Approach B: Chat History + Context**
+```python
+Runner.run(
+    input=[
+        {"role": "system", "content": "USER MEMORY: You prefer Python. RAG: Here are relevant docs..."},
+        {"role": "user", "content": "Hello"}, 
+        {"role": "assistant", "content": "Hi there!"},
+        {"role": "user", "content": "Current message"}
+    ]
+)
+```
+
+---
+
+## 🏆 **Recommended: Approach B (Chat History + Context)**
+
+### **Why Include Everything in Input:**
+
+✅ **Single Source of Truth** - All conversation context in one place
+✅ **Proper Token Accounting** - Model sees exact token usage
+✅ **Natural Flow** - Context and conversation together
+✅ **Provider Agnostic** - Works with any LLM (OpenAI, Ollama, Claude)
+✅ **Debugging Friendly** - Can see exactly what was sent
+
+---
+
+## 📋 **Practical Input Structure**
+
+### **Message Order in Input Array:**
+
+1. **System Message** → Agent instructions + Current context (User Memory + RAG)
+2. **Historical Messages** → Actual chat history (user/assistant pairs)
+3. **Current Message** → New user input
+
+### **Example Flow:**
+```
+[
+    {
+        "role": "system", 
+        "content": "Instructions + USER CONTEXT: prefers Python + RAG DOCS: API guide"
+    },
+    {"role": "user", "content": "How do I make API calls?"},           # History
+    {"role": "assistant", "content": "Here's how with requests..."},    # History  
+    {"role": "user", "content": "Show me error handling"}              # Current
+]
+```
+
+---
+
+## ⚖️ **Why NOT Approach A (Only Chat History)**
+
+❌ **Context Loss** - User memory and RAG context goes nowhere
+❌ **Two Systems** - Need separate context injection mechanism  
+❌ **Token Waste** - Context might be in instructions AND input
+❌ **Complexity** - Managing context in multiple places
+
+---
+
+## 🎯 **Context Integration Strategy**
+
+### **What Goes in System Message:**
+- **Static:** Agent behavior/instructions
+- **Dynamic:** Current user memory facts
+- **Dynamic:** Relevant RAG documents
+- **Dynamic:** User preferences/settings
+
+### **What Goes in Message History:**
+- **Actual conversation turns** (user/assistant pairs)
+- **Chronological order**
+- **Recent messages** (last 10-20 turns)
+- **Compressed older turns** if needed
+
+### **What's Current Message:**
+- **New user input**
+- **Always last in array**
+- **Role: "user"**
+
+---
+
+## 🔧 **Practical Benefits**
+
+### **Token Management:**
+- See exact tokens used by all context
+- Can optimize context vs history ratio
+- Clear token budget allocation
+
+### **Context Relevance:**
+- Fresh context per message
+- Can filter irrelevant memories/docs
+- Dynamic context based on current query
+
+### **Model Behavior:**
+- Model sees context as "current knowledge"
+- Natural conversation flow maintained
+- Proper context awareness
+
+---
+
+## 💡 **Key Insight**
+
+**Pass EVERYTHING relevant in the input array:**
+- System message with current context
+- Recent chat history  
+- Current user message
+
+**Don't split context** between instructions and input - put dynamic context in input system message, keep instructions static.
+
+This gives you **complete context control** while maintaining **natural conversation flow**.
+
+```python
+Runner.run(
+    input=[
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi there!"},
+        {"role": "user", "content": "Current message"}
+    ]
+)
+```
+
+```python
+Runner.run(
+    input=[
+        {"role": "system", "content": "USER MEMORY: You prefer Python. RAG: Here are relevant docs..."},
+        {"role": "user", "content": "Hello"}, 
+        {"role": "assistant", "content": "Hi there!"},
+        {"role": "user", "content": "Current message"}
+    ]
+)
+```
+
+```plaintext
+[
+    {
+        "role": "system", 
+        "content": "Instructions + USER CONTEXT: prefers Python + RAG DOCS: API guide"
+    },
+    {"role": "user", "content": "How do I make API calls?"},           # History
+    {"role": "assistant", "content": "Here's how with requests..."},    # History  
+    {"role": "user", "content": "Show me error handling"}              # Current
+]
+```
+
+---
+
+**User**
+
+so in the system u pass all other context?
+
+---
+
+**Cursor**
+
+**YES, exactly!**
+
+---
+
+## 🎯 **System Message = All Context**
+
+### **System Message Contains:**
+- ✅ **Agent Instructions** (behavior/capabilities)
+- ✅ **User Memory** (long-term facts about user)
+- ✅ **RAG Context** (relevant documents/knowledge)
+- ✅ **User Preferences** (communication style, etc.)
+
+### **Rest of Input Array:**
+- **User/Assistant Messages** = Actual conversation history
+- **Final User Message** = Current input
+
+---
+
+## 📋 **System Message Structure**
+
+```
+{
+    "role": "system",
+    "content": "
+        AGENT INSTRUCTIONS:
+        You are a helpful AI assistant...
+        
+        USER CONTEXT:
+        • User prefers Python over JavaScript
+        • Working on a data science project
+        • Likes concise explanations
+        
+        RELEVANT KNOWLEDGE:
+        • Document: Python Best Practices - Guidelines for clean code
+        • Document: Data Science Workflow - Step-by-step process
+        
+        Use this context to provide personalized responses.
+    "
+}
+```
+
+---
+
+## 🔑 **Why All Context in System Message?**
+
+✅ **Single Context Source** - Everything in one place
+✅ **Model Understanding** - System role signals "background knowledge"
+✅ **Token Efficiency** - One message instead of multiple
+✅ **Clean Separation** - Context vs actual conversation
+✅ **Easy Management** - Update one message with fresh context
+
+---
+
+## 💡 **Simple Rule**
+
+**System Message** = Agent instructions + Current context (memory + RAG)
+**Other Messages** = Actual conversation only
+
+This keeps context **separate from conversation** while giving the model **all necessary information** in one clear system message.
+
+```plaintext
+{
+    "role": "system",
+    "content": "
+        AGENT INSTRUCTIONS:
+        You are a helpful AI assistant...
+        
+        USER CONTEXT:
+        • User prefers Python over JavaScript
+        • Working on a data science project
+        • Likes concise explanations
+        
+        RELEVANT KNOWLEDGE:
+        • Document: Python Best Practices - Guidelines for clean code
+        • Document: Data Science Workflow - Step-by-step process
+        
+        Use this context to provide personalized responses.
+    "
+}
+```
+
+---
+
+**User**
+
+can you check internet for best strategies...what the langchain and langraph people are doing
+
+---
+
+**Cursor**
+
+Based on my research, I can see the **current best practices** for context injection in LangChain and LangGraph systems. Here's what the community is doing:
+
+## 🎯 **Current Best Practices from LangChain/LangGraph Community**
+
+### **1. Three-Layer Memory Architecture (Industry Standard)**
+
+The LangChain/LangGraph community has converged on a **three-layer memory system**:
+
+**Layer 1: Session Context (Short-term)**
+- **Implementation**: Thread-scoped state with checkpointers
+- **Storage**: RAM/Checkpoints (SQLite, PostgreSQL)
+- **Scope**: Single conversation thread
+- **Usage**: Current conversation flow
+
+**Layer 2: Long-term Memory (Cross-thread)**
+- **Implementation**: Store API with semantic search
+- **Storage**: Vector databases + JSON documents
+- **Scope**: User/organization level
+- **Usage**: User preferences, facts, learned behaviors
+
+**Layer 3: Knowledge Base (RAG)**
+- **Implementation**: Vector databases with retrieval
+- **Storage**: Embeddings + metadata
+- **Scope**: Domain knowledge
+- **Usage**: Documents, procedures, reference materials
+
+---
+
+### **2. Context Injection Strategy (System Message Approach)**
+
+The community has settled on **primarily using system messages** for context injection:
+
+```python
+# Current Best Practice Pattern
+def build_context_message(state, config, *, store: BaseStore):
+    user_id = config["configurable"]["user_id"]
+    
+    # Gather all context types
+    context_parts = []
+    
+    # 1. Agent Instructions
+    context_parts.append("You are a helpful assistant...")
+    
+    # 2. User Memory (long-term facts)
+    user_profile = store.get(("users", user_id), "profile")
+    if user_profile:
+        context_parts.append(f"USER CONTEXT: {user_profile['content']}")
+    
+    # 3. RAG Context (relevant documents)
+    query = state["messages"][-1].content
+    relevant_docs = store.search(("knowledge",), query=query)
+    if relevant_docs:
+        doc_context = "\n".join([doc.value["content"] for doc in relevant_docs])
+        context_parts.append(f"RELEVANT KNOWLEDGE:\n{doc_context}")
+    
+    # 4. Build system message
+    system_content = "\n\n".join(context_parts)
+    
+    # 5. Inject into input
+    return [
+        {"role": "system", "content": system_content},
+        *state["messages"]  # Chat history
+    ]
+```
+
+---
+
+### **3. Context Distribution Pattern**
+
+**What goes where:**
+
+**System Message Contains:**
+- ✅ Agent instructions & capabilities
+- ✅ User memory (preferences, facts)
+- ✅ RAG context (relevant documents)
+- ✅ Current session context
+
+**Message History Contains:**
+- ✅ Actual conversation flow
+- ✅ User inputs and assistant responses
+- ✅ Tool calls and results
+
+---
+
+### **4. Memory Store API Usage (Latest Pattern)**
+
+**LangGraph introduced dedicated Store API** for cross-thread memory:
+
+```python
+# Memory Storage
+store.put(("memories", user_id), memory_id, {
+    "content": "User prefers vegetarian food",
+    "context": "Food preferences",
+    "timestamp": datetime.now().isoformat()
+})
+
+# Memory Retrieval with Semantic Search
+memories = store.search(
+    namespace=("memories", user_id),
+    query="What food does user like?",
+    limit=5
+)
+```
+
+---
+
+### **5. Context Window Management**
+
+**Current strategies for large contexts:**
+
+1. **Hierarchical Retrieval**: Get broad context first, then detailed
+2. **Adaptive Detail**: High relevance = detailed, low relevance = summary
+3. **Progressive Summarization**: Older context gets compressed
+4. **Field-Specific Embedding**: Only embed relevant fields
+
+---
+
+### **6. Real Production Patterns**
+
+**What companies are actually doing:**
+
+**OpenAI-style Memory Tool:**
+```python
+@tool
+def save_memory(content: str, context: str):
+    """Save important information for future reference"""
+    # Agent decides what to remember
+```
+
+**Background Memory Processing:**
+- Memory creation happens **outside** the main conversation flow
+- Async jobs process conversations for memory extraction
+- Avoids latency in user-facing interactions
+
+**Hybrid Memory Systems:**
+- Fast memory for immediate context (Redis)
+- Long-term memory for persistent storage (PostgreSQL + vectors)
+- Knowledge base for domain expertise (Vector DBs)
+
+---
+
+## **🔑 Key Insights from the Community**
+
+1. **System Message is King**: Almost universally used for context injection
+2. **Three-Layer Architecture**: Industry standard for memory organization
+3. **Semantic Search**: Essential for relevant memory retrieval
+4. **Background Processing**: Memory creation often happens asynchronously
+5. **Namespace Organization**: Critical for multi-user, multi-context systems
+
+The community has moved away from complex prompt engineering towards **structured memory systems** with **semantic retrieval** and **clean context injection patterns**.
+
+```python
+# Current Best Practice Pattern
+def build_context_message(state, config, *, store: BaseStore):
+    user_id = config["configurable"]["user_id"]
+    
+    # Gather all context types
+    context_parts = []
+    
+    # 1. Agent Instructions
+    context_parts.append("You are a helpful assistant...")
+    
+    # 2. User Memory (long-term facts)
+    user_profile = store.get(("users", user_id), "profile")
+    if user_profile:
+        context_parts.append(f"USER CONTEXT: {user_profile['content']}")
+    
+    # 3. RAG Context (relevant documents)
+    query = state["messages"][-1].content
+    relevant_docs = store.search(("knowledge",), query=query)
+    if relevant_docs:
+        doc_context = "\n".join([doc.value["content"] for doc in relevant_docs])
+        context_parts.append(f"RELEVANT KNOWLEDGE:\n{doc_context}")
+    
+    # 4. Build system message
+    system_content = "\n\n".join(context_parts)
+    
+    # 5. Inject into input
+    return [
+        {"role": "system", "content": system_content},
+        *state["messages"]  # Chat history
+    ]
+```
+
+```python
+# Memory Storage
+store.put(("memories", user_id), memory_id, {
+    "content": "User prefers vegetarian food",
+    "context": "Food preferences",
+    "timestamp": datetime.now().isoformat()
+})
+
+# Memory Retrieval with Semantic Search
+memories = store.search(
+    namespace=("memories", user_id),
+    query="What food does user like?",
+    limit=5
+)
+```
+
+```python
+@tool
+def save_memory(content: str, context: str):
+    """Save important information for future reference"""
+    # Agent decides what to remember
 ```
 
