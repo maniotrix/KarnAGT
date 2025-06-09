@@ -509,44 +509,13 @@ class StreamingService:
             
             # Import necessary services and modules for edit operations
             from app.services.chat.message_service import MessageService
-            from app.services.chat.conversation_service import ConversationService
             from app.models.schemas.chat_schemas import MessageUpdate
             from sqlalchemy import update
             from sqlalchemy.sql import func
             from app.models.database.message import Message
-            from app.core.exceptions import ConversationNotFoundException
-            from fastapi import HTTPException, status
             
-            # Step 1: Verify and update the original message
+            # Step 1: Update the message content (validation already done at endpoint level)
             message_service = MessageService(self.chat_service.db, self.user)
-            conversation_service = ConversationService(self.chat_service.db, self.user)
-            
-            # Verify conversation exists and belongs to user
-            conversation = await conversation_service.get_conversation(conversation_id)
-            if not conversation:
-                raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
-            
-            # Get the original message and verify it's a user message
-            original_message = await message_service.get_message(message_id)
-            if not original_message:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Message {message_id} not found"
-                )
-            
-            # Verify it's a user message (using string comparison to avoid SQLAlchemy issues)
-            original_role = str(original_message.role) if hasattr(original_message.role, '__str__') else original_message.role
-            if str(original_role) != "user":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Can only edit and resend user messages"
-                )
-            
-            if not content or not content.strip():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Content is required for edit and resend"
-                )
             
             # Update the message content
             update_data = MessageUpdate(content=content, metadata={})

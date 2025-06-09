@@ -682,6 +682,43 @@ async def edit_and_resend_message_streaming(
     
     try:
         chat_service = ChatService(db, current_user)
+        
+        # VALIDATION: Verify conversation and message exist before starting stream
+        from app.services.chat.conversation_service import ConversationService
+        from app.services.chat.message_service import MessageService
+        
+        conversation_service = ConversationService(db, current_user)
+        message_service = MessageService(db, current_user)
+        
+        # Verify conversation exists and belongs to user
+        conversation = await conversation_service.get_conversation(conversation_id)
+        if not conversation:
+            raise ConversationNotFoundException(f"Conversation {conversation_id} not found")
+        
+        # Get the original message and verify it exists
+        original_message = await message_service.get_message(message_id)
+        if not original_message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Message {message_id} not found"
+            )
+        
+        # Verify it's a user message (convert to string to avoid SQLAlchemy issues)
+        original_role = str(original_message.role) if hasattr(original_message.role, '__str__') else original_message.role
+        if str(original_role) != "user":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only edit and resend user messages"
+            )
+        
+        # Verify content is provided
+        if not update_data.content or not update_data.content.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content is required for edit and resend"
+            )
+        
+        # All validations passed, now start streaming
         streaming_service = StreamingService(chat_service, current_user)
         
         # Create the streaming generator with client disconnection detection
@@ -730,6 +767,9 @@ async def edit_and_resend_message_streaming(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is (including 404 for message not found)
+        raise
     except Exception as e:
         logger.error(f"Error starting edit stream: {e}")
         raise HTTPException(
