@@ -157,13 +157,13 @@ def main():
         print("\nGenerating original prompt...")
         original_prompt = generate_original_prompt()
         print("✅ Original prompt generated successfully")
-        print(original_prompt)
+        #print(original_prompt)
         
         print("Generating new prompt...")
         new_prompt = generate_new_prompt()
         print("✅ New prompt generated successfully")
-        print(new_prompt)
-        return
+        # print(new_prompt)
+        # return
     except Exception as e:
         print(f"❌ Error generating prompts: {e}")
         return

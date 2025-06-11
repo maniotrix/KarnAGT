@@ -125,16 +125,11 @@ class ConfigurableOpenAIAssistant:
         # Set message ID
         message_id = self.agent.set_message_id()
         
-        # Create run configuration from our config
-        run_config = self._create_run_config()
-        
         # Execute with cleanup
         with execution_cleanup():
             result = await Runner.run(
                 self.agent,
                 input=user_message,
-                max_turns=self.config.runner.execution.max_turns,
-                run_config=run_config,
                 previous_response_id=self.last_response_id
             )
         
@@ -171,16 +166,11 @@ class ConfigurableOpenAIAssistant:
             # Set message ID
             message_id = self.agent.set_message_id()
             
-            # Create run configuration
-            run_config = self._create_run_config()
-            
             # Execute with streaming and cleanup
             with execution_cleanup():
                 result = Runner.run_streamed(
                     self.agent,
                     input=user_message,
-                    max_turns=self.config.runner.execution.max_turns,
-                    run_config=run_config,
                     previous_response_id=self.last_response_id
                 )
             

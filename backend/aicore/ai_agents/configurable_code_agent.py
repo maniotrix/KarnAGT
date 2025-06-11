@@ -83,9 +83,9 @@ class ConfigurableCodeExecutorAgent(Agent):
             instructions=self._get_dynamic_instructions,
             tools=tools,
             model=model_name,
-            tool_use_behavior=agent_config.tool_use_strategy.value,
-            reset_tool_choice=agent_config.reset_tool_choice,
-            output_type=agent_config.output_type if agent_config.output_type != "str" else None
+            # tool_use_behavior=agent_config.tool_use_strategy.value,
+            # reset_tool_choice=agent_config.reset_tool_choice,
+            # output_type=agent_config.output_type if agent_config.output_type != "str" else None
         )
         
         logger.info(f"ConfigurableCodeExecutorAgent '{agent_name}' initialized with model '{model_name}'")
