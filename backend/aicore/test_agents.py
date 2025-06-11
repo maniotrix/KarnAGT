@@ -18,7 +18,7 @@ sys.path.insert(0, str(backend_dir))
 
 # Use absolute imports
 from aicore.openai_assistant import OpenAIAssistant 
-from aicore.config import validate_api_keys
+from aicore.ai_config import validate_api_keys
 from aicore.logger import get_logger, set_log_level
 
 # Set up logger with INFO level as default

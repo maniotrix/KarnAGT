@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 from sqlalchemy.orm import selectinload
 
-from app.integrations.openai.assistant_client import assistant_manager, OpenAIAssistantClient
+from aicore.core.configurable_assistant_client import configurable_assistant_manager as assistant_manager
 from app.integrations.openai.cost_tracker import CostTracker
 from app.integrations.openai.error_handler import handle_openai_errors
 from app.services.chat.conversation_service import ConversationService
