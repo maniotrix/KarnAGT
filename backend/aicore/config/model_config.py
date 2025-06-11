@@ -124,7 +124,7 @@ class ModelConfig:
     
     # Basic model identification
     name: str = "gpt-4o-mini-2024-07-18"
-    display_name: str = "GPT-4 Mini"
+    display_name: str = "GPT-4o Mini"
     family: ModelFamily = ModelFamily.GPT4
     version: str = "2024-07-18"
     
