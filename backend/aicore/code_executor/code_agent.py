@@ -17,7 +17,7 @@ class CodeExecutorAgent(Agent):
     making it ideal for code execution where unique identifiers are needed for plots and files.
     """
     
-    def __init__(self, name: str, root_plots_dir: str, core_prompt: str = INITIAL_CORE_PROMPT):
+    def __init__(self, name: str, root_plots_dir: str, core_prompt: str = INITIAL_CORE_PROMPT, model: str = "gpt-4o-mini-2024-07-18"):
         """
         Initialize the CodeExecutorAgent.
         
@@ -45,7 +45,8 @@ class CodeExecutorAgent(Agent):
         super().__init__(
             name=name,
             instructions=self._get_dynamic_instructions,
-            tools=[execute_code, execute_system_command, websearch_tool]
+            tools=[execute_code, execute_system_command, websearch_tool],
+            model=model
         )
     
     def _get_dynamic_instructions(self, run_context: RunContextWrapper, agent: Agent) -> str:
