@@ -7,6 +7,7 @@ from app.services.context.utils import count_tokens
 from app.models.database.conversation import Conversation
 from app.models.database.message import Message
 from aicore.logger import get_logger
+import json
 
 logger = get_logger(__name__)
 
@@ -18,6 +19,15 @@ class ConversationContextConfig:
     fixed_llm_conversation_tokens: int = 40000
     
     
+    
+def get_default_conversation_context_config() -> ConversationContextConfig:
+    return ConversationContextConfig(
+        summary_length="comprehensive",
+        summary_max_tokens=1000,
+        fixed_llm_conversation_tokens=40000
+    )
+    
+    
 class ConversationContextBuilder:
     def __init__(self, config: ConversationContextConfig, db_session: AsyncSession, conversation_id: str):
         self.config = config
@@ -25,43 +35,57 @@ class ConversationContextBuilder:
         self.conversation_id = conversation_id
         self.summarizer = ConversationSummarizerAgent()
         
-        
-    async def build_context(self, latest_user_message: str) -> List[Dict[str, str]]:
+
+    async def build_context_dict(self, latest_user_message: str) -> Dict[str, Any]:
         """
-        Build conversation context with intelligent summarization when needed.
+        Build conversation context as a structured dictionary with separate components.
         
-        Returns a list of messages formatted for LLM consumption:
-        [
-            {summary of conversation history if needed},
-            {user-assistant message pairs within token limit},
-            {"role": "user", "content": "latest user message"}
-        ]
+        Args:
+            latest_user_message: The latest user message to include in context
+            
+        Returns:
+            Dictionary with structured context components:
+            {
+                "summary_old_messages": str or None,
+                "recent_conversation_history": List[Dict[str, str]],
+                "user_input": str,
+                "overflow": bool
+            }
         """
-        logger.info(f"Building context for conversation {self.conversation_id}")
+        logger.info(f"Building structured context dict for conversation {self.conversation_id}")
         
         # Step 1: Get all previous messages from database (excluding the current message)
         previous_messages = await self._get_conversation_history()
         
+        # Initialize context structure
+        context_dict = {
+            "summary_old_messages": None,
+            "recent_conversation_history": [],
+            "user_input": latest_user_message,
+            "overflow": False
+        }
+        
         if not previous_messages:
-            logger.info("No previous messages found, returning only latest user message")
-            return [{"role": "user", "content": latest_user_message}]
+            logger.info("No previous messages found, returning empty history")
+            return context_dict
         
         # Step 2: Check if we need summarization
         overflow_index = self._get_overflow_index(previous_messages)
         
-        context_messages = []
-        
         if overflow_index == -1:
-            # No overflow, include all messages
-            logger.info("No overflow detected, including all previous messages")
+            # No overflow, include all messages as recent history
+            logger.info("No overflow detected, including all previous messages as recent history")
+            context_dict["overflow"] = False
+            
             for message in reversed(previous_messages):  # Reverse to chronological order
-                context_messages.append({
+                context_dict["recent_conversation_history"].append({
                     "role": message.role,
                     "content": message.content
                 })
         else:
             # Overflow detected, need summarization
             logger.info(f"Overflow detected, summarizing messages from index {overflow_index} onwards")
+            context_dict["overflow"] = True
             
             # Messages that need summarization (from overflow_index to end)
             messages_to_summarize = previous_messages[overflow_index:]
@@ -82,31 +106,28 @@ class ConversationContextBuilder:
             # Generate summary
             if conversation_history:
                 summary = await self._summarize_old_messages([conversation_history])
-                context_messages.append({
-                    "role": "system",
-                    "content": f"Previous conversation summary: {summary}"
-                })
+                context_dict["summary_old_messages"] = summary
                 logger.info(f"Added conversation summary ({count_tokens(summary)} tokens)")
             
-            # Add recent messages in chronological order
+            # Add recent messages as history (in chronological order)
             for message in reversed(recent_messages):
-                context_messages.append({
+                context_dict["recent_conversation_history"].append({
                     "role": message.role,
                     "content": message.content
                 })
         
-        # Step 3: Add the latest user message
-        context_messages.append({
-            "role": "user",
-            "content": latest_user_message
-        })
-        
         # Log final context statistics
-        total_context_tokens = sum(count_tokens(msg["content"]) for msg in context_messages)
-        logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens")
+        history_count = len(context_dict["recent_conversation_history"])
+        has_summary = context_dict["summary_old_messages"] is not None
+        total_tokens = (
+            count_tokens(context_dict["summary_old_messages"] or "") +
+            sum(count_tokens(msg["content"]) for msg in context_dict["recent_conversation_history"]) +
+            count_tokens(context_dict["user_input"])
+        )
         
-        return context_messages
-
+        logger.info(f"Context dict built: {history_count} recent messages, summary={has_summary}, overflow={context_dict['overflow']}, total_tokens={total_tokens}")
+        
+        return context_dict
     
     def _get_overflow_index(self, messages: List[Message]) -> int:
         """
@@ -188,4 +209,52 @@ class ConversationContextBuilder:
         
         return summary
         
+
+async def get_context_dict_for_conversation(conversation_id: str, db_session: AsyncSession, latest_user_message: str) -> Dict[str, Any]:
+    """
+    Get the structured context dictionary for a conversation.
     
+    Returns:
+        Dictionary with structured context components:
+        {
+            "summary_old_messages": str or None,
+            "recent_conversation_history": List[Dict[str, str]],
+            "user_input": str,
+            "overflow": bool
+        }
+    """
+    context_builder = ConversationContextBuilder(get_default_conversation_context_config(), db_session, conversation_id)
+    context_dict = await context_builder.build_context_dict(latest_user_message)
+    return context_dict
+
+
+async def get_context_for_conversation(conversation_id: str, db_session: AsyncSession, latest_user_message: str) -> str:
+    """
+    Get the context for a conversation as a formatted string optimized for LLM consumption.
+    """
+    context_dict = await get_context_dict_for_conversation(conversation_id, db_session, latest_user_message)
+    
+    # Format in LLM-friendly way
+    formatted_parts = []
+    
+    # Add summary if exists
+    if context_dict["summary_old_messages"]:
+        formatted_parts.append(f"CONVERSATION SUMMARY: {context_dict['summary_old_messages']}")
+        formatted_parts.append("")  # Empty line
+    
+    # Add recent conversation history
+    if context_dict["recent_conversation_history"]:
+        formatted_parts.append("RECENT CONVERSATION:")
+        for msg in context_dict["recent_conversation_history"]:
+            role = msg["role"].title()
+            formatted_parts.append(f"{role}: {msg['content']}")
+        formatted_parts.append("")  # Empty line
+    
+    # Add current user input
+    formatted_parts.append(f"CURRENT USER INPUT: {context_dict['user_input']}")
+    
+    formatted_context = "\n".join(formatted_parts)
+    
+    logger.debug(f"Formatted LLM context: {len(formatted_context)} characters, overflow={context_dict['overflow']}")
+    
+    return formatted_context

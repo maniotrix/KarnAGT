@@ -31,7 +31,7 @@ from app.core.exceptions import (
     MessageProcessingException,
     QuotaExceededException
 )
-
+from app.services.context.conversation_context_builder import get_context_for_conversation
 from aicore.logger import get_logger
 
 # Set up logger
@@ -210,9 +210,10 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
+            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
             # Process message with AI
             ai_response_data = await assistant_client.send_message(
-                content,
+                llm_context,
                 message_type=message_type,
                 metadata={
                     "conversation_id": conversation_id,
@@ -343,9 +344,10 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
+            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
             # Process message with streaming
             ai_response_data = await assistant_client.send_message_streaming(
-                content,
+                llm_context,
                 streaming_callback,
                 message_type=message_type,
                 metadata={
@@ -632,9 +634,10 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
+            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
             # Process message with AI (using the edited content)
             ai_response_data = await assistant_client.send_message(
-                content,
+                llm_context,
                 message_type=message_type,
                 metadata={
                     "conversation_id": conversation_id,
@@ -763,9 +766,10 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
+            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
             # Process message with AI using streaming (using the edited content)
             ai_response_data = await assistant_client.send_message_streaming(
-                content,
+                llm_context,
                 streaming_callback,
                 message_type=message_type,
                 metadata={
