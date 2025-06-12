@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from agents import Agent, Runner
 from aicore.logger import get_logger
 from aicore.config.model_config import get_default_model_config, ModelConfig
+from .utils import count_tokens
 
 logger = get_logger(__name__)
 
@@ -90,8 +91,8 @@ async def summarize_conversation_async(
             content = message.get('content', '')
             formatted_conversation += f"Message {i} ({role}):\n{content}\n\n"
         
-        # Check if conversation fits within context window (rough estimate: 4 chars = 1 token)
-        estimated_input_tokens = len(formatted_conversation) // 4
+        # Check if conversation fits within context window using precise token counting
+        estimated_input_tokens = count_tokens(formatted_conversation, model)
         context_limit = agent.get_context_limit()
         max_output = max_tokens or agent.get_max_output_tokens()
         
