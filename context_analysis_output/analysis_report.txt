@@ -1,0 +1,48 @@
+CONVERSATION CONTEXT BUILDER - ANALYSIS REPORT
+================================================================================
+
+Conversation ID: ac70e87f-6f96-40d0-bfac-f5d71e45b67a
+Analysis Date: 2025-06-12 20:01:36
+Token Limit Used: 1500 tokens
+
+ORIGINAL CONVERSATION STATISTICS
+----------------------------------------
+Total Messages: 42
+User Messages: 21
+Assistant Messages: 21
+Total Tokens: 2,540
+
+BUILT CONTEXT STATISTICS
+----------------------------------------
+Context Messages: 32
+Context Tokens: 1,011
+Has Summary: Yes
+Summary Tokens: 181
+
+TRANSFORMATION ANALYSIS
+----------------------------------------
+Messages Reduced: 42 → 32 (10 removed)
+Tokens Reduced: 2,540 → 1,011 (1,529 saved)
+Compression Ratio: 39.8%
+Token Limit Respected: ✅
+
+SUMMARIZATION ANALYSIS
+----------------------------------------
+✅ Summarization was triggered
+Summary Length: 181 tokens
+Summary Preview:
+Previous conversation summary: In this conversation, the user first greets the assistant and inquires about its name, learning it is an AI created by OpenAI. The user then asks about previous messages...
+
+MESSAGE INCLUSION BREAKDOWN
+----------------------------------------
+Summarized messages: (old messages beyond token limit)
+  - 12 messages summarized
+  - 30 recent messages included directly
+
+FILES GENERATED
+----------------------------------------
+📄 original_messages.json - Complete original conversation
+📄 original_messages.txt  - Human-readable original messages
+📄 built_context.json     - Final context sent to LLM
+📄 built_context.txt      - Human-readable context
+📄 analysis_report.txt    - This analysis report

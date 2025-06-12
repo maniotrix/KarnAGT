@@ -42,36 +42,108 @@ class ConversationContextBuilder:
         # Step 1: Get all previous messages from database (excluding the current message)
         previous_messages = await self._get_conversation_history()
         
-        # Step 2: Create user-assistant message pairs
-        message_pairs = self._create_message_pairs(previous_messages)
+        if not previous_messages:
+            logger.info("No previous messages found, returning only latest user message")
+            return [{"role": "user", "content": latest_user_message}]
         
-        # Step 3: Find token cutoff point
-        recent_pairs, old_pairs = self._find_token_cutoff(message_pairs, latest_user_message)
+        # Step 2: Check if we need summarization
+        overflow_index = self._get_overflow_index(previous_messages)
         
-        # Step 4: Build final context
         context_messages = []
         
-        # Add summary if we have old messages that exceed token limit
-        if old_pairs:
-            logger.info(f"Summarizing {len(old_pairs)} message pairs that exceed token limit")
-            summary = await self._summarize_old_messages(old_pairs)
-            context_messages.append({
-                "role": "system",
-                "content": f"Previous conversation summary: {summary}"
-            })
+        if overflow_index == -1:
+            # No overflow, include all messages
+            logger.info("No overflow detected, including all previous messages")
+            for message in reversed(previous_messages):  # Reverse to chronological order
+                context_messages.append({
+                    "role": message.role,
+                    "content": message.content
+                })
+        else:
+            # Overflow detected, need summarization
+            logger.info(f"Overflow detected, summarizing messages from index {overflow_index} onwards")
+            
+            # Messages that need summarization (from overflow_index to end)
+            messages_to_summarize = previous_messages[overflow_index:]
+            
+            # Messages to keep as-is (recent messages within token limit)
+            recent_messages = previous_messages[:overflow_index]
+            
+            logger.info(f"Summarizing {len(messages_to_summarize)} messages, keeping {len(recent_messages)} recent messages")
+            
+            # Create conversation history for summarization (in chronological order)
+            conversation_history = []
+            for message in reversed(messages_to_summarize):
+                conversation_history.append({
+                    "role": message.role,
+                    "content": message.content
+                })
+            
+            # Generate summary
+            if conversation_history:
+                summary = await self._summarize_old_messages([conversation_history])
+                context_messages.append({
+                    "role": "system",
+                    "content": f"Previous conversation summary: {summary}"
+                })
+                logger.info(f"Added conversation summary ({count_tokens(summary)} tokens)")
+            
+            # Add recent messages in chronological order
+            for message in reversed(recent_messages):
+                context_messages.append({
+                    "role": message.role,
+                    "content": message.content
+                })
         
-        # Add recent message pairs (within token limit)
-        for pair in reversed(recent_pairs):  # Add in chronological order
-            context_messages.extend(pair)
-        
-        # Add the latest user message
+        # Step 3: Add the latest user message
         context_messages.append({
-            "role": "user", 
+            "role": "user",
             "content": latest_user_message
         })
         
-        logger.info(f"Built context with {len(context_messages)} messages")
+        # Log final context statistics
+        total_context_tokens = sum(count_tokens(msg["content"]) for msg in context_messages)
+        logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens")
+        
         return context_messages
+
+    
+    def _get_overflow_index(self, messages: List[Message]) -> int:
+        """
+        Return the index in conversation from where summarization starts.
+        
+        Args:
+            messages: List of messages in reverse chronological order (most recent first)
+            
+        Returns:
+            int: Index where overflow occurs, or -1 if no overflow.
+        """
+        if not messages:
+            logger.debug("No messages provided, returning -1")
+            return -1
+            
+        total_tokens = 0
+        token_limit = self.config.fixed_llm_conversation_tokens
+        
+        logger.info(f"Checking for token overflow with limit: {token_limit} tokens")
+        
+        # Iterate through messages (they are in reverse chronological order)
+        for i, message in enumerate(messages):
+            # Count tokens for this message
+            message_tokens = count_tokens(message.content)
+            total_tokens += message_tokens
+            
+            logger.debug(f"Message {i}: role={message.role}, tokens={message_tokens}, total_tokens={total_tokens}")
+            
+            # Check if we've exceeded the token limit
+            if total_tokens > token_limit:
+                logger.info(f"Token overflow detected at index {i}: total_tokens={total_tokens} > limit={token_limit}")
+                logger.info(f"Messages from index {i} onwards will need summarization")
+                return i
+        
+        # No overflow occurred
+        logger.info("No token overflow detected, returning -1")
+        return -1
     
     async def _get_conversation_history(self) -> List[Message]:
         """Retrieve all messages for the conversation from database, sorted by creation time."""
@@ -93,76 +165,12 @@ class ConversationContextBuilder:
             ).order_by(Message.created_at.desc())
             
             messages_result = await self.db_session.execute(messages_query)
-            return messages_result.scalars().all()
+            # Convert Sequence to List to fix linter error
+            return list(messages_result.scalars().all())
             
         except Exception as e:
             logger.error(f"Error retrieving conversation history: {e}")
             return []
-    
-    def _create_message_pairs(self, messages: List[Message]) -> List[List[Dict[str, str]]]:
-        """
-        Group messages into user-assistant pairs.
-        Returns list of pairs, where each pair is [user_msg, assistant_msg].
-        """
-        pairs = []
-        current_pair = []
-        
-        # Process messages from newest to oldest
-        for message in messages:
-            message_dict = {
-                "role": message.role,
-                "content": message.content
-            }
-            
-            if message.role == "user":
-                # Start a new pair with user message
-                if len(current_pair) > 0:
-                    # If we have incomplete pair, add it first
-                    pairs.append(current_pair)
-                current_pair = [message_dict]
-            elif message.role == "assistant" and len(current_pair) > 0:
-                # Complete the current pair
-                current_pair.append(message_dict)
-                pairs.append(current_pair)
-                current_pair = []
-        
-        # Add any remaining incomplete pair
-        if len(current_pair) > 0:
-            pairs.append(current_pair)
-        
-        return pairs
-    
-    def _find_token_cutoff(self, message_pairs: List[List[Dict[str, str]]], 
-                          latest_user_message: str) -> Tuple[List[List[Dict[str, str]]], List[List[Dict[str, str]]]]:
-        """
-        Find where to cut off the conversation based on token limits.
-        Returns (recent_pairs_within_limit, old_pairs_beyond_limit).
-        """
-        # Count tokens for the latest user message
-        running_token_count = count_tokens(latest_user_message)
-        
-        recent_pairs = []
-        old_pairs = []
-        
-        # Process pairs from newest to oldest
-        for pair in message_pairs:
-            # Calculate tokens for this pair
-            pair_content = " ".join([msg["content"] for msg in pair])
-            pair_tokens = count_tokens(pair_content)
-            
-            # Check if adding this pair would exceed the limit
-            if running_token_count + pair_tokens <= self.config.fixed_llm_conversation_tokens:
-                recent_pairs.append(pair)
-                running_token_count += pair_tokens
-            else:
-                # This pair and all remaining pairs are old
-                old_pairs.extend(message_pairs[len(recent_pairs):])
-                break
-        
-        logger.info(f"Token cutoff: {len(recent_pairs)} recent pairs ({running_token_count} tokens), "
-                   f"{len(old_pairs)} old pairs")
-        
-        return recent_pairs, old_pairs
     
     async def _summarize_old_messages(self, old_pairs: List[List[Dict[str, str]]]) -> str:
         """Summarize old message pairs that exceed the token limit."""
