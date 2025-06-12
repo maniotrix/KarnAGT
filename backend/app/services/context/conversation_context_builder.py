@@ -36,6 +36,87 @@ class ConversationContextBuilder:
         self.summarizer = ConversationSummarizerAgent()
         
 
+    async def build_context(self, latest_user_message: str) -> List[Dict[str, str]]:
+        """
+        Build conversation context with intelligent summarization when needed.
+        
+        Returns a list of messages formatted for LLM consumption:
+        [
+            {summary of conversation history if needed},
+            {user-assistant message pairs within token limit},
+            {"role": "user", "content": "latest user message"}
+        ]
+        """
+        logger.info(f"Building context for conversation {self.conversation_id}")
+        
+        # Step 1: Get all previous messages from database (excluding the current message)
+        previous_messages = await self._get_conversation_history()
+        
+        if not previous_messages:
+            logger.info("No previous messages found, returning only latest user message")
+            return [{"role": "user", "content": latest_user_message}]
+        
+        # Step 2: Check if we need summarization
+        overflow_index = self._get_overflow_index(previous_messages)
+        
+        context_messages = []
+        
+        if overflow_index == -1:
+            # No overflow, include all messages
+            logger.info("No overflow detected, including all previous messages")
+            for message in reversed(previous_messages):  # Reverse to chronological order
+                context_messages.append({
+                    "role": message.role,
+                    "content": message.content
+                })
+        else:
+            # Overflow detected, need summarization
+            logger.info(f"Overflow detected, summarizing messages from index {overflow_index} onwards")
+            
+            # Messages that need summarization (from overflow_index to end)
+            messages_to_summarize = previous_messages[overflow_index:]
+            
+            # Messages to keep as-is (recent messages within token limit)
+            recent_messages = previous_messages[:overflow_index]
+            
+            logger.info(f"Summarizing {len(messages_to_summarize)} messages, keeping {len(recent_messages)} recent messages")
+            
+            # Create conversation history for summarization (in chronological order)
+            conversation_history = []
+            for message in reversed(messages_to_summarize):
+                conversation_history.append({
+                    "role": message.role,
+                    "content": message.content
+                })
+            
+            # Generate summary
+            if conversation_history:
+                summary = await self._summarize_old_messages([conversation_history])
+                context_messages.append({
+                    "role": "system",
+                    "content": f"Previous conversation summary: {summary}"
+                })
+                logger.info(f"Added conversation summary ({count_tokens(summary)} tokens)")
+            
+            # Add recent messages in chronological order
+            for message in reversed(recent_messages):
+                context_messages.append({
+                    "role": message.role,
+                    "content": message.content
+                })
+        
+        # Step 3: Add the latest user message
+        context_messages.append({
+            "role": "user",
+            "content": latest_user_message
+        })
+        
+        # Log final context statistics
+        total_context_tokens = sum(count_tokens(msg["content"]) for msg in context_messages)
+        logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens")
+        
+        return context_messages
+
     async def build_context_dict(self, latest_user_message: str) -> Dict[str, Any]:
         """
         Build conversation context as a structured dictionary with separate components.

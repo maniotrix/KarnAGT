@@ -2,13 +2,13 @@ Built Context - Conversation: ac70e87f-6f96-40d0-bfac-f5d71e45b67a
 Token Limit: 1500
 Test Message: Can you help me with one more Python question about decorators?
 Total Context Messages: 32
-Total Context Tokens: 1011
+Total Context Tokens: 986
 Has Summary: Yes
 ================================================================================
 
-Context  1 | ⚙️ system    |  181 tokens | 📝 SUMMARY
+Context  1 | ⚙️ system    |  156 tokens | 📝 SUMMARY
 --------------------------------------------------------------------------------
-Previous conversation summary: In this conversation, the user first greets the assistant and inquires about its name, learning it is an AI created by OpenAI. The user then asks about previous messages, which the assistant lists. Next, the user seeks guidance on topics to discuss, leading to suggestions like current events and learning opportunities. The user ultimately asks about current events, prompting the assistant to summarize notable global issues as of June 5, 2025, including U.S. tariff policies, enhanced security in Washington, D.C., and significant political developments, such as the election of South Korea's new president. Following this, the user shifts focus to FIFA news, prompting details on the upcoming FIFA Club World Cup, ticket pricing, expansion plans for the Women's World Cup, and the awarded hosts for future tournaments. The conversation highlights a curiosity-driven interaction centered around recent global events and soccer-related updates.
+Previous conversation summary: The conversation began with a casual greeting and progressed to the user inquiring about the assistant's name and previous messages sent. The assistant summarized these messages and suggested various topics for discussion. The user then asked about current events, prompting the assistant to provide updates on international trade and tariffs, security measures for upcoming events, political developments, and environmental initiatives as of June 2025. Following this, the user requested the latest FIFA news, leading to a summary of the upcoming FIFA Club World Cup in the U.S., ticket price reductions, the expansion of the Women's World Cup to 48 teams, and future World Cup hosts for 2030 and 2034. Key points included challenges facing the Club World Cup and the FIFAe World Cup on Rocket League.
 
 ================================================================================
 
