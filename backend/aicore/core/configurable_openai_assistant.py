@@ -108,6 +108,7 @@ class ConfigurableOpenAIAssistant:
                 self.messages.append({"role": "user", "content": user_message})
                 self._manage_conversation_history()
             
+            logger.info(f"ConfigurableOpenAIAssistant: Agent model: {self.agent.model}")
             # Check if streaming is enabled
             if self.config.runner.is_streaming_enabled():
                 return await self._stream_response(user_message)
