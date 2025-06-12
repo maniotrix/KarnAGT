@@ -130,7 +130,7 @@ class ConfigurableOpenAIAssistant:
             result = await Runner.run(
                 self.agent,
                 input=user_message,
-                previous_response_id=self.last_response_id
+                # previous_response_id=self.last_response_id
             )
         
         # Process result
@@ -171,7 +171,7 @@ class ConfigurableOpenAIAssistant:
                 result = Runner.run_streamed(
                     self.agent,
                     input=user_message,
-                    previous_response_id=self.last_response_id
+                    # previous_response_id=self.last_response_id
                 )
             
             # Store the streaming result for cancellation

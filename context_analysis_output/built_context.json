@@ -1,0 +1,239 @@
+{
+  "conversation_id": "ac70e87f-6f96-40d0-bfac-f5d71e45b67a",
+  "config": {
+    "summary_length": "brief",
+    "summary_max_tokens": 200,
+    "fixed_llm_conversation_tokens": 1500
+  },
+  "test_message": "Can you help me with one more Python question about decorators?",
+  "built_at": "2025-06-12T22:20:59.501859",
+  "total_context_messages": 32,
+  "total_context_tokens": 986,
+  "has_summary": true,
+  "context": [
+    {
+      "sequence": 1,
+      "role": "system",
+      "content": "Previous conversation summary: The conversation began with a casual greeting and progressed to the user inquiring about the assistant's name and previous messages sent. The assistant summarized these messages and suggested various topics for discussion. The user then asked about current events, prompting the assistant to provide updates on international trade and tariffs, security measures for upcoming events, political developments, and environmental initiatives as of June 2025. Following this, the user requested the latest FIFA news, leading to a summary of the upcoming FIFA Club World Cup in the U.S., ticket price reductions, the expansion of the Women's World Cup to 48 teams, and future World Cup hosts for 2030 and 2034. Key points included challenges facing the Club World Cup and the FIFAe World Cup on Rocket League.",
+      "tokens": 156,
+      "is_summary": true
+    },
+    {
+      "sequence": 2,
+      "role": "user",
+      "content": "hi",
+      "tokens": 1,
+      "is_summary": false
+    },
+    {
+      "sequence": 3,
+      "role": "assistant",
+      "content": "Hello again! How can I assist you today?",
+      "tokens": 10,
+      "is_summary": false
+    },
+    {
+      "sequence": 4,
+      "role": "user",
+      "content": "hi",
+      "tokens": 1,
+      "is_summary": false
+    },
+    {
+      "sequence": 5,
+      "role": "assistant",
+      "content": "Hi there! What would you like to talk about or ask?",
+      "tokens": 13,
+      "is_summary": false
+    },
+    {
+      "sequence": 6,
+      "role": "user",
+      "content": "hi",
+      "tokens": 1,
+      "is_summary": false
+    },
+    {
+      "sequence": 7,
+      "role": "assistant",
+      "content": "Hello! If you have any questions or need assistance, feel free to let me know.",
+      "tokens": 18,
+      "is_summary": false
+    },
+    {
+      "sequence": 8,
+      "role": "user",
+      "content": "hi again",
+      "tokens": 2,
+      "is_summary": false
+    },
+    {
+      "sequence": 9,
+      "role": "assistant",
+      "content": "Hi again! How can I help you today?",
+      "tokens": 10,
+      "is_summary": false
+    },
+    {
+      "sequence": 10,
+      "role": "user",
+      "content": "hi 2",
+      "tokens": 3,
+      "is_summary": false
+    },
+    {
+      "sequence": 11,
+      "role": "assistant",
+      "content": "Hi! What's on your mind?",
+      "tokens": 8,
+      "is_summary": false
+    },
+    {
+      "sequence": 12,
+      "role": "user",
+      "content": "hola",
+      "tokens": 2,
+      "is_summary": false
+    },
+    {
+      "sequence": 13,
+      "role": "assistant",
+      "content": "¡Hola! ¿Cómo puedo ayudarte hoy?",
+      "tokens": 10,
+      "is_summary": false
+    },
+    {
+      "sequence": 14,
+      "role": "user",
+      "content": "hola",
+      "tokens": 2,
+      "is_summary": false
+    },
+    {
+      "sequence": 15,
+      "role": "assistant",
+      "content": "¡Hola! ¿Cómo puedo ayudarte hoy?",
+      "tokens": 10,
+      "is_summary": false
+    },
+    {
+      "sequence": 16,
+      "role": "user",
+      "content": "hola",
+      "tokens": 2,
+      "is_summary": false
+    },
+    {
+      "sequence": 17,
+      "role": "assistant",
+      "content": "¡Hola! ¿En qué puedo ayudarte hoy?",
+      "tokens": 11,
+      "is_summary": false
+    },
+    {
+      "sequence": 18,
+      "role": "user",
+      "content": "Hi what datet",
+      "tokens": 4,
+      "is_summary": false
+    },
+    {
+      "sequence": 19,
+      "role": "assistant",
+      "content": "It looks like your message is incomplete. Could you please clarify what you mean by \"what datet\"? Are you asking for the current date and time?",
+      "tokens": 31,
+      "is_summary": false
+    },
+    {
+      "sequence": 20,
+      "role": "user",
+      "content": "current datet",
+      "tokens": 3,
+      "is_summary": false
+    },
+    {
+      "sequence": 21,
+      "role": "assistant",
+      "content": "The current date and time is October 3, 2023. How else can I assist you?",
+      "tokens": 21,
+      "is_summary": false
+    },
+    {
+      "sequence": 22,
+      "role": "user",
+      "content": "hi",
+      "tokens": 1,
+      "is_summary": false
+    },
+    {
+      "sequence": 23,
+      "role": "assistant",
+      "content": "Hello! How can I assist you today?",
+      "tokens": 9,
+      "is_summary": false
+    },
+    {
+      "sequence": 24,
+      "role": "user",
+      "content": "hola",
+      "tokens": 2,
+      "is_summary": false
+    },
+    {
+      "sequence": 25,
+      "role": "assistant",
+      "content": "¡Hola! ¿Cómo puedo ayudarte hoy?",
+      "tokens": 10,
+      "is_summary": false
+    },
+    {
+      "sequence": 26,
+      "role": "user",
+      "content": "telll me everything we discussed so far",
+      "tokens": 8,
+      "is_summary": false
+    },
+    {
+      "sequence": 27,
+      "role": "assistant",
+      "content": "I don't have access to past interactions or discussions. However, I can help with fresh questions or topics you'd like to discuss. Let me know how I can assist you today!",
+      "tokens": 37,
+      "is_summary": false
+    },
+    {
+      "sequence": 28,
+      "role": "user",
+      "content": "hello",
+      "tokens": 1,
+      "is_summary": false
+    },
+    {
+      "sequence": 29,
+      "role": "assistant",
+      "content": "Hello! How can I assist you today?",
+      "tokens": 9,
+      "is_summary": false
+    },
+    {
+      "sequence": 30,
+      "role": "user",
+      "content": "tell me latest news",
+      "tokens": 4,
+      "is_summary": false
+    },
+    {
+      "sequence": 31,
+      "role": "assistant",
+      "content": "Here are the latest news updates as of June 7, 2025:\n\n**International News:**\n\n- **Pakistan and India Agree to Immediate Ceasefire:** After escalating tensions, Pakistan and India have reached an immediate ceasefire agreement. Pakistani Prime Minister Shehbaz Sharif confirmed the pact and expressed gratitude to the nation, allies, and global mediators for their roles in facilitating the ceasefire. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))\n\n- **UN Chief Welcomes Ceasefire:** United Nations Secretary-General António Guterres welcomed the ceasefire between Pakistan and India, expressing hope that it will foster conditions to address longstanding issues between the two countries. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))\n\n**Regional News:**\n\n- **Pakistan Resumes Hajj Flights:** Following the ceasefire, Pakistan has resumed Hajj flights. Special flights have been arranged to transport 1,100 affected pilgrims to Saudi Arabia, with arrangements underway for the remaining 1,190 pilgrims. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))\n\n- **India Targets Sheikh Zayed International Airport:** India conducted an attack on Sheikh Zayed International Airport in Rahim Yar Khan, causing structural damage. The airport, built in 1933 and named after the late UAE President, symbolizes Pakistan-UAE friendship. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))\n\n**Economic News:**\n\n- **Bullish Trend Returns to Pakistan Stock Exchange:** The Pakistan Stock Exchange (PSX) experienced a significant surge, with the KSE-100 Index soaring to an intraday high of 114,250.59 points, gaining 2,924.02 points, or 2.62%. Global market trends played a key role in lifting investor sentiment. ([geo.tv](https://www.geo.tv/?utm_source=openai))\n\n- **Indian Markets Lose $83 Billion Amid Pakistan Tensions:** Indian markets faced a substantial loss of $83 billion as tensions with Pakistan spooked investors. Twelve of the 13 major sectoral indexes ended the week in the red. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))\n\n**Health News:**\n\n- **Karachi Sees Spike in Lung Disease Linked to Pigeon Allergens:** Karachi has reported a significant increase in cases of lung disease associated with airborne pigeon allergens. Weekly cases have climbed from 1–2 to over 20, raising concerns among health officials. ([samaa.tv](https://www.samaa.tv/feeds/latest-news?utm_source=openai))\n\nPlease note that news developments are continually evolving. For the most current information, refer to reputable news sources. ",
+      "tokens": 574,
+      "is_summary": false
+    },
+    {
+      "sequence": 32,
+      "role": "user",
+      "content": "Can you help me with one more Python question about decorators?",
+      "tokens": 12,
+      "is_summary": false
+    }
+  ]
+}
