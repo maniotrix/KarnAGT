@@ -1,6 +1,69 @@
 from app.services.context.ai_context_agent import summarize_conversation
+from aicore.config.model_config import get_default_model_config, get_gpt4o_mini_config
 
-# Example usage function
+def test_model_configuration():
+    """Test model configuration and capabilities."""
+    
+    print("=" * 80)
+    print("TESTING MODEL CONFIGURATION")
+    print("=" * 80)
+    
+    # Test default model config
+    config = get_default_model_config()
+    print(f"Default Model: {config.display_name}")
+    print(f"Context Window: {config.capabilities.context_window:,} tokens")
+    print(f"Max Output Tokens: {config.capabilities.max_output_tokens:,} tokens")
+    print(f"Supports Long Context: {config.capabilities.supports_long_context}")
+    print(f"Supports Vision: {config.capabilities.supports_vision}")
+    print(f"Input Cost: ${config.costs.input_token_cost}/1K tokens")
+    print(f"Output Cost: ${config.costs.output_token_cost}/1K tokens")
+    
+    # Test GPT-4o mini specific config
+    gpt4o_config = get_gpt4o_mini_config()
+    print(f"\nGPT-4o Mini Configuration:")
+    print(f"Name: {gpt4o_config.name}")
+    print(f"Display Name: {gpt4o_config.display_name}")
+    print(f"Context Window: {gpt4o_config.capabilities.context_window:,} tokens")
+    print(f"Max Output: {gpt4o_config.capabilities.max_output_tokens:,} tokens")
+    print(f"Tags: {', '.join(gpt4o_config.tags)}")
+
+def test_context_window_overflow():
+    """Test context window overflow error handling."""
+    
+    print("\n" + "=" * 80)
+    print("TESTING CONTEXT WINDOW OVERFLOW")
+    print("=" * 80)
+    
+    # Create a very long conversation that should exceed context window
+    # Simulate a conversation with very long messages
+    long_content = "This is a very long message. " * 1000  # ~30K characters
+    
+    massive_conversation = []
+    for i in range(20):  # 20 messages with long content each
+        massive_conversation.extend([
+            {"role": "user", "content": f"User message {i+1}: {long_content}"},
+            {"role": "assistant", "content": f"Assistant response {i+1}: {long_content}"}
+        ])
+    
+    print(f"Created test conversation with {len(massive_conversation)} messages")
+    total_chars = sum(len(msg['content']) for msg in massive_conversation)
+    estimated_tokens = total_chars // 4
+    print(f"Total characters: {total_chars:,}")
+    print(f"Estimated tokens: {estimated_tokens:,}")
+    
+    try:
+        print("\nAttempting to summarize massive conversation...")
+        summary = summarize_conversation(massive_conversation, summary_length="brief")
+        print("❌ ERROR: Should have thrown context window error!")
+        print(f"Summary: {summary[:100]}...")
+        
+    except ValueError as e:
+        print("✅ SUCCESS: Context window overflow properly detected!")
+        print(f"Error message: {str(e)}")
+        
+    except Exception as e:
+        print(f"❌ UNEXPECTED ERROR: {type(e).__name__}: {e}")
+
 def example_usage():
     """Example of how to use the conversation summarizer with different length options."""
     
@@ -16,7 +79,7 @@ def example_usage():
         {"role": "assistant", "content": "You can save it using plt.savefig('chart.png', dpi=300, bbox_inches='tight') before calling plt.show(). The dpi=300 ensures high resolution, and bbox_inches='tight' removes extra whitespace."}
     ]
     
-    print("=" * 80)
+    print("\n" + "=" * 80)
     print("TESTING DIFFERENT SUMMARY LENGTHS")
     print("=" * 80)
     
@@ -67,6 +130,40 @@ def example_usage():
     print("SUMMARY LENGTH COMPARISON COMPLETE")
     print("=" * 80)
 
+def test_custom_model_config():
+    """Test using custom model configuration."""
+    
+    print("\n" + "=" * 80)
+    print("TESTING CUSTOM MODEL CONFIGURATION")
+    print("=" * 80)
+    
+    # Create custom config with different parameters
+    custom_config = get_gpt4o_mini_config()
+    custom_config.parameters.temperature = 0.3  # More deterministic
+    custom_config.parameters.max_tokens = 200   # Lower token limit
+    
+    sample_conversation = [
+        {"role": "user", "content": "What are the benefits of using Python for data science?"},
+        {"role": "assistant", "content": "Python offers excellent libraries like pandas, numpy, scikit-learn, and matplotlib for data analysis, machine learning, and visualization."},
+        {"role": "user", "content": "How does it compare to R?"},
+        {"role": "assistant", "content": "Python is more general-purpose and has better integration with web applications, while R is specialized for statistics but has a steeper learning curve."},
+    ]
+    
+    print("Testing with custom configuration (temperature=0.3, max_tokens=200)...")
+    
+    try:
+        summary = summarize_conversation(
+            sample_conversation,
+            summary_length="medium",
+            model_config=custom_config
+        )
+        print(f"Custom config summary length: {len(summary)} characters")
+        print(f"Word count: ~{len(summary.split())} words")
+        print(f"\nContent:\n{summary}")
+        
+    except Exception as e:
+        print(f"Error with custom config: {e}")
+
 def test_specific_length():
     """Test a specific summary length quickly."""
     
@@ -77,23 +174,46 @@ def test_specific_length():
         {"role": "assistant", "content": "You can use SQLAlchemy with FastAPI. Install sqlalchemy and your database driver, then set up models and database connection."},
     ]
     
-    print("\nQuick Test - Medium Length Summary:")
-    print("-" * 40)
+    print("\n" + "=" * 80)
+    print("QUICK TEST - MEDIUM LENGTH SUMMARY")
+    print("=" * 80)
     
     summary = summarize_conversation(sample_conversation, summary_length="medium")
     print(f"Characters: {len(summary)} | Words: ~{len(summary.split())}")
     print(f"\n{summary}")
 
+def run_comprehensive_tests():
+    """Run all test functions."""
+    
+    print("🧪 STARTING COMPREHENSIVE AI CONTEXT AGENT TESTS")
+    print("=" * 80)
+    
+    # Test 1: Model Configuration
+    test_model_configuration()
+    
+    # Test 2: Context Window Overflow
+    test_context_window_overflow()
+    
+    # Test 3: Custom Model Config
+    test_custom_model_config()
+    
+    # Test 4: Summary Length Options
+    example_usage()
+    
+    # Test 5: Quick Test
+    test_specific_length()
+    
+    print("\n" + "=" * 80)
+    print("✅ ALL TESTS COMPLETED")
+    print("=" * 80)
+
 if __name__ == "__main__":
     from aicore.logger import get_logger
     logger = get_logger(__name__)
-    logger.info("Starting conversation summarizer length testing")
+    logger.info("Starting comprehensive conversation summarizer testing")
     
     from aicore.ai_config import validate_api_keys
     validate_api_keys()
     
-    # Run the comprehensive test
-    # example_usage()
-    
-    # Run a quick test
-    test_specific_length()
+    # Run all tests
+    run_comprehensive_tests()

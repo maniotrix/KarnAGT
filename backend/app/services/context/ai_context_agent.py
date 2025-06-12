@@ -2,6 +2,7 @@ import asyncio
 from typing import List, Dict, Any
 from agents import Agent, Runner
 from aicore.logger import get_logger
+from aicore.config.model_config import get_default_model_config, ModelConfig
 
 logger = get_logger(__name__)
 
@@ -27,19 +28,34 @@ Focus on the most important information that would be useful for understanding t
 class ConversationSummarizerAgent(Agent):
     """A specialized agent for summarizing conversation histories."""
     
-    def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
+    def __init__(self, model: str = "gpt-4o-mini-2024-07-18", model_config: ModelConfig = None):
         """Initialize the conversation summarizer agent."""
+        self.model_config = model_config or get_default_model_config(model)
+        
         super().__init__(
             name="Conversation Summarizer",
             instructions=SUMMARIZATION_PROMPT,
-            model=model
+            model=self.model_config.name
         )
+    
+    def get_context_limit(self) -> int:
+        """Get the context window limit for this model."""
+        return self.model_config.capabilities.context_window
+    
+    def get_max_output_tokens(self) -> int:
+        """Get the maximum output tokens for this model."""
+        return self.model_config.capabilities.max_output_tokens
+    
+    def supports_long_context(self) -> bool:
+        """Check if model supports long context conversations."""
+        return self.model_config.capabilities.supports_long_context
 
 async def summarize_conversation_async(
     conversation_history: List[Dict[str, Any]], 
     model: str = "gpt-4o-mini-2024-07-18",
     summary_length: str = "medium",
-    max_tokens: int = None
+    max_tokens: int = None,
+    model_config: ModelConfig = None
 ) -> str:
     """
     Asynchronously summarize a conversation history using an AI agent.
@@ -50,6 +66,7 @@ async def summarize_conversation_async(
         summary_length: Length of summary - "brief" (~100-200 words), "medium" (~200-400 words), 
                        "detailed" (~400-600 words), or "comprehensive" (~600+ words)
         max_tokens: Maximum tokens for the response (optional, overrides summary_length if specified)
+        model_config: Optional model configuration to use
         
     Returns:
         str: The conversation summary
@@ -57,8 +74,14 @@ async def summarize_conversation_async(
     logger.info(f"Starting conversation summarization with {len(conversation_history)} messages")
     
     try:
-        # Create the summarizer agent
-        agent = ConversationSummarizerAgent(model=model)
+        # Create the summarizer agent with model config
+        agent = ConversationSummarizerAgent(model=model, model_config=model_config)
+        
+        # Log model capabilities
+        logger.info(f"Using model: {agent.model_config.display_name}")
+        logger.info(f"Context window: {agent.get_context_limit():,} tokens")
+        logger.info(f"Max output tokens: {agent.get_max_output_tokens():,} tokens")
+        logger.info(f"Supports long context: {agent.supports_long_context()}")
         
         # Format the conversation history into a readable format
         formatted_conversation = ""
@@ -66,6 +89,26 @@ async def summarize_conversation_async(
             role = message.get('role', 'unknown')
             content = message.get('content', '')
             formatted_conversation += f"Message {i} ({role}):\n{content}\n\n"
+        
+        # Check if conversation fits within context window (rough estimate: 4 chars = 1 token)
+        estimated_input_tokens = len(formatted_conversation) // 4
+        context_limit = agent.get_context_limit()
+        max_output = max_tokens or agent.get_max_output_tokens()
+        
+        # Reserve tokens for prompt overhead (~500 tokens)
+        available_context = context_limit - max_output - 500
+        
+        if estimated_input_tokens > available_context:
+            error_msg = (
+                f"Conversation exceeds model context window. "
+                f"Estimated input tokens: {estimated_input_tokens:,}, "
+                f"Available context: {available_context:,}, "
+                f"Model context limit: {context_limit:,}, "
+                f"Reserved for output: {max_output:,} tokens. "
+                f"Please reduce conversation length or use a model with larger context window."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
         # Define length specifications with structure guidelines
         length_specs = {
@@ -119,7 +162,8 @@ def summarize_conversation(
     conversation_history: List[Dict[str, Any]], 
     model: str = "gpt-4o-mini-2024-07-18",
     summary_length: str = "medium",
-    max_tokens: int = None
+    max_tokens: int = None,
+    model_config: ModelConfig = None
 ) -> str:
     """
     Synchronous wrapper for summarizing a conversation history.
@@ -129,11 +173,12 @@ def summarize_conversation(
         model: The model to use for summarization
         summary_length: Length of summary - "brief", "medium", "detailed", or "comprehensive"
         max_tokens: Maximum tokens for the response (optional)
+        model_config: Optional model configuration to use
         
     Returns:
         str: The conversation summary
     """
-    return asyncio.run(summarize_conversation_async(conversation_history, model, summary_length, max_tokens))
+    return asyncio.run(summarize_conversation_async(conversation_history, model, summary_length, max_tokens, model_config))
 
 # Example usage function
 def example_usage():

@@ -91,8 +91,8 @@ class ModelCapabilities:
     supports_system_messages: bool = True
     
     # Context and token limits
-    max_context_tokens: int = 4096
-    max_output_tokens: int = 4096
+    context_window: int = 128000  # Total context window size
+    max_output_tokens: int = 16384  # Maximum tokens in response
     supports_long_context: bool = False
     
     # Advanced features
@@ -246,4 +246,64 @@ class ModelConfig:
             "structured_output": self.capabilities.supports_structured_output,
         }
         
-        return all(capability_map.get(cap, False) for cap in required_capabilities) 
+        return all(capability_map.get(cap, False) for cap in required_capabilities)
+
+
+# Default model configurations
+def get_gpt4o_mini_config() -> ModelConfig:
+    """Get default configuration for GPT-4o Mini"""
+    return ModelConfig(
+        name="gpt-4o-mini-2024-07-18",
+        display_name="GPT-4o Mini",
+        family=ModelFamily.GPT4,
+        version="2024-07-18",
+        provider=ProviderSettings(
+            provider=ModelProvider.OPENAI,
+            api_key_env_var="OPENAI_API_KEY",
+            timeout_seconds=60,
+            max_retries=3
+        ),
+        parameters=ModelParameters(
+            temperature=0.7,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0,
+            max_tokens=16384  # Set to max output tokens
+        ),
+        capabilities=ModelCapabilities(
+            supports_functions=True,
+            supports_vision=True,  # GPT-4o mini supports vision
+            supports_audio=False,
+            supports_streaming=True,
+            supports_json_mode=True,
+            supports_system_messages=True,
+            context_window=128000,  # 128K context window
+            max_output_tokens=16384,  # 16K max output tokens
+            supports_long_context=True,  # 128K is long context
+            supports_tool_choice=True,
+            supports_parallel_tools=True,
+            supports_structured_output=True
+        ),
+        costs=CostSettings(
+            track_costs=True,
+            input_token_cost=0.00015,  # $0.15 per 1M input tokens
+            output_token_cost=0.0006,  # $0.60 per 1M output tokens
+        ),
+        description="GPT-4o mini - Fast, capable, and cost-effective model",
+        tags=["general-purpose", "fast", "cost-effective", "vision"],
+        auto_fallback=True,
+        fallback_models=["gpt-4o-mini", "gpt-3.5-turbo"],
+        rate_limit_rpm=10000,  # High rate limits for mini
+        rate_limit_tpm=200000,
+        enable_caching=True,
+        cache_ttl_minutes=30
+    )
+
+
+def get_default_model_config(model_name: str = "gpt-4o-mini-2024-07-18") -> ModelConfig:
+    """Get default configuration for specified model"""
+    if model_name in ["gpt-4o-mini-2024-07-18", "gpt-4o-mini"]:
+        return get_gpt4o_mini_config()
+    else:
+        # Return basic config for unknown models
+        return ModelConfig(name=model_name) 
