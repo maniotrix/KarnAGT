@@ -11,6 +11,9 @@ import json
 
 logger = get_logger(__name__)
 
+# TODO : optimissation strategy for context builder, maybe use redis to store the context and update it when needed
+# instead of building the context from scratch every time
+
 @dataclass
 class ConversationContextConfig:
     """Configuration for conversation context building"""
