@@ -54,18 +54,18 @@ class InstructionBuilder:
         """
         # Start with core prompt
         instructions = self._get_core_prompt()
+        memory_context = None
         
         # Add memory context if user_id is available (simplified approach)
         if context.user_id:
             memory_context = await self._get_memory_context(context.user_id)
             if memory_context:
-                instructions += "\n" + memory_context + "\n"
-                logger.info(f"Memory context added: {memory_context}")
+                logger.info(f"Adding memory context: {memory_context}")
             else:
                 logger.warning(f"No memory context found for user {context.user_id}")
         
         # Add the template
-        instructions += self._get_original_template(context)
+        instructions += self._get_original_template(context, memory_context)
         
         return instructions
     
@@ -119,7 +119,7 @@ class InstructionBuilder:
             return self.config.core_prompt
         return INITIAL_CORE_PROMPT
     
-    def _get_original_template(self, context: InstructionContext) -> str:
+    def _get_original_template(self, context: InstructionContext, memory_context: str) -> str:
         """Get the exact template from original prompt_utils.py"""
         
         # This is the EXACT template from prompt_utils.py
@@ -223,6 +223,8 @@ class InstructionBuilder:
     '''
     )
     ```
+    
+    {memory_context}
 
     **Remember:** Always use the system command tool FIRST if you need to set up the environment, then use the code execution tool with a complete, self-contained script.
     
@@ -235,6 +237,15 @@ class InstructionBuilder:
         formatted_template = INSTRUCTIONS_TEMPLATE.replace("{output_dir}", context.plots_directory)
         formatted_template = formatted_template.replace("{os_type}", context.os_type)  
         formatted_template = formatted_template.replace("{message_id}", context.message_id)
+        
+        try:
+            if memory_context and memory_context != "":
+                formatted_template = formatted_template.replace("{memory_context}", memory_context)
+            else:
+                formatted_template = formatted_template.replace("{memory_context}", "")
+        except Exception as e:
+            logger.error(f"Error replacing memory context: {e}")
+            formatted_template = formatted_template.replace("{memory_context}", "")
         
         return formatted_template
     
