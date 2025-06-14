@@ -3,10 +3,15 @@
 
 """
 OpenAI assistant agent implementation using OpenAI Agents SDK
+
+.. deprecated:: 2.0.0
+    This module is deprecated and will be removed in version 3.0.0.
+    Use ConfigurableOpenAIAssistant from aicore.core instead.
 """
 
 import os
 import asyncio
+import warnings
 from typing import Optional, List, Any, Callable, Dict
 import glob
 from agents import Agent, Runner, ModelSettings, function_tool, WebSearchTool
@@ -16,6 +21,7 @@ from openai.types.responses import ResponseTextDeltaEvent
 # Use absolute imports instead of relative
 from aicore.code_executor.utils import execution_cleanup
 from aicore.logger import get_logger
+from aicore.utils.deprecation import deprecated
 
 from aicore.code_executor.code_agent import CodeExecutorAgent
 from aicore.path_config import PLOTS_DIR
@@ -45,9 +51,18 @@ Respond in a conversational and friendly tone while maintaining professionalism.
 """
 
 
+@deprecated(
+    version="2.0.0",
+    remove_in="3.0.0",
+    alternative="ConfigurableOpenAIAssistant from aicore.core"
+)
 class OpenAIAssistant:
     """
     Manager class for the OpenAI assistant agent using the Agents SDK
+    
+    .. deprecated:: 2.0.0
+        This class is deprecated and will be removed in version 3.0.0.
+        Use ConfigurableOpenAIAssistant from aicore.core instead.
     
     TODO : ⚠️  STREAM CANCELLATION NOTE:
     This class implements stream cancellation using the Agents SDK's built-in cancellation flow.

@@ -7,6 +7,7 @@ adding database integration, user context, and async support.
 
 import asyncio
 import uuid
+import warnings
 from typing import Optional, Dict, Any, List, Callable
 from datetime import datetime
 import sys
@@ -17,6 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../../../aicore"))
 
 from aicore.openai_assistant import OpenAIAssistant
 from aicore.logger import get_logger
+from aicore.utils.deprecation import deprecated
 
 from app.core.config import settings
 from app.models.database.user import User
@@ -28,9 +30,18 @@ from app.models.schemas.chat_schemas import MessageCreate, MessageResponse
 logger = get_logger(__name__)
 
 
+@deprecated(
+    version="2.0.0",
+    remove_in="3.0.0", 
+    alternative="ConfigurableOpenAIAssistant from aicore.core"
+)
 class OpenAIAssistantClient:
     """
     FastAPI-compatible wrapper for aicore OpenAIAssistant
+    
+    .. deprecated:: 2.0.0
+        This class is deprecated and will be removed in version 3.0.0.
+        Use ConfigurableOpenAIAssistant from aicore.core instead.
     
     Features:
     - User context management
