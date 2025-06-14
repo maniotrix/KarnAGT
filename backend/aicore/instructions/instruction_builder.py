@@ -60,6 +60,9 @@ class InstructionBuilder:
             memory_context = await self._get_memory_context(context.user_id)
             if memory_context:
                 instructions += "\n" + memory_context + "\n"
+                logger.info(f"Memory context added: {memory_context}")
+            else:
+                logger.warning(f"No memory context found for user {context.user_id}")
         
         # Add the template
         instructions += self._get_original_template(context)
