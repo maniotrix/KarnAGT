@@ -72,7 +72,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         self.current_message_id = str(uuid.uuid4())[:8]
         
         # Build tools based on configuration
-        tools = self._build_tools()
+        self.tools = self._build_tools()
         
         # Get model name from configuration
         model_name = model_config.get_full_model_name()
@@ -81,7 +81,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         super().__init__(
             name=agent_name,
             instructions=self._sdk_instructions_wrapper,
-            tools=tools,
+            tools=self.tools,
             model=model_name,
             # tool_use_behavior=agent_config.tool_use_strategy.value,
             # reset_tool_choice=agent_config.reset_tool_choice,
@@ -133,6 +133,7 @@ class ConfigurableCodeExecutorAgent(Agent):
                 logger.warning(f"Custom tool '{name}' not found in registry")
         
         logger.debug(f"Built {len(tools)} tools for agent")
+        logger.debug(f"Tool names: {[getattr(tool, 'name', str(tool)) for tool in tools]}")
         return tools
     
     async def _get_dynamic_instructions(self) -> str:
