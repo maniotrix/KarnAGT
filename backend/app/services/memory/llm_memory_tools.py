@@ -23,9 +23,10 @@ class Colors:
     END = '\033[0m'
     BOLD = '\033[1m'
 
-def memory_log(level, message):
+def memory_log(level, message, tool_name=None):
     """Helper to log memory tool messages with color coding"""
-    colored_prefix = f"{Colors.CYAN}[MEMORY-TOOLS]{Colors.END}"
+    tool_prefix = f"[{tool_name}]" if tool_name else ""
+    colored_prefix = f"{Colors.CYAN}[MEMORY-TOOLS]{tool_prefix}{Colors.END}"
     if level == "info":
         logger.info(f"{colored_prefix} {message}")
     elif level == "error":
@@ -49,7 +50,7 @@ async def get_essential_user_context(
         Formatted string with essential user context
     """
     try:
-        memory_log("info", f"Getting essential context for user {user_id}")
+        memory_log("info", f"Getting essential context for user {user_id}", "ESSENTIAL")
         
         context_parts = []
         
@@ -77,14 +78,14 @@ async def get_essential_user_context(
         # Format final context
         if context_parts:
             formatted_context = "\n## USER CONTEXT\n" + "\n".join(context_parts) + "\n"
-            memory_log("success", f"Generated essential context with {len(context_parts)} sections")
+            memory_log("success", f"Generated essential context with {len(context_parts)} sections", "ESSENTIAL")
             return formatted_context
         else:
-            memory_log("info", "No essential context found for user")
+            memory_log("info", "No essential context found for user", "ESSENTIAL")
             return ""
             
     except Exception as e:
-        memory_log("error", f"Error getting essential user context: {e}")
+        memory_log("error", f"Error getting essential user context: {e}", "ESSENTIAL")
         return ""
 
 
@@ -138,7 +139,7 @@ def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
             Formatted string with all user memories for LLM to filter
         """
         try:
-            memory_log("info", f"Memory retrieval query for user {user_id}: '{query}'")
+            memory_log("info", f"Memory retrieval query for user {user_id}: '{query}'", "RETRIEVAL")
             
             # Get ALL user memories (let LLM decide what's relevant)
             all_memories = await memory_service.get_all_user_memories(
@@ -147,7 +148,7 @@ def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
             )
             
             if not all_memories:
-                memory_log("info", f"No memories found for user {user_id}")
+                memory_log("info", f"No memories found for user {user_id}", "RETRIEVAL")
                 return "No user memories found."
             
             # Format all memories for LLM to choose from
@@ -159,11 +160,11 @@ def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
             result = f"User memories (showing {len(all_memories)} total memories):\n\n"
             result += "\n".join(memory_list)
             
-            memory_log("success", f"Retrieved {len(all_memories)} memories for LLM to filter")
+            memory_log("success", f"Retrieved {len(all_memories)} memories for LLM to filter", "RETRIEVAL")
             return result
             
         except Exception as e:
-            memory_log("error", f"Error retrieving user memories: {e}")
+            memory_log("error", f"Error retrieving user memories: {e}", "RETRIEVAL")
             return f"Error retrieving memories: {str(e)}"
     
     return user_memory_retrieval_tool
@@ -238,7 +239,7 @@ def create_memory_update_tool(memory_service: MemoryService, user_id: int, conve
             Confirmation message with bucket and importance
         """
         try:
-            memory_log("info", f"Saving memory for user {user_id} in bucket '{bucket}': {content[:50]}...")
+            memory_log("info", f"Saving memory for user {user_id} in bucket '{bucket}': {content[:50]}...", "UPDATE")
             
             memory = await memory_service.store_memory(
                 user_id=user_id,
@@ -249,11 +250,11 @@ def create_memory_update_tool(memory_service: MemoryService, user_id: int, conve
                 source_conversation_id=conversation_id
             )
             
-            memory_log("success", f"Saved memory for user {user_id}: {content[:50]}...")
+            memory_log("success", f"Saved memory for user {user_id}: {content[:50]}...", "UPDATE")
             return f"Memory saved to {bucket} bucket: '{content[:50]}...' (importance: {importance:.2f})"
             
         except Exception as e:
-            memory_log("error", f"Error saving memory: {e}")
+            memory_log("error", f"Error saving memory: {e}", "UPDATE")
             return f"Failed to save memory: {str(e)}"
     
     return memory_update_tool
