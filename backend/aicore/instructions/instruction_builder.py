@@ -31,7 +31,11 @@ class InstructionContext:
 
 
 class InstructionBuilder:
-    """Builds dynamic instructions with built-in memory support"""
+    """Builds dynamic instructions with built-in memory support
+    
+    TODO: Add proper instruct context caching as well as memory context caching
+        
+    """
     
     def __init__(self, config: AgentConfig):
         """
