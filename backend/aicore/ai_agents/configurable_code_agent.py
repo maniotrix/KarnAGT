@@ -135,7 +135,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         logger.debug(f"Built {len(tools)} tools for agent")
         return tools
     
-    def _get_dynamic_instructions(self) -> str:
+    async def _get_dynamic_instructions(self) -> str:
         """
         Dynamically generate instructions with the current message ID and configuration.
             
@@ -150,13 +150,12 @@ class ConfigurableCodeExecutorAgent(Agent):
             os_type=getattr(self.agent_config, 'os_type', 'Windows'),
             user_id=self.agent_config.user_id,
             session_id=None,  # Not needed for now
-            metadata=None     # Not needed for now
-        )
+        )   
         
         # Generate instructions using the instruction builder
-        return self.instruction_builder.build_instructions(context)
+        return await self.instruction_builder.build_instructions(context)
     
-    def _sdk_instructions_wrapper(self, run_context: RunContextWrapper, agent: Agent) -> str:
+    async def _sdk_instructions_wrapper(self, run_context: RunContextWrapper, agent: Agent) -> str:
         """
         SDK-compatible wrapper that ignores parameters and calls our simplified method
         
@@ -167,7 +166,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         Returns:
             str: Instructions from _get_dynamic_instructions
         """
-        return self._get_dynamic_instructions()
+        return await self._get_dynamic_instructions()
     
     def set_message_id(self, message_id: Optional[str] = None) -> str:
         """

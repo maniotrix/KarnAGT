@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Instruction Builder - Dynamic instruction generation that matches original exactly
+Instruction Builder - Dynamic instruction generation with built-in memory support
 """
 
 import os
@@ -14,6 +14,10 @@ from pathlib import Path
 # Use absolute imports to avoid circular import issues
 from aicore.config.agent_config import AgentConfig, CodeExecutionConfig, WebSearchConfig
 from aicore.prompt_utils import INITIAL_CORE_PROMPT
+from aicore.logger import get_logger
+
+# Set up logger
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -24,11 +28,10 @@ class InstructionContext:
     os_type: str = "Windows"
     user_id: Optional[str] = None
     session_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = field(default_factory=lambda: None)
 
 
 class InstructionBuilder:
-    """Builds dynamic instructions that match the original prompt_utils.py exactly"""
+    """Builds dynamic instructions with built-in memory support"""
     
     def __init__(self, config: AgentConfig):
         """
@@ -39,23 +42,62 @@ class InstructionBuilder:
         """
         self.config = config
         
-    def build_instructions(self, context: InstructionContext) -> str:
+    async def build_instructions(self, context: InstructionContext) -> str:
         """
-        Build complete instructions matching original prompt_utils.py exactly
+        Build complete instructions with automatic memory context
         
         Args:
             context: Context information for instruction generation
             
         Returns:
-            Complete instruction string matching original
+            Complete instruction string with memory context
         """
-        # Start with core prompt (exactly like original)
+        # Start with core prompt
         instructions = self._get_core_prompt()
         
-        # Add the exact template from original prompt_utils.py
+        # Add memory context if user_id is available (simplified approach)
+        if context.user_id:
+            memory_context = await self._get_memory_context(context.user_id)
+            if memory_context:
+                instructions += "\n" + memory_context + "\n"
+        
+        # Add the template
         instructions += self._get_original_template(context)
         
         return instructions
+    
+    async def _get_memory_context(self, user_id: str) -> str:
+        """
+        Get essential user memory context - simplified approach
+        
+        Args:
+            user_id: User ID for memory lookup
+            
+        Returns:
+            Formatted memory context string or empty string
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.core.database import AsyncSessionLocal
+            from app.services.memory.memory_service import MemoryService
+            from app.services.memory.llm_memory_tools import get_essential_user_context
+            
+            # Create fresh database session and memory service
+            async with AsyncSessionLocal() as db_session:
+                memory_service = MemoryService(db_session)
+                
+                # Get essential context
+                essential_context = await get_essential_user_context(
+                    memory_service=memory_service,
+                    user_id=int(user_id)
+                )
+                
+                return essential_context
+            
+        except Exception as e:
+            # Log error but don't fail instruction building
+            logger.warning(f"Failed to get memory context for user {user_id}: {e}")
+            return ""
     
     def _get_core_prompt(self) -> str:
         """Get the core prompt for the agent"""
@@ -107,7 +149,7 @@ class InstructionBuilder:
     plt.close()
 
     # Include the path in your result
-    result = {"data": your_data, "plot_path": filename}
+    result = {{"data": your_data, "plot_path": filename}}
     ```
 
     **SYSTEM COMMAND TOOL FOR ENVIRONMENT SETUP:**
@@ -163,7 +205,7 @@ class InstructionBuilder:
     result = sentiment_scores
 
     # Print a summary
-    print(f"Sentiment analysis complete. Scores: {sentiment_scores}")
+    print(f"Sentiment analysis complete. Scores: {{sentiment_scores}}")
     '''
     )
     ```
@@ -175,12 +217,11 @@ class InstructionBuilder:
     Your unique message ID is: '{message_id}' - ALWAYS include this in your filenames. Use this ID with timestamps for unique filenames (e.g., '{message_id}_plot_timestamp.png').
     """
         
-        # Format exactly like the original
-        formatted_template = INSTRUCTIONS_TEMPLATE.replace("{output_dir}", context.plots_directory)
-        formatted_template = formatted_template.replace("{os_type}", context.os_type)  
-        formatted_template = formatted_template.replace("{message_id}", context.message_id)
-        
-        return formatted_template
+        return INSTRUCTIONS_TEMPLATE.format(
+            os_type=context.os_type,
+            output_dir=context.plots_directory,
+            message_id=context.message_id
+        )
     
     def update_config(self, new_config: AgentConfig):
         """Update the agent configuration"""
