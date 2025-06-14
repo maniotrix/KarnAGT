@@ -12,6 +12,27 @@ from aicore.logger import get_logger
 
 logger = get_logger(__name__)
 
+# ANSI color codes for memory tool logs
+class Colors:
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BLUE = '\033[94m'
+    PURPLE = '\033[95m'
+    END = '\033[0m'
+    BOLD = '\033[1m'
+
+def memory_log(level, message):
+    """Helper to log memory tool messages with color coding"""
+    colored_prefix = f"{Colors.CYAN}[MEMORY-TOOLS]{Colors.END}"
+    if level == "info":
+        logger.info(f"{colored_prefix} {message}")
+    elif level == "error":
+        logger.error(f"{colored_prefix} {Colors.RED}{message}{Colors.END}")
+    elif level == "success":
+        logger.info(f"{colored_prefix} {Colors.GREEN}{message}{Colors.END}")
+
 
 async def get_essential_user_context(
     memory_service: MemoryService, 
@@ -28,7 +49,7 @@ async def get_essential_user_context(
         Formatted string with essential user context
     """
     try:
-        logger.info(f"Getting essential context for user {user_id}")
+        memory_log("info", f"Getting essential context for user {user_id}")
         
         context_parts = []
         
@@ -42,10 +63,11 @@ async def get_essential_user_context(
                 limit=5
             )
             
-            # Filter high importance memories
+            # Filter high importance memories (fix SQLAlchemy comparison)
             important_memories = []
             for mem in memories:
-                if mem.importance >= 0.7:
+                # Convert to float for comparison to avoid SQLAlchemy type issues
+                if float(mem.importance) >= 0.7:
                     important_memories.append(mem.content)
             
             if important_memories:
@@ -55,14 +77,14 @@ async def get_essential_user_context(
         # Format final context
         if context_parts:
             formatted_context = "\n## USER CONTEXT\n" + "\n".join(context_parts) + "\n"
-            logger.info(f"Generated essential context with {len(context_parts)} sections")
+            memory_log("success", f"Generated essential context with {len(context_parts)} sections")
             return formatted_context
         else:
-            logger.info("No essential context found for user")
+            memory_log("info", "No essential context found for user")
             return ""
             
     except Exception as e:
-        logger.error(f"Error getting essential user context: {e}")
+        memory_log("error", f"Error getting essential user context: {e}")
         return ""
 
 
@@ -116,7 +138,7 @@ def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
             Formatted string with all user memories for LLM to filter
         """
         try:
-            logger.info(f"Memory retrieval query for user {user_id}: '{query}'")
+            memory_log("info", f"Memory retrieval query for user {user_id}: '{query}'")
             
             # Get ALL user memories (let LLM decide what's relevant)
             all_memories = await memory_service.get_all_user_memories(
@@ -125,6 +147,7 @@ def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
             )
             
             if not all_memories:
+                memory_log("info", f"No memories found for user {user_id}")
                 return "No user memories found."
             
             # Format all memories for LLM to choose from
@@ -136,11 +159,11 @@ def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
             result = f"User memories (showing {len(all_memories)} total memories):\n\n"
             result += "\n".join(memory_list)
             
-            logger.info(f"Retrieved {len(all_memories)} memories for LLM to filter")
+            memory_log("success", f"Retrieved {len(all_memories)} memories for LLM to filter")
             return result
             
         except Exception as e:
-            logger.error(f"Error retrieving user memories: {e}")
+            memory_log("error", f"Error retrieving user memories: {e}")
             return f"Error retrieving memories: {str(e)}"
     
     return user_memory_retrieval_tool
@@ -215,6 +238,8 @@ def create_memory_update_tool(memory_service: MemoryService, user_id: int, conve
             Confirmation message with bucket and importance
         """
         try:
+            memory_log("info", f"Saving memory for user {user_id} in bucket '{bucket}': {content[:50]}...")
+            
             memory = await memory_service.store_memory(
                 user_id=user_id,
                 bucket=bucket,
@@ -224,11 +249,11 @@ def create_memory_update_tool(memory_service: MemoryService, user_id: int, conve
                 source_conversation_id=conversation_id
             )
             
-            logger.info(f"Saved memory for user {user_id}: {content[:50]}...")
-            return f"✅ Saved memory to {bucket} bucket: '{content[:50]}...' (importance: {importance:.2f})"
+            memory_log("success", f"Saved memory for user {user_id}: {content[:50]}...")
+            return f"Memory saved to {bucket} bucket: '{content[:50]}...' (importance: {importance:.2f})"
             
         except Exception as e:
-            logger.error(f"Error saving memory: {e}")
-            return f"❌ Failed to save memory: {str(e)}"
+            memory_log("error", f"Error saving memory: {e}")
+            return f"Failed to save memory: {str(e)}"
     
     return memory_update_tool
