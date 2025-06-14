@@ -109,10 +109,28 @@ class ConfigurableCodeExecutorAgent(Agent):
             tools.append(websearch_tool)
         
         # Add any custom tools specified in configuration
-        # Note: Custom tools would need to be resolved from a tool registry
-        # This is a placeholder for future tool registry implementation
+        from aicore.tool_registry import get_tool_registry
+        
+        tool_registry = get_tool_registry()
         for tool_name in self.agent_config.custom_tools:
-            logger.warning(f"Custom tool '{tool_name}' not yet implemented")
+            # Extract tool name and parameters
+            if isinstance(tool_name, str):
+                name = tool_name
+                params = {}
+            elif isinstance(tool_name, dict):
+                name = tool_name.get('name')
+                params = tool_name.get('params', {})
+            else:
+                logger.warning(f"Invalid tool configuration: {tool_name}")
+                continue
+            
+            # Get tool from registry
+            tool = tool_registry.get_tool(name, **params)
+            if tool:
+                tools.append(tool)
+                logger.info(f"Added custom tool: {name}")
+            else:
+                logger.warning(f"Custom tool '{name}' not found in registry")
         
         logger.debug(f"Built {len(tools)} tools for agent")
         return tools

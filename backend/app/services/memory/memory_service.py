@@ -37,9 +37,15 @@ class MemoryService:
     ) -> UserMemory:
         """Store a new memory for a user"""
         
-        # Validate bucket
+        # Auto-create bucket if it doesn't exist
         if bucket not in MEMORY_BUCKET_CONFIGS:
-            raise ValueError(f"Invalid bucket: {bucket}. Must be one of {list(MEMORY_BUCKET_CONFIGS.keys())}")
+            logger.info(f"Creating new custom bucket: {bucket}")
+            MEMORY_BUCKET_CONFIGS[bucket] = {
+                "description": f"Custom bucket: {bucket}",
+                "retention_days": 365,  # 1 year default
+                "importance_threshold": 0.3,
+                "capture_enabled": True
+            }
         
         # Set defaults based on bucket
         if memory_type is None:
@@ -172,10 +178,36 @@ class MemoryService:
     async def get_all_user_memories(
         self, 
         user_id: int, 
-        limit: int = 50,
         include_archived: bool = False
     ) -> List[UserMemory]:
-        """Get all memories for a user"""
+        """Get ALL memories for a user - no limit"""
+        
+        query = select(UserMemory).where(
+            and_(
+                UserMemory.user_id == user_id,
+                UserMemory.is_active == True
+            )
+        )
+        
+        if not include_archived:
+            query = query.where(UserMemory.is_archived == False)
+        
+        query = query.order_by(
+            desc(UserMemory.importance),
+            desc(UserMemory.created_at)
+        )
+        # NO LIMIT - get everything
+        
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
+    async def get_user_memories(
+        self, 
+        user_id: int, 
+        limit: int,
+        include_archived: bool = False
+    ) -> List[UserMemory]:
+        """Get limited number of user memories"""
         
         query = select(UserMemory).where(
             and_(
