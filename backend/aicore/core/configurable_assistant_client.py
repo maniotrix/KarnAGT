@@ -336,7 +336,7 @@ class ConfigurableAssistantClient:
             "supports_streaming": self.config.model.capabilities.supports_streaming,
             "supports_functions": self.config.model.capabilities.supports_functions,
             "supports_vision": self.config.model.capabilities.supports_vision,
-            "max_context_tokens": self.config.model.capabilities.max_context_tokens,
+            "max_context_tokens": self.config.model.capabilities.context_window,
             "max_output_tokens": self.config.model.capabilities.max_output_tokens,
         }
     
