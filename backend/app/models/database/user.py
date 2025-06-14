@@ -57,6 +57,7 @@ class User(Base):
     # Relationships
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     memory_preferences = relationship("MemoryPreference", back_populates="user", cascade="all, delete-orphan")
+    memories = relationship("UserMemory", back_populates="user", cascade="all, delete-orphan")
     knowledge_files = relationship("KnowledgeFile", back_populates="user", cascade="all, delete-orphan")
     cost_tracking = relationship("CostTracking", back_populates="user", cascade="all, delete-orphan")
     
