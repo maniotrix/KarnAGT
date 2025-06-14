@@ -66,12 +66,12 @@ class InstructionBuilder:
         
         return instructions
     
-    async def _get_memory_context(self, user_id: str) -> str:
+    async def _get_memory_context(self, user_uuid: str) -> str:
         """
         Get essential user memory context - simplified approach
         
         Args:
-            user_id: User ID for memory lookup
+            user_uuid: User UUID string for memory lookup
             
         Returns:
             Formatted memory context string or empty string
@@ -81,22 +81,33 @@ class InstructionBuilder:
             from app.core.database import AsyncSessionLocal
             from app.services.memory.memory_service import MemoryService
             from app.services.memory.llm_memory_tools import get_essential_user_context
+            from app.models.database.user import User
+            from sqlalchemy import select
             
             # Create fresh database session and memory service
             async with AsyncSessionLocal() as db_session:
+                # Look up the integer user_id from the UUID
+                query = select(User.id).where(User.user_id == user_uuid)
+                result = await db_session.execute(query)
+                user_id = result.scalar_one_or_none()
+                
+                if not user_id:
+                    logger.warning(f"User not found for UUID {user_uuid}")
+                    return ""
+                
                 memory_service = MemoryService(db_session)
                 
-                # Get essential context
+                # Get essential context using integer user_id
                 essential_context = await get_essential_user_context(
                     memory_service=memory_service,
-                    user_id=int(user_id)
+                    user_id=user_id
                 )
                 
                 return essential_context
             
         except Exception as e:
             # Log error but don't fail instruction building
-            logger.warning(f"Failed to get memory context for user {user_id}: {e}")
+            logger.warning(f"Failed to get memory context for user {user_uuid}: {e}")
             return ""
     
     def _get_core_prompt(self) -> str:
@@ -149,7 +160,7 @@ class InstructionBuilder:
     plt.close()
 
     # Include the path in your result
-    result = {{"data": your_data, "plot_path": filename}}
+    result = {"data": your_data, "plot_path": filename}
     ```
 
     **SYSTEM COMMAND TOOL FOR ENVIRONMENT SETUP:**
@@ -205,7 +216,7 @@ class InstructionBuilder:
     result = sentiment_scores
 
     # Print a summary
-    print(f"Sentiment analysis complete. Scores: {{sentiment_scores}}")
+    print(f"Sentiment analysis complete. Scores: {sentiment_scores}")
     '''
     )
     ```
@@ -217,11 +228,12 @@ class InstructionBuilder:
     Your unique message ID is: '{message_id}' - ALWAYS include this in your filenames. Use this ID with timestamps for unique filenames (e.g., '{message_id}_plot_timestamp.png').
     """
         
-        return INSTRUCTIONS_TEMPLATE.format(
-            os_type=context.os_type,
-            output_dir=context.plots_directory,
-            message_id=context.message_id
-        )
+        # Format exactly like the original
+        formatted_template = INSTRUCTIONS_TEMPLATE.replace("{output_dir}", context.plots_directory)
+        formatted_template = formatted_template.replace("{os_type}", context.os_type)  
+        formatted_template = formatted_template.replace("{message_id}", context.message_id)
+        
+        return formatted_template
     
     def update_config(self, new_config: AgentConfig):
         """Update the agent configuration"""
