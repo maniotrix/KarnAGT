@@ -67,6 +67,10 @@ class ConfigurableOpenAIAssistant:
                 overrides=config_overrides
             )
         
+        # Set user_id in agent config for instruction building
+        if user_id and not config.agent.user_id:
+            config.agent.user_id = user_id
+        
         self.config = config
         self.user_id = user_id
         self.environment = environment

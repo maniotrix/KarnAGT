@@ -80,7 +80,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         # Initialize the parent Agent class
         super().__init__(
             name=agent_name,
-            instructions=self._get_dynamic_instructions,
+            instructions=self._sdk_instructions_wrapper,
             tools=tools,
             model=model_name,
             # tool_use_behavior=agent_config.tool_use_strategy.value,
@@ -117,29 +117,39 @@ class ConfigurableCodeExecutorAgent(Agent):
         logger.debug(f"Built {len(tools)} tools for agent")
         return tools
     
-    def _get_dynamic_instructions(self, run_context: RunContextWrapper, agent: Agent) -> str:
+    def _get_dynamic_instructions(self) -> str:
         """
         Dynamically generate instructions with the current message ID and configuration.
-        
-        Args:
-            run_context: The current run context
-            agent: The agent instance
             
         Returns:
             str: Instructions with the message ID and configuration injected
         """
-        # Create instruction context
+        # Create instruction context using only agent config and instance data
+        # Ignore run_context since it will be removed from SDK soon
         context = InstructionContext(
             message_id=self.current_message_id,
             plots_directory=self.unique_plots_dir,
             os_type=getattr(self.agent_config, 'os_type', 'Windows'),
-            user_id=getattr(run_context.context, 'user_id', None) if run_context.context else None,
-            session_id=getattr(run_context.context, 'session_id', None) if run_context.context else None,
-            metadata=getattr(run_context.context, 'metadata', None) if run_context.context else None
+            user_id=self.agent_config.user_id,
+            session_id=None,  # Not needed for now
+            metadata=None     # Not needed for now
         )
         
         # Generate instructions using the instruction builder
         return self.instruction_builder.build_instructions(context)
+    
+    def _sdk_instructions_wrapper(self, run_context: RunContextWrapper, agent: Agent) -> str:
+        """
+        SDK-compatible wrapper that ignores parameters and calls our simplified method
+        
+        Args:
+            run_context: Ignored (SDK requirement)
+            agent: Ignored (SDK requirement)
+            
+        Returns:
+            str: Instructions from _get_dynamic_instructions
+        """
+        return self._get_dynamic_instructions()
     
     def set_message_id(self, message_id: Optional[str] = None) -> str:
         """

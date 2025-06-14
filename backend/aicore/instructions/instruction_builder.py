@@ -182,27 +182,6 @@ class InstructionBuilder:
         
         return formatted_template
     
-    def get_instruction_function(self) -> Callable:
-        """
-        Get a function that can be used with the Agent's dynamic instructions
-        
-        Returns:
-            Function that takes (run_context, agent) and returns instructions
-        """
-        def generate_instructions(run_context, agent) -> str:
-            # Extract context information
-            context = InstructionContext(
-                message_id=getattr(agent, 'current_message_id', 'unknown'),
-                plots_directory=getattr(agent, 'unique_plots_dir', '/tmp/plots'),
-                os_type="Windows",  # Default like original
-                user_id=getattr(run_context.context, 'user_id', None) if run_context.context else None,
-                session_id=getattr(run_context.context, 'session_id', None) if run_context.context else None,
-            )
-            
-            return self.build_instructions(context)
-        
-        return generate_instructions
-    
     def update_config(self, new_config: AgentConfig):
         """Update the agent configuration"""
         self.config = new_config 
