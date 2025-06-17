@@ -45,10 +45,12 @@ class MockContextBuilder:
         self.conversation_id = conversation_id
         # Mock conversation history
         self.mock_messages = [
-            MockMessage("user", "Hello! Can you help me analyze some images?"),
-            MockMessage("assistant", "Of course! I'd be happy to help you analyze images. Please share the images you'd like me to look at."),
-            MockMessage("user", "Here's a photo of a landmark, what can you tell me about it?"),
-            MockMessage("assistant", "I can see this is a beautiful architectural structure. This is italian architecture."),
+            MockMessage("user", "Hello! how are you?"),
+            MockMessage("assistant", "I am good, thank you! How can I help you today?"),
+            MockMessage("user", "I am looking for a good sci-fi movie to watch. Can you help me with that?"),
+            MockMessage("assistant", "Sure, I can help you with that. What is your budget and what type of movie do you prefer?"),
+            MockMessage("user", "I am looking for a budget movie to watch. I prefer a movie with a lot of action and adventure."),
+            MockMessage("assistant", "I suggest you watch The Dark Knight. It is a great movie with a lot of action and adventure."),
         ]
         
     async def build_context(self, latest_user_message: str, file_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -185,7 +187,7 @@ async def main():
     # Test 1: Compare build_context vs build_context_dict
     await test_suite.create_and_run_agent_with_image(
         image_path=image_path,
-        user_message="tell me what we have discussed so far, from start to end. and also tell me what you see in the image."
+        user_message="tell me everything we have discussed so far. Also what do you see in the image?"
     )
     
     print("\n✅ All tests completed!")
