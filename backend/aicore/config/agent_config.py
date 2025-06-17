@@ -62,6 +62,9 @@ class AgentConfig:
     name: str = "AI Assistant"
     description: str = "An intelligent AI assistant capable of various tasks"
     
+    # User context
+    user_id: Optional[str] = None  # User ID for personalized instructions
+    
     # Core prompt configuration
     core_prompt: str = ""  # Will be loaded from instruction builder
     instruction_template: str = "default"  # Template name to use

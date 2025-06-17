@@ -12,7 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 from sqlalchemy.orm import selectinload
 
-from aicore.core.configurable_assistant_client import configurable_assistant_manager as assistant_manager
+from aicore.core.configurable_assistant_client import (
+    configurable_assistant_manager as assistant_manager,
+    ConfigurableAssistantClient
+)
 from app.integrations.openai.cost_tracker import CostTracker
 from app.integrations.openai.error_handler import handle_openai_errors
 from app.services.chat.conversation_service import ConversationService
@@ -32,6 +35,7 @@ from app.core.exceptions import (
     QuotaExceededException
 )
 from app.services.context.conversation_context_builder import get_context_for_conversation
+from app.services.memory.memory_tools_config import get_memory_enabled_override_config
 from aicore.logger import get_logger
 
 # Set up logger
@@ -71,6 +75,43 @@ class ChatService:
         
         logger.info(f"ChatService initialized for user {self.user_uuid}")
     
+    def _get_assistant_client_with_memory(self, conversation_id: str) -> ConfigurableAssistantClient:
+        """
+        Get assistant client with memory configuration applied.
+        
+        This method ensures memory configuration is applied only once when 
+        the client is first created, since the assistant manager reuses 
+        clients for the same user+conversation combination.
+        
+        Args:
+            conversation_id: The conversation ID
+            
+        Returns:
+            ConfigurableAssistantClient with memory tools enabled
+        """
+        # Check if client already exists (would be reused)
+        client_key = f"{self.user_uuid}_{conversation_id}_default_default"
+        
+        if client_key not in assistant_manager.clients:
+            # Client doesn't exist yet, create with memory configuration
+            memory_config_override = get_memory_enabled_override_config(
+                user_id=self.user_id,
+                conversation_id=conversation_id,
+                db_session=self.db
+            )
+            
+            return assistant_manager.get_client(
+                user_id=self.user_uuid,
+                conversation_id=conversation_id,
+                config_overrides=memory_config_override
+            )
+        else:
+            # Client already exists, just get it (memory config already applied)
+            return assistant_manager.get_client(
+                user_id=self.user_uuid,
+                conversation_id=conversation_id
+            )
+    
     async def start_conversation(
         self,
         title: Optional[str] = None,
@@ -107,11 +148,8 @@ class ChatService:
             
             conversation = await self.conversation_service.create_conversation(conversation_data)
             
-            # Initialize assistant client for this conversation
-            assistant_client = assistant_manager.get_client(
-                self.user_uuid, 
-                conversation.conversation_id
-            )
+            # Initialize assistant client for this conversation with memory tools
+            assistant_client = self._get_assistant_client_with_memory(conversation.conversation_id)
             
             logger.info(f"Started conversation {conversation.conversation_id} for user {self.user_uuid}")
             
@@ -199,8 +237,8 @@ class ChatService:
                 limit=20  # Last 20 messages for context
             )
             
-            # Get assistant client
-            assistant_client = assistant_manager.get_client(self.user_uuid, conversation_id)
+            # Get assistant client with memory tools
+            assistant_client = self._get_assistant_client_with_memory(conversation_id)
             
             # Set conversation context if this is not the first message
             if len(conversation_history) > 1:
@@ -333,8 +371,8 @@ class ChatService:
                 limit=20
             )
             
-            # Get assistant client
-            assistant_client = assistant_manager.get_client(self.user_uuid, conversation_id)
+            # Get assistant client with memory tools
+            assistant_client = self._get_assistant_client_with_memory(conversation_id)
             
             # Set conversation context
             if len(conversation_history) > 1:
@@ -563,7 +601,7 @@ class ChatService:
             True if cleared successfully
         """
         try:
-            assistant_client = assistant_manager.get_client(self.user_uuid, conversation_id)
+            assistant_client = self._get_assistant_client_with_memory(conversation_id)
             assistant_client.clear_conversation_memory()
             
             logger.info(f"Cleared memory for conversation {conversation_id}")
@@ -623,8 +661,8 @@ class ChatService:
                 limit=20  # Last 20 messages for context
             )
             
-            # Get assistant client
-            assistant_client = assistant_manager.get_client(self.user_uuid, conversation_id)
+            # Get assistant client with memory tools
+            assistant_client = self._get_assistant_client_with_memory(conversation_id)
             
             # Set conversation context with all existing messages
             if conversation_history:
@@ -755,8 +793,8 @@ class ChatService:
                 limit=20  # Last 20 messages for context
             )
             
-            # Get assistant client
-            assistant_client = assistant_manager.get_client(self.user_uuid, conversation_id)
+            # Get assistant client with memory tools
+            assistant_client = self._get_assistant_client_with_memory(conversation_id)
             
             # Set conversation context with all existing messages
             if conversation_history:

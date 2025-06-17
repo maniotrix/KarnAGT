@@ -72,7 +72,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         self.current_message_id = str(uuid.uuid4())[:8]
         
         # Build tools based on configuration
-        tools = self._build_tools()
+        self.tools = self._build_tools()
         
         # Get model name from configuration
         model_name = model_config.get_full_model_name()
@@ -80,8 +80,8 @@ class ConfigurableCodeExecutorAgent(Agent):
         # Initialize the parent Agent class
         super().__init__(
             name=agent_name,
-            instructions=self._get_dynamic_instructions,
-            tools=tools,
+            instructions=self._sdk_instructions_wrapper,
+            tools=self.tools,
             model=model_name,
             # tool_use_behavior=agent_config.tool_use_strategy.value,
             # reset_tool_choice=agent_config.reset_tool_choice,
@@ -109,37 +109,65 @@ class ConfigurableCodeExecutorAgent(Agent):
             tools.append(websearch_tool)
         
         # Add any custom tools specified in configuration
-        # Note: Custom tools would need to be resolved from a tool registry
-        # This is a placeholder for future tool registry implementation
+        from aicore.tool_registry import get_tool_registry
+        
+        tool_registry = get_tool_registry()
         for tool_name in self.agent_config.custom_tools:
-            logger.warning(f"Custom tool '{tool_name}' not yet implemented")
+            # Extract tool name and parameters
+            if isinstance(tool_name, str):
+                name = tool_name
+                params = {}
+            elif isinstance(tool_name, dict):
+                name = tool_name.get('name')
+                params = tool_name.get('params', {})
+            else:
+                logger.warning(f"Invalid tool configuration: {tool_name}")
+                continue
+            
+            # Get tool from registry
+            tool = tool_registry.get_tool(name, **params)
+            if tool:
+                tools.append(tool)
+                logger.info(f"Added custom tool: {name}")
+            else:
+                logger.warning(f"Custom tool '{name}' not found in registry")
         
         logger.debug(f"Built {len(tools)} tools for agent")
+        logger.debug(f"Tool names: {[getattr(tool, 'name', str(tool)) for tool in tools]}")
         return tools
     
-    def _get_dynamic_instructions(self, run_context: RunContextWrapper, agent: Agent) -> str:
+    async def _get_dynamic_instructions(self) -> str:
         """
         Dynamically generate instructions with the current message ID and configuration.
-        
-        Args:
-            run_context: The current run context
-            agent: The agent instance
             
         Returns:
             str: Instructions with the message ID and configuration injected
         """
-        # Create instruction context
+        # Create instruction context using only agent config and instance data
+        # Ignore run_context since it will be removed from SDK soon
         context = InstructionContext(
             message_id=self.current_message_id,
             plots_directory=self.unique_plots_dir,
             os_type=getattr(self.agent_config, 'os_type', 'Windows'),
-            user_id=getattr(run_context.context, 'user_id', None) if run_context.context else None,
-            session_id=getattr(run_context.context, 'session_id', None) if run_context.context else None,
-            metadata=getattr(run_context.context, 'metadata', None) if run_context.context else None
-        )
+            user_id=self.agent_config.user_id,
+            session_id=None,  # Not needed for now
+        )   
         
         # Generate instructions using the instruction builder
-        return self.instruction_builder.build_instructions(context)
+        return await self.instruction_builder.build_instructions(context)
+    
+    async def _sdk_instructions_wrapper(self, run_context: RunContextWrapper, agent: Agent) -> str:
+        """
+        SDK-compatible wrapper that ignores parameters and calls our simplified method
+        
+        Args:
+            run_context: Ignored (SDK requirement)
+            agent: Ignored (SDK requirement)
+            
+        Returns:
+            str: Instructions from _get_dynamic_instructions
+        """
+        return await self._get_dynamic_instructions()
     
     def set_message_id(self, message_id: Optional[str] = None) -> str:
         """

@@ -1,17 +1,29 @@
 import os
 import glob
 import uuid
+import warnings
 from typing import Dict, List
 from agents import Agent, RunContextWrapper, WebSearchTool
 from aicore.code_executor.code_tool import execute_code, execute_system_command
 from aicore.code_executor.logger import get_logger
+from aicore.utils.deprecation import deprecated
 # Get logger
 logger = get_logger()
 
 from aicore.prompt_utils import get_instructions_template, INITIAL_CORE_PROMPT
+
+@deprecated(
+    version="2.0.0", 
+    remove_in="3.0.0",
+    alternative="ConfigurableCodeExecutorAgent from aicore.ai_agents"
+)
 class CodeExecutorAgent(Agent):
     """
     A specialized Agent subclass for executing code with managed message IDs.
+    
+    .. deprecated:: 2.0.0
+        This class is deprecated and will be removed in version 3.0.0.
+        Use ConfigurableCodeExecutorAgent from aicore.ai_agents instead.
     
     This agent automatically handles message ID generation and injection into instructions,
     making it ideal for code execution where unique identifiers are needed for plots and files.

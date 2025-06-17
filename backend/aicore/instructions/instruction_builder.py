@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Instruction Builder - Dynamic instruction generation that matches original exactly
+Instruction Builder - Dynamic instruction generation with built-in memory support
 """
 
 import os
@@ -14,6 +14,10 @@ from pathlib import Path
 # Use absolute imports to avoid circular import issues
 from aicore.config.agent_config import AgentConfig, CodeExecutionConfig, WebSearchConfig
 from aicore.prompt_utils import INITIAL_CORE_PROMPT
+from aicore.logger import get_logger
+
+# Set up logger
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -24,11 +28,14 @@ class InstructionContext:
     os_type: str = "Windows"
     user_id: Optional[str] = None
     session_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = field(default_factory=lambda: None)
 
 
 class InstructionBuilder:
-    """Builds dynamic instructions that match the original prompt_utils.py exactly"""
+    """Builds dynamic instructions with built-in memory support
+    
+    TODO: Add proper instruct context caching as well as memory context caching
+        
+    """
     
     def __init__(self, config: AgentConfig):
         """
@@ -39,23 +46,76 @@ class InstructionBuilder:
         """
         self.config = config
         
-    def build_instructions(self, context: InstructionContext) -> str:
+    async def build_instructions(self, context: InstructionContext) -> str:
         """
-        Build complete instructions matching original prompt_utils.py exactly
+        Build complete instructions with automatic memory context
         
         Args:
             context: Context information for instruction generation
             
         Returns:
-            Complete instruction string matching original
+            Complete instruction string with memory context
         """
-        # Start with core prompt (exactly like original)
+        # Start with core prompt
         instructions = self._get_core_prompt()
+        memory_context = None
         
-        # Add the exact template from original prompt_utils.py
-        instructions += self._get_original_template(context)
+        # Add memory context if user_id is available (simplified approach)
+        if context.user_id:
+            memory_context = await self._get_memory_context(context.user_id)
+            if memory_context:
+                logger.info(f"Adding memory context: {memory_context}")
+            else:
+                logger.warning(f"No memory context found for user {context.user_id}")
+        
+        # Add the template
+        instructions += self._get_original_template(context, memory_context)
         
         return instructions
+    
+    async def _get_memory_context(self, user_uuid: str) -> str:
+        """
+        Get essential user memory context - simplified approach
+        
+        Args:
+            user_uuid: User UUID string for memory lookup
+            
+        Returns:
+            Formatted memory context string or empty string
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.core.database import AsyncSessionLocal
+            from app.services.memory.memory_service import MemoryService
+            from app.services.memory.llm_memory_tools import get_essential_user_context
+            from app.models.database.user import User
+            from sqlalchemy import select
+            
+            # Create fresh database session and memory service
+            async with AsyncSessionLocal() as db_session:
+                # Look up the integer user_id from the UUID
+                query = select(User.id).where(User.user_id == user_uuid)
+                result = await db_session.execute(query)
+                user_id = result.scalar_one_or_none()
+                
+                if not user_id:
+                    logger.warning(f"User not found for UUID {user_uuid}")
+                    return ""
+                
+                memory_service = MemoryService(db_session)
+                
+                # Get essential context using integer user_id
+                essential_context = await get_essential_user_context(
+                    memory_service=memory_service,
+                    user_id=user_id
+                )
+                
+                return essential_context
+            
+        except Exception as e:
+            # Log error but don't fail instruction building
+            logger.warning(f"Failed to get memory context for user {user_uuid}: {e}")
+            return ""
     
     def _get_core_prompt(self) -> str:
         """Get the core prompt for the agent"""
@@ -63,7 +123,7 @@ class InstructionBuilder:
             return self.config.core_prompt
         return INITIAL_CORE_PROMPT
     
-    def _get_original_template(self, context: InstructionContext) -> str:
+    def _get_original_template(self, context: InstructionContext, memory_context: str) -> str:
         """Get the exact template from original prompt_utils.py"""
         
         # This is the EXACT template from prompt_utils.py
@@ -167,6 +227,8 @@ class InstructionBuilder:
     '''
     )
     ```
+    
+    {memory_context}
 
     **Remember:** Always use the system command tool FIRST if you need to set up the environment, then use the code execution tool with a complete, self-contained script.
     
@@ -180,28 +242,16 @@ class InstructionBuilder:
         formatted_template = formatted_template.replace("{os_type}", context.os_type)  
         formatted_template = formatted_template.replace("{message_id}", context.message_id)
         
+        try:
+            if memory_context and memory_context != "":
+                formatted_template = formatted_template.replace("{memory_context}", memory_context)
+            else:
+                formatted_template = formatted_template.replace("{memory_context}", "")
+        except Exception as e:
+            logger.error(f"Error replacing memory context: {e}")
+            formatted_template = formatted_template.replace("{memory_context}", "")
+        
         return formatted_template
-    
-    def get_instruction_function(self) -> Callable:
-        """
-        Get a function that can be used with the Agent's dynamic instructions
-        
-        Returns:
-            Function that takes (run_context, agent) and returns instructions
-        """
-        def generate_instructions(run_context, agent) -> str:
-            # Extract context information
-            context = InstructionContext(
-                message_id=getattr(agent, 'current_message_id', 'unknown'),
-                plots_directory=getattr(agent, 'unique_plots_dir', '/tmp/plots'),
-                os_type="Windows",  # Default like original
-                user_id=getattr(run_context.context, 'user_id', None) if run_context.context else None,
-                session_id=getattr(run_context.context, 'session_id', None) if run_context.context else None,
-            )
-            
-            return self.build_instructions(context)
-        
-        return generate_instructions
     
     def update_config(self, new_config: AgentConfig):
         """Update the agent configuration"""

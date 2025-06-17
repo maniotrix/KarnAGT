@@ -67,6 +67,10 @@ class ConfigurableOpenAIAssistant:
                 overrides=config_overrides
             )
         
+        # Set user_id in agent config for instruction building
+        if user_id and not config.agent.user_id:
+            config.agent.user_id = user_id
+        
         self.config = config
         self.user_id = user_id
         self.environment = environment
@@ -108,6 +112,7 @@ class ConfigurableOpenAIAssistant:
                 self.messages.append({"role": "user", "content": user_message})
                 self._manage_conversation_history()
             
+            logger.info(f"ConfigurableOpenAIAssistant: Agent model: {self.agent.model}")
             # Check if streaming is enabled
             if self.config.runner.is_streaming_enabled():
                 return await self._stream_response(user_message)
