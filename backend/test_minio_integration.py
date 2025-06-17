@@ -22,7 +22,7 @@ os.environ.update({
     "IMAGE_BASE_URL": "http://localhost:8000/api/images"
 })
 
-from app.services.storage import ImageStorageService
+from app.services.storage.storage import ImageStorageService
 
 async def test_minio_connection():
     """Test MinIO connection and basic operations"""

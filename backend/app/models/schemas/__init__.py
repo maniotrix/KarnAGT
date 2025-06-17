@@ -6,6 +6,7 @@ from .user_schemas import *
 from .chat_schemas import *
 from .memory_schemas import *
 from .file_schemas import *
+from .image_schemas import *
 from .analytics_schemas import *
 
 __all__ = [
@@ -53,6 +54,13 @@ __all__ = [
     "FileProcessingStatus",
     "FileSearchRequest",
     "FileSearchResponse",
+    
+    # Image schemas
+    "ImageUploadResponse",
+    "ImageMetadataResponse",
+    "ImageListResponse",
+    "ImageValidationError",
+    "ImageAttachment",
     
     # Analytics schemas
     "UsageAnalytics",

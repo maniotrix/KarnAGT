@@ -174,6 +174,15 @@ async def validate_user_ownership(
     
     return current_user
 
+async def check_image_upload_access(
+    current_user: User = Depends(get_current_verified_user)
+) -> User:
+    """Check if user can upload images (pro+ feature)"""
+    if not current_user.can_use_feature("file_upload"):
+        raise PermissionDeniedException("Image upload requires Pro subscription")
+    
+    return current_user
+
 async def get_token_payload(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
 ) -> Optional[Dict[str, Any]]:
@@ -209,5 +218,6 @@ class QuotaChecker:
 
 # Common quota checkers
 check_chat_quota = QuotaChecker(0.001)  # Approximate cost per message
+check_image_quota = QuotaChecker(0.005)  # Approximate cost per image upload
 check_embedding_quota = QuotaChecker(0.0001)  # Approximate cost per embedding
 check_file_processing_quota = QuotaChecker(0.01)  # Approximate cost per file processing 
