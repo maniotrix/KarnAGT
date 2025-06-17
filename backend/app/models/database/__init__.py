@@ -7,6 +7,7 @@ from .memory_preference import MemoryPreference
 from .user_memory import UserMemory
 from .knowledge_file import KnowledgeFile
 from .cost_tracking import CostTracking
+from .uploaded_image import UploadedImage
 
 __all__ = [
     "User",
@@ -16,4 +17,5 @@ __all__ = [
     "UserMemory",
     "KnowledgeFile",
     "CostTracking",
+    "UploadedImage",
 ] 

@@ -17,6 +17,7 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from PIL import Image
 import io
 
@@ -90,12 +91,13 @@ async def upload_image(
         # Read file data
         file_data = await file.read()
         
-        # Upload using storage service
+        # Upload using storage service with database tracking
         upload_result = await storage_service.upload_image(
             file_data=file_data,
             filename=file.filename,
             content_type=file.content_type or "image/jpeg",
-            user_id=current_user.user_id
+            user_id=current_user.user_id,
+            db=db
         )
         
         # Extract dimensions if possible
@@ -118,7 +120,7 @@ async def upload_image(
             content_type=upload_result["content_type"],
             size=upload_result["size"],
             dimensions=dimensions,
-            urls=upload_result["urls"],
+            urls={"display": upload_result["url"], "api": upload_result["url"]},
             s3_key=upload_result["s3_key"],
             uploaded_at=upload_result["uploaded_at"],
             openai_file_id=None,  # TODO: Implement OpenAI Files API integration
@@ -151,28 +153,32 @@ async def upload_image(
 @router.get("/images/{file_id}", response_class=RedirectResponse)
 async def serve_image(
     file_id: str,
-    current_user: User = Depends(get_current_verified_user)
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Serve full-size image
-    Redirects to MinIO URL for direct serving
+    Serve full-size image with proper ownership validation
+    Uses database-driven access control (industry best practice)
     """
     logger.info(f"Serving image {file_id} for user {current_user.user_id}")
     
     try:
-        # TODO: Validate user ownership of the image
-        # For now, we'll generate the URL based on file_id pattern
-        
-        # Generate MinIO URL (this is a simplified approach)
-        # In production, you'd want to validate the file exists and user has access
-        minio_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/images/*/{file_id}.*"
-        
-        # For now, return a simple response
-        # TODO: Implement proper file lookup and access control
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Image serving not yet implemented - use display URL from upload response"
+        # SECURITY: Validate file ownership using database lookup
+        presigned_url = await storage_service.serve_image_securely(
+            file_id=file_id, 
+            user_id=current_user.user_id,
+            db=db
         )
+        
+        if not presigned_url:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You don't own this file or file not found"
+            )
+        
+        # Redirect to presigned URL for secure access
+        logger.info(f"Redirecting to presigned URL for {file_id}")
+        return RedirectResponse(url=presigned_url, status_code=302)
         
     except Exception as e:
         logger.error(f"Error serving image {file_id}: {e}")
@@ -194,13 +200,36 @@ async def get_image_metadata(
     logger.info(f"Getting metadata for image {file_id}")
     
     try:
-        # TODO: Implement metadata lookup from database
-        # For now, return a placeholder
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Image metadata lookup not yet implemented"
+        # Validate ownership and get metadata
+        image_record = await storage_service.validate_file_ownership(
+            file_id=file_id,
+            user_id=current_user.user_id, 
+            db=db
         )
         
+        if not image_record:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You don't own this file or file not found"
+            )
+        
+        return ImageMetadataResponse(
+            success=True,
+            message="Image metadata retrieved successfully",
+            file_id=image_record.file_id,
+            filename=image_record.filename,
+            original_filename=image_record.filename,
+            content_type=image_record.content_type,
+            size=image_record.file_size,
+            dimensions=None,  # Could extract from image_record.tags if stored
+            s3_key=image_record.s3_key,
+            uploaded_at=image_record.uploaded_at,
+            urls={"api": f"{storage_service.image_base_url}/{image_record.file_id}"},
+            is_deleted=False
+        )
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting image metadata {file_id}: {e}")
         raise HTTPException(
@@ -216,21 +245,36 @@ async def delete_image(
     db: AsyncSession = Depends(get_db)
 ) -> BaseResponse:
     """
-    Delete an uploaded image
+    Delete an uploaded image with proper ownership validation
+    
+    Security Features:
+    - Validates file ownership via database lookup
+    - Deletes from both S3/MinIO storage and database
+    - Prevents unauthorized deletion attempts
     """
     logger.info(f"Deleting image {file_id} for user {current_user.user_id}")
     
     try:
-        # TODO: Implement image deletion
-        # 1. Validate user ownership
-        # 2. Delete from MinIO
-        # 3. Update database records
-        
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Image deletion not yet implemented"
+        # SECURITY: Delete with ownership validation
+        deletion_successful = await storage_service.delete_image_securely(
+            file_id=file_id,
+            user_id=current_user.user_id,
+            db=db
         )
         
+        if not deletion_successful:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You don't own this file or file not found"
+            )
+        
+        return BaseResponse(
+            success=True,
+            message=f"Image {file_id} deleted successfully"
+        )
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting image {file_id}: {e}")
         raise HTTPException(
@@ -252,16 +296,45 @@ async def list_user_images(
     logger.info(f"Listing images for user {current_user.user_id}")
     
     try:
-        # TODO: Implement image listing from database
-        # For now, return empty list
+        # Get images from database with ownership validation
+        images = await storage_service.get_user_images(
+            user_id=current_user.user_id,
+            db=db,
+            limit=limit + 1,  # Get one extra to check if there's a next page
+            offset=offset
+        )
+        
+        # Check if there's a next page
+        has_next = len(images) > limit
+        if has_next:
+            images = images[:limit]  # Remove the extra item
+        
+        # Convert to response format
+        image_metadata = []
+        for img in images:
+            image_metadata.append(ImageMetadataResponse(
+                success=True,
+                message="",
+                file_id=img.file_id,
+                filename=img.filename,
+                original_filename=img.filename,
+                content_type=img.content_type,
+                size=img.file_size,
+                dimensions=None,
+                s3_key=img.s3_key,
+                uploaded_at=img.uploaded_at,
+                urls={"api": f"{storage_service.image_base_url}/{img.file_id}"},
+                is_deleted=False
+            ))
+        
         return ImageListResponse(
             success=True,
-            message="Images retrieved successfully",
-            images=[],
-            total=0,
+            message=f"Retrieved {len(image_metadata)} images",
+            images=image_metadata,
+            total=len(image_metadata),  # TODO: Get actual total count from separate query
             page=(offset // limit) + 1,
             size=limit,
-            has_next=False,
+            has_next=has_next,
             has_prev=offset > 0
         )
         
