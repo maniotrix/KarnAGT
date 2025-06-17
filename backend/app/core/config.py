@@ -73,6 +73,21 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
     ALLOWED_FILE_TYPES: str = ".pdf,.docx,.txt,.md"
     
+    # Image Storage (MinIO/S3 compatible)
+    STORAGE_BACKEND: str = "minio"
+    S3_BUCKET_NAME: str = "chatgpt-files"
+    S3_ENDPOINT_URL: Optional[str] = "http://localhost:9000"
+    S3_ACCESS_KEY_ID: str = "minioadmin"
+    S3_SECRET_ACCESS_KEY: str = "minioadmin123"
+    S3_REGION: str = "us-east-1"
+    
+    # Image Processing
+    MAX_IMAGE_SIZE: int = 20 * 1024 * 1024  # 20MB (OpenAI limit)
+    ALLOWED_IMAGE_TYPES: str = ".png,.jpg,.jpeg,.gif,.webp"
+    IMAGE_QUALITY: int = 85
+    IMAGE_BASE_URL: str = "http://localhost:8000/api/images"
+    PRESIGNED_URL_EXPIRE_SECONDS: int = 3600
+    
     # Memory Management
     MEMORY_IMPORTANCE_THRESHOLD: float = 0.6
     MEMORY_DECAY_RATE: float = 0.1
@@ -119,6 +134,12 @@ class Settings(BaseSettings):
         if isinstance(self.ALLOWED_FILE_TYPES, str):
             return [i.strip() for i in self.ALLOWED_FILE_TYPES.split(",") if i.strip()]
         return self.ALLOWED_FILE_TYPES
+    
+    def get_allowed_image_types(self) -> List[str]:
+        """Get allowed image types as a list"""
+        if isinstance(self.ALLOWED_IMAGE_TYPES, str):
+            return [i.strip() for i in self.ALLOWED_IMAGE_TYPES.split(",") if i.strip()]
+        return self.ALLOWED_IMAGE_TYPES
     
     @validator("DATABASE_URL", pre=True)
     def validate_database_url(cls, v: str) -> str:
