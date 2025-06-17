@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import Field, validator
+from pydantic import Field, ConfigDict
 
 from .common_schemas import BaseSchema, BaseResponse
 from .file_schemas import FileUploadResponse
@@ -73,8 +73,8 @@ class ImageAttachment(BaseSchema):
     detail_level: str = Field("high", description="OpenAI Vision API detail level")
     uploaded_at: datetime
     
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "type": "image",
                 "file_id": "img_7f9e2b4c",
@@ -93,4 +93,5 @@ class ImageAttachment(BaseSchema):
                 "detail_level": "high",
                 "uploaded_at": "2024-01-15T12:00:00Z"
             }
-        } 
+        }
+    ) 
