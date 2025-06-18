@@ -26,6 +26,9 @@ class UploadedImage(Base):
     filename = Column(String(500), nullable=False)  # Original filename
     s3_key = Column(String(1000), nullable=False, unique=True)  # S3 storage path
     
+    # Thumbnail storage keys (JSON string with size -> s3_key mapping)
+    thumbnail_s3_keys = Column(Text, nullable=True)  # e.g., '{"150x150": "thumbnails/.../thumb_150x150.jpg"}'
+    
     # Ownership and access control
     user_id = Column(String(255), nullable=False, index=True)  # Owner of the file
     

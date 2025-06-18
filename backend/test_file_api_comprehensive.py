@@ -126,6 +126,16 @@ class FileAPIIntegrationTest:
                 print(f"Service version: {data.get('version', 'unknown')}")
                 print(f"Max image size: {data.get('max_image_size_mb', 'unknown')} MB")
                 print(f"Allowed types: {data.get('allowed_types', 'unknown')}")
+                
+                # Check for thumbnail feature support
+                features = data.get('features', [])
+                if 'thumbnails' in features:
+                    print(f"Thumbnail feature: ENABLED")
+                    print(f"Thumbnail sizes: {data.get('thumbnail_sizes', 'unknown')}")
+                    print(f"Thumbnail format: {data.get('thumbnail_format', 'unknown')}")
+                else:
+                    print(f"Thumbnail feature: NOT ENABLED")
+                
                 return True
             else:
                 print(f"Service status check failed: {response.text}")
@@ -185,6 +195,15 @@ class FileAPIIntegrationTest:
                     })
                     print(f"  Upload successful: {upload_data['file_id']}")
                     print(f"  File URL: {upload_data.get('urls', {}).get('api', 'N/A')}")
+                    
+                    # Check for thumbnail URLs in response
+                    urls = upload_data.get('urls', {})
+                    thumbnail_urls = {k: v for k, v in urls.items() if k.startswith('thumbnail_')}
+                    if thumbnail_urls:
+                        print(f"  Thumbnail URLs generated: {list(thumbnail_urls.keys())}")
+                    else:
+                        print(f"  No thumbnail URLs found in response")
+                        
                 else:
                     print(f"  Upload failed: {response.status_code} - {response.text}")
             
@@ -252,6 +271,101 @@ class FileAPIIntegrationTest:
             print(f"Serving flow completed. {len(serve_results)} files served successfully.")
             return serve_results
     
+    async def test_thumbnail_serving_flow(self):
+        """Test thumbnail serving with different sizes and authentication"""
+        print("Testing thumbnail serving flow...")
+        
+        async with httpx.AsyncClient() as client:
+            thumbnail_results = []
+            
+            # Test thumbnail sizes from configuration
+            test_sizes = ["150x150", "300x300"]  # Based on default config
+            
+            for uploaded_file in self.uploaded_files:
+                file_id = uploaded_file["file_id"]
+                owner_user_id = uploaded_file["user_id"]
+                filename = uploaded_file["filename"]
+                
+                print(f"Testing thumbnails for file: {file_id} ({filename})")
+                
+                for size in test_sizes:
+                    print(f"  Testing thumbnail size: {size}")
+                    
+                    # Test 1: Authorized access (owner)
+                    headers = self.get_auth_headers(owner_user_id)
+                    response = await client.get(
+                        f"{API_BASE_URL}/files/images/{file_id}/thumbnail?size={size}",
+                        headers=headers,
+                        follow_redirects=False
+                    )
+                    
+                    if response.status_code == 302:
+                        print(f"    Owner access: Redirected to presigned URL")
+                        presigned_url = response.headers.get("location")
+                        if presigned_url:
+                            # Test accessing the presigned URL
+                            presigned_response = await client.get(presigned_url)
+                            if presigned_response.status_code == 200:
+                                print(f"    Thumbnail served successfully ({len(presigned_response.content)} bytes)")
+                                thumbnail_results.append({
+                                    "file_id": file_id, 
+                                    "size": size, 
+                                    "served": True,
+                                    "bytes": len(presigned_response.content)
+                                })
+                            else:
+                                print(f"    Thumbnail presigned URL access failed: {presigned_response.status_code}")
+                    elif response.status_code == 404:
+                        print(f"    Thumbnail not found for size {size} (may not be generated yet)")
+                    else:
+                        print(f"    Thumbnail access failed: {response.status_code}")
+                    
+                    # Test 2: Unauthorized access
+                    for other_user in self.test_users:
+                        if other_user.user_id != owner_user_id:
+                            other_headers = self.get_auth_headers(other_user.user_id)
+                            unauthorized_response = await client.get(
+                                f"{API_BASE_URL}/files/images/{file_id}/thumbnail?size={size}",
+                                headers=other_headers
+                            )
+                            
+                            if unauthorized_response.status_code in [403, 404]:
+                                print(f"    Unauthorized thumbnail access correctly blocked")
+                            else:
+                                print(f"    WARNING: Unauthorized thumbnail access should be blocked but got {unauthorized_response.status_code}")
+                            break
+                
+                # Test 3: Default size (no size parameter)
+                print(f"  Testing default thumbnail size")
+                headers = self.get_auth_headers(owner_user_id)
+                response = await client.get(
+                    f"{API_BASE_URL}/files/images/{file_id}/thumbnail",
+                    headers=headers,
+                    follow_redirects=False
+                )
+                
+                if response.status_code == 302:
+                    print(f"    Default thumbnail served successfully")
+                elif response.status_code == 404:
+                    print(f"    Default thumbnail not found")
+                else:
+                    print(f"    Default thumbnail access: {response.status_code}")
+                
+                # Test 4: Invalid size
+                print(f"  Testing invalid thumbnail size")
+                response = await client.get(
+                    f"{API_BASE_URL}/files/images/{file_id}/thumbnail?size=999x999",
+                    headers=headers
+                )
+                
+                if response.status_code == 404:
+                    print(f"    Invalid thumbnail size correctly returns 404")
+                else:
+                    print(f"    Invalid thumbnail size returned: {response.status_code}")
+            
+            print(f"Thumbnail serving flow completed. {len(thumbnail_results)} thumbnails served successfully.")
+            return thumbnail_results
+    
     async def test_image_metadata_flow(self):
         """Test image metadata retrieval"""
         print("Testing image metadata flow...")
@@ -278,6 +392,15 @@ class FileAPIIntegrationTest:
                     print(f"  Size: {metadata.get('size', 'unknown')} bytes")
                     print(f"  Content type: {metadata.get('content_type', 'unknown')}")
                     print(f"  Uploaded at: {metadata.get('uploaded_at', 'unknown')}")
+                    
+                    # Check for thumbnail URLs in metadata
+                    urls = metadata.get('urls', {})
+                    thumbnail_urls = {k: v for k, v in urls.items() if k.startswith('thumbnail_')}
+                    if thumbnail_urls:
+                        print(f"  Thumbnail URLs in metadata: {list(thumbnail_urls.keys())}")
+                    else:
+                        print(f"  No thumbnail URLs in metadata")
+                    
                     metadata_results.append(metadata)
                 else:
                     print(f"  Metadata retrieval failed: {response.status_code}")
@@ -309,6 +432,14 @@ class FileAPIIntegrationTest:
                     # Print image details
                     for img in list_data.get("images", []):
                         print(f"    - {img.get('filename', 'unknown')} ({img.get('file_id', 'unknown')})")
+                        
+                        # Check for thumbnail URLs in each image
+                        urls = img.get('urls', {})
+                        thumbnail_urls = {k: v for k, v in urls.items() if k.startswith('thumbnail_')}
+                        if thumbnail_urls:
+                            print(f"      Thumbnails: {list(thumbnail_urls.keys())}")
+                        else:
+                            print(f"      No thumbnails available")
                     
                     list_results.append({
                         "user": user,
@@ -437,6 +568,37 @@ class FileAPIIntegrationTest:
             else:
                 print(f"  Non-existent file deletion returned: {response.status_code}")
             
+            # Test 4: Access thumbnail of non-existent file
+            print("  Testing thumbnail access for non-existent file...")
+            response = await client.get(
+                f"{API_BASE_URL}/files/images/nonexistent_file_id/thumbnail",
+                headers=headers
+            )
+            
+            if response.status_code in [403, 404]:
+                print("  Non-existent file thumbnail correctly blocked")
+                error_results.append({"test": "nonexistent_thumbnail", "handled": True})
+            else:
+                print(f"  Non-existent file thumbnail returned: {response.status_code}")
+            
+            # Test 5: Access thumbnail with invalid size format
+            if self.uploaded_files:
+                test_file_id = self.uploaded_files[0]["file_id"]
+                print("  Testing thumbnail with invalid size format...")
+                
+                invalid_sizes = ["abc", "150", "150x", "x150", "150x150x150"]
+                for invalid_size in invalid_sizes:
+                    response = await client.get(
+                        f"{API_BASE_URL}/files/images/{test_file_id}/thumbnail?size={invalid_size}",
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 404:
+                        print(f"    Invalid size '{invalid_size}' correctly returns 404")
+                        error_results.append({"test": f"invalid_size_{invalid_size}", "handled": True})
+                    else:
+                        print(f"    Invalid size '{invalid_size}' returned: {response.status_code}")
+            
             print(f"Error handling completed. {len(error_results)} scenarios tested.")
             return error_results
     
@@ -487,8 +649,24 @@ class FileAPIIntegrationTest:
                     # Delete from MinIO storage
                     for image in remaining_images:
                         try:
+                            # Delete original image
                             await storage_service.storage.delete_file(image.s3_key)
                             print(f"  Deleted S3 file: {image.s3_key}")
+                            
+                            # Delete thumbnails if they exist
+                            if image.thumbnail_s3_keys:
+                                try:
+                                    import json
+                                    thumbnail_keys = json.loads(image.thumbnail_s3_keys)
+                                    for size, thumb_s3_key in thumbnail_keys.items():
+                                        try:
+                                            await storage_service.storage.delete_file(thumb_s3_key)
+                                            print(f"  Deleted thumbnail {size}: {thumb_s3_key}")
+                                        except Exception as e:
+                                            print(f"  Failed to delete thumbnail {size}: {e}")
+                                except Exception as e:
+                                    print(f"  Failed to parse thumbnail keys: {e}")
+                                    
                         except Exception as e:
                             print(f"  Failed to delete S3 file {image.s3_key}: {e}")
                     
@@ -540,6 +718,10 @@ class FileAPIIntegrationTest:
             serve_results = await self.test_image_serving_flow()
             
             print("=" * 60)
+            print("THUMBNAIL SERVING FLOW TEST")
+            thumbnail_results = await self.test_thumbnail_serving_flow()
+            
+            print("=" * 60)
             print("IMAGE METADATA FLOW TEST")
             metadata_results = await self.test_image_metadata_flow()
             
@@ -566,10 +748,11 @@ class FileAPIIntegrationTest:
             print(f"Metadata Retrieved: {len(metadata_results)}")
             print(f"Lists Retrieved: {len(list_results)}")
             print(f"Deletions Tested: {len(deletion_results)}")
+            print(f"Thumbnails Served: {len(thumbnail_results)}")
             print(f"Error Scenarios: {len(error_results)}")
             
             # Calculate success rate
-            total_tests = len(upload_results) + len(serve_results) + len(metadata_results) + len(list_results) + len(deletion_results)
+            total_tests = len(upload_results) + len(serve_results) + len(metadata_results) + len(list_results) + len(deletion_results) + len(thumbnail_results)
             print(f"Total Operations Tested: {total_tests}")
             
             if total_tests > 0:
@@ -594,10 +777,13 @@ async def main():
     print("This test will:")
     print("- Create real test users with different subscription tiers")
     print("- Test image upload, serving, metadata, listing, and deletion")
+    print("- Test thumbnail generation and serving in multiple sizes")
+    print("- Verify thumbnail URLs are included in all relevant responses")
+    print("- Test thumbnail authentication and authorization")
     print("- Use existing fifa_test_image.png for testing")
     print("- Verify authentication and authorization")
     print("- Test MinIO storage integration")
-    print("- Clean up all test data")
+    print("- Clean up all test data including thumbnails")
     print("=" * 80)
     
     test_runner = FileAPIIntegrationTest()

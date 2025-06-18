@@ -13,6 +13,9 @@ from botocore.exceptions import ClientError
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
+import json
+from PIL import Image
+import io
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.core.database import get_db
@@ -126,6 +129,57 @@ class ImageStorageService:
         date_prefix = datetime.now().strftime("%Y/%m/%d")
         file_extension = os.path.splitext(filename)[1].lower()
         return f"images/{date_prefix}/{file_id}{file_extension}"
+
+    def generate_thumbnail_key(self, file_id: str, filename: str, width: int, height: int) -> str:
+        """Generate S3 key for thumbnail storage"""
+        date_prefix = datetime.now().strftime("%Y/%m/%d")
+        # Use JPEG for thumbnails by default to save space
+        return f"thumbnails/{date_prefix}/{file_id}_thumb_{width}x{height}.jpg"
+
+    def generate_thumbnails(self, image_data: bytes, file_id: str, filename: str) -> Dict[str, bytes]:
+        """
+        Generate thumbnails in different sizes
+        
+        Returns:
+            Dict mapping size strings to thumbnail bytes
+        """
+        thumbnails = {}
+        
+        try:
+            # Open original image
+            with Image.open(io.BytesIO(image_data)) as img:
+                # Convert to RGB if necessary (for JPEG output)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
+                
+                # Generate thumbnails for each configured size
+                for width, height in settings.get_thumbnail_sizes():
+                    # Create a copy for resizing
+                    thumbnail = img.copy()
+                    
+                    # Resize maintaining aspect ratio
+                    thumbnail.thumbnail((width, height), Image.Resampling.LANCZOS)
+                    
+                    # Save to bytes
+                    thumb_buffer = io.BytesIO()
+                    thumbnail.save(
+                        thumb_buffer, 
+                        format=settings.THUMBNAIL_FORMAT,
+                        quality=settings.THUMBNAIL_QUALITY,
+                        optimize=True
+                    )
+                    thumb_buffer.seek(0)
+                    
+                    size_key = f"{width}x{height}"
+                    thumbnails[size_key] = thumb_buffer.getvalue()
+                    
+                    logger.info(f"Generated {size_key} thumbnail for {file_id}")
+            
+            return thumbnails
+            
+        except Exception as e:
+            logger.error(f"Failed to generate thumbnails for {file_id}: {e}")
+            return {}
     
     def validate_image_file(self, filename: str, file_size: int) -> None:
         """Validate image file before upload"""
@@ -158,16 +212,33 @@ class ImageStorageService:
         # Generate file ID and storage key
         file_id = self.generate_file_id()
         s3_key = self.generate_storage_key(file_id, filename)
+        thumbnail_s3_keys = {}
         
         try:
-            # Upload to storage (returns s3_key, files are private)
+            # Upload original image to storage
             uploaded_key = await self.storage.upload_file(file_data, s3_key, content_type)
+            
+            # Generate thumbnails
+            thumbnails = self.generate_thumbnails(file_data, file_id, filename)
+            
+            # Upload each thumbnail
+            for size_key, thumb_data in thumbnails.items():
+                width, height = size_key.split('x')
+                thumb_s3_key = self.generate_thumbnail_key(file_id, filename, int(width), int(height))
+                
+                try:
+                    await self.storage.upload_file(thumb_data, thumb_s3_key, "image/jpeg")
+                    thumbnail_s3_keys[size_key] = thumb_s3_key
+                    logger.info(f"Uploaded thumbnail {size_key} for {file_id}")
+                except Exception as e:
+                    logger.error(f"Failed to upload thumbnail {size_key} for {file_id}: {e}")
             
             # Create database record for ownership tracking (SECURITY CRITICAL)
             image_record = UploadedImage(
                 file_id=file_id,
                 filename=filename,
                 s3_key=s3_key,
+                thumbnail_s3_keys=json.dumps(thumbnail_s3_keys) if thumbnail_s3_keys else None,
                 user_id=user_id,
                 content_type=content_type,
                 file_size=len(file_data)
@@ -179,14 +250,15 @@ class ImageStorageService:
             
             logger.info(f"Image uploaded and ownership recorded: {file_id} -> {user_id}")
             
-            # Return metadata with single API URL for access
+            # Return metadata with API URLs for access
             return {
                 "file_id": file_id,
                 "filename": filename,
                 "content_type": content_type,
                 "size": len(file_data),
                 "s3_key": s3_key,
-                "url": f"{self.image_base_url}/{file_id}",  # Single authenticated endpoint
+                "thumbnail_s3_keys": thumbnail_s3_keys,
+                "url": f"{self.image_base_url}/{file_id}",  # Full-size image endpoint
                 "uploaded_at": image_record.uploaded_at.isoformat(),
                 "db_id": image_record.id
             }
@@ -196,6 +268,9 @@ class ImageStorageService:
             # Clean up storage if database operation failed
             try:
                 await self.storage.delete_file(s3_key)
+                # Clean up any uploaded thumbnails
+                for thumb_s3_key in thumbnail_s3_keys.values():
+                    await self.storage.delete_file(thumb_s3_key)
             except:
                 pass
             raise
@@ -264,6 +339,56 @@ class ImageStorageService:
             logger.error(f"Failed to generate presigned URL for {file_id}: {e}")
             return None
     
+    async def serve_thumbnail_securely(self, file_id: str, size: str, user_id: str, db: AsyncSession) -> Optional[str]:
+        """
+        Generate secure presigned URL for thumbnail only if user owns the file
+        
+        Args:
+            file_id: The image file ID
+            size: Thumbnail size in format "WxH" (e.g., "150x150")
+            user_id: User requesting access
+            db: Database session
+        
+        Returns:
+            Presigned URL for thumbnail or None if access denied
+        """
+        # Validate ownership via database lookup (SECURITY CRITICAL)
+        image_record = await self.validate_file_ownership(file_id, user_id, db)
+        
+        if not image_record:
+            return None
+        
+        # Check if thumbnail exists
+        if image_record.thumbnail_s3_keys is None or image_record.thumbnail_s3_keys.strip() == "":
+            logger.warning(f"No thumbnails found for {file_id}")
+            return None
+        
+        try:
+            # Parse thumbnail S3 keys
+            thumbnail_keys = json.loads(image_record.thumbnail_s3_keys)
+            
+            if size not in thumbnail_keys:
+                logger.warning(f"Thumbnail size {size} not found for {file_id}")
+                return None
+            
+            # Update last accessed timestamp
+            update_query = update(UploadedImage).where(
+                UploadedImage.id == image_record.id
+            ).values(accessed_at=datetime.now())
+            await db.execute(update_query)
+            await db.commit()
+            
+            # Generate presigned URL for thumbnail
+            thumbnail_s3_key = thumbnail_keys[size]
+            presigned_url = await self.get_presigned_url(thumbnail_s3_key, expire_seconds=3600)
+            
+            logger.info(f"Thumbnail presigned URL generated for {file_id} ({size}) by {user_id}")
+            return presigned_url
+            
+        except Exception as e:
+            logger.error(f"Failed to generate thumbnail presigned URL for {file_id}: {e}")
+            return None
+    
     async def get_user_images(self, user_id: str, db: AsyncSession, limit: int = 100, offset: int = 0) -> list[UploadedImage]:
         """Get list of images owned by user"""
         query = select(UploadedImage).where(
@@ -294,6 +419,20 @@ class ImageStorageService:
             try:
                 await self.storage.delete_file(image_record.s3_key)
                 logger.info(f"Deleted S3 file: {image_record.s3_key}")
+                
+                # Delete thumbnails if they exist
+                if image_record.thumbnail_s3_keys is not None and image_record.thumbnail_s3_keys.strip() != "":
+                    try:
+                        thumbnail_keys = json.loads(image_record.thumbnail_s3_keys)
+                        for size, thumb_s3_key in thumbnail_keys.items():
+                            try:
+                                await self.storage.delete_file(thumb_s3_key)
+                                logger.info(f"Deleted thumbnail {size}: {thumb_s3_key}")
+                            except Exception as e:
+                                logger.error(f"Failed to delete thumbnail {size} for {image_record.file_id}: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to parse thumbnail keys during deletion for {image_record.file_id}: {e}")
+            
             except Exception as e:
                 logger.error(f"Failed to delete S3 file {image_record.s3_key}: {e}")
                 # Continue with database deletion even if S3 deletion fails

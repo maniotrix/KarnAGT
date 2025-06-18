@@ -88,6 +88,11 @@ class Settings(BaseSettings):
     IMAGE_BASE_URL: str = "http://localhost:8000/api/images"
     PRESIGNED_URL_EXPIRE_SECONDS: int = 3600
     
+    # Thumbnail Settings
+    THUMBNAIL_SIZES: str = "150x150,300x300"  # Comma-separated list of WxH sizes
+    THUMBNAIL_QUALITY: int = 75
+    THUMBNAIL_FORMAT: str = "JPEG"  # JPEG, PNG, WEBP
+    
     # Memory Management
     MEMORY_IMPORTANCE_THRESHOLD: float = 0.6
     MEMORY_DECAY_RATE: float = 0.1
@@ -140,6 +145,17 @@ class Settings(BaseSettings):
         if isinstance(self.ALLOWED_IMAGE_TYPES, str):
             return [i.strip() for i in self.ALLOWED_IMAGE_TYPES.split(",") if i.strip()]
         return self.ALLOWED_IMAGE_TYPES
+    
+    def get_thumbnail_sizes(self) -> List[tuple]:
+        """Get thumbnail sizes as a list of (width, height) tuples"""
+        if isinstance(self.THUMBNAIL_SIZES, str):
+            sizes = []
+            for size_str in self.THUMBNAIL_SIZES.split(","):
+                if "x" in size_str:
+                    width, height = size_str.strip().split("x")
+                    sizes.append((int(width), int(height)))
+            return sizes
+        return self.THUMBNAIL_SIZES
     
     @validator("DATABASE_URL", pre=True)
     def validate_database_url(cls, v: str) -> str:

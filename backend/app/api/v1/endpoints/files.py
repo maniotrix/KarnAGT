@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from PIL import Image
 import io
+import json
 
 from app.core.database import get_db
 from app.core.config import get_settings
@@ -50,16 +51,20 @@ router = APIRouter()
 
 settings = get_settings()
 
+# TODO : Bulk image upload and management
+
 
 @router.get("/files_status")
 async def get_files_status():
     """Get files service status"""
     return {
         "status": "Files service ready", 
-        "version": "1.0.0",
-        "features": ["image_upload", "image_serving"],
+        "version": "1.1.0",  # Updated version for thumbnail support
+        "features": ["image_upload", "image_serving", "thumbnails"],
         "max_image_size_mb": settings.MAX_IMAGE_SIZE / (1024 * 1024),
-        "allowed_types": settings.get_allowed_image_types()
+        "allowed_types": settings.get_allowed_image_types(),
+        "thumbnail_sizes": settings.get_thumbnail_sizes(),
+        "thumbnail_format": settings.THUMBNAIL_FORMAT
     }
 
 
@@ -111,6 +116,17 @@ async def upload_image(
         # TODO: Integrate with OpenAI Files API for vision functionality
         # For now, we'll leave openai_file_id as None
         
+        # Build URLs dict with thumbnails
+        urls = {
+            "display": upload_result["url"], 
+            "api": upload_result["url"]
+        }
+
+        # Add thumbnail URLs if thumbnails were generated
+        if upload_result.get("thumbnail_s3_keys"):
+            for size in upload_result["thumbnail_s3_keys"].keys():
+                urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{upload_result['file_id']}/thumbnail?size={size}"
+
         response = ImageUploadResponse(
             success=True,
             message="Image uploaded successfully",
@@ -120,7 +136,7 @@ async def upload_image(
             content_type=upload_result["content_type"],
             size=upload_result["size"],
             dimensions=dimensions,
-            urls={"display": upload_result["url"], "api": upload_result["url"]},
+            urls=urls,
             s3_key=upload_result["s3_key"],
             uploaded_at=upload_result["uploaded_at"],
             openai_file_id=None,  # TODO: Implement OpenAI Files API integration
@@ -199,6 +215,64 @@ async def serve_image(
         )
 
 
+@router.get("/images/{file_id}/thumbnail", response_class=RedirectResponse)
+async def serve_image_thumbnail(
+    file_id: str,
+    size: Optional[str] = Query(None, description="Thumbnail size (e.g., '150x150', '300x300')"),
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Serve image thumbnail with proper ownership validation
+    
+    - **file_id**: The image file ID
+    - **size**: Thumbnail size in format "WxH" (defaults to first configured size)
+    - Available sizes are configured in server settings
+    
+    Uses database-driven access control (industry best practice)
+    """
+    # Use first configured thumbnail size as default if none provided
+    if not size:
+        thumbnail_sizes = settings.get_thumbnail_sizes()
+        if thumbnail_sizes:
+            width, height = thumbnail_sizes[0]
+            size = f"{width}x{height}"
+        else:
+            size = "150x150"  # Fallback if no sizes configured
+    
+    logger.info(f"Serving thumbnail {size} for image {file_id} for user {current_user.user_id}")
+    
+    try:
+        # SECURITY: Validate file ownership and get thumbnail URL
+        presigned_url = await storage_service.serve_thumbnail_securely(
+            file_id=file_id,
+            size=size,
+            user_id=current_user.user_id,
+            db=db
+        )
+        
+        if not presigned_url:
+            logger.warning(f"Access denied or thumbnail not found for {file_id} ({size}) by user {current_user.user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thumbnail not found or access denied"
+            )
+        
+        # Redirect to presigned URL for secure access
+        logger.info(f"Redirecting to thumbnail presigned URL for {file_id} ({size})")
+        return RedirectResponse(url=presigned_url, status_code=302)
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404, 403) without converting to 500
+        raise
+    except Exception as e:
+        logger.error(f"Error serving thumbnail {file_id} ({size}): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to serve thumbnail"
+        )
+
+
 @router.get("/images/{file_id}/metadata", response_model=ImageMetadataResponse)
 async def get_image_metadata(
     file_id: str,
@@ -225,6 +299,18 @@ async def get_image_metadata(
                 detail="Access denied: You don't own this file or file not found"
             )
         
+        # Build URLs dict with thumbnails
+        urls = {"api": f"{storage_service.image_base_url}/{image_record.file_id}"}
+
+        # Add thumbnail URLs if available
+        if image_record.thumbnail_s3_keys:
+            try:
+                thumbnail_keys = json.loads(image_record.thumbnail_s3_keys)
+                for size in thumbnail_keys.keys():
+                    urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{image_record.file_id}/thumbnail?size={size}"
+            except Exception as e:
+                logger.warning(f"Failed to parse thumbnail keys for {file_id}: {e}")
+
         return ImageMetadataResponse(
             success=True,
             message="Image metadata retrieved successfully",
@@ -236,7 +322,7 @@ async def get_image_metadata(
             dimensions=None,  # Could extract from image_record.tags if stored
             s3_key=image_record.s3_key,
             uploaded_at=image_record.uploaded_at,
-            urls={"api": f"{storage_service.image_base_url}/{image_record.file_id}"},
+            urls=urls,
             is_deleted=False
         )
         
@@ -324,6 +410,18 @@ async def list_user_images(
         # Convert to response format
         image_metadata = []
         for img in images:
+            # Build URLs dict with thumbnails
+            urls = {"api": f"{storage_service.image_base_url}/{img.file_id}"}
+            
+            # Add thumbnail URLs if available
+            if img.thumbnail_s3_keys:
+                try:
+                    thumbnail_keys = json.loads(img.thumbnail_s3_keys)
+                    for size in thumbnail_keys.keys():
+                        urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{img.file_id}/thumbnail?size={size}"
+                except Exception as e:
+                    logger.warning(f"Failed to parse thumbnail keys for {img.file_id}: {e}")
+            
             image_metadata.append(ImageMetadataResponse(
                 success=True,
                 message="",
@@ -335,7 +433,7 @@ async def list_user_images(
                 dimensions=None,
                 s3_key=img.s3_key,
                 uploaded_at=img.uploaded_at,
-                urls={"api": f"{storage_service.image_base_url}/{img.file_id}"},
+                urls=urls,
                 is_deleted=False
             ))
         
