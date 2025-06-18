@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.core.database import get_db
 from app.models.database.uploaded_image import UploadedImage
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +43,17 @@ class S3StorageBackend(StorageBackend):
     """S3-compatible storage backend (MinIO/AWS S3)"""
     
     def __init__(self):
-        self.bucket_name = os.getenv("S3_BUCKET_NAME", "chatgpt-files")
-        self.endpoint_url = os.getenv("S3_ENDPOINT_URL")  # None for AWS S3
-        self.region = os.getenv("S3_REGION", "us-east-1")
+        # Use global settings instead of direct os.getenv calls
+        self.bucket_name = settings.S3_BUCKET_NAME
+        self.endpoint_url = settings.S3_ENDPOINT_URL
+        self.region = settings.S3_REGION
         
         # Create S3 client
         self.s3_client = boto3.client(
             's3',
             endpoint_url=self.endpoint_url,
-            aws_access_key_id=os.getenv("S3_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("S3_SECRET_ACCESS_KEY"),
+            aws_access_key_id=settings.S3_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
             config=Config(signature_version='s3v4'),
             region_name=self.region
         )
@@ -103,17 +105,17 @@ class ImageStorageService:
     
     def __init__(self):
         # Initialize storage backend based on configuration
-        storage_backend = os.getenv("STORAGE_BACKEND", "minio").lower()
+        storage_backend = settings.STORAGE_BACKEND.lower()
         
         if storage_backend == "s3" or storage_backend == "minio":
             self.storage = S3StorageBackend()
         else:
             raise ValueError(f"Unsupported storage backend: {storage_backend}")
         
-        # Configuration
-        self.max_image_size = int(os.getenv("MAX_IMAGE_SIZE", 20 * 1024 * 1024))  # 20MB
-        self.allowed_types = os.getenv("ALLOWED_IMAGE_TYPES", ".png,.jpg,.jpeg,.gif,.webp").split(",")
-        self.image_base_url = os.getenv("IMAGE_BASE_URL", "http://localhost:8000/api/images")
+        # Configuration from settings
+        self.max_image_size = settings.MAX_IMAGE_SIZE
+        self.allowed_types = settings.get_allowed_image_types()
+        self.image_base_url = settings.IMAGE_BASE_URL
     
     def generate_file_id(self) -> str:
         """Generate unique file ID"""

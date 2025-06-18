@@ -136,6 +136,13 @@ async def upload_image(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except ValueError as e:
+        # Handle file validation errors (size, type, etc.) from storage service
+        logger.warning(f"File validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except QuotaExceededException as e:
         logger.warning(f"Quota exceeded for user {current_user.user_id}: {e}")
         raise HTTPException(
@@ -171,6 +178,7 @@ async def serve_image(
         )
         
         if not presigned_url:
+            logger.warning(f"Access denied for file {file_id} by user {current_user.user_id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: You don't own this file or file not found"
@@ -180,6 +188,9 @@ async def serve_image(
         logger.info(f"Redirecting to presigned URL for {file_id}")
         return RedirectResponse(url=presigned_url, status_code=302)
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 403) without converting to 500
+        raise
     except Exception as e:
         logger.error(f"Error serving image {file_id}: {e}")
         raise HTTPException(
@@ -208,6 +219,7 @@ async def get_image_metadata(
         )
         
         if not image_record:
+            logger.warning(f"Access denied for metadata {file_id} by user {current_user.user_id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: You don't own this file or file not found"
