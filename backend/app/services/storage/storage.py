@@ -214,11 +214,18 @@ class ImageStorageService:
         # Generate file ID and storage key
         file_id = self.generate_file_id()
         s3_key = self.generate_storage_key(file_id, filename)
-        thumbnail_s3_keys = {}
+        
+        # Track uploaded assets for cleanup on failure
+        uploaded_assets = {
+            "main_file": None,
+            "thumbnails": {}
+        }
         
         try:
+            # Start database transaction
             # Upload original image to storage
             uploaded_key = await self.storage.upload_file(file_data, s3_key, content_type)
+            uploaded_assets["main_file"] = s3_key
             
             # Generate thumbnails
             thumbnails = self.generate_thumbnails(file_data, file_id, filename)
@@ -230,24 +237,25 @@ class ImageStorageService:
                 
                 try:
                     await self.storage.upload_file(thumb_data, thumb_s3_key, "image/jpeg")
-                    thumbnail_s3_keys[size_key] = thumb_s3_key
+                    uploaded_assets["thumbnails"][size_key] = thumb_s3_key
                     logger.info(f"Uploaded thumbnail {size_key} for {file_id}")
                 except Exception as e:
                     logger.error(f"Failed to upload thumbnail {size_key} for {file_id}: {e}")
+                    # Continue with partial thumbnails - not critical for main operation
             
             # Create database record for ownership tracking (SECURITY CRITICAL)
             image_record = UploadedImage(
                 file_id=file_id,
                 filename=filename,
                 s3_key=s3_key,
-                thumbnail_s3_keys=json.dumps(thumbnail_s3_keys) if thumbnail_s3_keys else None,
+                thumbnail_s3_keys=json.dumps(uploaded_assets["thumbnails"]) if uploaded_assets["thumbnails"] else None,
                 user_id=user_id,
                 content_type=content_type,
                 file_size=len(file_data)
             )
             
             db.add(image_record)
-            await db.commit()
+            await db.commit()  # Commit database transaction
             await db.refresh(image_record)
             
             logger.info(f"Image uploaded and ownership recorded: {file_id} -> {user_id}")
@@ -259,7 +267,7 @@ class ImageStorageService:
                 "content_type": content_type,
                 "size": len(file_data),
                 "s3_key": s3_key,
-                "thumbnail_s3_keys": thumbnail_s3_keys,
+                "thumbnail_s3_keys": uploaded_assets["thumbnails"],
                 "url": f"{self.image_base_url}/{file_id}",  # Full-size image endpoint
                 "uploaded_at": image_record.uploaded_at.isoformat(),
                 "db_id": image_record.id
@@ -267,15 +275,49 @@ class ImageStorageService:
             
         except Exception as e:
             logger.error(f"Failed to upload image {filename}: {e}")
-            # Clean up storage if database operation failed
+            
+            # SAGA PATTERN: Compensating transactions for cleanup
+            await self._cleanup_failed_upload(uploaded_assets)
+            
+            # Ensure database rollback
             try:
-                await self.storage.delete_file(s3_key)
-                # Clean up any uploaded thumbnails
-                for thumb_s3_key in thumbnail_s3_keys.values():
-                    await self.storage.delete_file(thumb_s3_key)
-            except:
-                pass
+                await db.rollback()
+            except Exception as rollback_error:
+                logger.error(f"Database rollback failed: {rollback_error}")
+            
             raise
+    
+    async def _cleanup_failed_upload(self, uploaded_assets: Dict[str, Any]):
+        """
+        Cleanup uploaded assets when database operation fails
+        Implements compensation pattern for cross-system consistency
+        """
+        cleanup_errors = []
+        
+        try:
+            # Clean up main file
+            if uploaded_assets["main_file"]:
+                try:
+                    await self.storage.delete_file(uploaded_assets["main_file"])
+                    logger.info(f"Cleaned up main file: {uploaded_assets['main_file']}")
+                except Exception as e:
+                    cleanup_errors.append(f"Failed to cleanup main file: {e}")
+            
+            # Clean up thumbnails
+            for size_key, thumb_s3_key in uploaded_assets["thumbnails"].items():
+                try:
+                    await self.storage.delete_file(thumb_s3_key)
+                    logger.info(f"Cleaned up thumbnail {size_key}: {thumb_s3_key}")
+                except Exception as e:
+                    cleanup_errors.append(f"Failed to cleanup thumbnail {size_key}: {e}")
+            
+            if cleanup_errors:
+                logger.warning(f"Upload cleanup had errors: {cleanup_errors}")
+            
+        except Exception as e:
+            logger.error(f"Critical error during upload cleanup: {e}")
+            # This is a critical issue - may need manual intervention
+            # In production, this should trigger alerts
     
     async def delete_image(self, s3_key: str) -> bool:
         """Delete image from storage"""
