@@ -269,8 +269,8 @@ class AIFilesStagingIntegrationTest:
             
             print(f"Testing individual discard with {len(individual_test_files)} dedicated files")
             
-            # Test discarding individual test files
-            for staged_file in individual_test_files[:4]:  # Test up to 4 files
+            # Test discarding ALL individual test files
+            for staged_file in individual_test_files:  # Test all individual files
                 staging_id = staged_file["staging_id"]
                 user_id = staged_file["user_id"]
                 filename = staged_file["filename"]
@@ -279,7 +279,7 @@ class AIFilesStagingIntegrationTest:
                 
                 headers = self.get_auth_headers(user_id)
                 response = await client.delete(
-                    f"{API_BASE_URL}/ai-files/staging/{staging_id}",
+                    f"{API_BASE_URL}/ai-files/staging/discard/{staging_id}",
                     headers=headers
                 )
                 
@@ -308,7 +308,7 @@ class AIFilesStagingIntegrationTest:
             fake_staging_id = f"staging_{self.test_users[0].user_id}_nonexistent"
             headers = self.get_auth_headers(self.test_users[0].user_id)
             response = await client.delete(
-                f"{API_BASE_URL}/ai-files/staging/{fake_staging_id}",
+                f"{API_BASE_URL}/ai-files/staging/discard/{fake_staging_id}",
                 headers=headers
             )
             
@@ -327,7 +327,7 @@ class AIFilesStagingIntegrationTest:
                 if wrong_user:
                     headers = self.get_auth_headers(wrong_user.user_id)
                     response = await client.delete(
-                        f"{API_BASE_URL}/ai-files/staging/{other_user_file['staging_id']}",
+                        f"{API_BASE_URL}/ai-files/staging/discard/{other_user_file['staging_id']}",
                         headers=headers
                     )
                     
@@ -510,7 +510,7 @@ class AIFilesStagingIntegrationTest:
                 individual_success = 0
                 for staged_file in individual_files:
                     response = await client.delete(
-                        f"{API_BASE_URL}/ai-files/staging/{staged_file['staging_id']}",
+                        f"{API_BASE_URL}/ai-files/staging/discard/{staged_file['staging_id']}",
                         headers=headers
                     )
                     if response.status_code == 200:
@@ -650,7 +650,7 @@ class AIFilesStagingIntegrationTest:
             print("  Testing discard of non-existent staging file...")
             fake_staging_id = f"staging_{pro_user.user_id}_nonexistent"
             response = await client.delete(
-                f"{API_BASE_URL}/ai-files/staging/{fake_staging_id}",
+                f"{API_BASE_URL}/ai-files/staging/discard/{fake_staging_id}",
                 headers=headers
             )
             

@@ -164,7 +164,7 @@ async def bulk_upload_to_staging(
         )
 
 
-@router.delete("/staging/{staging_id}")
+@router.delete("/staging/discard/{staging_id}")
 async def discard_staged_file(
     staging_id: str,
     current_user: User = Depends(get_current_verified_user)
