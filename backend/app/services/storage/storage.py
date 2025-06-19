@@ -10,15 +10,17 @@ import boto3
 from abc import ABC, abstractmethod
 from botocore.client import Config
 from botocore.exceptions import ClientError
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, timedelta
 import logging
 import json
+import asyncio
+import time
 from PIL import Image
 import io
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from app.core.database import get_db
+from sqlalchemy import select, update, func, desc, asc, and_, or_
+from app.core.database import get_db, AsyncSessionLocal
 from app.models.database.uploaded_image import UploadedImage
 from app.core.config import settings
 
@@ -449,6 +451,493 @@ class ImageStorageService:
             logger.error(f"Error deleting image {file_id} for {user_id}: {e}")
             await db.rollback()
             return False
+
+    # Bulk Operations
+    async def bulk_upload_images(
+        self,
+        files_data: List[Tuple[bytes, str, str]],  # [(file_data, filename, content_type), ...]
+        user_id: str,
+        db: AsyncSession,
+        conversation_id: Optional[str] = None,
+        max_concurrent: int = 5,
+        generate_thumbnails: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Bulk upload multiple images with concurrency control
+        
+        Args:
+            files_data: List of tuples (file_data, filename, content_type)
+            user_id: User performing the upload
+            db: Database session
+            conversation_id: Optional conversation context
+            max_concurrent: Maximum concurrent uploads
+            generate_thumbnails: Whether to generate thumbnails
+            
+        Returns:
+            Dict with upload results and statistics
+        """
+        start_time = time.time()
+        total_requested = len(files_data)
+        uploaded_images = []
+        failed_images = []
+        total_size_bytes = 0
+        
+        # Calculate total size for quota estimation
+        for file_data, _, _ in files_data:
+            total_size_bytes += len(file_data)
+        
+        logger.info(f"Starting bulk upload of {total_requested} images for user {user_id}, total size: {total_size_bytes} bytes")
+        
+        # Process files in batches with concurrency control
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def upload_single_image(file_data: bytes, filename: str, content_type: str) -> Tuple[bool, Any]:
+            async with semaphore:
+                original_method = None
+                # Create a separate database session for each concurrent upload to avoid conflicts
+                async with AsyncSessionLocal() as upload_db:
+                    try:
+                        # Create a temporary modified method that respects generate_thumbnails flag
+                        if not generate_thumbnails:
+                            # Store original method temporarily
+                            original_method = self.generate_thumbnails
+                            # Replace with empty method
+                            self.generate_thumbnails = lambda *args, **kwargs: {}
+                        
+                        result = await self.upload_image(
+                            file_data=file_data,
+                            filename=filename,
+                            content_type=content_type,
+                            user_id=user_id,
+                            db=upload_db  # Use separate session
+                        )
+                        
+                        # Restore original method if it was modified
+                        if not generate_thumbnails and original_method:
+                            self.generate_thumbnails = original_method
+                        
+                        return True, result
+                    except Exception as e:
+                        if not generate_thumbnails and original_method:
+                            self.generate_thumbnails = original_method
+                        return False, {"filename": filename, "error": str(e)}
+        
+        # Execute uploads concurrently
+        tasks = [
+            upload_single_image(file_data, filename, content_type)
+            for file_data, filename, content_type in files_data
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                failed_images.append({
+                    "filename": files_data[i][1],
+                    "error": str(result)
+                })
+            else:
+                if isinstance(result, tuple) and len(result) == 2:
+                    success, data = result
+                    if success:
+                        uploaded_images.append(data)
+                    else:
+                        failed_images.append(data)
+                else:
+                    failed_images.append({
+                        "filename": files_data[i][1],
+                        "error": "Invalid result format"
+                    })
+        
+        upload_duration = time.time() - start_time
+        
+        # Estimate quota consumed (rough calculation)
+        quota_consumed = len(uploaded_images) * 0.005  # $0.005 per successful upload
+        
+        logger.info(f"Bulk upload completed: {len(uploaded_images)} successful, {len(failed_images)} failed, {upload_duration:.2f}s")
+        
+        return {
+            "total_requested": total_requested,
+            "successfully_uploaded": len(uploaded_images),
+            "failed_uploads": len(failed_images),
+            "uploaded_images": uploaded_images,
+            "failed_images": failed_images,
+            "total_size_bytes": total_size_bytes,
+            "upload_duration_seconds": upload_duration,
+            "quota_consumed_usd": quota_consumed
+        }
+    
+    async def bulk_delete_images(
+        self,
+        file_ids: List[str],
+        user_id: str,
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """
+        Bulk delete multiple images with ownership validation
+        
+        Args:
+            file_ids: List of file IDs to delete
+            user_id: User performing the deletion
+            db: Database session
+            
+        Returns:
+            Dict with deletion results and statistics
+        """
+        logger.info(f"Starting bulk deletion of {len(file_ids)} images for user {user_id}")
+        
+        total_requested = len(file_ids)
+        deleted_file_ids = []
+        failed_file_ids = []
+        freed_storage_bytes = 0
+        
+        for file_id in file_ids:
+            try:
+                # Get image record for size calculation before deletion
+                image_record = await self.validate_file_ownership(file_id, user_id, db)
+                if image_record:
+                    file_size = image_record.file_size
+                else:
+                    file_size = 0
+                
+                # Attempt deletion
+                success = await self.delete_image_securely(file_id, user_id, db)
+                
+                if success:
+                    deleted_file_ids.append(file_id)
+                    freed_storage_bytes += file_size
+                else:
+                    failed_file_ids.append({
+                        "file_id": file_id,
+                        "error": "Deletion failed or access denied"
+                    })
+                    
+            except Exception as e:
+                failed_file_ids.append({
+                    "file_id": file_id,
+                    "error": str(e)
+                })
+        
+        logger.info(f"Bulk deletion completed: {len(deleted_file_ids)} successful, {len(failed_file_ids)} failed")
+        
+        return {
+            "total_requested": total_requested,
+            "successfully_deleted": len(deleted_file_ids),
+            "failed_deletions": len(failed_file_ids),
+            "deleted_file_ids": deleted_file_ids,
+            "failed_file_ids": failed_file_ids,
+            "freed_storage_bytes": freed_storage_bytes
+        }
+    
+    async def bulk_get_metadata(
+        self,
+        file_ids: List[str],
+        user_id: str,
+        db: AsyncSession,
+        include_urls: bool = True,
+        include_thumbnails: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Bulk retrieve metadata for multiple images
+        
+        Args:
+            file_ids: List of file IDs
+            user_id: User requesting metadata
+            db: Database session
+            include_urls: Include access URLs
+            include_thumbnails: Include thumbnail URLs
+            
+        Returns:
+            Dict with metadata results
+        """
+        logger.info(f"Bulk metadata retrieval for {len(file_ids)} images for user {user_id}")
+        
+        total_requested = len(file_ids)
+        images_metadata = []
+        missing_file_ids = []
+        
+        # Query all images at once for efficiency
+        query = select(UploadedImage).where(
+            and_(
+                UploadedImage.file_id.in_(file_ids),
+                UploadedImage.user_id == user_id
+            )
+        )
+        result = await db.execute(query)
+        found_images = list(result.scalars().all())
+        
+        # Create lookup dict for found images
+        found_dict = {img.file_id: img for img in found_images}
+        
+        # Process all requested file IDs
+        for file_id in file_ids:
+            if file_id in found_dict:
+                img = found_dict[file_id]
+                
+                # Build URLs if requested
+                urls = {}
+                if include_urls:
+                    urls["api"] = f"{self.image_base_url}/{img.file_id}"
+                    
+                    if include_thumbnails and img.thumbnail_s3_keys is not None:
+                        try:
+                            thumbnail_keys = json.loads(img.thumbnail_s3_keys)
+                            for size in thumbnail_keys.keys():
+                                urls[f"thumbnail_{size}"] = f"{self.image_base_url}/{img.file_id}/thumbnail?size={size}"
+                        except Exception as e:
+                            logger.warning(f"Failed to parse thumbnail keys for {img.file_id}: {e}")
+                
+                images_metadata.append({
+                    "file_id": img.file_id,
+                    "filename": img.filename,
+                    "original_filename": img.filename,
+                    "content_type": img.content_type,
+                    "size": img.file_size,
+                    "dimensions": None,  # Could extract from tags if stored
+                    "s3_key": img.s3_key,
+                    "urls": urls,
+                    "uploaded_at": img.uploaded_at,
+                    "is_deleted": False
+                })
+            else:
+                missing_file_ids.append(file_id)
+        
+        return {
+            "total_requested": total_requested,
+            "found_images": len(images_metadata),
+            "missing_images": len(missing_file_ids),
+            "images_metadata": images_metadata,
+            "missing_file_ids": missing_file_ids
+        }
+    
+    async def search_images(
+        self,
+        user_id: str,
+        db: AsyncSession,
+        query: Optional[str] = None,
+        content_type: Optional[str] = None,
+        size_min: Optional[int] = None,
+        size_max: Optional[int] = None,
+        uploaded_after: Optional[datetime] = None,
+        uploaded_before: Optional[datetime] = None,
+        has_thumbnails: Optional[bool] = None,
+        tags: Optional[List[str]] = None,
+        limit: int = 20,
+        offset: int = 0,
+        sort_by: str = "uploaded_at",
+        sort_order: str = "desc"
+    ) -> Dict[str, Any]:
+        """
+        Search user's images with advanced filtering
+        
+        Args:
+            user_id: User performing the search
+            db: Database session
+            query: Text search in filename
+            content_type: Filter by content type
+            size_min/size_max: File size range filters
+            uploaded_after/uploaded_before: Date range filters
+            has_thumbnails: Filter by thumbnail presence
+            tags: Filter by tags (if implemented)
+            limit: Number of results per page
+            offset: Results to skip
+            sort_by: Field to sort by
+            sort_order: Sort direction
+            
+        Returns:
+            Dict with search results and metadata
+        """
+        start_time = time.time()
+        
+        # Build query conditions
+        conditions = [UploadedImage.user_id == user_id]
+        
+        if query:
+            conditions.append(UploadedImage.filename.ilike(f"%{query}%"))
+        
+        if content_type:
+            conditions.append(UploadedImage.content_type == content_type)
+        
+        if size_min is not None:
+            conditions.append(UploadedImage.file_size >= size_min)
+        
+        if size_max is not None:
+            conditions.append(UploadedImage.file_size <= size_max)
+        
+        if uploaded_after:
+            conditions.append(UploadedImage.uploaded_at >= uploaded_after)
+        
+        if uploaded_before:
+            conditions.append(UploadedImage.uploaded_at <= uploaded_before)
+        
+        if has_thumbnails is not None:
+            if has_thumbnails:
+                conditions.append(UploadedImage.thumbnail_s3_keys.isnot(None))
+                conditions.append(UploadedImage.thumbnail_s3_keys != "")
+            else:
+                conditions.append(or_(
+                    UploadedImage.thumbnail_s3_keys.is_(None),
+                    UploadedImage.thumbnail_s3_keys == ""
+                ))
+        
+        if tags:
+            # Assuming tags are stored as JSON string
+            for tag in tags:
+                conditions.append(UploadedImage.tags.ilike(f"%{tag}%"))
+        
+        # Build base query
+        base_query = select(UploadedImage).where(and_(*conditions))
+        
+        # Add sorting
+        sort_column = getattr(UploadedImage, sort_by)
+        if sort_order == "desc":
+            base_query = base_query.order_by(desc(sort_column))
+        else:
+            base_query = base_query.order_by(asc(sort_column))
+        
+        # Get total count
+        count_query = select(func.count()).select_from(base_query.subquery())
+        count_result = await db.execute(count_query)
+        total_found = count_result.scalar()
+        
+        # Get paginated results
+        search_query = base_query.limit(limit).offset(offset)
+        result = await db.execute(search_query)
+        images = list(result.scalars().all())
+        
+        # Convert to response format
+        images_metadata = []
+        for img in images:
+            urls = {"api": f"{self.image_base_url}/{img.file_id}"}
+            
+            if img.thumbnail_s3_keys is not None:
+                try:
+                    thumbnail_keys = json.loads(img.thumbnail_s3_keys)
+                    for size in thumbnail_keys.keys():
+                        urls[f"thumbnail_{size}"] = f"{self.image_base_url}/{img.file_id}/thumbnail?size={size}"
+                except Exception:
+                    pass
+            
+            images_metadata.append({
+                "file_id": img.file_id,
+                "filename": img.filename,
+                "original_filename": img.filename,
+                "content_type": img.content_type,
+                "size": img.file_size,
+                "dimensions": None,
+                "s3_key": img.s3_key,
+                "urls": urls,
+                "uploaded_at": img.uploaded_at,
+                "is_deleted": False
+            })
+        
+        search_duration = int((time.time() - start_time) * 1000)  # Convert to milliseconds
+        
+        return {
+            "query_summary": {
+                "text_query": query,
+                "content_type": content_type,
+                "size_range": [size_min, size_max],
+                "date_range": [uploaded_after, uploaded_before],
+                "has_thumbnails": has_thumbnails,
+                "tags": tags,
+                "sort_by": sort_by,
+                "sort_order": sort_order
+            },
+            "images": images_metadata,
+            "total_found": total_found,
+            "page": (offset // limit) + 1,
+            "size": limit,
+            "has_next": (offset + limit) < (total_found or 0),
+            "has_prev": offset > 0,
+            "search_duration_ms": search_duration
+        }
+    
+    async def get_user_image_statistics(
+        self,
+        user_id: str,
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """
+        Get comprehensive statistics about user's images
+        
+        Args:
+            user_id: User to get statistics for
+            db: Database session
+            
+        Returns:
+            Dict with various image statistics
+        """
+        logger.info(f"Generating image statistics for user {user_id}")
+        
+        # Base query for user's images
+        base_query = select(UploadedImage).where(UploadedImage.user_id == user_id)
+        
+        # Total count and storage
+        count_query = select(
+            func.count(UploadedImage.id).label('total_images'),
+            func.sum(UploadedImage.file_size).label('total_storage_bytes'),
+            func.avg(UploadedImage.file_size).label('average_file_size'),
+            func.max(UploadedImage.file_size).label('largest_file_size'),
+            func.min(UploadedImage.file_size).label('smallest_file_size')
+        ).where(UploadedImage.user_id == user_id)
+        
+        result = await db.execute(count_query)
+        stats = result.first()
+        
+        # Images by content type
+        type_query = select(
+            UploadedImage.content_type,
+            func.count(UploadedImage.id).label('count')
+        ).where(UploadedImage.user_id == user_id).group_by(UploadedImage.content_type)
+        
+        type_result = await db.execute(type_query)
+        images_by_type = {row.content_type: row.count for row in type_result}
+        
+        # Images by month
+        month_query = select(
+            func.date_trunc('month', UploadedImage.uploaded_at).label('month'),
+            func.count(UploadedImage.id).label('count')
+        ).where(UploadedImage.user_id == user_id).group_by(
+            func.date_trunc('month', UploadedImage.uploaded_at)
+        ).order_by('month')
+        
+        month_result = await db.execute(month_query)
+        images_by_month = {
+            row.month.strftime('%Y-%m'): row.count 
+            for row in month_result
+        }
+        
+        # Thumbnail count
+        thumbnail_query = select(func.count(UploadedImage.id)).where(
+            and_(
+                UploadedImage.user_id == user_id,
+                UploadedImage.thumbnail_s3_keys.isnot(None),
+                UploadedImage.thumbnail_s3_keys != ""
+            )
+        )
+        
+        thumbnail_result = await db.execute(thumbnail_query)
+        total_thumbnails = thumbnail_result.scalar()
+        
+        # Calculate quota usage (assuming $10 default quota)
+        default_quota = 10.0  # Could get from user record or settings
+        estimated_usage = (stats.total_images or 0) * 0.005  # $0.005 per image
+        quota_used_percentage = min(100.0, (estimated_usage / default_quota) * 100)
+        
+        return {
+            "total_images": stats.total_images or 0,
+            "total_storage_bytes": stats.total_storage_bytes or 0,
+            "total_thumbnails": total_thumbnails or 0,
+            "images_by_type": images_by_type,
+            "images_by_month": images_by_month,
+            "average_file_size": int(stats.average_file_size or 0),
+            "largest_file_size": stats.largest_file_size or 0,
+            "smallest_file_size": stats.smallest_file_size or 0,
+            "quota_used_percentage": quota_used_percentage,
+            "storage_used_mb": round((stats.total_storage_bytes or 0) / (1024 * 1024), 2)
+        }
 
 # Global storage service instance
 storage_service = ImageStorageService() 

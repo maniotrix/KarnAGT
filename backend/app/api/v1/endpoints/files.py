@@ -13,7 +13,8 @@ from fastapi import (
     File, 
     Form,
     Query,
-    Response
+    Response,
+    BackgroundTasks
 )
 from fastapi.responses import StreamingResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,8 @@ from sqlalchemy.orm import Session
 from PIL import Image
 import io
 import json
+import asyncio
+import time
 
 from app.core.database import get_db
 from app.core.config import get_settings
@@ -33,7 +36,18 @@ from app.models.schemas.image_schemas import (
     ImageUploadResponse,
     ImageMetadataResponse,
     ImageListResponse,
-    ImageValidationError
+    ImageValidationError,
+    BulkImageUploadRequest,
+    BulkImageUploadResponse,
+    BulkImageDeleteRequest,
+    BulkImageDeleteResponse,
+    BulkImageMetadataRequest,
+    BulkImageMetadataResponse,
+    BulkImageOperationRequest,
+    BulkImageOperationResponse,
+    ImageSearchRequest,
+    ImageSearchResponse,
+    ImageStatisticsResponse
 )
 from app.models.schemas.common_schemas import BaseResponse
 from app.api.v1.dependencies.auth import (
@@ -51,7 +65,10 @@ router = APIRouter()
 
 settings = get_settings()
 
-# TODO : Bulk image upload and management
+# Maximum files for bulk operations
+MAX_BULK_UPLOAD_FILES = 20
+MAX_BULK_DELETE_FILES = 100
+MAX_BULK_METADATA_FILES = 200
 
 
 @router.get("/files_status")
@@ -59,12 +76,26 @@ async def get_files_status():
     """Get files service status"""
     return {
         "status": "Files service ready", 
-        "version": "1.1.0",  # Updated version for thumbnail support
-        "features": ["image_upload", "image_serving", "thumbnails"],
+        "version": "2.0.0",  # Updated version for bulk operations
+        "features": [
+            "image_upload", 
+            "image_serving", 
+            "thumbnails", 
+            "bulk_upload", 
+            "bulk_delete",
+            "bulk_metadata",
+            "image_search",
+            "image_statistics"
+        ],
         "max_image_size_mb": settings.MAX_IMAGE_SIZE / (1024 * 1024),
         "allowed_types": settings.get_allowed_image_types(),
         "thumbnail_sizes": settings.get_thumbnail_sizes(),
-        "thumbnail_format": settings.THUMBNAIL_FORMAT
+        "thumbnail_format": settings.THUMBNAIL_FORMAT,
+        "bulk_limits": {
+            "max_bulk_upload": MAX_BULK_UPLOAD_FILES,
+            "max_bulk_delete": MAX_BULK_DELETE_FILES,
+            "max_bulk_metadata": MAX_BULK_METADATA_FILES
+        }
     }
 
 
@@ -170,6 +201,413 @@ async def upload_image(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload image"
+        )
+
+
+# BULK OPERATIONS
+@router.post("/images/bulk-upload", response_model=BulkImageUploadResponse, status_code=status.HTTP_201_CREATED)
+async def bulk_upload_images(
+    files: List[UploadFile] = File(..., description="List of image files to upload"),
+    conversation_id: Optional[str] = Form(None, description="Associated conversation ID"),
+    max_concurrent_uploads: int = Form(5, ge=1, le=10, description="Max concurrent uploads"),
+    generate_thumbnails: bool = Form(True, description="Generate thumbnails for uploaded images"),
+    current_user: User = Depends(check_image_quota),
+    db: AsyncSession = Depends(get_db)
+) -> BulkImageUploadResponse:
+    """
+    Bulk upload multiple images with concurrency control
+    
+    - **files**: List of image files (PNG, JPEG, GIF, WebP, max 20MB each)
+    - **conversation_id**: Optional conversation context
+    - **max_concurrent_uploads**: Control upload concurrency (1-10)
+    - **generate_thumbnails**: Whether to generate thumbnails
+    - Returns: Bulk upload results with success/failure details
+    
+    **Limits:**
+    - Maximum 20 files per request
+    - Pro or Enterprise subscription required
+    - Consumes quota based on file size and processing
+    """
+    logger.info(f"Bulk upload request from user {current_user.user_id}, {len(files)} files")
+    
+    # Validate bulk upload limits
+    if len(files) > MAX_BULK_UPLOAD_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many files. Maximum {MAX_BULK_UPLOAD_FILES} files allowed per bulk upload"
+        )
+    
+    if len(files) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No files provided"
+        )
+    
+    try:
+        # Prepare files data
+        files_data = []
+        for file in files:
+            if not file.filename:
+                continue
+            
+            file_data = await file.read()
+            files_data.append((
+                file_data,
+                file.filename,
+                file.content_type or "image/jpeg"
+            ))
+        
+        # Perform bulk upload
+        result = await storage_service.bulk_upload_images(
+            files_data=files_data,
+            user_id=current_user.user_id,
+            db=db,
+            conversation_id=conversation_id,
+            max_concurrent=max_concurrent_uploads,
+            generate_thumbnails=generate_thumbnails
+        )
+        
+        # Convert uploaded_images to proper response format
+        uploaded_images_response = []
+        for upload_result in result["uploaded_images"]:
+            # Extract dimensions if possible
+            dimensions = None
+            try:
+                # Get original file data to extract dimensions
+                original_file_data = next(
+                    (fd[0] for fd in files_data if fd[1] == upload_result["filename"]), 
+                    None
+                )
+                if original_file_data:
+                    with Image.open(io.BytesIO(original_file_data)) as img:
+                        dimensions = {"width": img.width, "height": img.height}
+            except Exception as e:
+                logger.warning(f"Could not extract image dimensions: {e}")
+            
+            # Build URLs dict with thumbnails
+            urls = {
+                "display": upload_result["url"], 
+                "api": upload_result["url"]
+            }
+
+            # Add thumbnail URLs if thumbnails were generated
+            if upload_result.get("thumbnail_s3_keys"):
+                for size in upload_result["thumbnail_s3_keys"].keys():
+                    urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{upload_result['file_id']}/thumbnail?size={size}"
+
+            uploaded_images_response.append(ImageUploadResponse(
+                success=True,
+                message="Image uploaded successfully",
+                file_id=upload_result["file_id"],
+                filename=upload_result["filename"],
+                original_filename=upload_result["filename"],
+                content_type=upload_result["content_type"],
+                size=upload_result["size"],
+                dimensions=dimensions,
+                urls=urls,
+                s3_key=upload_result["s3_key"],
+                uploaded_at=upload_result["uploaded_at"],
+                openai_file_id=None,
+                openai_expires_at=None
+            ))
+        
+        response = BulkImageUploadResponse(
+            success=True,
+            message=f"Bulk upload completed: {result['successfully_uploaded']} successful, {result['failed_uploads']} failed",
+            total_requested=result["total_requested"],
+            successfully_uploaded=result["successfully_uploaded"],
+            failed_uploads=result["failed_uploads"],
+            uploaded_images=uploaded_images_response,
+            failed_images=result["failed_images"],
+            total_size_bytes=result["total_size_bytes"],
+            upload_duration_seconds=result["upload_duration_seconds"],
+            quota_consumed_usd=result["quota_consumed_usd"]
+        )
+        
+        logger.info(f"Bulk upload completed for user {current_user.user_id}: {result['successfully_uploaded']} successful")
+        return response
+        
+    except ValidationException as e:
+        logger.warning(f"Bulk upload validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except QuotaExceededException as e:
+        logger.warning(f"Quota exceeded for user {current_user.user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error in bulk upload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process bulk upload"
+        )
+
+
+@router.delete("/images/bulk-delete", response_model=BulkImageDeleteResponse)
+async def bulk_delete_images(
+    request: BulkImageDeleteRequest,
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+) -> BulkImageDeleteResponse:
+    """
+    Bulk delete multiple images with ownership validation
+    
+    - **file_ids**: List of file IDs to delete (max 100)
+    - **confirm_deletion**: Must be True to confirm bulk deletion
+    - Returns: Bulk deletion results with success/failure details
+    
+    **Security:**
+    - Only deletes images owned by the authenticated user
+    - Requires explicit confirmation via confirm_deletion=True
+    """
+    logger.info(f"Bulk delete request from user {current_user.user_id}, {len(request.file_ids)} files")
+    
+    # Validate bulk delete limits
+    if len(request.file_ids) > MAX_BULK_DELETE_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many files. Maximum {MAX_BULK_DELETE_FILES} files allowed per bulk delete"
+        )
+    
+    try:
+        # Perform bulk deletion
+        result = await storage_service.bulk_delete_images(
+            file_ids=request.file_ids,
+            user_id=current_user.user_id,
+            db=db
+        )
+        
+        response = BulkImageDeleteResponse(
+            success=True,
+            message=f"Bulk deletion completed: {result['successfully_deleted']} successful, {result['failed_deletions']} failed",
+            total_requested=result["total_requested"],
+            successfully_deleted=result["successfully_deleted"],
+            failed_deletions=result["failed_deletions"],
+            deleted_file_ids=result["deleted_file_ids"],
+            failed_file_ids=result["failed_file_ids"],
+            freed_storage_bytes=result["freed_storage_bytes"]
+        )
+        
+        logger.info(f"Bulk deletion completed for user {current_user.user_id}: {result['successfully_deleted']} successful")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in bulk deletion: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process bulk deletion"
+        )
+
+
+@router.post("/images/bulk-metadata", response_model=BulkImageMetadataResponse)
+async def bulk_get_metadata(
+    request: BulkImageMetadataRequest,
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+) -> BulkImageMetadataResponse:
+    """
+    Bulk retrieve metadata for multiple images
+    
+    - **file_ids**: List of file IDs to get metadata for (max 200)
+    - **include_urls**: Include access URLs in response
+    - **include_thumbnails**: Include thumbnail URLs
+    - Returns: Bulk metadata results with found/missing details
+    
+    **Security:**
+    - Only returns metadata for images owned by the authenticated user
+    """
+    logger.info(f"Bulk metadata request from user {current_user.user_id}, {len(request.file_ids)} files")
+    
+    # Validate bulk metadata limits
+    if len(request.file_ids) > MAX_BULK_METADATA_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many files. Maximum {MAX_BULK_METADATA_FILES} files allowed per bulk metadata request"
+        )
+    
+    try:
+        # Perform bulk metadata retrieval
+        result = await storage_service.bulk_get_metadata(
+            file_ids=request.file_ids,
+            user_id=current_user.user_id,
+            db=db,
+            include_urls=request.include_urls,
+            include_thumbnails=request.include_thumbnails
+        )
+        
+        # Convert to response format
+        images_metadata_response = []
+        for metadata in result["images_metadata"]:
+            images_metadata_response.append(ImageMetadataResponse(
+                success=True,
+                message="",
+                file_id=metadata["file_id"],
+                filename=metadata["filename"],
+                original_filename=metadata["original_filename"],
+                content_type=metadata["content_type"],
+                size=metadata["size"],
+                dimensions=metadata["dimensions"],
+                s3_key=metadata["s3_key"],
+                urls=metadata["urls"],
+                uploaded_at=metadata["uploaded_at"],
+                is_deleted=metadata["is_deleted"]
+            ))
+        
+        response = BulkImageMetadataResponse(
+            success=True,
+            message=f"Bulk metadata retrieval completed: {result['found_images']} found, {result['missing_images']} missing",
+            total_requested=result["total_requested"],
+            found_images=result["found_images"],
+            missing_images=result["missing_images"],
+            images_metadata=images_metadata_response,
+            missing_file_ids=result["missing_file_ids"]
+        )
+        
+        logger.info(f"Bulk metadata completed for user {current_user.user_id}: {result['found_images']} found")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in bulk metadata retrieval: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process bulk metadata request"
+        )
+
+
+@router.post("/images/search", response_model=ImageSearchResponse)
+async def search_images(
+    request: ImageSearchRequest,
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+) -> ImageSearchResponse:
+    """
+    Search user's images with advanced filtering
+    
+    - **query**: Text search in filename
+    - **content_type**: Filter by content type
+    - **size_min/size_max**: File size range filters
+    - **uploaded_after/uploaded_before**: Date range filters
+    - **has_thumbnails**: Filter by thumbnail presence
+    - **tags**: Filter by tags (if implemented)
+    - **limit/offset**: Pagination
+    - **sort_by/sort_order**: Sorting options
+    - Returns: Search results with metadata
+    
+    **Security:**
+    - Only searches images owned by the authenticated user
+    """
+    logger.info(f"Image search request from user {current_user.user_id}")
+    
+    try:
+        # Perform image search
+        result = await storage_service.search_images(
+            user_id=current_user.user_id,
+            db=db,
+            query=request.query,
+            content_type=request.content_type,
+            size_min=request.size_min,
+            size_max=request.size_max,
+            uploaded_after=request.uploaded_after,
+            uploaded_before=request.uploaded_before,
+            has_thumbnails=request.has_thumbnails,
+            tags=request.tags,
+            limit=request.limit,
+            offset=request.offset,
+            sort_by=request.sort_by,
+            sort_order=request.sort_order
+        )
+        
+        # Convert to response format
+        images_response = []
+        for metadata in result["images"]:
+            images_response.append(ImageMetadataResponse(
+                success=True,
+                message="",
+                file_id=metadata["file_id"],
+                filename=metadata["filename"],
+                original_filename=metadata["original_filename"],
+                content_type=metadata["content_type"],
+                size=metadata["size"],
+                dimensions=metadata["dimensions"],
+                s3_key=metadata["s3_key"],
+                urls=metadata["urls"],
+                uploaded_at=metadata["uploaded_at"],
+                is_deleted=metadata["is_deleted"]
+            ))
+        
+        response = ImageSearchResponse(
+            success=True,
+            message=f"Search completed: {result['total_found']} images found",
+            query_summary=result["query_summary"],
+            images=images_response,
+            total_found=result["total_found"],
+            page=result["page"],
+            size=result["size"],
+            has_next=result["has_next"],
+            has_prev=result["has_prev"],
+            search_duration_ms=result["search_duration_ms"]
+        )
+        
+        logger.info(f"Image search completed for user {current_user.user_id}: {result['total_found']} found")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in image search: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process image search"
+        )
+
+
+@router.get("/images/statistics", response_model=ImageStatisticsResponse)
+async def get_image_statistics(
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+) -> ImageStatisticsResponse:
+    """
+    Get comprehensive statistics about user's images
+    
+    - Returns: Various image statistics including storage usage, file types, etc.
+    
+    **Security:**
+    - Only returns statistics for images owned by the authenticated user
+    """
+    logger.info(f"Image statistics request from user {current_user.user_id}")
+    
+    try:
+        # Get image statistics
+        result = await storage_service.get_user_image_statistics(
+            user_id=current_user.user_id,
+            db=db
+        )
+        
+        response = ImageStatisticsResponse(
+            success=True,
+            message="Image statistics retrieved successfully",
+            total_images=result["total_images"],
+            total_storage_bytes=result["total_storage_bytes"],
+            total_thumbnails=result["total_thumbnails"],
+            images_by_type=result["images_by_type"],
+            images_by_month=result["images_by_month"],
+            average_file_size=result["average_file_size"],
+            largest_file_size=result["largest_file_size"],
+            smallest_file_size=result["smallest_file_size"],
+            quota_used_percentage=result["quota_used_percentage"],
+            storage_used_mb=result["storage_used_mb"]
+        )
+        
+        logger.info(f"Image statistics completed for user {current_user.user_id}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting image statistics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get image statistics"
         )
 
 
@@ -303,7 +741,7 @@ async def get_image_metadata(
         urls = {"api": f"{storage_service.image_base_url}/{image_record.file_id}"}
 
         # Add thumbnail URLs if available
-        if image_record.thumbnail_s3_keys:
+        if image_record.thumbnail_s3_keys is not None:
             try:
                 thumbnail_keys = json.loads(image_record.thumbnail_s3_keys)
                 for size in thumbnail_keys.keys():
@@ -414,7 +852,7 @@ async def list_user_images(
             urls = {"api": f"{storage_service.image_base_url}/{img.file_id}"}
             
             # Add thumbnail URLs if available
-            if img.thumbnail_s3_keys:
+            if img.thumbnail_s3_keys is not None:
                 try:
                     thumbnail_keys = json.loads(img.thumbnail_s3_keys)
                     for size in thumbnail_keys.keys():

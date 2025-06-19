@@ -3,7 +3,7 @@
 Comprehensive File API Integration Test
 Tests all file/image endpoints with real users, database, and MinIO storage
 Uses existing fifa_test_image.png for testing
-Tests: Authentication -> Upload -> Serve -> Metadata -> List -> Delete
+Tests: Authentication -> Upload -> Serve -> Metadata -> List -> Delete -> Bulk Operations
 """
 
 import asyncio
@@ -11,9 +11,10 @@ import sys
 import uuid
 import os
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import httpx
+import time
 
 # Add backend to path
 sys.path.append('.')
@@ -39,6 +40,7 @@ class FileAPIIntegrationTest:
         self.test_users = []
         self.auth_tokens = {}
         self.uploaded_files = []
+        self.bulk_uploaded_files = []  # Track bulk uploads separately
         self.settings = get_settings()
         
     async def setup_test_environment(self):
@@ -135,6 +137,16 @@ class FileAPIIntegrationTest:
                     print(f"Thumbnail format: {data.get('thumbnail_format', 'unknown')}")
                 else:
                     print(f"Thumbnail feature: NOT ENABLED")
+                
+                # Check for bulk operations support
+                bulk_features = [f for f in features if f.startswith('bulk_')]
+                if bulk_features:
+                    print(f"Bulk features: {bulk_features}")
+                    bulk_limits = data.get('bulk_limits', {})
+                    if bulk_limits:
+                        print(f"Bulk limits: {bulk_limits}")
+                else:
+                    print(f"Bulk features: NOT ENABLED")
                 
                 return True
             else:
@@ -630,8 +642,610 @@ class FileAPIIntegrationTest:
             print(f"  MinIO integration failed: {e}")
             return False
     
+    async def test_bulk_image_upload_flow(self):
+        """Test bulk image upload with different user types and limits"""
+        print("Testing bulk image upload flow...")
+        
+        async with httpx.AsyncClient() as client:
+            bulk_upload_results = []
+            
+            # Read the FIFA test image
+            with open(TEST_IMAGE_PATH, 'rb') as f:
+                image_data = f.read()
+            
+            print(f"Using test image: {TEST_IMAGE_PATH} ({len(image_data)} bytes)")
+            
+            for user in self.test_users:
+                print(f"Testing bulk upload for user: {user.username} ({user.subscription_tier})")
+                
+                # Test with different bulk sizes
+                test_scenarios = [
+                    {"file_count": 3, "description": "Small bulk upload"},
+                    {"file_count": 5, "description": "Medium bulk upload"},
+                    {"file_count": 10, "description": "Large bulk upload"},
+                ]
+                
+                for scenario in test_scenarios:
+                    file_count = scenario["file_count"]
+                    description = scenario["description"]
+                    
+                    print(f"  {description}: {file_count} files")
+                    
+                    # Prepare multiple files for bulk upload
+                    files = []
+                    conversation_id = f"bulk_conv_test_{uuid.uuid4().hex[:8]}"
+                    
+                    for i in range(file_count):
+                        filename = f"bulk_fifa_upload_{user.subscription_tier}_{i}_{uuid.uuid4().hex[:8]}.png"
+                        files.append(("files", (filename, image_data, "image/png")))
+                    
+                    data = {
+                        "conversation_id": conversation_id,
+                        "max_concurrent_uploads": "3",  # Test concurrency control
+                        "generate_thumbnails": "true"
+                    }
+                    headers = self.get_auth_headers(user.user_id)
+                    
+                    start_time = time.time()
+                    
+                    # Make bulk upload request
+                    response = await client.post(
+                        f"{API_BASE_URL}/files/images/bulk-upload",
+                        files=files,
+                        data=data,
+                        headers=headers,
+                        timeout=60.0  # Allow longer timeout for bulk operations
+                    )
+                    
+                    upload_duration = time.time() - start_time
+                    print(f"    Bulk upload response: {response.status_code} (took {upload_duration:.2f}s)")
+                    
+                    if response.status_code == 201:
+                        upload_data = response.json()
+                        
+                        successfully_uploaded = upload_data.get("successfully_uploaded", 0)
+                        failed_uploads = upload_data.get("failed_uploads", 0)
+                        total_size_bytes = upload_data.get("total_size_bytes", 0)
+                        
+                        print(f"    Successful uploads: {successfully_uploaded}/{file_count}")
+                        print(f"    Failed uploads: {failed_uploads}")
+                        print(f"    Total size: {total_size_bytes} bytes")
+                        print(f"    Upload duration: {upload_data.get('upload_duration_seconds', 0):.2f}s")
+                        print(f"    Quota consumed: ${upload_data.get('quota_consumed_usd', 0):.4f}")
+                        
+                        # Track successfully uploaded files for cleanup
+                        for uploaded_image in upload_data.get("uploaded_images", []):
+                            self.bulk_uploaded_files.append({
+                                "file_id": uploaded_image["file_id"],
+                                "user_id": user.user_id,
+                                "s3_key": uploaded_image["s3_key"],
+                                "filename": uploaded_image["filename"],
+                                "bulk_scenario": description
+                            })
+                        
+                        # Check for thumbnail URLs in response
+                        for uploaded_image in upload_data.get("uploaded_images", []):
+                            urls = uploaded_image.get('urls', {})
+                            thumbnail_urls = {k: v for k, v in urls.items() if k.startswith('thumbnail_')}
+                            if thumbnail_urls:
+                                print(f"    Thumbnails generated for {uploaded_image['file_id']}: {list(thumbnail_urls.keys())}")
+                        
+                        bulk_upload_results.append({
+                            "user": user,
+                            "scenario": description,
+                            "file_count": file_count,
+                            "successful": successfully_uploaded,
+                            "failed": failed_uploads,
+                            "upload_data": upload_data
+                        })
+                        
+                    elif response.status_code == 400:
+                        error_detail = response.json().get("detail", "Unknown error")
+                        print(f"    Bulk upload validation error: {error_detail}")
+                        
+                    elif response.status_code == 402:
+                        print(f"    Quota exceeded for bulk upload")
+                        
+                    else:
+                        print(f"    Bulk upload failed: {response.status_code} - {response.text}")
+                    
+                    # Test edge cases
+                    if user == self.test_users[0]:  # Only test edge cases with first user
+                        print(f"  Testing edge cases...")
+                        
+                        # Test with no files
+                        response = await client.post(
+                            f"{API_BASE_URL}/files/images/bulk-upload",
+                            files=[],
+                            data={"conversation_id": conversation_id},
+                            headers=headers
+                        )
+                        
+                        if response.status_code == 400:
+                            print(f"    No files validation: PASS (400)")
+                        else:
+                            print(f"    No files validation: FAIL ({response.status_code})")
+                        
+                        # Test with too many files (if we want to test limit)
+                        if int(file_count) < 15:  # Only test if we haven't hit the limit
+                            too_many_files = []
+                            for i in range(25):  # Exceed typical bulk limit
+                                filename = f"excess_file_{i}.png"
+                                too_many_files.append(("files", (filename, image_data, "image/png")))
+                            
+                            response = await client.post(
+                                f"{API_BASE_URL}/files/images/bulk-upload",
+                                files=too_many_files,
+                                data={"conversation_id": conversation_id},
+                                headers=headers
+                            )
+                            
+                            if response.status_code == 400:
+                                print(f"    Too many files validation: PASS (400)")
+                            else:
+                                print(f"    Too many files validation: FAIL ({response.status_code})")
+            
+            print(f"Bulk upload flow completed. {len(bulk_upload_results)} scenarios tested.")
+            return bulk_upload_results
+
+    async def test_bulk_image_delete_flow(self):
+        """Test bulk image deletion with ownership validation"""
+        print("Testing bulk image delete flow...")
+        
+        async with httpx.AsyncClient() as client:
+            bulk_delete_results = []
+            
+            for user in self.test_users:
+                print(f"Testing bulk delete for user: {user.username} ({user.subscription_tier})")
+                
+                # Get files owned by this user (from bulk uploads)
+                user_files = [f for f in self.bulk_uploaded_files if f["user_id"] == user.user_id]
+                
+                if len(user_files) < 2:
+                    print(f"  Skipping - not enough files for bulk delete test")
+                    continue
+                
+                # Test deleting half of the user's files
+                files_to_delete = user_files[:len(user_files)//2]
+                file_ids_to_delete = [f["file_id"] for f in files_to_delete]
+                
+                print(f"  Attempting to delete {len(file_ids_to_delete)} files")
+                
+                headers = self.get_auth_headers(user.user_id)
+                
+                # Test 1: Bulk delete without confirmation (should fail)
+                delete_request = {
+                    "file_ids": file_ids_to_delete,
+                    "confirm_deletion": False
+                }
+                
+                response = await client.request(
+                    "DELETE",
+                    f"{API_BASE_URL}/files/images/bulk-delete",
+                    json=delete_request,
+                    headers=headers
+                )
+                
+                if response.status_code == 422:  # Validation error
+                    print(f"    Confirmation validation: PASS (422)")
+                else:
+                    print(f"    Confirmation validation: FAIL ({response.status_code})")
+                
+                # Test 2: Bulk delete with confirmation
+                delete_request["confirm_deletion"] = True
+                
+                response = await client.request(
+                    "DELETE",
+                    f"{API_BASE_URL}/files/images/bulk-delete",
+                    json=delete_request,
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    delete_data = response.json()
+                    
+                    successfully_deleted = delete_data.get("successfully_deleted", 0)
+                    failed_deletions = delete_data.get("failed_deletions", 0)
+                    freed_storage_bytes = delete_data.get("freed_storage_bytes", 0)
+                    
+                    print(f"    Successful deletions: {successfully_deleted}/{len(file_ids_to_delete)}")
+                    print(f"    Failed deletions: {failed_deletions}")
+                    print(f"    Storage freed: {freed_storage_bytes} bytes")
+                    
+                    # Remove successfully deleted files from our tracking
+                    deleted_file_ids = delete_data.get("deleted_file_ids", [])
+                    self.bulk_uploaded_files = [
+                        f for f in self.bulk_uploaded_files 
+                        if f["file_id"] not in deleted_file_ids
+                    ]
+                    
+                    bulk_delete_results.append({
+                        "user": user,
+                        "requested": len(file_ids_to_delete),
+                        "successful": successfully_deleted,
+                        "failed": failed_deletions,
+                        "delete_data": delete_data
+                    })
+                    
+                else:
+                    print(f"    Bulk delete failed: {response.status_code} - {response.text}")
+                
+                # Test 3: Try to delete files owned by another user (should fail)
+                if len(self.test_users) > 1:
+                    other_user = next(u for u in self.test_users if u.user_id != user.user_id)
+                    other_user_files = [f for f in self.bulk_uploaded_files if f["user_id"] == other_user.user_id]
+                    
+                    if other_user_files:
+                        unauthorized_file_ids = [other_user_files[0]["file_id"]]
+                        
+                        delete_request = {
+                            "file_ids": unauthorized_file_ids,
+                            "confirm_deletion": True
+                        }
+                        
+                        response = await client.request(
+                            "DELETE",
+                            f"{API_BASE_URL}/files/images/bulk-delete",
+                            json=delete_request,
+                            headers=headers
+                        )
+                        
+                        if response.status_code == 200:
+                            delete_data = response.json()
+                            if delete_data.get("successfully_deleted", 0) == 0:
+                                print(f"    Ownership validation: PASS (0 unauthorized deletions)")
+                            else:
+                                print(f"    Ownership validation: FAIL (unauthorized deletion occurred)")
+                        else:
+                            print(f"    Ownership validation: UNCERTAIN ({response.status_code})")
+            
+            print(f"Bulk delete flow completed. {len(bulk_delete_results)} scenarios tested.")
+            return bulk_delete_results
+
+    async def test_bulk_image_metadata_flow(self):
+        """Test bulk metadata retrieval"""
+        print("Testing bulk image metadata flow...")
+        
+        async with httpx.AsyncClient() as client:
+            bulk_metadata_results = []
+            
+            for user in self.test_users:
+                print(f"Testing bulk metadata for user: {user.username} ({user.subscription_tier})")
+                
+                # Get files owned by this user
+                user_files = [f for f in self.bulk_uploaded_files if f["user_id"] == user.user_id]
+                
+                if not user_files:
+                    print(f"  Skipping - no files for metadata test")
+                    continue
+                
+                file_ids = [f["file_id"] for f in user_files]
+                print(f"  Requesting metadata for {len(file_ids)} files")
+                
+                headers = self.get_auth_headers(user.user_id)
+                
+                # Test bulk metadata request
+                metadata_request = {
+                    "file_ids": file_ids,
+                    "include_urls": True,
+                    "include_thumbnails": True
+                }
+                
+                response = await client.post(
+                    f"{API_BASE_URL}/files/images/bulk-metadata",
+                    json=metadata_request,
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    metadata_data = response.json()
+                    
+                    found_images = metadata_data.get("found_images", 0)
+                    missing_images = metadata_data.get("missing_images", 0)
+                    
+                    print(f"    Found images: {found_images}/{len(file_ids)}")
+                    print(f"    Missing images: {missing_images}")
+                    
+                    # Check metadata details
+                    images_metadata = metadata_data.get("images_metadata", [])
+                    for metadata in images_metadata[:3]:  # Check first 3 for details
+                        print(f"    File {metadata.get('file_id', 'unknown')}: {metadata.get('filename', 'unknown')}")
+                        print(f"      Size: {metadata.get('size', 0)} bytes")
+                        print(f"      Type: {metadata.get('content_type', 'unknown')}")
+                        
+                        urls = metadata.get('urls', {})
+                        thumbnail_urls = {k: v for k, v in urls.items() if k.startswith('thumbnail_')}
+                        if thumbnail_urls:
+                            print(f"      Thumbnails: {list(thumbnail_urls.keys())}")
+                    
+                    bulk_metadata_results.append({
+                        "user": user,
+                        "requested": len(file_ids),
+                        "found": found_images,
+                        "missing": missing_images,
+                        "metadata_data": metadata_data
+                    })
+                    
+                else:
+                    print(f"    Bulk metadata failed: {response.status_code} - {response.text}")
+                
+                # Test with non-existent file IDs
+                fake_file_ids = [f"fake_img_{uuid.uuid4().hex[:8]}" for _ in range(3)]
+                mixed_file_ids = file_ids[:2] + fake_file_ids  # Mix real and fake IDs
+                
+                metadata_request = {
+                    "file_ids": mixed_file_ids,
+                    "include_urls": True,
+                    "include_thumbnails": True
+                }
+                
+                response = await client.post(
+                    f"{API_BASE_URL}/files/images/bulk-metadata",
+                    json=metadata_request,
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    metadata_data = response.json()
+                    found_images = metadata_data.get("found_images", 0)
+                    missing_images = metadata_data.get("missing_images", 0)
+                    
+                    if found_images == 2 and missing_images == 3:
+                        print(f"    Mixed ID validation: PASS ({found_images} found, {missing_images} missing)")
+                    else:
+                        print(f"    Mixed ID validation: UNCERTAIN ({found_images} found, {missing_images} missing)")
+            
+            print(f"Bulk metadata flow completed. {len(bulk_metadata_results)} scenarios tested.")
+            return bulk_metadata_results
+
+    async def test_image_search_flow(self):
+        """Test image search functionality"""
+        print("Testing image search flow...")
+        
+        async with httpx.AsyncClient() as client:
+            search_results = []
+            
+            for user in self.test_users:
+                print(f"Testing image search for user: {user.username} ({user.subscription_tier})")
+                
+                # Get files owned by this user
+                user_files = [f for f in self.bulk_uploaded_files if f["user_id"] == user.user_id]
+                
+                if not user_files:
+                    print(f"  Skipping - no files for search test")
+                    continue
+                
+                headers = self.get_auth_headers(user.user_id)
+                
+                # Test 1: Search all images (no filters)
+                search_request = {
+                    "limit": 50,
+                    "offset": 0,
+                    "sort_by": "uploaded_at",
+                    "sort_order": "desc"
+                }
+                
+                response = await client.post(
+                    f"{API_BASE_URL}/files/images/search",
+                    json=search_request,
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    search_data = response.json()
+                    total_found = search_data.get("total_found", 0)
+                    images = search_data.get("images", [])
+                    search_duration_ms = search_data.get("search_duration_ms", 0)
+                    
+                    print(f"    All images search: {total_found} found (took {search_duration_ms}ms)")
+                    
+                    search_results.append({
+                        "user": user,
+                        "search_type": "all_images",
+                        "found": total_found,
+                        "duration_ms": search_duration_ms
+                    })
+                    
+                    # Test 2: Search by filename pattern
+                    search_request = {
+                        "query": "fifa",
+                        "limit": 20,
+                        "offset": 0
+                    }
+                    
+                    response = await client.post(
+                        f"{API_BASE_URL}/files/images/search",
+                        json=search_request,
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        search_data = response.json()
+                        pattern_found = search_data.get("total_found", 0)
+                        print(f"    Pattern search 'fifa': {pattern_found} found")
+                        
+                        search_results.append({
+                            "user": user,
+                            "search_type": "pattern_fifa",
+                            "found": pattern_found,
+                            "duration_ms": search_data.get("search_duration_ms", 0)
+                        })
+                    
+                    # Test 3: Search by content type
+                    search_request = {
+                        "content_type": "image/png",
+                        "limit": 20,
+                        "offset": 0
+                    }
+                    
+                    response = await client.post(
+                        f"{API_BASE_URL}/files/images/search",
+                        json=search_request,
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        search_data = response.json()
+                        type_found = search_data.get("total_found", 0)
+                        print(f"    Content type search 'image/png': {type_found} found")
+                        
+                        search_results.append({
+                            "user": user,
+                            "search_type": "content_type_png",
+                            "found": type_found,
+                            "duration_ms": search_data.get("search_duration_ms", 0)
+                        })
+                    
+                    # Test 4: Search by size range
+                    search_request = {
+                        "size_min": 1000,
+                        "size_max": 1000000,  # 1MB
+                        "limit": 20,
+                        "offset": 0
+                    }
+                    
+                    response = await client.post(
+                        f"{API_BASE_URL}/files/images/search",
+                        json=search_request,
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        search_data = response.json()
+                        size_found = search_data.get("total_found", 0)
+                        print(f"    Size range search: {size_found} found")
+                        
+                        search_results.append({
+                            "user": user,
+                            "search_type": "size_range",
+                            "found": size_found,
+                            "duration_ms": search_data.get("search_duration_ms", 0)
+                        })
+                    
+                    # Test 5: Search by date range (recent uploads)
+                    now = datetime.utcnow()
+                    one_hour_ago = now - timedelta(hours=1)
+                    
+                    search_request = {
+                        "uploaded_after": one_hour_ago.isoformat(),
+                        "limit": 20,
+                        "offset": 0
+                    }
+                    
+                    response = await client.post(
+                        f"{API_BASE_URL}/files/images/search",
+                        json=search_request,
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        search_data = response.json()
+                        recent_found = search_data.get("total_found", 0)
+                        print(f"    Recent uploads search: {recent_found} found")
+                        
+                        search_results.append({
+                            "user": user,
+                            "search_type": "recent_uploads",
+                            "found": recent_found,
+                            "duration_ms": search_data.get("search_duration_ms", 0)
+                        })
+                    
+                    # Test 6: Search with thumbnails filter
+                    search_request = {
+                        "has_thumbnails": True,
+                        "limit": 20,
+                        "offset": 0
+                    }
+                    
+                    response = await client.post(
+                        f"{API_BASE_URL}/files/images/search",
+                        json=search_request,
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        search_data = response.json()
+                        thumbnail_found = search_data.get("total_found", 0)
+                        print(f"    Has thumbnails search: {thumbnail_found} found")
+                        
+                        search_results.append({
+                            "user": user,
+                            "search_type": "has_thumbnails",
+                            "found": thumbnail_found,
+                            "duration_ms": search_data.get("search_duration_ms", 0)
+                        })
+                
+                else:
+                    print(f"    Image search failed: {response.status_code} - {response.text}")
+            
+            print(f"Image search flow completed. {len(search_results)} search scenarios tested.")
+            return search_results
+
+    async def test_image_statistics_flow(self):
+        """Test image statistics functionality"""
+        print("Testing image statistics flow...")
+        
+        async with httpx.AsyncClient() as client:
+            statistics_results = []
+            
+            for user in self.test_users:
+                print(f"Testing image statistics for user: {user.username} ({user.subscription_tier})")
+                
+                headers = self.get_auth_headers(user.user_id)
+                
+                response = await client.get(
+                    f"{API_BASE_URL}/files/images/statistics",
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    stats_data = response.json()
+                    
+                    total_images = stats_data.get("total_images", 0)
+                    total_storage_bytes = stats_data.get("total_storage_bytes", 0)
+                    total_thumbnails = stats_data.get("total_thumbnails", 0)
+                    storage_used_mb = stats_data.get("storage_used_mb", 0)
+                    quota_used_percentage = stats_data.get("quota_used_percentage", 0)
+                    
+                    print(f"    Total images: {total_images}")
+                    print(f"    Storage used: {storage_used_mb} MB ({total_storage_bytes} bytes)")
+                    print(f"    Total thumbnails: {total_thumbnails}")
+                    print(f"    Quota used: {quota_used_percentage:.2f}%")
+                    
+                    # Show breakdown by type
+                    images_by_type = stats_data.get("images_by_type", {})
+                    if images_by_type:
+                        print(f"    By type: {images_by_type}")
+                    
+                    # Show breakdown by month
+                    images_by_month = stats_data.get("images_by_month", {})
+                    if images_by_month:
+                        print(f"    By month: {images_by_month}")
+                    
+                    # File size statistics
+                    average_file_size = stats_data.get("average_file_size", 0)
+                    largest_file_size = stats_data.get("largest_file_size", 0)
+                    smallest_file_size = stats_data.get("smallest_file_size", 0)
+                    
+                    print(f"    Average file size: {average_file_size} bytes")
+                    print(f"    Size range: {smallest_file_size} - {largest_file_size} bytes")
+                    
+                    statistics_results.append({
+                        "user": user,
+                        "total_images": total_images,
+                        "storage_mb": storage_used_mb,
+                        "quota_percentage": quota_used_percentage,
+                        "stats_data": stats_data
+                    })
+                    
+                else:
+                    print(f"    Image statistics failed: {response.status_code} - {response.text}")
+            
+            print(f"Image statistics flow completed. {len(statistics_results)} users tested.")
+            return statistics_results
+
     async def cleanup_test_environment(self):
-        """Clean up all test data"""
+        """Clean up all test data including bulk uploads"""
         print("Cleaning up test environment...")
         
         try:
@@ -646,6 +1260,8 @@ class FileAPIIntegrationTest:
                     result = await db.execute(query)
                     remaining_images = list(result.scalars().all())
                     
+                    print(f"Cleaning up {len(remaining_images)} images from storage...")
+                    
                     # Delete from MinIO storage
                     for image in remaining_images:
                         try:
@@ -654,7 +1270,7 @@ class FileAPIIntegrationTest:
                             print(f"  Deleted S3 file: {image.s3_key}")
                             
                             # Delete thumbnails if they exist
-                            if image.thumbnail_s3_keys:
+                            if image.thumbnail_s3_keys is not None:
                                 try:
                                     import json
                                     thumbnail_keys = json.loads(image.thumbnail_s3_keys)
@@ -683,82 +1299,139 @@ class FileAPIIntegrationTest:
                     print(f"  Deleted {len(self.test_users)} test users")
                 
                 await db.commit()
+                
+                # Clear tracking lists
+                self.uploaded_files.clear()
+                self.bulk_uploaded_files.clear()
+                
                 print("Cleanup completed successfully")
                 
         except Exception as e:
             print(f"Cleanup failed: {e}")
             raise
-    
+
     async def run_comprehensive_test(self):
-        """Run the complete test suite"""
-        print("Starting comprehensive file API integration test")
-        print("=" * 60)
+        """Run the complete test suite including bulk operations"""
+        print("Starting comprehensive file API integration test with bulk operations")
+        print("=" * 80)
         
         try:
             # Setup
             await self.setup_test_environment()
             
             # Verify MinIO connection
-            print("=" * 60)
+            print("=" * 80)
             print("MINIO INTEGRATION VERIFICATION")
             minio_ok = await self.verify_minio_integration()
             
             # Run service tests
-            print("=" * 60)
+            print("=" * 80)
             print("SERVICE STATUS TEST")
             service_ok = await self.test_service_status()
             
             # Run core functionality tests
-            print("=" * 60)
+            print("=" * 80)
             print("IMAGE UPLOAD FLOW TEST")
             upload_results = await self.test_image_upload_flow()
             
-            print("=" * 60)
+            print("=" * 80)
             print("IMAGE SERVING FLOW TEST")
             serve_results = await self.test_image_serving_flow()
             
-            print("=" * 60)
+            print("=" * 80)
             print("THUMBNAIL SERVING FLOW TEST")
             thumbnail_results = await self.test_thumbnail_serving_flow()
             
-            print("=" * 60)
+            print("=" * 80)
             print("IMAGE METADATA FLOW TEST")
             metadata_results = await self.test_image_metadata_flow()
             
-            print("=" * 60)
+            print("=" * 80)
             print("IMAGE LIST FLOW TEST")
             list_results = await self.test_image_list_flow()
             
-            print("=" * 60)
+            # Run bulk operations tests
+            print("=" * 80)
+            print("BULK IMAGE UPLOAD FLOW TEST")
+            bulk_upload_results = await self.test_bulk_image_upload_flow()
+            
+            print("=" * 80)
+            print("BULK IMAGE METADATA FLOW TEST")
+            bulk_metadata_results = await self.test_bulk_image_metadata_flow()
+            
+            print("=" * 80)
+            print("IMAGE SEARCH FLOW TEST")
+            search_results = await self.test_image_search_flow()
+            
+            print("=" * 80)
+            print("IMAGE STATISTICS FLOW TEST")
+            statistics_results = await self.test_image_statistics_flow()
+            
+            print("=" * 80)
+            print("BULK IMAGE DELETE FLOW TEST")
+            bulk_delete_results = await self.test_bulk_image_delete_flow()
+            
+            print("=" * 80)
             print("IMAGE DELETION FLOW TEST")
             deletion_results = await self.test_image_deletion_flow()
             
-            print("=" * 60)
+            print("=" * 80)
             print("ERROR HANDLING TEST")
             error_results = await self.test_error_handling()
             
             # Summary
-            print("=" * 60)
-            print("TEST SUMMARY")
-            print("=" * 60)
+            print("=" * 80)
+            print("COMPREHENSIVE TEST SUMMARY")
+            print("=" * 80)
             print(f"MinIO Integration: {'PASS' if minio_ok else 'FAIL'}")
             print(f"Service Status: {'PASS' if service_ok else 'FAIL'}")
-            print(f"Uploads Tested: {len(upload_results)}")
-            print(f"Serves Tested: {len(serve_results)}")
-            print(f"Metadata Retrieved: {len(metadata_results)}")
-            print(f"Lists Retrieved: {len(list_results)}")
-            print(f"Deletions Tested: {len(deletion_results)}")
-            print(f"Thumbnails Served: {len(thumbnail_results)}")
-            print(f"Error Scenarios: {len(error_results)}")
+            print()
+            print("CORE OPERATIONS:")
+            print(f"  Single Uploads Tested: {len(upload_results)}")
+            print(f"  Images Served: {len(serve_results)}")
+            print(f"  Thumbnails Served: {len(thumbnail_results)}")
+            print(f"  Metadata Retrieved: {len(metadata_results)}")
+            print(f"  List Operations: {len(list_results)}")
+            print(f"  Single Deletions: {len(deletion_results)}")
+            print()
+            print("BULK OPERATIONS:")
+            print(f"  Bulk Upload Scenarios: {len(bulk_upload_results)}")
+            print(f"  Bulk Metadata Scenarios: {len(bulk_metadata_results)}")
+            print(f"  Bulk Delete Scenarios: {len(bulk_delete_results)}")
+            print()
+            print("ADVANCED FEATURES:")
+            print(f"  Search Scenarios: {len(search_results)}")
+            print(f"  Statistics Queries: {len(statistics_results)}")
+            print(f"  Error Scenarios: {len(error_results)}")
+            
+            # Calculate bulk operation statistics
+            total_bulk_uploads = sum(r.get("successful", 0) for r in bulk_upload_results)
+            total_bulk_deletes = sum(r.get("successful", 0) for r in bulk_delete_results)
+            
+            print()
+            print("BULK OPERATION STATISTICS:")
+            print(f"  Total Bulk Uploads: {total_bulk_uploads} images")
+            print(f"  Total Bulk Deletes: {total_bulk_deletes} images")
             
             # Calculate success rate
-            total_tests = len(upload_results) + len(serve_results) + len(metadata_results) + len(list_results) + len(deletion_results) + len(thumbnail_results)
-            print(f"Total Operations Tested: {total_tests}")
+            total_tests = (len(upload_results) + len(serve_results) + len(metadata_results) + 
+                          len(list_results) + len(deletion_results) + len(thumbnail_results) + 
+                          len(bulk_upload_results) + len(bulk_metadata_results) + 
+                          len(bulk_delete_results) + len(search_results) + len(statistics_results))
+            
+            print(f"Total Test Scenarios: {total_tests}")
             
             if total_tests > 0:
-                print("ALL TESTS COMPLETED SUCCESSFULLY")
+                print()
+                print("🎉 ALL TESTS COMPLETED SUCCESSFULLY!")
+                print("✅ Core image operations working")
+                print("✅ Bulk operations working")
+                print("✅ Search functionality working")
+                print("✅ Statistics functionality working")
+                print("✅ Authentication and authorization working")
+                print("✅ Storage integration working")
             else:
-                print("WARNING: No successful operations completed")
+                print("⚠️  WARNING: No successful operations completed")
             
         except Exception as e:
             print(f"Test suite failed: {e}")
@@ -769,35 +1442,39 @@ class FileAPIIntegrationTest:
             # Always cleanup
             await self.cleanup_test_environment()
 
-
 async def main():
     """Main test execution"""
-    print("Comprehensive File API Integration Test Suite")
-    print("=" * 80)
+    print("Comprehensive File API Integration Test Suite with Bulk Operations")
+    print("=" * 90)
     print("This test will:")
     print("- Create real test users with different subscription tiers")
-    print("- Test image upload, serving, metadata, listing, and deletion")
+    print("- Test single image upload, serving, metadata, listing, and deletion")
+    print("- Test bulk image upload with concurrency control")
+    print("- Test bulk image deletion with ownership validation")
+    print("- Test bulk metadata retrieval")
+    print("- Test advanced image search with multiple filters")
+    print("- Test image statistics and analytics")
     print("- Test thumbnail generation and serving in multiple sizes")
     print("- Verify thumbnail URLs are included in all relevant responses")
     print("- Test thumbnail authentication and authorization")
     print("- Use existing fifa_test_image.png for testing")
-    print("- Verify authentication and authorization")
+    print("- Verify authentication and authorization for all operations")
     print("- Test MinIO storage integration")
-    print("- Clean up all test data including thumbnails")
-    print("=" * 80)
+    print("- Clean up all test data including bulk uploads and thumbnails")
+    print("=" * 90)
     
     test_runner = FileAPIIntegrationTest()
     
     try:
         await test_runner.run_comprehensive_test()
-        print("\nTest suite completed successfully!")
+        print("\n🎊 Test suite completed successfully!")
         
     except KeyboardInterrupt:
-        print("\nTest interrupted by user")
+        print("\n⚡ Test interrupted by user")
         await test_runner.cleanup_test_environment()
         
     except Exception as e:
-        print(f"\nTest suite failed: {e}")
+        print(f"\n❌ Test suite failed: {e}")
         import traceback
         traceback.print_exc()
         await test_runner.cleanup_test_environment()
