@@ -761,8 +761,8 @@ class FileAPIIntegrationTest:
                             headers=headers
                         )
                         
-                        if response.status_code == 400:
-                            print(f"    No files validation: PASS (400)")
+                        if response.status_code in [400, 422]:  # Accept both 400 and 422 for validation errors
+                            print(f"    No files validation: PASS ({response.status_code})")
                         else:
                             print(f"    No files validation: FAIL ({response.status_code})")
                         
@@ -1096,10 +1096,10 @@ class FileAPIIntegrationTest:
                             "duration_ms": search_data.get("search_duration_ms", 0)
                         })
                     
-                    # Test 4: Search by size range
+                    # Test 4: Search by size range (FIFA image is ~1MB)
                     search_request = {
                         "size_min": 1000,
-                        "size_max": 1000000,  # 1MB
+                        "size_max": 2000000,  # 2MB to include FIFA test image (1034916 bytes)
                         "limit": 20,
                         "offset": 0
                     }

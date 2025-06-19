@@ -901,12 +901,13 @@ class ImageStorageService:
             func.count(UploadedImage.id).label('count')
         ).where(UploadedImage.user_id == user_id).group_by(
             func.date_trunc('month', UploadedImage.uploaded_at)
-        ).order_by('month')
+        ).order_by(func.date_trunc('month', UploadedImage.uploaded_at))
         
         month_result = await db.execute(month_query)
         images_by_month = {
             row.month.strftime('%Y-%m'): row.count 
             for row in month_result
+            if row.month is not None
         }
         
         # Thumbnail count
