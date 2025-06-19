@@ -3,12 +3,13 @@ OpenAI Files API Storage Service
 Handles file uploads to OpenAI with database tracking for management
 """
 from openai import AsyncOpenAI
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, desc, update
 import io
 import logging
 from datetime import datetime
+import asyncio
 
 from app.core.config import settings
 from app.models.database.openai_file import OpenAIFile
@@ -22,6 +23,7 @@ class OpenAIStorageService:
     
     Features:
     - Upload files to OpenAI Files API
+    - Bulk upload multiple files
     - Track all uploads in database 
     - List files by user/purpose
     - Bulk delete files
@@ -127,22 +129,63 @@ class OpenAIStorageService:
     
     @handle_openai_errors(max_retries=3)
     async def delete_file(self, file_id: str, db: Optional[AsyncSession] = None) -> bool:
-        """Delete file from OpenAI and database"""
+        """Delete file from OpenAI and database with proper transaction handling"""
+        if not db:
+            # If no database session provided, just delete from OpenAI
+            try:
+                await self.client.files.delete(file_id)
+                self.logger.info(f"OpenAI file deleted: {file_id}")
+                return True
+            except Exception as e:
+                self.logger.error(f"Delete failed: {e}")
+                return False
+        
+        # Use transaction for database operations
         try:
-            # Delete from OpenAI
-            await self.client.files.delete(file_id)
+            # First, verify file exists in database
+            stmt = select(OpenAIFile).where(OpenAIFile.openai_file_id == file_id)
+            result = await db.execute(stmt)
+            file_record = result.scalar_one_or_none()
             
-            # Remove from database if session provided
-            if db:
-                stmt = delete(OpenAIFile).where(OpenAIFile.openai_file_id == file_id)
-                await db.execute(stmt)
-                await db.commit()
-                
-            self.logger.info(f"OpenAI file deleted: {file_id}")
+            if not file_record:
+                self.logger.warning(f"File {file_id} not found in database")
+                # Still try to delete from OpenAI in case of orphaned file
+                try:
+                    await self.client.files.delete(file_id)
+                    return True
+                except Exception as e:
+                    self.logger.error(f"Delete failed: {e}")
+                    return False
+            
+            # Delete from OpenAI first (external system)
+            try:
+                await self.client.files.delete(file_id)
+                self.logger.info(f"OpenAI file deleted: {file_id}")
+            except Exception as e:
+                self.logger.error(f"Failed to delete from OpenAI: {e}")
+                # Don't rollback database yet - OpenAI deletion failed
+                return False
+            
+            # Delete from database (within transaction)
+            delete_stmt = delete(OpenAIFile).where(OpenAIFile.openai_file_id == file_id)
+            result = await db.execute(delete_stmt)
+            
+            if result.rowcount == 0:
+                self.logger.warning(f"No database record deleted for {file_id}")
+                return False
+            
+            # Commit database transaction
+            await db.commit()
+            self.logger.info(f"OpenAI file deleted from database: {file_id}")
             return True
-            
+                
         except Exception as e:
-            self.logger.error(f"Delete failed: {e}")
+            self.logger.error(f"Delete transaction failed: {e}")
+            try:
+                await db.rollback()
+                self.logger.info(f"Database transaction rolled back for {file_id}")
+            except Exception as rollback_error:
+                self.logger.error(f"Rollback failed: {rollback_error}")
             return False
     
     async def list_user_files(
@@ -252,6 +295,139 @@ class OpenAIStorageService:
                 
         except Exception as e:
             self.logger.error(f"Failed to update last used: {e}")
+
+    async def bulk_upload_files(
+        self,
+        files: List[Dict[str, Any]],  # [{"file_data": bytes, "filename": str, "purpose": str}]
+        user_id: str,
+        max_concurrent: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Upload multiple files concurrently with progress tracking
+        
+        Args:
+            files: List of file dictionaries with keys: file_data, filename, purpose
+            user_id: User ID for tracking
+            max_concurrent: Maximum concurrent uploads (default: 5)
+            
+        Returns:
+            Dict with upload results and statistics
+            
+        Note:
+            Creates separate database sessions for each concurrent upload to avoid conflicts
+        """
+        if not files:
+            return {
+                "total_files": 0,
+                "successful_uploads": [],
+                "failed_uploads": [],
+                "success_count": 0,
+                "failure_count": 0
+            }
+        
+        # Validate all files first
+        validation_errors = []
+        for i, file_info in enumerate(files):
+            try:
+                self._validate_file(
+                    file_info["file_data"], 
+                    file_info["filename"], 
+                    file_info.get("purpose", "vision")
+                )
+            except ValueError as e:
+                validation_errors.append({
+                    "file_index": i,
+                    "filename": file_info["filename"],
+                    "error": str(e)
+                })
+        
+        if validation_errors:
+            return {
+                "total_files": len(files),
+                "successful_uploads": [],
+                "failed_uploads": validation_errors,
+                "success_count": 0,
+                "failure_count": len(validation_errors),
+                "validation_errors": validation_errors
+            }
+        
+        # Create semaphore to limit concurrent uploads
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def upload_single_file(file_info: Dict[str, Any], index: int) -> Tuple[int, Dict[str, Any]]:
+            """Upload a single file with semaphore control"""
+            async with semaphore:
+                # Create a separate database session for each concurrent upload to avoid conflicts
+                from app.core.database import AsyncSessionLocal
+                async with AsyncSessionLocal() as upload_db:
+                    try:
+                        result = await self.upload_file(
+                            file_data=file_info["file_data"],
+                            filename=file_info["filename"],
+                            purpose=file_info.get("purpose", "vision"),
+                            user_id=user_id,
+                            db=upload_db  # Use separate session
+                        )
+                        return index, {"success": True, "result": result, "filename": file_info["filename"]}
+                    except Exception as e:
+                        self.logger.error(f"Bulk upload failed for file {file_info['filename']}: {e}")
+                        return index, {
+                            "success": False, 
+                            "error": str(e), 
+                            "filename": file_info["filename"]
+                        }
+        
+        # Execute uploads concurrently
+        upload_tasks = [
+            upload_single_file(file_info, i) 
+            for i, file_info in enumerate(files)
+        ]
+        
+        results = await asyncio.gather(*upload_tasks, return_exceptions=True)
+        
+        # Process results
+        successful_uploads = []
+        failed_uploads = []
+        
+        for result in results:
+            if isinstance(result, Exception):
+                failed_uploads.append({
+                    "error": str(result),
+                    "filename": "unknown"
+                })
+            elif isinstance(result, tuple) and len(result) == 2:
+                index, upload_result = result
+                if upload_result["success"]:
+                    successful_uploads.append({
+                        "file_index": index,
+                        "filename": upload_result["filename"],
+                        **upload_result["result"]
+                    })
+                else:
+                    failed_uploads.append({
+                        "file_index": index,
+                        "filename": upload_result["filename"],
+                        "error": upload_result["error"]
+                    })
+            else:
+                # Handle unexpected result format
+                failed_uploads.append({
+                    "error": f"Unexpected result format: {result}",
+                    "filename": "unknown"
+                })
+        
+        self.logger.info(
+            f"Bulk upload completed for user {user_id}: "
+            f"{len(successful_uploads)} successful, {len(failed_uploads)} failed"
+        )
+        
+        return {
+            "total_files": len(files),
+            "successful_uploads": successful_uploads,
+            "failed_uploads": failed_uploads,
+            "success_count": len(successful_uploads),
+            "failure_count": len(failed_uploads)
+        }
 
 # Global instance
 openai_storage_service = OpenAIStorageService()
