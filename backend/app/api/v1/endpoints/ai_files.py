@@ -51,7 +51,7 @@ MAX_BULK_STAGING_FILES = 10
 
 # Pydantic models for request bodies
 class BulkDiscardRequest(BaseModel):
-    staging_ids: List[str]
+    file_ids: List[str]
 
 
 @router.get("/status")
@@ -59,16 +59,19 @@ async def get_ai_files_status():
     """Get AI files service status"""
     return {
         "status": "AI Files staging service ready",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "features": [
             "bulk_staging_upload",
             "staging_discard", 
-            "simple_workflow"
+            "unified_s3_keys",
+            "metadata_tracking",
+            "background_cleanup"
         ],
         "staging_config": {
             "max_bulk_files": MAX_BULK_STAGING_FILES,
-            "no_thumbnails": True,
-            "no_db_commits": True
+            "uses_storage_keys": True,
+            "metadata_expiry_hours": 24,
+            "state_tracking": True
         }
     }
 
@@ -164,36 +167,36 @@ async def bulk_upload_to_staging(
         )
 
 
-@router.delete("/staging/discard/{staging_id}")
+@router.delete("/staging/discard/{file_id}")
 async def discard_staged_file(
-    staging_id: str,
+    file_id: str,
     current_user: User = Depends(get_current_verified_user)
 ) -> BaseResponse:
     """
-    Discard a staged file - SIMPLE VERSION
+    Discard a staged file using file_id
     
-    Client sends back the same staging_id they got from upload
+    Client sends back the same file_id they got from staging upload
     """
-    logger.info(f"Discarding staged file {staging_id} for user {current_user.user_id}")
+    logger.info(f"Discarding staged file {file_id} for user {current_user.user_id}")
     
     try:
         # Use staging service for discard (with ownership validation)
-        await staging_service.discard_staged_file(staging_id, current_user.user_id)
+        await staging_service.discard_staged_file(file_id, current_user.user_id)
         
         # If we get here, discard was successful (no exception thrown)
         return BaseResponse(
             success=True,
-            message=f"Staged file {staging_id} discarded successfully"
+            message=f"Staged file {file_id} discarded successfully"
         )
             
     except FileNotFoundError as e:
-        logger.warning(f"Staging file {staging_id} not found for user {current_user.user_id}: {e}")
+        logger.warning(f"Staging file {file_id} not found for user {current_user.user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Staged file not found or access denied"
         )
     except Exception as e:
-        logger.error(f"Error discarding staged file {staging_id}: {e}")
+        logger.error(f"Error discarding staged file {file_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to discard staged file"
@@ -206,50 +209,67 @@ async def bulk_discard_staged_files(
     current_user: User = Depends(get_current_verified_user)
 ) -> Dict[str, Any]:
     """
-    Bulk discard multiple staged files - SIMPLE VERSION
+    Bulk discard multiple staged files using file_ids
     
-    Client sends back the same staging_ids they got from upload
+    Request body should contain list of file_ids from staging upload
     """
-    staging_ids = request.staging_ids
-    logger.info(f"Bulk discarding {len(staging_ids)} staged files for user {current_user.user_id}")
+    file_ids = request.file_ids
+    logger.info(f"Bulk discarding {len(file_ids)} staged files for user {current_user.user_id}")
     
-    if len(staging_ids) > MAX_BULK_STAGING_FILES:
+    if not file_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Too many files to discard. Maximum {MAX_BULK_STAGING_FILES} allowed"
+            detail="No file_ids provided"
         )
     
-    # Handle empty list case
-    if len(staging_ids) == 0:
-        return {
-            "success": True,
-            "message": "No files to discard",
-            "total_requested": 0,
-            "successfully_discarded": 0,
-            "failed_discards": 0,
-            "discarded_staging_ids": [],
-            "failed_staging_ids": []
-        }
+    if len(file_ids) > MAX_BULK_STAGING_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many files. Maximum {MAX_BULK_STAGING_FILES} files allowed per bulk discard"
+        )
     
     try:
         # Use staging service for bulk discard
-        result = await staging_service.bulk_discard_staged_files(staging_ids, current_user.user_id)
+        result = await staging_service.bulk_discard_staged_files(file_ids, current_user.user_id)
         
         return {
             "success": True,
             "message": f"Bulk discard completed: {result['successfully_discarded']} successful, {result['failed_discards']} failed",
-            "total_requested": result["total_requested"],
-            "successfully_discarded": result["successfully_discarded"],
-            "failed_discards": result["failed_discards"],
-            "discarded_staging_ids": result["discarded_staging_ids"],
-            "failed_staging_ids": result["failed_staging_ids"]
+            **result
         }
         
     except Exception as e:
-        logger.error(f"Error in bulk discard: {e}")
+        logger.error(f"Bulk discard failed for user {current_user.user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process bulk discard"
+            detail="Bulk discard operation failed"
+        )
+
+
+@router.post("/staging/admin/cleanup")
+async def cleanup_expired_staging_files(
+    dry_run: bool = Query(True, description="If true, only report what would be cleaned"),
+    current_user: User = Depends(get_current_verified_user)
+) -> Dict[str, Any]:
+    """
+    Admin endpoint to cleanup expired staging files
+    """
+    logger.info(f"Staging cleanup requested by user {current_user.user_id} (dry_run={dry_run})")
+    
+    try:
+        result = await staging_service.cleanup_expired_staging_files(dry_run=dry_run)
+        
+        return {
+            "success": True,
+            "message": f"Staging cleanup {'completed' if not dry_run else 'analyzed'}",
+            **result
+        }
+        
+    except Exception as e:
+        logger.error(f"Staging cleanup failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Staging cleanup failed"
         )
 
  

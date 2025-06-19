@@ -37,7 +37,7 @@ class AIFilesStagingIntegrationTest:
     def __init__(self):
         self.test_users = []
         self.auth_tokens = {}
-        self.staged_files = []  # Track staging IDs for cleanup
+        self.staged_files = []  # Track file IDs for cleanup
         self.settings = get_settings()
         
     async def setup_test_environment(self):
@@ -121,8 +121,8 @@ class AIFilesStagingIntegrationTest:
                 staging_config = data.get('staging_config', {})
                 print(f"Staging config: {staging_config}")
                 
-                # Verify simplified features
-                expected_features = ["bulk_staging_upload", "staging_discard", "simple_workflow"]
+                # Verify core staging features
+                expected_features = ["bulk_staging_upload", "staging_discard", "unified_s3_keys"]
                 actual_features = data.get('features', [])
                 
                 for feature in expected_features:
@@ -207,16 +207,16 @@ class AIFilesStagingIntegrationTest:
                         
                         # Track staged files by test type for proper test isolation
                         for staged_file in upload_data.get("staged_files", []):
-                            staging_id = staged_file.get("staging_id")
-                            if staging_id:
-                                # Verify staging_id format: staging_userid_randomid
-                                if staging_id.startswith(f"staging_{user.user_id}_"):
-                                    print(f"      ✓ Staging ID format correct: {staging_id}")
+                            file_id = staged_file.get("file_id")
+                            if file_id:
+                                # Verify file_id format (img_ prefix format)
+                                if file_id.startswith("img_") and len(file_id) > 4:
+                                    print(f"      ✓ File ID format correct: {file_id}")
                                 else:
-                                    print(f"      ✗ Staging ID format incorrect: {staging_id}")
+                                    print(f"      ✗ File ID format incorrect: {file_id}")
                                 
                                 staged_file_info = {
-                                    "staging_id": staging_id,
+                                    "file_id": file_id,
                                     "user_id": user.user_id,
                                     "filename": staged_file.get("filename", "unknown"),
                                     "size": staged_file.get("size", 0),
@@ -271,15 +271,15 @@ class AIFilesStagingIntegrationTest:
             
             # Test discarding ALL individual test files
             for staged_file in individual_test_files:  # Test all individual files
-                staging_id = staged_file["staging_id"]
+                file_id = staged_file["file_id"]
                 user_id = staged_file["user_id"]
                 filename = staged_file["filename"]
                 
-                print(f"Testing discard of staging file: {staging_id} (user: {user_id})")
+                print(f"Testing discard of staging file: {file_id} (user: {user_id})")
                 
                 headers = self.get_auth_headers(user_id)
                 response = await client.delete(
-                    f"{API_BASE_URL}/ai-files/staging/discard/{staging_id}",
+                    f"{API_BASE_URL}/ai-files/staging/discard/{file_id}",
                     headers=headers
                 )
                 
@@ -288,7 +288,7 @@ class AIFilesStagingIntegrationTest:
                     print(f"  ✓ Discard successful: {discard_data.get('message', 'No message')}")
                     
                     discard_results.append({
-                        "staging_id": staging_id,
+                        "file_id": file_id,
                         "user_id": user_id,
                         "filename": filename,
                         "success": True,
@@ -305,10 +305,10 @@ class AIFilesStagingIntegrationTest:
             
             # Test discarding non-existent file
             print("Testing discard of non-existent staging file...")
-            fake_staging_id = f"staging_{self.test_users[0].user_id}_nonexistent"
+            fake_file_id = f"img_{uuid.uuid4().hex[:8]}"
             headers = self.get_auth_headers(self.test_users[0].user_id)
             response = await client.delete(
-                f"{API_BASE_URL}/ai-files/staging/discard/{fake_staging_id}",
+                f"{API_BASE_URL}/ai-files/staging/discard/{fake_file_id}",
                 headers=headers
             )
             
@@ -327,7 +327,7 @@ class AIFilesStagingIntegrationTest:
                 if wrong_user:
                     headers = self.get_auth_headers(wrong_user.user_id)
                     response = await client.delete(
-                        f"{API_BASE_URL}/ai-files/staging/discard/{other_user_file['staging_id']}",
+                        f"{API_BASE_URL}/ai-files/staging/discard/{other_user_file['file_id']}",
                         headers=headers
                     )
                     
@@ -371,13 +371,13 @@ class AIFilesStagingIntegrationTest:
                 
                 print(f"Testing bulk discard for user: {user.username} ({len(staged_files_list)} files)")
                 
-                staging_ids = [sf["staging_id"] for sf in staged_files_list]
+                file_ids = [sf["file_id"] for sf in staged_files_list]
                 headers = self.get_auth_headers(user_id)
                 
                 response = await client.request(
                     "DELETE",
                     f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                    json={"staging_ids": staging_ids},
+                    json={"file_ids": file_ids},
                     headers=headers
                 )
                 
@@ -387,20 +387,20 @@ class AIFilesStagingIntegrationTest:
                     successfully_discarded = bulk_data.get("successfully_discarded", 0)
                     failed_discards = bulk_data.get("failed_discards", 0)
                     
-                    print(f"  ✓ Bulk discard successful: {successfully_discarded}/{len(staging_ids)} discarded")
+                    print(f"  ✓ Bulk discard successful: {successfully_discarded}/{len(file_ids)} discarded")
                     print(f"  Failed discards: {failed_discards}")
                     
                     bulk_discard_results.append({
                         "user": user,
-                        "staging_ids": staging_ids,
+                        "file_ids": file_ids,
                         "successfully_discarded": successfully_discarded,
                         "failed_discards": failed_discards,
                         "bulk_data": bulk_data
                     })
                     
                     # Remove discarded files from our tracking
-                    discarded_ids = bulk_data.get("discarded_staging_ids", [])
-                    self.staged_files = [sf for sf in self.staged_files if sf["staging_id"] not in discarded_ids]
+                    discarded_ids = bulk_data.get("discarded_file_ids", [])
+                    self.staged_files = [sf for sf in self.staged_files if sf["file_id"] not in discarded_ids]
                     
                 else:
                     print(f"  ✗ Bulk discard failed: {response.status_code} - {response.text}")
@@ -410,55 +410,57 @@ class AIFilesStagingIntegrationTest:
             headers = self.get_auth_headers(self.test_users[0].user_id)
             
             # Test bulk discard with empty list
-            print("  Testing bulk discard with empty staging IDs list...")
+            print("  Testing bulk discard with empty file IDs list...")
             response = await client.request(
                 "DELETE",
                 f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                json={"staging_ids": []},
-                headers=headers
-            )
-            
-            if response.status_code == 200:
-                bulk_data = response.json()
-                if bulk_data.get("successfully_discarded", 0) == 0:
-                    print("    ✓ Empty staging IDs list handled correctly")
-                else:
-                    print(f"    ✗ Empty staging IDs list: unexpected discards")
-            else:
-                print(f"    ✗ Empty staging IDs list failed: {response.status_code}")
-            
-            # Test with too many staging IDs (exceed limit)
-            print("  Testing bulk discard with too many staging IDs...")
-            too_many_staging_ids = [f"staging_fake_{i}" for i in range(25)]  # Exceed limit
-            response = await client.request(
-                "DELETE",
-                f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                json={"staging_ids": too_many_staging_ids},
+                json={"file_ids": []},
                 headers=headers
             )
             
             if response.status_code == 400:
-                print(f"    ✓ Too many staging IDs validation: PASS (400)")
+                print("    ✓ Empty file IDs list correctly rejected (400)")
+            elif response.status_code == 200:
+                bulk_data = response.json()
+                if bulk_data.get("successfully_discarded", 0) == 0:
+                    print("    ✓ Empty file IDs list handled correctly")
+                else:
+                    print(f"    ✗ Empty file IDs list: unexpected discards")
             else:
-                print(f"    ✗ Too many staging IDs validation: FAIL ({response.status_code})")
+                print(f"    ✗ Empty file IDs list failed: {response.status_code}")
             
-            # Test bulk discard with non-existent files
-            print("  Testing bulk discard with non-existent staging IDs...")
-            fake_staging_ids = [f"staging_{self.test_users[0].user_id}_fake_{i}" for i in range(3)]
+            # Test with too many file IDs (exceed limit)
+            print("  Testing bulk discard with too many file IDs...")
+            too_many_file_ids = [f"img_{uuid.uuid4().hex[:8]}" for i in range(25)]  # Exceed limit
             response = await client.request(
                 "DELETE",
                 f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                json={"staging_ids": fake_staging_ids},
+                json={"file_ids": too_many_file_ids},
+                headers=headers
+            )
+            
+            if response.status_code == 400:
+                print(f"    ✓ Too many file IDs validation: PASS (400)")
+            else:
+                print(f"    ✗ Too many file IDs validation: FAIL ({response.status_code})")
+            
+            # Test bulk discard with non-existent files
+            print("  Testing bulk discard with non-existent file IDs...")
+            fake_file_ids = [f"img_{uuid.uuid4().hex[:8]}" for i in range(3)]
+            response = await client.request(
+                "DELETE",
+                f"{API_BASE_URL}/ai-files/staging/bulk-discard",
+                json={"file_ids": fake_file_ids},
                 headers=headers
             )
             
             if response.status_code == 200:
                 bulk_data = response.json()
                 failed_discards = bulk_data.get("failed_discards", 0)
-                if failed_discards == len(fake_staging_ids):
+                if failed_discards == len(fake_file_ids):
                     print(f"    ✓ Non-existent files correctly reported as failed ({failed_discards} failed)")
                 else:
-                    print(f"    ✗ Non-existent files handling incorrect: {failed_discards} failed vs {len(fake_staging_ids)} expected")
+                    print(f"    ✗ Non-existent files handling incorrect: {failed_discards} failed vs {len(fake_file_ids)} expected")
             else:
                 print(f"    ✗ Non-existent files test failed: {response.status_code}")
             
@@ -492,20 +494,20 @@ class AIFilesStagingIntegrationTest:
                 headers=headers
             )
             
-            edge_case_staging_ids = []
+            edge_case_file_ids = []
             if upload_response.status_code == 201:
                 upload_data = upload_response.json()
-                edge_case_staging_ids = [f["staging_id"] for f in upload_data.get("staged_files", [])]
-                print(f"  Uploaded {len(edge_case_staging_ids)} test files for edge cases")
+                edge_case_file_ids = [f["file_id"] for f in upload_data.get("staged_files", [])]
+                print(f"  Uploaded {len(edge_case_file_ids)} test files for edge cases")
             
-            # Edge Case 1: Bulk discard with duplicate staging IDs
-            print("  Testing bulk discard with duplicate staging IDs...")
-            if len(edge_case_staging_ids) >= 2:
-                duplicate_ids = [edge_case_staging_ids[0], edge_case_staging_ids[0], edge_case_staging_ids[1]]
+            # Edge Case 1: Bulk discard with duplicate file IDs
+            print("  Testing bulk discard with duplicate file IDs...")
+            if len(edge_case_file_ids) >= 2:
+                duplicate_ids = [edge_case_file_ids[0], edge_case_file_ids[0], edge_case_file_ids[1]]
                 response = await client.request(
                     "DELETE",
                     f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                    json={"staging_ids": duplicate_ids},
+                    json={"file_ids": duplicate_ids},
                     headers=headers
                 )
                 
@@ -518,19 +520,19 @@ class AIFilesStagingIntegrationTest:
                     print(f"    ✗ Duplicate IDs test failed: {response.status_code}")
                     edge_case_results.append({"test": "duplicate_ids", "result": "fail"})
             
-            # Edge Case 2: Bulk discard with invalid staging ID formats
-            print("  Testing bulk discard with invalid staging ID formats...")
+            # Edge Case 2: Bulk discard with invalid file ID formats
+            print("  Testing bulk discard with invalid file ID formats...")
             invalid_ids = [
                 "invalid_format_123",
-                "staging_wrong_user_id_123",
-                "staging__missing_user_id",
+                "not-a-uuid",
+                "12345",
                 "",
-                "staging_" + "x" * 100  # Very long ID
+                "x" * 100  # Very long ID
             ]
             response = await client.request(
                 "DELETE",
                 f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                json={"staging_ids": invalid_ids},
+                json={"file_ids": invalid_ids},
                 headers=headers
             )
             
@@ -547,18 +549,18 @@ class AIFilesStagingIntegrationTest:
                 print(f"    ✗ Invalid formats test failed: {response.status_code}")
                 edge_case_results.append({"test": "invalid_formats", "result": "fail"})
             
-            # Edge Case 3: Mixed valid and invalid staging IDs
+            # Edge Case 3: Mixed valid and invalid file IDs
             print("  Testing bulk discard with mixed valid/invalid IDs...")
-            if len(edge_case_staging_ids) >= 1:
+            if len(edge_case_file_ids) >= 1:
                 mixed_ids = [
-                    edge_case_staging_ids[-1],  # Valid ID (if any left)
+                    edge_case_file_ids[-1],  # Valid ID (if any left)
                     "invalid_format",
-                    f"staging_{user.user_id}_nonexistent"
+                    f"img_{uuid.uuid4().hex[:8]}"  # Valid format but non-existent
                 ]
                 response = await client.request(
                     "DELETE",
                     f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                    json={"staging_ids": mixed_ids},
+                    json={"file_ids": mixed_ids},
                     headers=headers
                 )
                 
@@ -608,38 +610,38 @@ class AIFilesStagingIntegrationTest:
                 headers=headers
             )
             
-            concurrent_staging_ids = []
+            concurrent_file_ids = []
             if upload_response.status_code == 201:
                 upload_data = upload_response.json()
-                concurrent_staging_ids = [f["staging_id"] for f in upload_data.get("staged_files", [])]
-                print(f"  Uploaded {len(concurrent_staging_ids)} files for concurrent testing")
+                concurrent_file_ids = [f["file_id"] for f in upload_data.get("staged_files", [])]
+                print(f"  Uploaded {len(concurrent_file_ids)} files for concurrent testing")
             
-            if len(concurrent_staging_ids) >= 4:
+            if len(concurrent_file_ids) >= 4:
                 # Test 1: Concurrent bulk discards of different files
                 print("  Testing concurrent bulk discards of different files...")
                 
-                batch1 = concurrent_staging_ids[:2]
-                batch2 = concurrent_staging_ids[2:4]
+                batch1 = concurrent_file_ids[:2]
+                batch2 = concurrent_file_ids[2:4]
                 
-                async def bulk_discard_batch(staging_ids, batch_name):
+                async def bulk_discard_batch(file_ids, batch_name):
                     try:
                         response = await client.request(
                             "DELETE",
                             f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                            json={"staging_ids": staging_ids},
+                            json={"file_ids": file_ids},
                             headers=headers
                         )
                         return {
                             "batch": batch_name,
                             "status_code": response.status_code,
                             "response": response.json() if response.status_code == 200 else None,
-                            "staging_ids": staging_ids
+                            "file_ids": file_ids
                         }
                     except Exception as e:
                         return {
                             "batch": batch_name,
                             "error": str(e),
-                            "staging_ids": staging_ids
+                            "file_ids": file_ids
                         }
                 
                 # Execute concurrent bulk discards
@@ -671,11 +673,11 @@ class AIFilesStagingIntegrationTest:
                     concurrent_results.append({"test": "concurrent_different_files", "result": "fail"})
                 
                 # Test 2: Concurrent discards of overlapping files (should handle gracefully)
-                if len(concurrent_staging_ids) >= 6:
+                if len(concurrent_file_ids) >= 6:
                     print("  Testing concurrent bulk discards of overlapping files...")
                     
-                    overlap_batch1 = concurrent_staging_ids[4:6]
-                    overlap_batch2 = [concurrent_staging_ids[4]]  # Overlapping file
+                    overlap_batch1 = concurrent_file_ids[4:6]
+                    overlap_batch2 = [concurrent_file_ids[4]]  # Overlapping file
                     
                     overlap_results = await asyncio.gather(
                         bulk_discard_batch(overlap_batch1, "overlap_batch1"),
@@ -748,7 +750,7 @@ class AIFilesStagingIntegrationTest:
                 individual_success = 0
                 for staged_file in individual_files:
                     response = await client.delete(
-                        f"{API_BASE_URL}/ai-files/staging/discard/{staged_file['staging_id']}",
+                        f"{API_BASE_URL}/ai-files/staging/discard/{staged_file['file_id']}",
                         headers=headers
                     )
                     if response.status_code == 200:
@@ -764,16 +766,16 @@ class AIFilesStagingIntegrationTest:
                 already_deleted_files = individual_files
                 
                 # Create a mixed list: some existing files + some already deleted files
-                mixed_staging_ids = []
-                mixed_staging_ids.extend([f["staging_id"] for f in remaining_files])
-                mixed_staging_ids.extend([f["staging_id"] for f in already_deleted_files])  # These should fail
+                mixed_file_ids = []
+                mixed_file_ids.extend([f["file_id"] for f in remaining_files])
+                mixed_file_ids.extend([f["file_id"] for f in already_deleted_files])  # These should fail
                 
                 print(f"  Step 2: Bulk delete with {len(remaining_files)} existing + {len(already_deleted_files)} already deleted files")
                 
                 response = await client.request(
                     "DELETE",
                     f"{API_BASE_URL}/ai-files/staging/bulk-discard",
-                    json={"staging_ids": mixed_staging_ids},
+                    json={"file_ids": mixed_file_ids},
                     headers=headers
                 )
                 
@@ -795,8 +797,8 @@ class AIFilesStagingIntegrationTest:
                         print(f"    ✗ Partial success handling incorrect: expected {expected_success} success/{expected_failures} failures")
                     
                     # Remove successfully discarded files from tracking
-                    discarded_ids = bulk_data.get("discarded_staging_ids", [])
-                    self.staged_files = [sf for sf in self.staged_files if sf["staging_id"] not in discarded_ids]
+                    discarded_ids = bulk_data.get("discarded_file_ids", [])
+                    self.staged_files = [sf for sf in self.staged_files if sf["file_id"] not in discarded_ids]
                     
                     mixed_results.append({
                         "user": user,
@@ -819,34 +821,53 @@ class AIFilesStagingIntegrationTest:
         print("Testing staging service directly...")
         
         try:
-            # Test generating staging ID
+            # Test staging service configuration
+            print(f"  Max staging age hours: {staging_service.max_staging_age_hours}")
+            print(f"  Max file size: {staging_service.max_file_size}")
+            
+            # Test staging metadata creation and validation
+            from datetime import datetime, timedelta
+            from app.services.storage.staging_storage import StagingMetadata
+            
             user_id = self.test_users[0].user_id
-            staging_id = staging_service._generate_staging_id(user_id)
+            now = datetime.utcnow()
             
-            print(f"  Generated staging ID: {staging_id}")
+            test_metadata = StagingMetadata(
+                file_id=str(uuid.uuid4()),
+                original_filename="test.jpg",
+                content_type="image/jpeg",
+                file_size=1024,
+                user_id=user_id,
+                staged_at=now,
+                expires_at=now + timedelta(hours=24),
+                state="staging",
+                purpose="vision"
+            )
             
-            # Verify format
-            if staging_id.startswith(f"staging_{user_id}_"):
-                print(f"  ✓ Staging ID format correct")
+            # Test metadata serialization
+            metadata_dict = test_metadata.to_dict()
+            print(f"  ✓ Metadata serialization successful: {len(metadata_dict)} fields")
+            
+            # Test metadata deserialization
+            restored_metadata = StagingMetadata.from_dict(metadata_dict)
+            if restored_metadata.file_id == test_metadata.file_id:
+                print(f"  ✓ Metadata deserialization correct: {restored_metadata.file_id}")
             else:
-                print(f"  ✗ Staging ID format incorrect")
+                print(f"  ✗ Metadata deserialization failed")
             
-            # Test user ID extraction
-            extracted_user_id = staging_service._extract_user_id_from_staging_id(staging_id)
-            if extracted_user_id == user_id:
-                print(f"  ✓ User ID extraction correct: {extracted_user_id}")
-            else:
-                print(f"  ✗ User ID extraction failed: {extracted_user_id} != {user_id}")
+            # Test file validation
+            try:
+                staging_service._validate_staging_file("test.jpg", 1024)
+                print(f"  ✓ File validation for valid file: PASS")
+            except Exception as e:
+                print(f"  ✗ File validation for valid file: FAIL - {e}")
             
-            # Test staging key building
-            test_filename = "test.jpg"
-            staging_key = staging_service._build_staging_key(staging_id, test_filename)
-            expected_key = f"{staging_id}.jpg"
-            
-            if staging_key == expected_key:
-                print(f"  ✓ Staging key format correct: {staging_key}")
-            else:
-                print(f"  ✗ Staging key format incorrect: {staging_key} != {expected_key}")
+            # Test invalid file validation
+            try:
+                staging_service._validate_staging_file("test.txt", 1024)
+                print(f"  ✗ File validation for invalid file: FAIL (should have rejected)")
+            except Exception:
+                print(f"  ✓ File validation for invalid file: PASS (correctly rejected)")
             
             return True
             
@@ -886,9 +907,9 @@ class AIFilesStagingIntegrationTest:
             
             # Test 2: Discard non-existent staging file
             print("  Testing discard of non-existent staging file...")
-            fake_staging_id = f"staging_{pro_user.user_id}_nonexistent"
+            fake_file_id = f"img_{uuid.uuid4().hex[:8]}"
             response = await client.delete(
-                f"{API_BASE_URL}/ai-files/staging/discard/{fake_staging_id}",
+                f"{API_BASE_URL}/ai-files/staging/discard/{fake_file_id}",
                 headers=headers
             )
             
@@ -951,11 +972,11 @@ class AIFilesStagingIntegrationTest:
             for staged_file in self.staged_files:
                 try:
                     await staging_service.discard_staged_file(
-                        staged_file["staging_id"], 
+                        staged_file["file_id"], 
                         staged_file["user_id"]
                     )
                 except Exception as e:
-                    print(f"Failed to cleanup staged file {staged_file['staging_id']}: {e}")
+                    print(f"Failed to cleanup staged file {staged_file['file_id']}: {e}")
         
         # Clean up test users
         async with AsyncSessionLocal() as db:
@@ -1035,10 +1056,10 @@ class AIFilesStagingIntegrationTest:
             print(f"✓ Error Handling: {len(error_results)} conditions tested")
             print()
             print("SIMPLIFIED STAGING FLOW VERIFIED:")
-            print("1. Client uploads files → gets staging_ids")
-            print("2. Client sends same staging_ids to discard → files deleted")
+            print("1. Client uploads files → gets file_ids")
+            print("2. Client sends same file_ids to discard → files deleted")
             print("3. No complex metadata, no nested directories")
-            print("4. User isolation through staging_id format")
+            print("4. User isolation through ownership validation")
             print("=" * 60)
             
             return True
