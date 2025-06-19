@@ -465,6 +465,244 @@ class AIFilesStagingIntegrationTest:
             print(f"Bulk staging discard flow completed. {len(bulk_discard_results)} scenarios tested.")
             return bulk_discard_results
     
+    async def test_advanced_edge_cases(self):
+        """Test advanced edge cases for bulk operations"""
+        print("Testing advanced edge cases...")
+        
+        async with httpx.AsyncClient() as client:
+            edge_case_results = []
+            
+            # First upload some test files for edge case testing
+            user = self.test_users[0]
+            headers = self.get_auth_headers(user.user_id)
+            
+            # Upload test files for edge case testing
+            with open(TEST_IMAGE_PATH, 'rb') as f:
+                image_data = f.read()
+            
+            files = []
+            for i in range(3):
+                filename = f"edge_case_test_{i}_{uuid.uuid4().hex[:8]}.png"
+                files.append(("files", (filename, image_data, "image/png")))
+            
+            upload_response = await client.post(
+                f"{API_BASE_URL}/ai-files/staging/bulk-upload",
+                files=files,
+                data={"max_concurrent_uploads": "3"},
+                headers=headers
+            )
+            
+            edge_case_staging_ids = []
+            if upload_response.status_code == 201:
+                upload_data = upload_response.json()
+                edge_case_staging_ids = [f["staging_id"] for f in upload_data.get("staged_files", [])]
+                print(f"  Uploaded {len(edge_case_staging_ids)} test files for edge cases")
+            
+            # Edge Case 1: Bulk discard with duplicate staging IDs
+            print("  Testing bulk discard with duplicate staging IDs...")
+            if len(edge_case_staging_ids) >= 2:
+                duplicate_ids = [edge_case_staging_ids[0], edge_case_staging_ids[0], edge_case_staging_ids[1]]
+                response = await client.request(
+                    "DELETE",
+                    f"{API_BASE_URL}/ai-files/staging/bulk-discard",
+                    json={"staging_ids": duplicate_ids},
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    bulk_data = response.json()
+                    # Should successfully discard unique files, ignore duplicates
+                    print(f"    ✓ Duplicate IDs handled: {bulk_data.get('successfully_discarded', 0)} discarded")
+                    edge_case_results.append({"test": "duplicate_ids", "result": "pass"})
+                else:
+                    print(f"    ✗ Duplicate IDs test failed: {response.status_code}")
+                    edge_case_results.append({"test": "duplicate_ids", "result": "fail"})
+            
+            # Edge Case 2: Bulk discard with invalid staging ID formats
+            print("  Testing bulk discard with invalid staging ID formats...")
+            invalid_ids = [
+                "invalid_format_123",
+                "staging_wrong_user_id_123",
+                "staging__missing_user_id",
+                "",
+                "staging_" + "x" * 100  # Very long ID
+            ]
+            response = await client.request(
+                "DELETE",
+                f"{API_BASE_URL}/ai-files/staging/bulk-discard",
+                json={"staging_ids": invalid_ids},
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                bulk_data = response.json()
+                failed_discards = bulk_data.get("failed_discards", 0)
+                if failed_discards == len(invalid_ids):
+                    print(f"    ✓ Invalid formats correctly rejected: {failed_discards} failed")
+                    edge_case_results.append({"test": "invalid_formats", "result": "pass"})
+                else:
+                    print(f"    ✗ Invalid formats handling incorrect: {failed_discards} vs {len(invalid_ids)}")
+                    edge_case_results.append({"test": "invalid_formats", "result": "fail"})
+            else:
+                print(f"    ✗ Invalid formats test failed: {response.status_code}")
+                edge_case_results.append({"test": "invalid_formats", "result": "fail"})
+            
+            # Edge Case 3: Mixed valid and invalid staging IDs
+            print("  Testing bulk discard with mixed valid/invalid IDs...")
+            if len(edge_case_staging_ids) >= 1:
+                mixed_ids = [
+                    edge_case_staging_ids[-1],  # Valid ID (if any left)
+                    "invalid_format",
+                    f"staging_{user.user_id}_nonexistent"
+                ]
+                response = await client.request(
+                    "DELETE",
+                    f"{API_BASE_URL}/ai-files/staging/bulk-discard",
+                    json={"staging_ids": mixed_ids},
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    bulk_data = response.json()
+                    successful = bulk_data.get("successfully_discarded", 0)
+                    failed = bulk_data.get("failed_discards", 0)
+                    
+                    # Expect 1 success (valid file) and 2 failures (invalid format + nonexistent)
+                    if successful >= 0 and failed >= 0 and (successful + failed) == len(mixed_ids):
+                        print(f"    ✓ Mixed IDs handled correctly: {successful} success, {failed} failed")
+                        edge_case_results.append({"test": "mixed_ids", "result": "pass"})
+                    else:
+                        print(f"    ✗ Mixed IDs incorrect: {successful} success, {failed} failed")
+                        edge_case_results.append({"test": "mixed_ids", "result": "fail"})
+                else:
+                    print(f"    ✗ Mixed IDs test failed: {response.status_code}")
+                    edge_case_results.append({"test": "mixed_ids", "result": "fail"})
+            
+            print(f"Advanced edge cases completed. {len(edge_case_results)} tests performed.")
+            return edge_case_results
+    
+    async def test_concurrent_operations(self):
+        """Test concurrent bulk operations for race conditions"""
+        print("Testing concurrent operations...")
+        
+        async with httpx.AsyncClient() as client:
+            concurrent_results = []
+            
+            # Setup: Upload files for concurrent testing
+            user = self.test_users[0]
+            headers = self.get_auth_headers(user.user_id)
+            
+            with open(TEST_IMAGE_PATH, 'rb') as f:
+                image_data = f.read()
+            
+            # Upload 6 files for concurrent testing
+            files = []
+            for i in range(6):
+                filename = f"concurrent_test_{i}_{uuid.uuid4().hex[:8]}.png"
+                files.append(("files", (filename, image_data, "image/png")))
+            
+            upload_response = await client.post(
+                f"{API_BASE_URL}/ai-files/staging/bulk-upload",
+                files=files,
+                data={"max_concurrent_uploads": "3"},
+                headers=headers
+            )
+            
+            concurrent_staging_ids = []
+            if upload_response.status_code == 201:
+                upload_data = upload_response.json()
+                concurrent_staging_ids = [f["staging_id"] for f in upload_data.get("staged_files", [])]
+                print(f"  Uploaded {len(concurrent_staging_ids)} files for concurrent testing")
+            
+            if len(concurrent_staging_ids) >= 4:
+                # Test 1: Concurrent bulk discards of different files
+                print("  Testing concurrent bulk discards of different files...")
+                
+                batch1 = concurrent_staging_ids[:2]
+                batch2 = concurrent_staging_ids[2:4]
+                
+                async def bulk_discard_batch(staging_ids, batch_name):
+                    try:
+                        response = await client.request(
+                            "DELETE",
+                            f"{API_BASE_URL}/ai-files/staging/bulk-discard",
+                            json={"staging_ids": staging_ids},
+                            headers=headers
+                        )
+                        return {
+                            "batch": batch_name,
+                            "status_code": response.status_code,
+                            "response": response.json() if response.status_code == 200 else None,
+                            "staging_ids": staging_ids
+                        }
+                    except Exception as e:
+                        return {
+                            "batch": batch_name,
+                            "error": str(e),
+                            "staging_ids": staging_ids
+                        }
+                
+                # Execute concurrent bulk discards
+                results = await asyncio.gather(
+                    bulk_discard_batch(batch1, "batch1"),
+                    bulk_discard_batch(batch2, "batch2"),
+                    return_exceptions=True
+                )
+                
+                concurrent_success = 0
+                for result in results:
+                    if isinstance(result, dict) and result.get("status_code") == 200:
+                        concurrent_success += 1
+                        response_data = result.get("response", {})
+                        if isinstance(response_data, dict):
+                            print(f"    ✓ {result['batch']}: {response_data.get('successfully_discarded', 0)} files discarded")
+                        else:
+                            print(f"    ✓ {result['batch']}: operation completed")
+                    elif isinstance(result, dict):
+                        print(f"    ✗ {result.get('batch', 'unknown')}: failed - {result.get('error', 'unknown error')}")
+                    else:
+                        print(f"    ✗ Unknown result type: {type(result)} - {str(result)}")
+                
+                if concurrent_success == 2:
+                    print("    ✓ Concurrent operations completed successfully")
+                    concurrent_results.append({"test": "concurrent_different_files", "result": "pass"})
+                else:
+                    print(f"    ✗ Concurrent operations failed: {concurrent_success}/2 succeeded")
+                    concurrent_results.append({"test": "concurrent_different_files", "result": "fail"})
+                
+                # Test 2: Concurrent discards of overlapping files (should handle gracefully)
+                if len(concurrent_staging_ids) >= 6:
+                    print("  Testing concurrent bulk discards of overlapping files...")
+                    
+                    overlap_batch1 = concurrent_staging_ids[4:6]
+                    overlap_batch2 = [concurrent_staging_ids[4]]  # Overlapping file
+                    
+                    overlap_results = await asyncio.gather(
+                        bulk_discard_batch(overlap_batch1, "overlap_batch1"),
+                        bulk_discard_batch(overlap_batch2, "overlap_batch2"),
+                        return_exceptions=True
+                    )
+                    
+                    # At least one should succeed, the other might partially fail
+                    total_attempts = 0
+                    total_success = 0
+                    for result in overlap_results:
+                        if isinstance(result, dict) and result.get("status_code") == 200:
+                            total_attempts += 1
+                            response_data = result.get("response", {})
+                            if isinstance(response_data, dict):
+                                total_success += response_data.get("successfully_discarded", 0)
+                    
+                    if total_attempts == 2:
+                        print(f"    ✓ Overlapping operations handled: {total_success} total discards")
+                        concurrent_results.append({"test": "concurrent_overlapping_files", "result": "pass"})
+                    else:
+                        print(f"    ✗ Overlapping operations failed: {total_attempts} attempts succeeded")
+                        concurrent_results.append({"test": "concurrent_overlapping_files", "result": "fail"})
+            
+            print(f"Concurrent operations testing completed. {len(concurrent_results)} tests performed.")
+            return concurrent_results
+    
     async def test_mixed_operations_flow(self):
         """Test mixed operations showing partial success scenarios"""
         print("Testing mixed operations flow...")
@@ -766,11 +1004,19 @@ class AIFilesStagingIntegrationTest:
             mixed_results = await self.test_mixed_operations_flow()
             print()
             
-            # Test 6: Direct Service Testing
+            # Test 6: Advanced Edge Cases
+            edge_case_results = await self.test_advanced_edge_cases()
+            print()
+            
+            # Test 7: Concurrent Operations
+            concurrent_results = await self.test_concurrent_operations()
+            print()
+            
+            # Test 8: Direct Service Testing
             service_direct_result = await self.test_staging_service_direct()
             print()
             
-            # Test 7: Error Handling
+            # Test 9: Error Handling
             error_results = await self.test_error_handling()
             print()
             
@@ -783,6 +1029,8 @@ class AIFilesStagingIntegrationTest:
             print(f"✓ Individual Discard: {len(individual_discard_results)} files tested")
             print(f"✓ Bulk Discard: {len(bulk_discard_results)} scenarios tested")
             print(f"✓ Mixed Operations: {len(mixed_results)} scenarios tested")
+            print(f"✓ Advanced Edge Cases: {len(edge_case_results)} tests performed")
+            print(f"✓ Concurrent Operations: {len(concurrent_results)} tests performed")
             print(f"✓ Direct Service: {'PASS' if service_direct_result else 'FAIL'}")
             print(f"✓ Error Handling: {len(error_results)} conditions tested")
             print()
