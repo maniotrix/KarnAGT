@@ -8,6 +8,7 @@ from .user_memory import UserMemory
 from .knowledge_file import KnowledgeFile
 from .cost_tracking import CostTracking
 from .uploaded_image import UploadedImage
+from .openai_file import OpenAIFile
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "KnowledgeFile",
     "CostTracking",
     "UploadedImage",
+    "OpenAIFile",
 ] 

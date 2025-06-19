@@ -88,6 +88,18 @@ class Settings(BaseSettings):
     IMAGE_BASE_URL: str = "http://localhost:8000/api/images"
     PRESIGNED_URL_EXPIRE_SECONDS: int = 3600
     
+    # OpenAI Files API
+    OPENAI_FILES_MAX_SIZE: int = 512 * 1024 * 1024  # 512MB (OpenAI limit)
+    OPENAI_FILES_SUPPORTED_FORMATS: str = (
+        # Vision purposes
+        ".png,.jpg,.jpeg,.gif,.webp,"
+        # Assistant purposes  
+        ".txt,.md,.pdf,.docx,.pptx,.xlsx,"
+        # Fine-tuning purposes
+        ".jsonl"
+    )
+    OPENAI_FILES_PURPOSES: str = "vision,assistants,fine-tune"
+    
     # Thumbnail Settings
     THUMBNAIL_SIZES: str = "150x150,300x300"  # Comma-separated list of WxH sizes
     THUMBNAIL_QUALITY: int = 75
