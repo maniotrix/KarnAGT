@@ -896,12 +896,13 @@ class ImageStorageService:
         images_by_type = {row.content_type: row.count for row in type_result}
         
         # Images by month
+        month_expr = func.date_trunc('month', UploadedImage.uploaded_at)
         month_query = select(
-            func.date_trunc('month', UploadedImage.uploaded_at).label('month'),
+            month_expr.label('month'),
             func.count(UploadedImage.id).label('count')
         ).where(UploadedImage.user_id == user_id).group_by(
-            func.date_trunc('month', UploadedImage.uploaded_at)
-        ).order_by(func.date_trunc('month', UploadedImage.uploaded_at))
+            month_expr
+        ).order_by(month_expr)
         
         month_result = await db.execute(month_query)
         images_by_month = {
