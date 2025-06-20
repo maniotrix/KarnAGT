@@ -16,7 +16,7 @@ import { useUiStore } from '../../app/stores/uiStore';
 import { useChatInputFocus } from '../../hooks/useChatInputFocus';
 
 // Image Upload Integration
-import { ImageUpload } from './ImageUpload';
+import { ImageUpload, type ImageUploadRef } from './ImageUpload';
 import type { UploadFile } from '../../types/upload';
 
 interface ChatInputProps {
@@ -44,8 +44,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const { theme } = useUiStore();
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [uploadedImages, setUploadedImages] = useState<UploadFile[]>([]);
+  const imageUploadRef = useRef<ImageUploadRef>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [imageCount, setImageCount] = useState<number>(0);
 
   // 🎯 FOCUS MANAGEMENT: Use our custom hook for intelligent focus behavior
   const { focusInput, resetUserIntent } = useChatInputFocus({
@@ -80,7 +81,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // Reset user intent after successful submit so we can auto-focus after AI response
       resetUserIntent();
       // Clear uploaded images after sending
-      setUploadedImages([]);
+      imageUploadRef.current?.clearFiles();
+      setImageCount(0);
       setUploadError(null);
     }
   };
@@ -103,11 +105,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   const handleImageUploadComplete = (files: UploadFile[]) => {
-    setUploadedImages(prev => [...prev, ...files]);
+    console.log('📷 [ChatInput] Upload complete callback');
     setUploadError(null);
     if (onImageUpload) {
       onImageUpload(files);
     }
+  };
+
+  const handleFilesChanged = (allFiles: UploadFile[]) => {
+    console.log('📷 [ChatInput] Files changed, updating count to:', allFiles.filter(f => f.status === 'success').length);
+    setImageCount(allFiles.filter(f => f.status === 'success').length);
   };
 
   const handleImageUploadError = (error: string) => {
@@ -119,7 +126,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const characterCount = input?.length || 0;
   const isOverLimit = characterCount > 4000;
   const isNearLimit = characterCount > 3500;
-  const hasImages = uploadedImages.length > 0;
+  const hasImages = imageCount > 0;
 
   return (
     <div className="w-full">
@@ -145,10 +152,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {enableImageUpload && (
             <div className="flex-shrink-0">
               <ImageUpload
+                ref={imageUploadRef}
                 compact={true}
                 disabled={disabled}
                 maxFiles={5}
                 onUploadComplete={handleImageUploadComplete}
+                onFilesSelected={handleFilesChanged}
                 onError={handleImageUploadError}
               />
             </div>
@@ -214,7 +223,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </span>
             ) : hasImages ? (
               <span className="text-blue-600 dark:text-blue-400">
-                {uploadedImages.length} image{uploadedImages.length !== 1 ? 's' : ''} ready for analysis
+                {imageCount} image{imageCount !== 1 ? 's' : ''} ready for analysis
               </span>
             ) : (
               <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { 
   Image as ImageIcon, 
   X, 
@@ -22,14 +22,20 @@ interface ImageUploadProps {
   disabled?: boolean;
 }
 
-export const ImageUpload: React.FC<ImageUploadProps> = ({
+export interface ImageUploadRef {
+  getSuccessfulFiles: () => UploadFile[];
+  getFileCount: () => number;
+  clearFiles: () => void;
+}
+
+export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
   onFilesSelected,
   onUploadComplete,
   onError,
   maxFiles = 10,
   compact = false,
   disabled = false,
-}) => {
+}, ref) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -68,6 +74,20 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       }
     }
   }, []);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    getSuccessfulFiles: () => files.filter(f => f.status === 'success'),
+    getFileCount: () => files.filter(f => f.status === 'success').length,
+    clearFiles: () => clearFiles(),
+  }), [files, clearFiles]);
+
+  // Notify parent when files change (for count updates)
+  useEffect(() => {
+    const successfulCount = files.filter(f => f.status === 'success').length;
+    console.log('📷 [ImageUpload] Notifying parent of file changes. Successful files:', successfulCount);
+    onFilesSelected?.(files);
+  }, [files, onFilesSelected]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
@@ -382,4 +402,6 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       />
     </div>
   );
-}; 
+});
+
+ImageUpload.displayName = 'ImageUpload'; 
