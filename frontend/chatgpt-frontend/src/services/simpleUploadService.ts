@@ -196,15 +196,52 @@ class SimpleUploadService {
    * Discard staged files  
    */
   async discardStagedFiles(fileIds: string[]): Promise<void> {
+    console.log('🗑️ [SimpleUploadService] Discarding files from server:', fileIds);
+    
+    // Get authentication token from localStorage (same way as upload)
+    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
+    const authHeader = token ? `Bearer ${token}` : '';
+    console.log('🔐 [SimpleUploadService] Discard auth header:', authHeader ? `${authHeader.substring(0, 30)}...` : 'MISSING');
+
     if (fileIds.length === 1) {
-      await apiClient.request(`/api/v1/ai-files/staging/discard/${fileIds[0]}`, {
+      const url = `${this.baseUrl}/api/v1/ai-files/staging/discard/${fileIds[0]}`;
+      console.log('🌐 [SimpleUploadService] Single discard URL:', url);
+      
+      const response = await fetch(url, {
         method: 'DELETE',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [SimpleUploadService] Single discard failed:', response.status, response.statusText, errorText);
+        throw new Error(`Discard failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      console.log('✅ [SimpleUploadService] Single file discarded successfully');
     } else {
-      await apiClient.request('/api/v1/ai-files/staging/bulk-discard', {
+      const url = `${this.baseUrl}/api/v1/ai-files/staging/bulk-discard`;
+      console.log('🌐 [SimpleUploadService] Bulk discard URL:', url);
+      
+      const response = await fetch(url, {
         method: 'DELETE',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ file_ids: fileIds }),
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [SimpleUploadService] Bulk discard failed:', response.status, response.statusText, errorText);
+        throw new Error(`Bulk discard failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      console.log('✅ [SimpleUploadService] Bulk files discarded successfully');
     }
   }
 }

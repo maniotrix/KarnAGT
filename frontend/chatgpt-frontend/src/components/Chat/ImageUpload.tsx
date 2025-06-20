@@ -196,7 +196,12 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 
             {/* Remove button */}
             <button
-              onClick={() => removeFile(file.id)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('❌ [ImageUpload] Remove button clicked for file:', file.id, file.name);
+                removeFile(file.id);
+              }}
               className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
               title="Remove image"
             >
@@ -339,7 +344,12 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
                 <div className="flex items-center gap-2">
                   {getStatusIcon(file)}
                   <button
-                    onClick={() => removeFile(file.id)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('🗑️ [ImageUpload] Trash button clicked for file:', file.id, file.name);
+                      removeFile(file.id);
+                    }}
                     className="text-gray-400 hover:text-red-500 transition-colors"
                     title="Remove"
                   >

@@ -113,9 +113,29 @@ export const useImageUpload = (options: UseImageUploadOptions = {}): UseImageUpl
     // No need to call upload here - let React handle the state update cycle
   }, [files.length, maxFiles, onUploadError, generateFileId]);
 
-  const removeFile = useCallback((fileId: string) => {
-    setFiles(prev => prev.filter(f => f.id !== fileId));
-  }, []);
+  const removeFile = useCallback(async (fileId: string) => {
+    console.log('🗑️ [useImageUpload] removeFile called with fileId:', fileId);
+    console.log('🗑️ [useImageUpload] Current files before removal:', files.map(f => ({ id: f.id, name: f.name })));
+    
+    // Find the file to check if it needs to be discarded from server
+    const fileToRemove = files.find(f => f.id === fileId);
+    if (fileToRemove && fileToRemove.status === 'success' && fileToRemove.file_id) {
+      console.log('🗑️ [useImageUpload] File was uploaded, discarding from server:', fileToRemove.file_id);
+      try {
+        await simpleUploadService.discardStagedFiles([fileToRemove.file_id]);
+        console.log('✅ [useImageUpload] File discarded from server successfully');
+      } catch (error) {
+        console.error('❌ [useImageUpload] Failed to discard file from server:', error);
+        onUploadError?.('Failed to remove file from server');
+      }
+    }
+    
+    setFiles(prev => {
+      const filtered = prev.filter(f => f.id !== fileId);
+      console.log('🗑️ [useImageUpload] Files after removal:', filtered.map(f => ({ id: f.id, name: f.name })));
+      return filtered;
+    });
+  }, [files, onUploadError]);
 
   const uploadFiles = useCallback(async () => {
     const pendingFiles = files.filter(f => f.status === 'pending');
