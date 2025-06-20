@@ -223,6 +223,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </span>
             ) : hasImages ? (
               <span className="text-blue-600 dark:text-blue-400">
+              {/* // TODO not properly fixed, need to fix this */}
                 {imageCount} image{imageCount !== 1 ? 's' : ''} ready for analysis
               </span>
             ) : (
