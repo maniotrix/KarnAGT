@@ -4,6 +4,7 @@ import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ChatActions } from './ChatActions';
+import type { UploadFile } from '../../types/upload';
 
 // Modern UI Libraries
 import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
@@ -55,6 +56,7 @@ export const Chat: React.FC<ChatProps> = ({
   const [showActions, setShowActions] = useState(false);
   const [shouldShowScrollButton, setShouldShowScrollButton] = useState(false);
   const [scrollToBottomFn, setScrollToBottomFn] = useState<(() => void) | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<UploadFile[]>([]);
 
   // Calculate quota using clean architecture user data
   const calculateQuota = () => {
@@ -149,7 +151,12 @@ export const Chat: React.FC<ChatProps> = ({
     }
   }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
 
-  // Handle message submission with quota check
+  // Handle image upload
+  const handleImageUpload = useCallback((files: UploadFile[]) => {
+    setUploadedImages(prev => [...prev, ...files]);
+  }, []);
+
+  // Handle message submission with quota check and image support
   const handleMessageSubmit = async (e: React.FormEvent) => {
     if (isQuotaExceeded) {
       alert(`Quota exceeded! You've used ${quota.used}/${quota.total} messages. Please upgrade your plan.`);
@@ -157,16 +164,21 @@ export const Chat: React.FC<ChatProps> = ({
     }
 
     // If we don't have a conversation, ask parent to create one
-    if (!hasConversation && onCreateConversationForMessage && input.trim()) {
+    if (!hasConversation && onCreateConversationForMessage && (input.trim() || uploadedImages.length > 0)) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
-      await onCreateConversationForMessage(input.trim());
+      await onCreateConversationForMessage(input.trim() || "Image analysis request");
       return;
     }
 
     // We have a conversation, submit the message normally
     if (hasConversation) {
+      // TODO: Extend handleSubmit to support images
+      // For now, just submit the text message
       handleSubmit(e);
+      
+      // Clear uploaded images after sending
+      setUploadedImages([]);
       
       // ALWAYS scroll to bottom when user sends message
       setTimeout(() => {
@@ -381,6 +393,8 @@ export const Chat: React.FC<ChatProps> = ({
               ? "Quota exceeded. Please upgrade your plan."
               : "Type your message..."
           }
+          onImageUpload={handleImageUpload}
+          enableImageUpload={!isQuotaExceeded && isAuthenticated}
         />
         {error && (
           <div className="mt-2 text-sm text-red-600 dark:text-red-400">
