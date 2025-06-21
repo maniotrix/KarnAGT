@@ -139,8 +139,8 @@ class ConversationContextBuilder:
         # Add images
         for file_id in openai_file_ids:
             content_parts.append({
-                "type": "image_file", 
-                "image_file": {"file_id": file_id}
+                "type": "input_image", 
+                "file_id": file_id
             })
         
         logger.info(f"Built multimodal message with {len(openai_file_ids)} images and {'text' if text_content.strip() else 'no text'}")
