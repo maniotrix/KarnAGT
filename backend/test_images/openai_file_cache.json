@@ -1,0 +1,20 @@
+{
+  "dog_test_image.jpg": {
+    "file_id": "file-A2kuBEmKTrxtwMZ7YN5e4o",
+    "file_hash": "f10e0f33a82893d317e342321fd81a8c",
+    "file_path": "c:\\Users\\Prince\\Documents\\GitHub\\ChatGPT_Clone\\backend\\test_images\\dog_test_image.jpg",
+    "created_at": "439524.359"
+  },
+  "fifa_test_image.png": {
+    "file_id": "file-5rmn6GXmcgpdSWKhwWZdyf",
+    "file_hash": "427ff3cf816cb1c86d89949d8a99002b",
+    "file_path": "c:\\Users\\Prince\\Documents\\GitHub\\ChatGPT_Clone\\backend\\test_images\\fifa_test_image.png",
+    "created_at": "439526.937"
+  },
+  "prince_test_image.jpeg": {
+    "file_id": "file-Qbd4ZFnF16hfarZpyABG8z",
+    "file_hash": "63a649b6a6f4e40e562ca2312198c31a",
+    "file_path": "c:\\Users\\Prince\\Documents\\GitHub\\ChatGPT_Clone\\backend\\test_images\\prince_test_image.jpeg",
+    "created_at": "439528.015"
+  }
+}
