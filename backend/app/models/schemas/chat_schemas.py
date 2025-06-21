@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
-from pydantic import Field, validator
+from pydantic import Field, validator, model_validator
 
 from .common_schemas import (
     BaseSchema, 
@@ -82,13 +82,33 @@ class ConversationDetailResponse(BaseResponse):
 
 class MessageCreate(BaseSchema):
     """Create message request schema"""
-    content: str = Field(..., min_length=1, max_length=32000, description="Message content")
+    content: str = Field(..., max_length=32000, description="Message content")  # Remove min_length to allow empty with images
     role: MessageRole = Field(MessageRole.USER, description="Message role")
     parent_message_id: Optional[int] = Field(None, description="Parent message for threading")
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="File attachments")
     
     # Status field (for internal use)
     status: Optional[str] = Field("completed", description="Message status")
+    
+    # Staging files with both file_id and s3_key for direct access (no more guessing!)
+    staging_files: Optional[List[Dict[str, str]]] = Field(
+        None, 
+        description="List of staging files with file_id and s3_key pairs for direct commit"
+    )
+    
+    @model_validator(mode='after')
+    def validate_message_has_content_or_images(self):
+        """Ensure message has either text content or images, but not neither"""
+        content = getattr(self, 'content', '')
+        staging_files = getattr(self, 'staging_files', [])
+        
+        has_text = content and content.strip()
+        has_images = staging_files and len(staging_files) > 0
+        
+        if not has_text and not has_images:
+            raise ValueError('Message must have either text content or images')
+        
+        return self
 
 
 class MessageUpdate(BaseSchema):

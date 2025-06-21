@@ -493,27 +493,237 @@ class StagingStorageService:
             logger.error(f"Staging cleanup failed: {e}")
             raise
     
-    # Placeholder for future commit method
-    async def commit_staged_files(self, file_ids: List[str], user_id: str, db: AsyncSession) -> Dict[str, Any]:
+    async def commit_files_with_known_keys(
+        self, 
+        staging_files: List[Dict[str, str]], 
+        user_id: str, 
+        db: AsyncSession
+    ) -> Dict[str, Any]:
         """
-        PLACEHOLDER: Commit staged files to permanent storage
+        Commit staging files using known S3 keys (optimized - no key guessing!)
         
-        This will be implemented later and will:
-        1. Get staging metadata for each file_id
-        2. Verify files are in staging state
-        3. Update S3 metadata state from 'staging' to 'committed'
-        4. Create database records in uploaded_images table
-        5. Files are already in final S3 location - no movement needed!
+        Process:
+        1. Use provided file_id and s3_key pairs directly
+        2. Download from known S3 location and upload to OpenAI Files API
+        3. Update S3 metadata: state="staging" → state="committed"
+        4. Create UploadedImage database records
+        5. Files already in final S3 location - no movement needed!
         
         Args:
-            file_ids: List of file IDs to commit (same as used for staging)
+            staging_files: List of dicts with file_id and s3_key pairs
+                          [{"file_id": "img_abc123", "s3_key": "images/2024/01/15/img_abc123.jpg"}, ...]
             user_id: User ID for validation
             db: Database session for creating records
             
         Returns:
-            Dict with commit results
+            Dict with commit results and attachment data
         """
-        raise NotImplementedError("Commit functionality will be implemented in future phase")
+        logger.info(f"Committing {len(staging_files)} files using known S3 keys")
+        
+        if not staging_files:
+            return {
+                "total_requested": 0,
+                "successfully_committed": 0,
+                "failed_commits": 0,
+                "committed_files": [],
+                "failed_files": [],
+                "message_attachments": []
+            }
+        
+        # Import here to avoid circular imports
+        from app.services.storage.openai_storage import openai_storage_service
+        from app.models.database.uploaded_image import UploadedImage
+        from app.models.database.openai_file import OpenAIFile
+        
+        committed_files = []
+        failed_commits = []
+        message_attachments = []
+        
+        for staging_file in staging_files:
+            file_id = staging_file["file_id"]
+            s3_key = staging_file["s3_key"]
+            
+            try:
+                # Step 1: Verify file exists and get metadata from S3 directly
+                try:
+                    metadata_dict = await self._get_object_metadata(s3_key)
+                    if not metadata_dict:
+                        failed_commits.append({
+                            "file_id": file_id,
+                            "error": "File not found in S3"
+                        })
+                        continue
+                    
+                    # Verify ownership and staging state
+                    if metadata_dict.get('user_id') != user_id:
+                        failed_commits.append({
+                            "file_id": file_id,
+                            "error": "Access denied - file doesn't belong to user"
+                        })
+                        continue
+                    
+                    if metadata_dict.get('state') != 'staging':
+                        failed_commits.append({
+                            "file_id": file_id,
+                            "error": f"File not in staging state (current: {metadata_dict.get('state')})"
+                        })
+                        continue
+                    
+                    # Convert to StagingMetadata object
+                    metadata = StagingMetadata.from_dict(metadata_dict)
+                    
+                except Exception as e:
+                    failed_commits.append({
+                        "file_id": file_id,
+                        "error": f"Failed to get file metadata: {str(e)}"
+                    })
+                    continue
+                
+                # Step 2: Download file data from known S3 location
+                try:
+                    file_data = await self._download_file_from_s3(s3_key)
+                except Exception as e:
+                    failed_commits.append({
+                        "file_id": file_id,
+                        "error": f"Failed to download from S3: {str(e)}"
+                    })
+                    continue
+                
+                # Step 3: Upload to OpenAI Files API
+                try:
+                    openai_result = await openai_storage_service.upload_file(
+                        file_data=file_data,
+                        filename=metadata.original_filename,
+                        purpose=metadata.purpose,
+                        user_id=user_id,
+                        db=db
+                    )
+                    openai_file_id = openai_result["openai_file_id"]
+                except Exception as e:
+                    failed_commits.append({
+                        "file_id": file_id,
+                        "error": f"Failed to upload to OpenAI: {str(e)}"
+                    })
+                    continue
+                
+                # Step 4: Update S3 metadata to committed state
+                try:
+                    updated_metadata = metadata.to_dict()
+                    updated_metadata["state"] = "committed"
+                    updated_metadata["committed_at"] = datetime.utcnow().isoformat()
+                    updated_metadata["openai_file_id"] = openai_file_id
+                    
+                    await self._update_s3_object_metadata(s3_key, updated_metadata)
+                except Exception as e:
+                    logger.warning(f"Failed to update S3 metadata for {file_id}: {e}")
+                    # Continue - not critical since OpenAI upload succeeded
+                
+                # Step 5: Create UploadedImage database record
+                try:
+                    uploaded_image = UploadedImage(
+                        file_id=file_id,
+                        filename=metadata.original_filename,
+                        s3_key=s3_key,
+                        user_id=user_id,
+                        content_type=metadata.content_type,
+                        file_size=metadata.file_size,
+                        uploaded_at=metadata.staged_at,
+                        description=f"Committed from staging for LLM inference"
+                    )
+                    
+                    db.add(uploaded_image)
+                    await db.flush()  # Get the ID without committing
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to create UploadedImage record for {file_id}: {e}")
+                    # Continue - not critical
+                
+                # Step 6: Build message attachment data
+                attachment_data = {
+                    "file_id": file_id,
+                    "s3_key": s3_key,
+                    "openai_file_id": openai_file_id,
+                    "filename": metadata.original_filename,
+                    "content_type": metadata.content_type,
+                    "file_size": metadata.file_size,
+                    "committed_at": datetime.utcnow().isoformat()
+                }
+                
+                committed_files.append(attachment_data)
+                message_attachments.append(attachment_data)
+                
+                logger.info(f"Successfully committed file {file_id} → OpenAI {openai_file_id}")
+                
+            except Exception as e:
+                logger.error(f"Unexpected error committing file {file_id}: {e}")
+                failed_commits.append({
+                    "file_id": file_id,
+                    "error": f"Unexpected error: {str(e)}"
+                })
+        
+        # Commit database transaction
+        try:
+            await db.commit()
+            logger.info(f"Database transaction committed for {len(committed_files)} files")
+        except Exception as e:
+            logger.error(f"Database commit failed: {e}")
+            await db.rollback()
+            # Mark all as failed since database commit failed
+            for committed_file in committed_files:
+                failed_commits.append({
+                    "file_id": committed_file["file_id"],
+                    "error": "Database commit failed"
+                })
+            committed_files = []
+            message_attachments = []
+        
+        result = {
+            "total_requested": len(staging_files),
+            "successfully_committed": len(committed_files),
+            "failed_commits": len(failed_commits),
+            "committed_files": committed_files,
+            "failed_files": failed_commits,
+            "message_attachments": message_attachments  # For chat service
+        }
+        
+        logger.info(f"Optimized commit completed: {result['successfully_committed']}/{result['total_requested']} successful")
+        return result
+    
+    async def _download_file_from_s3(self, s3_key: str) -> bytes:
+        """Download file content from S3 for OpenAI upload"""
+        try:
+            response = self.storage_backend.s3_client.get_object(
+                Bucket=self.storage_backend.bucket_name,
+                Key=s3_key
+            )
+            return response['Body'].read()
+        except Exception as e:
+            logger.error(f"Failed to download file from S3 {s3_key}: {e}")
+            raise
+    
+    async def _update_s3_object_metadata(self, s3_key: str, new_metadata: Dict[str, Any]) -> bool:
+        """Update S3 object metadata"""
+        try:
+            # Copy object to itself with new metadata
+            copy_source = {
+                'Bucket': self.storage_backend.bucket_name,
+                'Key': s3_key
+            }
+            
+            self.storage_backend.s3_client.copy_object(
+                CopySource=copy_source,
+                Bucket=self.storage_backend.bucket_name,
+                Key=s3_key,
+                Metadata=new_metadata,
+                MetadataDirective='REPLACE'
+            )
+            
+            logger.info(f"Updated S3 metadata for {s3_key}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update S3 metadata for {s3_key}: {e}")
+            return False
 
 # Create singleton instance
 staging_service = StagingStorageService() 

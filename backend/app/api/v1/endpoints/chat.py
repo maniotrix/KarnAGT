@@ -624,14 +624,24 @@ async def edit_and_resend_message(
         deleted_count = await message_service.delete_messages_after(message_id)
         logger.info(f"Deleted {deleted_count} subsequent messages")
         
-        # Step 3: Generate new AI response
+        # Step 3: Extract existing OpenAI file IDs from the edited message
+        openai_file_ids = []
+        if updated_message.attachments:
+            for attachment in updated_message.attachments:
+                if isinstance(attachment, dict) and 'openai_file_id' in attachment:
+                    openai_file_ids.append(attachment['openai_file_id'])
+                    
+        logger.info(f"Extracted {len(openai_file_ids)} existing OpenAI file IDs for message editing")
+        
+        # Step 4: Generate new AI response
         chat_service = ChatService(db, current_user)
         
-        # Generate AI response with the edited content
+        # Generate AI response with the edited content and existing file IDs
         ai_response = await chat_service.generate_ai_response_only(
             conversation_id=conversation_id,
             content=update_data.content,
-            message_type="text"
+            message_type="text",
+            openai_file_ids=openai_file_ids  # Pass existing file IDs
         )
         
         logger.info(f"Successfully edited message {message_id} and generated new AI response")

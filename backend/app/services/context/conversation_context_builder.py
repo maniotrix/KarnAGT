@@ -39,7 +39,7 @@ class ConversationContextBuilder:
         self.summarizer = ConversationSummarizerAgent()
         
 
-    async def build_context(self, latest_user_message: str) -> List[Dict[str, str]]:
+    async def build_context(self, latest_user_message: str, openai_file_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
         Build conversation context with intelligent summarization when needed.
         
@@ -47,7 +47,7 @@ class ConversationContextBuilder:
         [
             {summary of conversation history if needed},
             {user-assistant message pairs within token limit},
-            {"role": "user", "content": "latest user message"}
+            {"role": "user", "content": "latest user message" or multimodal content}
         ]
         """
         logger.info(f"Building context for conversation {self.conversation_id}")
@@ -57,7 +57,9 @@ class ConversationContextBuilder:
         
         if not previous_messages:
             logger.info("No previous messages found, returning only latest user message")
-            return [{"role": "user", "content": latest_user_message}]
+            # Build final user message with images if provided
+            final_message = self._build_user_message_with_images(latest_user_message, openai_file_ids or [])
+            return [final_message]
         
         # Step 2: Check if we need summarization
         overflow_index = self._get_overflow_index(previous_messages)
@@ -108,17 +110,44 @@ class ConversationContextBuilder:
                     "content": message.content
                 })
         
-        # Step 3: Add the latest user message
-        context_messages.append({
-            "role": "user",
-            "content": latest_user_message
-        })
+        # Step 3: Add the latest user message with images
+        final_message = self._build_user_message_with_images(latest_user_message, openai_file_ids or [])
+        context_messages.append(final_message)
         
         # Log final context statistics
-        total_context_tokens = sum(count_tokens(msg["content"]) for msg in context_messages)
+        total_context_tokens = sum(count_tokens(msg["content"] if isinstance(msg["content"], str) else latest_user_message) for msg in context_messages)
         logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens")
         
         return context_messages
+    
+    def _build_user_message_with_images(self, text_content: str, openai_file_ids: List[str]) -> Dict[str, Any]:
+        """Build user message with optional image attachments"""
+        if not openai_file_ids:
+            # Text-only message
+            return {
+                "role": "user",
+                "content": text_content
+            }
+        
+        # Multimodal message with images
+        content_parts = []
+        
+        # Add text content only if it's not empty
+        if text_content and text_content.strip():
+            content_parts.append({"type": "text", "text": text_content})
+        
+        # Add images
+        for file_id in openai_file_ids:
+            content_parts.append({
+                "type": "image_file", 
+                "image_file": {"file_id": file_id}
+            })
+        
+        logger.info(f"Built multimodal message with {len(openai_file_ids)} images and {'text' if text_content.strip() else 'no text'}")
+        return {
+            "role": "user",
+            "content": content_parts
+        }
 
     async def build_context_dict(self, latest_user_message: str) -> Dict[str, Any]:
         """
@@ -312,33 +341,19 @@ async def get_context_dict_for_conversation(conversation_id: str, db_session: As
     return context_dict
 
 
-async def get_context_for_conversation(conversation_id: str, db_session: AsyncSession, latest_user_message: str) -> str:
+async def get_context_for_conversation(
+    conversation_id: str, 
+    db_session: AsyncSession, 
+    latest_user_message: str,
+    openai_file_ids: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
     """
-    Get the context for a conversation as a formatted string optimized for LLM consumption.
+    Get context for conversation with optional images as list of message dictionaries
     """
-    context_dict = await get_context_dict_for_conversation(conversation_id, db_session, latest_user_message)
+    builder = ConversationContextBuilder(
+        get_default_conversation_context_config(), 
+        db_session, 
+        conversation_id
+    )
     
-    # Format in LLM-friendly way
-    formatted_parts = []
-    
-    # Add summary if exists
-    if context_dict["summary_old_messages"]:
-        formatted_parts.append(f"CONVERSATION SUMMARY: {context_dict['summary_old_messages']}")
-        formatted_parts.append("")  # Empty line
-    
-    # Add recent conversation history
-    if context_dict["recent_conversation_history"]:
-        formatted_parts.append("RECENT CONVERSATION:")
-        for msg in context_dict["recent_conversation_history"]:
-            role = msg["role"].title()
-            formatted_parts.append(f"{role}: {msg['content']}")
-        formatted_parts.append("")  # Empty line
-    
-    # Add current user input
-    formatted_parts.append(f"CURRENT USER INPUT: {context_dict['user_input']}")
-    
-    formatted_context = "\n".join(formatted_parts)
-    
-    logger.debug(f"Formatted LLM context: {len(formatted_context)} characters, overflow={context_dict['overflow']}")
-    
-    return formatted_context
+    return await builder.build_context(latest_user_message, openai_file_ids)
