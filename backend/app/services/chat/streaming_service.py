@@ -7,7 +7,7 @@ integrating with the FastAPI streaming handler and aicore streaming capabilities
 
 import asyncio
 import json
-from typing import AsyncGenerator, Dict, Any, Optional, Callable
+from typing import AsyncGenerator, Dict, Any, Optional, Callable, List
 from datetime import datetime
 
 from app.integrations.openai.streaming_handler import streaming_manager, StreamingHandler
@@ -53,7 +53,8 @@ class StreamingService:
         conversation_id: str,
         content: str,
         message_type: str = "text",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        staging_files: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream a message response using Server-Sent Events
@@ -83,7 +84,8 @@ class StreamingService:
                     conversation_id,
                     content,
                     message_type,
-                    model
+                    model,
+                    staging_files
                 )
             )
             
@@ -130,7 +132,8 @@ class StreamingService:
         conversation_id: str,
         content: str,
         message_type: str,
-        model: Optional[str]
+        model: Optional[str],
+        staging_files: Optional[List[Dict[str, str]]] = None
     ):
         """
         Process the message with streaming in the background
@@ -157,7 +160,8 @@ class StreamingService:
                 content=content,
                 streaming_callback=stream_handler.streaming_callback,
                 message_type=message_type,
-                model=model
+                model=model,
+                staging_files=staging_files
             )
             
             logger.info(f"Streaming message processing completed for conversation {conversation_id}")
