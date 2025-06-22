@@ -231,7 +231,7 @@ class ChatService:
                 attachment_service = AttachmentService()
                 
                 message_attachments, openai_file_ids = await attachment_service.commit_staging_files_direct(
-                    staging_files, self.user_id, self.db
+                    staging_files, self.user_uuid, self.db
                 )
             
             # Save user message
@@ -387,7 +387,7 @@ class ChatService:
                 attachment_service = AttachmentService()
                 
                 message_attachments, openai_file_ids = await attachment_service.commit_staging_files_direct(
-                    staging_files, self.user_id, self.db
+                    staging_files, self.user_uuid, self.db
                 )
             
             # Save user message
