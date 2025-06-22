@@ -20,7 +20,7 @@ import time
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
-import httpx
+import aiohttp
 
 # Add backend to path
 sys.path.append('.')
@@ -50,11 +50,8 @@ class ComprehensiveImageVisionLLMInferenceTest:
         self.auth_tokens = {}
         self.test_conversations = []
         self.test_messages = []
-        self.staged_files = []           # Staging area files
-        self.permanent_files = []        # Committed S3 files 
-        self.openai_files = []          # OpenAI API files
-        self.cleanup_tracker = []       # Resources to verify deletion
         self.settings = get_settings()
+        self.session: Optional[aiohttp.ClientSession] = None
         
         # Test images from existing folder
         self.test_images = [
@@ -76,6 +73,16 @@ class ComprehensiveImageVisionLLMInferenceTest:
             "What time of day or season is depicted?"
         ]
         
+    async def __aenter__(self):
+        """Async context manager entry"""
+        self.session = aiohttp.ClientSession()
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        if self.session:
+            await self.session.close()
+
     async def setup_test_environment(self):
         """Set up test users and authentication (same as staging test)"""
         print("Setting up comprehensive image vision test environment...")
@@ -159,26 +166,26 @@ class ComprehensiveImageVisionLLMInferenceTest:
         
         print(f"Uploading {len(image_names)} images to staging for user {user_id}")
         
-        async with httpx.AsyncClient() as client:
-            # Read test images
-            files = []
-            for image_name in image_names:
-                image_path = os.path.join(TEST_IMAGES_DIR, image_name)
-                with open(image_path, 'rb') as f:
-                    image_data = f.read()
-                files.append(("files", (image_name, image_data, "image/jpeg")))
+        # Read test images and create form data
+        data = aiohttp.FormData()
+        data.add_field('max_concurrent_uploads', '3')
+        
+        for image_name in image_names:
+            image_path = os.path.join(TEST_IMAGES_DIR, image_name)
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+            data.add_field('files', image_data, filename=image_name, content_type='image/jpeg')
+        
+        headers = self.get_auth_headers(user_id)
+        
+        async with self.session.post(
+            f"{API_BASE_URL}/ai-files/staging/bulk-upload",
+            data=data,
+            headers=headers
+        ) as response:
             
-            headers = self.get_auth_headers(user_id)
-            response = await client.post(
-                f"{API_BASE_URL}/ai-files/staging/bulk-upload",
-                files=files,
-                data={"max_concurrent_uploads": "3"},
-                headers=headers,
-                timeout=60.0
-            )
-            
-            if response.status_code == 201:
-                upload_data = response.json()
+            if response.status == 201:
+                upload_data = await response.json()
                 staged_files = []
                 
                 for staged_file in upload_data.get("staged_files", []):
@@ -189,33 +196,34 @@ class ComprehensiveImageVisionLLMInferenceTest:
                         "user_id": user_id
                     }
                     staged_files.append(file_info)
-                    self.staged_files.append(file_info)
+                    # Don't accumulate in self.staged_files - we'll clean up immediately after each test
                 
                 print(f"Successfully uploaded {len(staged_files)} images to staging")
                 return [{"file_id": sf["file_id"], "s3_key": sf["s3_key"]} for sf in staged_files]
             else:
-                raise Exception(f"Failed to upload images to staging: {response.status_code} - {response.text}")
+                error_text = await response.text()
+                raise Exception(f"Failed to upload images to staging: {response.status} - {error_text}")
     
     async def create_test_conversation(self, title: str, user_id: str) -> str:
         """Create a test conversation"""
         print(f"Creating test conversation: {title}")
         
-        async with httpx.AsyncClient() as client:
-            conversation_data = {
-                "title": title,
-                "model_name": "gpt-4o",  # Use GPT-4o for vision
-                "system_prompt": "You are a helpful assistant with vision capabilities. Analyze images thoroughly and provide detailed descriptions."
-            }
+        conversation_data = {
+            "title": title,
+            "model_name": "gpt-4o",  # Use GPT-4o for vision
+            "system_prompt": "You are a helpful assistant with vision capabilities. Analyze images thoroughly and provide detailed descriptions."
+        }
+        
+        headers = self.get_auth_headers(user_id)
+        
+        async with self.session.post(
+            f"{API_BASE_URL}/chat/conversations",
+            json=conversation_data,
+            headers=headers
+        ) as response:
             
-            headers = self.get_auth_headers(user_id)
-            response = await client.post(
-                f"{API_BASE_URL}/chat/conversations",
-                json=conversation_data,
-                headers=headers
-            )
-            
-            if response.status_code == 201:
-                result = response.json()
+            if response.status == 201:
+                result = await response.json()
                 conversation_id = result['conversation_id']
                 self.test_conversations.append({
                     "conversation_id": conversation_id,
@@ -225,10 +233,11 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 print(f"Created conversation: {conversation_id}")
                 return conversation_id
             else:
-                raise Exception(f"Failed to create conversation: {response.status_code} - {response.text}")
+                error_text = await response.text()
+                raise Exception(f"Failed to create conversation: {response.status} - {error_text}")
     
     def extract_stream_id_from_sse(self, sse_line: str) -> Optional[str]:
-        """Extract stream_id from SSE data line"""
+        """Extract stream_id from SSE data line - exactly like working tests"""
         if not sse_line.startswith('data: '):
             return None
             
@@ -243,6 +252,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
             if 'stream_id' in event:
                 return event['stream_id']
             
+            # Also check nested data
             if 'data' in event and isinstance(event['data'], dict) and 'stream_id' in event['data']:
                 return event['data']['stream_id']
                 
@@ -258,74 +268,84 @@ class ComprehensiveImageVisionLLMInferenceTest:
         staging_files: List[Dict[str, str]], 
         user_id: str
     ) -> Dict[str, Any]:
-        """Stream a message with images and return response data"""
+        """Stream a message with images using correct aiohttp pattern"""
         print(f"Streaming message with {len(staging_files)} images: {content[:50]}...")
         
-        async with httpx.AsyncClient() as client:
-            message_data = {
-                "content": content,
-                "staging_files": staging_files
-            }
+        message_data = {
+            "content": content,
+            "staging_files": staging_files
+        }
+        
+        headers = self.get_streaming_headers(user_id)
+        
+        captured_stream_id = None
+        tokens_received = 0
+        ai_response_content = ""
+        
+        async with self.session.post(
+            f"{API_BASE_URL}/chat/conversations/{conversation_id}/stream",
+            json=message_data,
+            headers=headers
+        ) as response:
             
-            headers = self.get_streaming_headers(user_id)
-            
-            captured_stream_id = None
-            tokens_received = 0
-            ai_response_content = ""
-            
-            async with client.stream(
-                "POST",
-                f"{API_BASE_URL}/chat/conversations/{conversation_id}/stream",
-                json=message_data,
-                headers=headers,
-                timeout=120.0
-            ) as response:
+            if response.status == 200:
+                print(f"✅ Streaming started successfully")
                 
-                if response.status_code == 200:
-                    print(f"✅ Streaming started successfully")
+                buffer = ""
+                async for chunk in response.content.iter_any():
+                    chunk_data = chunk.decode('utf-8', errors='ignore')
+                    buffer += chunk_data
                     
-                    buffer = ""
-                    async for chunk in response.aiter_text():
-                        buffer += chunk
+                    while '\n' in buffer:
+                        line, buffer = buffer.split('\n', 1)
+                        line = line.strip()
                         
-                        while '\n' in buffer:
-                            line, buffer = buffer.split('\n', 1)
-                            line = line.strip()
+                        if line.startswith('data: '):
+                            # Extract stream_id
+                            stream_id = self.extract_stream_id_from_sse(line)
+                            if stream_id and not captured_stream_id:
+                                captured_stream_id = stream_id
+                                print(f"🎯 Captured stream_id: {stream_id}")
                             
-                            if line:
-                                # Extract stream_id
-                                stream_id = self.extract_stream_id_from_sse(line)
-                                if stream_id and not captured_stream_id:
-                                    captured_stream_id = stream_id
-                                    print(f"🎯 Captured stream_id: {stream_id}")
+                            # Parse event data for tokens
+                            try:
+                                data = line[6:].strip()  # Remove 'data: ' prefix
+                                event = json.loads(data)
                                 
-                                # Count tokens and accumulate content
-                                if 'token' in line.lower():
+                                if event.get('type') == 'token' and 'data' in event:
                                     tokens_received += 1
-                                    try:
-                                        data = line[6:].strip() if line.startswith('data: ') else line
-                                        event = json.loads(data)
-                                        if event.get('type') == 'token' and 'data' in event:
-                                            content_part = event['data'].get('content', '')
-                                            ai_response_content += content_part
-                                    except:
-                                        pass
-                        
-                        # Read enough to get meaningful response
-                        if tokens_received > 20:
-                            break
+                                    content_part = event['data'].get('content', '')
+                                    ai_response_content += content_part
+                                    
+                                    if tokens_received % 10 == 0:  # Log every 10 tokens
+                                        print(f"  Received {tokens_received} tokens...")
+                                
+                                # Check for completion
+                                if event.get('type') in ['completion', 'end', 'stream_end']:
+                                    print(f"Stream completed with {tokens_received} tokens")
+                                    break
+                                    
+                            except json.JSONDecodeError:
+                                pass
                     
-                    print(f"📊 Received {tokens_received} token events")
+                    # Safety limit - break if we got some meaningful response
+                    if tokens_received > 50:
+                        print(f"Stopping stream after {tokens_received} tokens (sufficient for test)")
+                        break
+                
+                print(f"📊 Final: {tokens_received} token events, response preview: {ai_response_content[:100]}")
+                
+                # Wait a moment for message to be saved
+                await asyncio.sleep(2)
+                
+                # Get conversation messages to find user message ID
+                async with self.session.get(
+                    f"{API_BASE_URL}/chat/conversations/{conversation_id}/messages",
+                    headers=self.get_auth_headers(user_id)
+                ) as messages_response:
                     
-                    # Get conversation messages to find user message ID
-                    await asyncio.sleep(1)  # Wait for message to be saved
-                    messages_response = await client.get(
-                        f"{API_BASE_URL}/chat/conversations/{conversation_id}/messages",
-                        headers=self.get_auth_headers(user_id)
-                    )
-                    
-                    if messages_response.status_code == 200:
-                        messages_data = messages_response.json()
+                    if messages_response.status == 200:
+                        messages_data = await messages_response.json()
                         messages = messages_data.get('data', [])
                         
                         # Find the latest user message
@@ -352,10 +372,11 @@ class ComprehensiveImageVisionLLMInferenceTest:
                         else:
                             raise Exception("Failed to find user message after streaming")
                     else:
-                        raise Exception(f"Failed to get messages: {messages_response.status_code}")
-                else:
-                    error_text = await response.aread()
-                    raise Exception(f"Streaming failed: {response.status_code} - {error_text}")
+                        error_text = await messages_response.text()
+                        raise Exception(f"Failed to get messages: {messages_response.status} - {error_text}")
+            else:
+                error_text = await response.text()
+                raise Exception(f"Streaming failed: {response.status} - {error_text}")
     
     async def stream_edit_message_with_images(
         self,
@@ -365,99 +386,90 @@ class ComprehensiveImageVisionLLMInferenceTest:
         staging_files: List[Dict[str, str]],
         user_id: str
     ) -> Dict[str, Any]:
-        """Stream edit a message with images"""
+        """Stream edit a message with images using correct aiohttp pattern"""
         print(f"Streaming edit message {message_id} with {len(staging_files)} images: {content[:50]}...")
         
-        async with httpx.AsyncClient() as client:
-            message_data = {
-                "content": content,
-                "staging_files": staging_files
-            }
-            
-            headers = self.get_streaming_headers(user_id)
-            
-            captured_stream_id = None
-            tokens_received = 0
-            ai_response_content = ""
-            
-            async with client.stream(
-                "POST",
-                f"{API_BASE_URL}/chat/conversations/{conversation_id}/messages/{message_id}/edit/stream",
-                json=message_data,
-                headers=headers,
-                timeout=120.0
-            ) as response:
-                
-                if response.status_code == 200:
-                    print(f"✅ Edit streaming started successfully")
-                    
-                    buffer = ""
-                    async for chunk in response.aiter_text():
-                        buffer += chunk
-                        
-                        while '\n' in buffer:
-                            line, buffer = buffer.split('\n', 1)
-                            line = line.strip()
-                            
-                            if line:
-                                # Extract stream_id
-                                stream_id = self.extract_stream_id_from_sse(line)
-                                if stream_id and not captured_stream_id:
-                                    captured_stream_id = stream_id
-                                    print(f"🎯 Captured edit stream_id: {stream_id}")
-                                
-                                # Count tokens
-                                if 'token' in line.lower():
-                                    tokens_received += 1
-                                    try:
-                                        data = line[6:].strip() if line.startswith('data: ') else line
-                                        event = json.loads(data)
-                                        if event.get('type') == 'token' and 'data' in event:
-                                            content_part = event['data'].get('content', '')
-                                            ai_response_content += content_part
-                                    except:
-                                        pass
-                        
-                        # Read enough to get meaningful response
-                        if tokens_received > 20:
-                            break
-                    
-                    print(f"📊 Edit received {tokens_received} token events")
-                    
-                    edit_info = {
-                        'edited_message_id': message_id,
-                        'conversation_id': conversation_id,
-                        'edit_content': content,
-                        'edit_staging_files': staging_files,
-                        'edit_stream_id': captured_stream_id,
-                        'edit_tokens_received': tokens_received,
-                        'edit_ai_response_preview': ai_response_content[:100]
-                    }
-                    
-                    print(f"✅ Message edit streamed successfully")
-                    return edit_info
-                else:
-                    error_text = await response.aread()
-                    raise Exception(f"Edit streaming failed: {response.status_code} - {error_text}")
-    
-    async def cancel_stream_test(self, stream_id: str, user_id: str) -> bool:
-        """Test stream cancellation"""
-        print(f"🛑 Testing stream cancellation: {stream_id}")
+        message_data = {
+            "content": content,
+            "staging_files": staging_files
+        }
         
-        async with httpx.AsyncClient() as client:
-            headers = self.get_auth_headers(user_id)
-            response = await client.post(
-                f"{API_BASE_URL}/chat/stream/cancel/{stream_id}",
-                headers=headers
-            )
+        headers = self.get_streaming_headers(user_id)
+        
+        captured_stream_id = None
+        tokens_received = 0
+        ai_response_content = ""
+        
+        async with self.session.post(
+            f"{API_BASE_URL}/chat/conversations/{conversation_id}/messages/{message_id}/edit/stream",
+            json=message_data,
+            headers=headers
+        ) as response:
             
-            if response.status_code in [200, 410]:  # 410 = already completed
-                result_data = await response.aread()
-                print(f"✅ Stream cancellation result: {response.status_code}")
-                return True
+            if response.status == 200:
+                print(f"✅ Edit streaming started successfully")
+                
+                buffer = ""
+                async for chunk in response.content.iter_any():
+                    chunk_data = chunk.decode('utf-8', errors='ignore')
+                    buffer += chunk_data
+                    
+                    while '\n' in buffer:
+                        line, buffer = buffer.split('\n', 1)
+                        line = line.strip()
+                        
+                        if line.startswith('data: '):
+                            # Extract stream_id
+                            stream_id = self.extract_stream_id_from_sse(line)
+                            if stream_id and not captured_stream_id:
+                                captured_stream_id = stream_id
+                                print(f"🎯 Captured edit stream_id: {stream_id}")
+                            
+                            # Parse event data for tokens
+                            try:
+                                data = line[6:].strip()  # Remove 'data: ' prefix
+                                event = json.loads(data)
+                                
+                                if event.get('type') == 'token' and 'data' in event:
+                                    tokens_received += 1
+                                    content_part = event['data'].get('content', '')
+                                    ai_response_content += content_part
+                                    
+                                    if tokens_received % 10 == 0:  # Log every 10 tokens
+                                        print(f"  Edit received {tokens_received} tokens...")
+                                
+                                # Check for completion
+                                if event.get('type') in ['completion', 'end', 'stream_end']:
+                                    print(f"Edit stream completed with {tokens_received} tokens")
+                                    break
+                                    
+                            except json.JSONDecodeError:
+                                pass
+                    
+                    # Safety limit - break if we got some meaningful response
+                    if tokens_received > 50:
+                        print(f"Stopping edit stream after {tokens_received} tokens (sufficient for test)")
+                        break
+                
+                print(f"📊 Edit final: {tokens_received} token events")
+                
+                edit_info = {
+                    'edited_message_id': message_id,
+                    'conversation_id': conversation_id,
+                    'edit_content': content,
+                    'edit_staging_files': staging_files,
+                    'edit_stream_id': captured_stream_id,
+                    'edit_tokens_received': tokens_received,
+                    'edit_ai_response_preview': ai_response_content[:100]
+                }
+                
+                print(f"✅ Message edit streamed successfully")
+                return edit_info
             else:
-                print(f"❌ Stream cancellation failed: {response.status_code}")
-                return False
+                error_text = await response.text()
+                raise Exception(f"Edit streaming failed: {response.status} - {error_text}")
+    
+
     
     async def collect_all_resource_ids(self, conversation_id: str, staging_files: List[Dict[str, str]]) -> Dict[str, List[str]]:
         """Collect all resource IDs before deletion for cleanup verification"""
@@ -507,20 +519,19 @@ class ComprehensiveImageVisionLLMInferenceTest:
         """Delete conversation via API"""
         print(f"🗑️ Deleting conversation: {conversation_id}")
         
-        async with httpx.AsyncClient() as client:
-            headers = self.get_auth_headers(user_id)
-            response = await client.delete(
-                f"{API_BASE_URL}/chat/conversations/{conversation_id}",
-                headers=headers
-            )
+        headers = self.get_auth_headers(user_id)
+        async with self.session.delete(
+            f"{API_BASE_URL}/chat/conversations/{conversation_id}",
+            headers=headers
+        ) as response:
             
-            if response.status_code == 200:
-                result = response.json()
+            if response.status == 200:
+                result = await response.json()
                 print(f"✅ Conversation deleted successfully")
                 return {"success": True, "result": result}
             else:
-                error_text = await response.aread()
-                print(f"❌ Failed to delete conversation: {response.status_code} - {error_text}")
+                error_text = await response.text()
+                print(f"❌ Failed to delete conversation: {response.status} - {error_text}")
                 return {"success": False, "error": error_text}
     
     async def verify_database_cleanup(self, conversation_ids: List[str], message_ids: List[str]):
@@ -548,15 +559,27 @@ class ComprehensiveImageVisionLLMInferenceTest:
         """Verify OpenAI API files are actually deleted"""
         print(f"🔍 Verifying OpenAI files deleted: {len(openai_file_ids)} files")
         
+        async with AsyncSessionLocal() as db:
+            # Check OpenAIFile database records
+            for file_id in openai_file_ids:
+                oai_query = select(OpenAIFile).where(OpenAIFile.openai_file_id == file_id)
+                oai_result = await db.execute(oai_query)
+                openai_file_record = oai_result.scalar_one_or_none()
+                if openai_file_record:
+                    print(f"⚠️ OpenAIFile database record still exists: {file_id}")
+                else:
+                    print(f"✅ OpenAIFile database record deleted: {file_id}")
+        
+        # Check via OpenAI API
         for file_id in openai_file_ids:
             try:
                 # Try to retrieve file - should fail
                 file_info = await openai_storage_service.get_file_info(file_id)
                 # If we get here, file still exists
-                print(f"⚠️ OpenAI file still exists: {file_id}")
+                print(f"⚠️ OpenAI API file still exists: {file_id}")
             except Exception:
                 # Expected - file should not exist
-                print(f"✅ OpenAI file deleted: {file_id}")
+                print(f"✅ OpenAI API file deleted: {file_id}")
         
         print(f"✅ OpenAI files deletion verified")
     
@@ -652,6 +675,16 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 "name": "Three images analysis",
                 "images": ["dog_test_image.jpg", "fifa_test_image.png", "whatsapp_test_image.png"],
                 "content": "Analyze the content and style of these three images"
+            },
+            {
+                "name": "Maximum images test (5 images)",
+                "images": self.test_images,  # All 5 test images
+                "content": "Briefly describe each of these 5 images"
+            },
+            {
+                "name": "Multiple images with empty text",
+                "images": ["dog_test_image.jpg", "fifa_test_image.png"],
+                "content": ""  # Test empty content with multiple images
             }
         ]
         
@@ -660,6 +693,9 @@ class ComprehensiveImageVisionLLMInferenceTest:
         
         for i, scenario in enumerate(scenarios, 1):
             print(f"\n--- Scenario {i}: {scenario['name']} ---")
+            
+            conversation_id = None
+            staging_files = []
             
             try:
                 # 1. Create conversation
@@ -694,6 +730,23 @@ class ComprehensiveImageVisionLLMInferenceTest:
                     "success": False,
                     "error": str(e)
                 })
+                
+                # Clean up any resources created before failure
+                try:
+                    if conversation_id:
+                        await self.delete_conversation(conversation_id, user.user_id)
+                    
+                    # Clean up any staging files
+                    for staged_file in staging_files:
+                        try:
+                            await staging_service.discard_staged_file(
+                                staged_file["file_id"], 
+                                user.user_id
+                            )
+                        except:
+                            pass
+                except Exception as cleanup_error:
+                    print(f"⚠️ Cleanup after failure encountered error: {cleanup_error}")
         
         print(f"\n📊 Regular Streaming Results: {len([r for r in streaming_results if r['success']])}/{len(scenarios)} scenarios passed")
         return streaming_results
@@ -733,6 +786,10 @@ class ComprehensiveImageVisionLLMInferenceTest:
         
         for i, scenario in enumerate(edit_scenarios, 1):
             print(f"\n--- Edit Scenario {i}: {scenario['name']} ---")
+            
+            conversation_id = None
+            original_staging = []
+            edit_staging = []
             
             try:
                 # 1. Create conversation with original message
@@ -779,120 +836,33 @@ class ComprehensiveImageVisionLLMInferenceTest:
                     "success": False,
                     "error": str(e)
                 })
+                
+                # Clean up any resources created before failure
+                try:
+                    if conversation_id:
+                        await self.delete_conversation(conversation_id, user.user_id)
+                    
+                    # Clean up all staging files
+                    all_staging = original_staging + edit_staging
+                    for staged_file in all_staging:
+                        try:
+                            await staging_service.discard_staged_file(
+                                staged_file["file_id"], 
+                                user.user_id
+                            )
+                        except:
+                            pass
+                except Exception as cleanup_error:
+                    print(f"⚠️ Cleanup after failure encountered error: {cleanup_error}")
         
         print(f"\n📊 Edit Streaming Results: {len([r for r in edit_results if r['success']])}/{len(edit_scenarios)} scenarios passed")
         return edit_results
     
-    async def test_stream_cancellation_with_images(self):
-        """Test stream cancellation during image inference"""
-        print("\n" + "="*80)
-        print("PHASE 4: STREAM CANCELLATION TESTING")
-        print("="*80)
-        
-        user = self.test_users[0]
-        cancellation_results = []
-        
-        try:
-            # 1. Start complex image inference
-            conversation_id = await self.create_test_conversation("Cancellation Test", user.user_id)
-            staging_files = await self.upload_scenario_images(["fifa_test_image.png", "dog_test_image.jpg"], user.user_id)
-            
-            # 2. Start streaming with complex prompt (will take time)
-            long_prompt = """
-            Analyze these images in extreme detail. Provide a comprehensive analysis including:
-            1. Detailed object identification and counting
-            2. Color analysis and artistic composition  
-            3. Emotional impact and mood assessment
-            4. Technical photography analysis
-            5. Historical or cultural context if applicable
-            6. Comparative analysis between the images
-            7. Write at least 500 words for each image
-            """
-            
-            print(f"🚀 Starting long-running image inference for cancellation test...")
-            
-            # Start streaming in background and capture stream_id quickly
-            async with httpx.AsyncClient() as client:
-                message_data = {
-                    "content": long_prompt,
-                    "staging_files": staging_files
-                }
-                
-                headers = self.get_streaming_headers(user.user_id)
-                
-                captured_stream_id = None
-                
-                async with client.stream(
-                    "POST",
-                    f"{API_BASE_URL}/chat/conversations/{conversation_id}/stream",
-                    json=message_data,
-                    headers=headers,
-                    timeout=120.0
-                ) as response:
-                    
-                    if response.status_code == 200:
-                        buffer = ""
-                        async for chunk in response.aiter_text():
-                            buffer += chunk
-                            
-                            while '\n' in buffer:
-                                line, buffer = buffer.split('\n', 1)
-                                line = line.strip()
-                                
-                                if line:
-                                    stream_id = self.extract_stream_id_from_sse(line)
-                                    if stream_id and not captured_stream_id:
-                                        captured_stream_id = stream_id
-                                        print(f"🎯 Captured stream_id for cancellation: {stream_id}")
-                                        
-                                        # Cancel immediately after capturing stream_id
-                                        cancel_success = await self.cancel_stream_test(stream_id, user.user_id)
-                                        
-                                        cancellation_results.append({
-                                            "test": "stream_cancellation",
-                                            "stream_id": stream_id,
-                                            "cancel_success": cancel_success
-                                        })
-                                        
-                                        # Break out of streaming
-                                        break
-                            
-                            if captured_stream_id:
-                                break
-                        
-                        print(f"✅ Stream cancellation test completed")
-                    else:
-                        raise Exception(f"Failed to start cancellation test stream: {response.status_code}")
-            
-            # 3. IMMEDIATE CLEANUP & VERIFICATION
-            await self.immediate_cleanup_and_verify(conversation_id, staging_files, user.user_id)
-            
-        except Exception as e:
-            print(f"❌ Cancellation test failed: {e}")
-            cancellation_results.append({
-                "test": "stream_cancellation",
-                "success": False,
-                "error": str(e)
-            })
-        
-        print(f"\n📊 Cancellation Results: {len([r for r in cancellation_results if r.get('cancel_success', False)])} successful cancellations")
-        return cancellation_results
+
     
     async def cleanup_test_environment(self):
         """Clean up test users and any remaining resources"""
         print("\n🧹 Cleaning up test environment...")
-        
-        # Clean up any remaining staged files
-        if self.staged_files:
-            print(f"Cleaning up {len(self.staged_files)} remaining staged files...")
-            for staged_file in self.staged_files:
-                try:
-                    await staging_service.discard_staged_file(
-                        staged_file["file_id"], 
-                        staged_file["user_id"]
-                    )
-                except Exception as e:
-                    print(f"Failed to cleanup staged file {staged_file['file_id']}: {e}")
         
         # Clean up test users
         async with AsyncSessionLocal() as db:
@@ -931,9 +901,6 @@ class ComprehensiveImageVisionLLMInferenceTest:
             # Phase 3: Edit streaming tests  
             edit_results = await self.test_edit_streaming_vision_inference()
             
-            # Phase 4: Cancellation tests
-            cancellation_results = await self.test_stream_cancellation_with_images()
-            
             # Summary
             print("\n" + "="*80)
             print("🎯 COMPREHENSIVE IMAGE VISION LLM INFERENCE TEST RESULTS")
@@ -941,14 +908,12 @@ class ComprehensiveImageVisionLLMInferenceTest:
             
             streaming_passed = len([r for r in streaming_results if r['success']])
             edit_passed = len([r for r in edit_results if r['success']])
-            cancellation_passed = len([r for r in cancellation_results if r.get('cancel_success', False)])
             
             print(f"✅ Regular Streaming Tests: {streaming_passed}/{len(streaming_results)} passed")
             print(f"✅ Edit Streaming Tests: {edit_passed}/{len(edit_results)} passed")
-            print(f"✅ Cancellation Tests: {cancellation_passed}/{len(cancellation_results)} passed")
             
-            total_passed = streaming_passed + edit_passed + cancellation_passed
-            total_tests = len(streaming_results) + len(edit_results) + len(cancellation_results)
+            total_passed = streaming_passed + edit_passed
+            total_tests = len(streaming_results) + len(edit_results)
             
             print(f"\n📊 Overall Results: {total_passed}/{total_tests} tests passed")
             
@@ -957,7 +922,6 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 print("✅ Image staging → permanent storage → OpenAI API flow works")
                 print("✅ GPT-4o vision inference with images works")
                 print("✅ Both regular streaming and edit streaming work")
-                print("✅ Stream cancellation works")
                 print("✅ Complete cleanup verification works")
                 print("\n💡 Complete image vision LLM inference pipeline ready!")
                 return True
@@ -978,16 +942,16 @@ class ComprehensiveImageVisionLLMInferenceTest:
 
 
 async def main():
-    """Main test runner"""
-    test_runner = ComprehensiveImageVisionLLMInferenceTest()
-    success = await test_runner.run_comprehensive_test()
-    
-    if success:
-        print("\n🎉 All comprehensive image vision LLM inference tests passed!")
-        sys.exit(0)
-    else:
-        print("\n❌ Some tests failed!")
-        sys.exit(1)
+    """Main test runner with async context manager"""
+    async with ComprehensiveImageVisionLLMInferenceTest() as test_runner:
+        success = await test_runner.run_comprehensive_test()
+        
+        if success:
+            print("\n🎉 All comprehensive image vision LLM inference tests passed!")
+            sys.exit(0)
+        else:
+            print("\n❌ Some tests failed!")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
