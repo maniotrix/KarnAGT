@@ -252,10 +252,13 @@ async def send_message(
         chat_service = ChatService(db, current_user)
         
         # Send message and get AI response (now with staging files support)
+        # Determine message type based on content
+        message_type = "multimodal" if message_data.staging_files else "text"
+        
         response = await chat_service.send_message(
             conversation_id=conversation_id,
             content=message_data.content,
-            message_type="text",
+            message_type=message_type,
             staging_files=message_data.staging_files
         )
         
@@ -319,10 +322,13 @@ async def stream_message(
         # Create the streaming generator with client disconnection detection
         async def stream_with_disconnection_detection():
             """Wrapper generator that detects client disconnection"""
+            # Determine message type based on content
+            message_type = "multimodal" if message_data.staging_files else "text"
+            
             stream_generator = streaming_service.stream_message_response(
                 conversation_id=conversation_id,
                 content=message_data.content,
-                message_type="text",
+                message_type=message_type,
                 staging_files=message_data.staging_files
             )
             

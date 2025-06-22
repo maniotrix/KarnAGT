@@ -8,7 +8,7 @@ Configurable OpenAI Assistant - Uses centralized configuration system
 import os
 import asyncio
 import glob
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, List
 
 from agents import Runner, RunConfig, ModelSettings, ModelProvider, OpenAIProvider
 
@@ -102,14 +102,14 @@ class ConfigurableOpenAIAssistant:
         
         logger.info(f"ConfigurableOpenAIAssistant initialized with configuration: {config_manager.get_config_summary(config)}")
     
-    async def _async_process_message(self, user_message: str) -> Dict[str, Any]:
+    async def _async_process_message(self, user_message: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Process a user message asynchronously and return the agent's response"""
-        logger.info(f"Processing user message: {user_message[:50]}...")
+        logger.info(f"Processing user message context with {len(user_message)} messages")
         
         try:
             # Store the user message in history
             if self.config.agent.maintain_conversation_history:
-                self.messages.append({"role": "user", "content": user_message})
+                self.messages.append(user_message)
                 self._manage_conversation_history()
             
             logger.info(f"ConfigurableOpenAIAssistant: Agent model: {self.agent.model}")
@@ -123,7 +123,7 @@ class ConfigurableOpenAIAssistant:
             logger.error(f"Error during agent execution: {e}")
             raise
     
-    async def _standard_response(self, user_message: str) -> Dict[str, Any]:
+    async def _standard_response(self, user_message: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Process message with standard (non-streaming) execution"""
         logger.info("Using standard response mode")
         
@@ -148,7 +148,7 @@ class ConfigurableOpenAIAssistant:
         # Update state
         self.last_response_id = getattr(result, 'last_response_id', None)
         
-        # Store AI response in history
+        # Store AI response in history if maintaining conversation history
         if self.config.agent.maintain_conversation_history:
             self.messages.append({"role": "assistant", "content": response_content})
         
@@ -160,7 +160,7 @@ class ConfigurableOpenAIAssistant:
             "metadata": self._create_response_metadata(message_id, result)
         }
     
-    async def _stream_response(self, user_message: str) -> Dict[str, Any]:
+    async def _stream_response(self, user_message: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Process message with streaming enabled"""
         logger.info("Using streaming response mode")
         
@@ -379,7 +379,7 @@ class ConfigurableOpenAIAssistant:
         """Get a summary of current configuration"""
         return config_manager.get_config_summary(self.config)
     
-    def process_message(self, user_message: str) -> str:
+    def process_message(self, user_message: List[Dict[str, Any]]) -> str:
         """Process a user message and return the agent's response (synchronous wrapper)"""
         result = asyncio.run(self._async_process_message(user_message))
         return result.get("content", "") 
