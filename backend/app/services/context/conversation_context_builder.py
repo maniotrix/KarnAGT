@@ -39,9 +39,14 @@ class ConversationContextBuilder:
         self.summarizer = ConversationSummarizerAgent()
         
 
-    async def build_context(self, latest_user_message: str, openai_file_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    async def build_context(self, latest_user_message: str, openai_file_ids: Optional[List[str]] = None, last_user_message_saved_in_db: bool = True) -> List[Dict[str, Any]]:
         """
         Build conversation context with intelligent summarization when needed.
+        
+        Args:
+            latest_user_message: The user message to include in context
+            openai_file_ids: Optional list of OpenAI file IDs for images
+            last_user_message_saved_in_db: If True, the latest_user_message is already in DB and should be excluded from history
         
         Returns a list of messages formatted for LLM consumption:
         [
@@ -50,10 +55,10 @@ class ConversationContextBuilder:
             {"role": "user", "content": "latest user message" or multimodal content}
         ]
         """
-        logger.info(f"Building context for conversation {self.conversation_id}")
+        logger.info(f"Building context for conversation {self.conversation_id}, last_user_message_saved_in_db={last_user_message_saved_in_db}")
         
-        # Step 1: Get all previous messages from database (excluding the current message)
-        previous_messages = await self._get_conversation_history()
+        # Step 1: Get all previous messages from database
+        previous_messages = await self._get_conversation_history(exclude_latest_if_user=last_user_message_saved_in_db)
         
         if not previous_messages:
             logger.info("No previous messages found, returning only latest user message")
@@ -116,7 +121,7 @@ class ConversationContextBuilder:
         
         # Log final context statistics
         total_context_tokens = sum(count_tokens(msg["content"] if isinstance(msg["content"], str) else latest_user_message) for msg in context_messages)
-        logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens")
+        logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens \n {context_messages}")
         
         return context_messages
     
@@ -149,7 +154,7 @@ class ConversationContextBuilder:
             "content": content_parts
         }
 
-    async def build_context_dict(self, latest_user_message: str) -> Dict[str, Any]:
+    async def build_context_dict(self, latest_user_message: str, last_user_message_saved_in_db: bool = True) -> Dict[str, Any]:
         """
         Build conversation context as a structured dictionary with separate components.
         
@@ -168,10 +173,11 @@ class ConversationContextBuilder:
         logger.info(f"Building structured context dict for conversation {self.conversation_id}")
         
         # Step 1: Get all previous messages from database (excluding the current message)
-        previous_messages = await self._get_conversation_history()
+        # For build_context_dict, we assume the message is already saved since this is used for structured output
+        previous_messages = await self._get_conversation_history(exclude_latest_if_user=last_user_message_saved_in_db)
         
-        # Initialize context structure
-        context_dict = {
+        # Initialize context structure with proper typing
+        context_dict: Dict[str, Any] = {
             "summary_old_messages": None,
             "recent_conversation_history": [],
             "user_input": latest_user_message,
@@ -279,8 +285,13 @@ class ConversationContextBuilder:
         logger.info("No token overflow detected, returning -1")
         return -1
     
-    async def _get_conversation_history(self) -> List[Message]:
-        """Retrieve all messages for the conversation from database, sorted by creation time."""
+    async def _get_conversation_history(self, exclude_latest_if_user: bool = False) -> List[Message]:
+        """
+        Retrieve all messages for the conversation from database, sorted by creation time.
+        
+        Args:
+            exclude_latest_if_user: If True and the most recent message is from user, exclude it
+        """
         try:
             # First get the conversation by conversation_id string
             query = select(Conversation).where(
@@ -299,8 +310,16 @@ class ConversationContextBuilder:
             ).order_by(Message.created_at.desc())
             
             messages_result = await self.db_session.execute(messages_query)
-            # Convert Sequence to List to fix linter error
-            return list(messages_result.scalars().all())
+            all_messages = list(messages_result.scalars().all())
+            
+            # Optionally skip the most recent user message to avoid duplicates
+            if exclude_latest_if_user and all_messages:
+                most_recent = all_messages[0]  # Messages are in DESC order, so [0] is newest
+                if str(most_recent.role) == "user":
+                    logger.debug(f"Excluding most recent user message to avoid duplicate")
+                    return all_messages[1:]  # Skip the first message
+            
+            return all_messages
             
         except Exception as e:
             logger.error(f"Error retrieving conversation history: {e}")
@@ -323,7 +342,7 @@ class ConversationContextBuilder:
         return summary
         
 
-async def get_context_dict_for_conversation(conversation_id: str, db_session: AsyncSession, latest_user_message: str) -> Dict[str, Any]:
+async def get_context_dict_for_conversation(conversation_id: str, db_session: AsyncSession, latest_user_message: str, last_user_message_saved_in_db: bool = True) -> Dict[str, Any]:
     """
     Get the structured context dictionary for a conversation.
     
@@ -337,7 +356,7 @@ async def get_context_dict_for_conversation(conversation_id: str, db_session: As
         }
     """
     context_builder = ConversationContextBuilder(get_default_conversation_context_config(), db_session, conversation_id)
-    context_dict = await context_builder.build_context_dict(latest_user_message)
+    context_dict = await context_builder.build_context_dict(latest_user_message, last_user_message_saved_in_db)
     return context_dict
 
 
@@ -345,10 +364,18 @@ async def get_context_for_conversation(
     conversation_id: str, 
     db_session: AsyncSession, 
     latest_user_message: str,
-    openai_file_ids: Optional[List[str]] = None
+    openai_file_ids: Optional[List[str]] = None,
+    last_user_message_saved_in_db: bool = True
 ) -> List[Dict[str, Any]]:
     """
     Get context for conversation with optional images as list of message dictionaries
+    
+    Args:
+        conversation_id: The conversation ID
+        db_session: Database session
+        latest_user_message: The user message to include in context
+        openai_file_ids: Optional list of OpenAI file IDs for images
+        last_user_message_saved_in_db: If True, the latest_user_message is already in DB and should be excluded from history
     """
     builder = ConversationContextBuilder(
         get_default_conversation_context_config(), 
@@ -356,4 +383,4 @@ async def get_context_for_conversation(
         conversation_id
     )
     
-    return await builder.build_context(latest_user_message, openai_file_ids)
+    return await builder.build_context(latest_user_message, openai_file_ids, last_user_message_saved_in_db)
