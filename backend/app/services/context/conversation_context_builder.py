@@ -134,7 +134,7 @@ class ConversationContextBuilder:
         
         # Add text content only if it's not empty
         if text_content and text_content.strip():
-            content_parts.append({"type": "text", "text": text_content})
+            content_parts.append({"type": "input_text", "text": text_content})
         
         # Add images
         for file_id in openai_file_ids:
