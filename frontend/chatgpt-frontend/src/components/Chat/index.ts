@@ -1,7 +1,9 @@
 // Chat Component Exports
 export { Chat } from './Chat';
-export { ChatMessage } from './ChatMessage';
 export { ChatInput } from './ChatInput';
+export { ChatMessage } from './ChatMessage';
+export { UserMessage } from './UserMessage';
+export { AssistantMessage } from './AssistantMessage';
 export { MessageList } from './MessageList';
 export { ChatActions } from './ChatActions';
 export { ChatApp } from './ChatApp';
