@@ -1034,12 +1034,12 @@ class ComprehensiveImageVisionLLMInferenceTest:
         print("Testing: First message with images → Second message without images (should reference first)")
         
         multi_turn_scenarios = [
-            {
-                "name": "Single image follow-up question",
-                "first_images": ["dog_test_image.jpg"],
-                "first_content": "What animal is this?",
-                "second_content": "What breed do you think it is?"
-            },
+            # {
+            #     "name": "Single image follow-up question",
+            #     "first_images": ["dog_test_image.jpg"],
+            #     "first_content": "What animal is this?",
+            #     "second_content": "What breed do you think it is?"
+            # },
             # {
             #     "name": "Multiple images comparison follow-up",
             #     "first_images": ["fifa_test_image.png", "prince_test_image.jpeg"],
@@ -1176,6 +1176,212 @@ class ComprehensiveImageVisionLLMInferenceTest:
             
         return multi_turn_results
     
+    async def test_sequential_image_uploads_with_followups(self):
+        """Test sequential image uploads: upload image1 + text → follow-up → upload image2 + text → follow-up"""
+        print("\n" + "="*80)
+        print("PHASE 5: SEQUENTIAL IMAGE UPLOADS WITH FOLLOW-UP QUESTIONS")
+        print("="*80)
+        print("Testing: Image1 + text → follow-up → Image2 + text → follow-up")
+        
+        sequential_scenarios = [
+            {
+                "name": "Two different animals with follow-ups",
+                "first_images": ["dog_test_image.jpg"],
+                "first_content": "What animal is this?",
+                "first_followup": "What breed do you think it is and what's the setting?",
+                "second_images": ["fifa_test_image.png"],
+                "second_content": "Now look at this image - what do you see?",
+                "second_followup": "How does this image compare to the previous dog image in terms of style and content?"
+            },
+            # {
+            #     "name": "Personal photo then music recap with analysis",
+            #     "first_images": ["prince_test_image.jpeg"],
+            #     "first_content": "Describe what you see in this photo",
+            #     "first_followup": "What can you tell about the person's mood or the photo's context?",
+            #     "second_images": ["vertical_test_image.jpg"],
+            #     "second_content": "Now analyze this music streaming recap",
+            #     "second_followup": "Can you identify specific artists or songs, and how does this music taste compare to what the person in the first photo might listen to?"
+            # },
+            # {
+            #     "name": "Messaging app then landscape comparison",
+            #     "first_images": ["whatsapp_test_image.png"],
+            #     "first_content": "What application interface is this?",
+            #     "first_followup": "What specific features can you identify in this messaging interface?",
+            #     "second_images": ["dog_test_image.jpg"],
+            #     "second_content": "Now look at this outdoor scene",
+            #     "second_followup": "Describe the contrast between the digital interface in the first image and this natural outdoor scene"
+            # }
+        ]
+        
+        sequential_results = []
+        user = self.test_users[1]  # Use second test user
+        
+        for i, scenario in enumerate(sequential_scenarios, 1):
+            print(f"\n--- Sequential Scenario {i}: {scenario['name']} ---")
+            
+            conversation_id = None
+            first_staging = []
+            second_staging = []
+            
+            try:
+                # 1. Create conversation
+                conversation_id = await self.create_test_conversation(f"Sequential Test - {scenario['name']}", user.user_id)
+                
+                # 2. FIRST IMAGE UPLOAD + TEXT
+                print(f"\n🖼️ Step 1: Uploading first image with text...")
+                first_staging = await self.upload_scenario_images(scenario['first_images'], user.user_id)
+                
+                first_response = await self.stream_message_with_images(
+                    conversation_id=conversation_id,
+                    content=scenario['first_content'],
+                    staging_files=first_staging,
+                    user_id=user.user_id
+                )
+                
+                print(f"✅ First message completed: {first_response['tokens_received']} tokens")
+                print(f"   Content: {scenario['first_content']}")
+                print(f"   Images: {scenario['first_images']}")
+                
+                # 3. FIRST FOLLOW-UP (no new images)
+                print(f"\n💬 Step 2: First follow-up question (no new images)...")
+                first_followup_response = await self.stream_message_with_images(
+                    conversation_id=conversation_id,
+                    content=scenario['first_followup'],
+                    staging_files=[],  # NO NEW IMAGES
+                    user_id=user.user_id
+                )
+                
+                print(f"✅ First follow-up completed: {first_followup_response['tokens_received']} tokens")
+                print(f"   Question: {scenario['first_followup']}")
+                
+                # 4. SECOND IMAGE UPLOAD + TEXT
+                print(f"\n🖼️ Step 3: Uploading second image with text...")
+                second_staging = await self.upload_scenario_images(scenario['second_images'], user.user_id)
+                
+                second_response = await self.stream_message_with_images(
+                    conversation_id=conversation_id,
+                    content=scenario['second_content'],
+                    staging_files=second_staging,
+                    user_id=user.user_id
+                )
+                
+                print(f"✅ Second message completed: {second_response['tokens_received']} tokens")
+                print(f"   Content: {scenario['second_content']}")
+                print(f"   Images: {scenario['second_images']}")
+                
+                # 5. SECOND FOLLOW-UP (should reference both sets of images)
+                print(f"\n💬 Step 4: Second follow-up question (should reference both image sets)...")
+                second_followup_response = await self.stream_message_with_images(
+                    conversation_id=conversation_id,
+                    content=scenario['second_followup'],
+                    staging_files=[],  # NO NEW IMAGES
+                    user_id=user.user_id
+                )
+                
+                print(f"✅ Second follow-up completed: {second_followup_response['tokens_received']} tokens")
+                print(f"   Question: {scenario['second_followup']}")
+                
+                # 6. Analyze AI responses for image context detection
+                first_ai_response = first_followup_response.get('ai_response_preview', '').lower()
+                second_ai_response = second_followup_response.get('ai_response_preview', '').lower()
+                
+                # Check if first follow-up references first image
+                first_context_words = ['dog', 'animal', 'breed', 'photo', 'person', 'whatsapp', 'messaging', 'interface']
+                first_context_detected = any(word in first_ai_response for word in first_context_words)
+                
+                # Check if second follow-up references both images (comparison)
+                comparison_words = ['compare', 'contrast', 'both', 'first', 'previous', 'earlier', 'two', 'different']
+                second_context_detected = any(word in second_ai_response for word in comparison_words)
+                
+                print(f"\n📊 Context Analysis:")
+                print(f"   First follow-up image context: {'✅ Detected' if first_context_detected else '⚠️ Unclear'}")
+                print(f"   Second follow-up comparison context: {'✅ Detected' if second_context_detected else '⚠️ Unclear'}")
+                
+                sequential_results.append({
+                    "scenario": scenario['name'],
+                    "success": True,
+                    "first_message_tokens": first_response['tokens_received'],
+                    "first_followup_tokens": first_followup_response['tokens_received'],
+                    "second_message_tokens": second_response['tokens_received'],
+                    "second_followup_tokens": second_followup_response['tokens_received'],
+                    "first_context_detected": first_context_detected,
+                    "second_context_detected": second_context_detected,
+                    "total_tokens": (
+                        first_response['tokens_received'] + 
+                        first_followup_response['tokens_received'] +
+                        second_response['tokens_received'] + 
+                        second_followup_response['tokens_received']
+                    ),
+                    "responses": {
+                        "first": first_response['ai_response_preview'],
+                        "first_followup": first_followup_response['ai_response_preview'],
+                        "second": second_response['ai_response_preview'],
+                        "second_followup": second_followup_response['ai_response_preview']
+                    }
+                })
+                
+                # 7. IMMEDIATE CLEANUP & VERIFICATION (both staging file sets)
+                all_staging_files = first_staging + second_staging
+                await self.immediate_cleanup_and_verify(conversation_id, all_staging_files, user.user_id)
+                
+            except Exception as e:
+                print(f"❌ Sequential scenario failed: {e}")
+                sequential_results.append({
+                    "scenario": scenario['name'],
+                    "success": False,
+                    "error": str(e)
+                })
+                
+                # Cleanup on failure
+                cleanup_errors = []
+                try:
+                    if conversation_id:
+                        await self.delete_conversation(conversation_id, user.user_id)
+                        print(f"✅ Cleaned up conversation: {conversation_id}")
+                    
+                    # Clean up both sets of staging files
+                    all_staging_files = first_staging + second_staging
+                    for staged_file in all_staging_files:
+                        try:
+                            await staging_service.discard_staged_file(
+                                staged_file["file_id"], 
+                                user.user_id
+                            )
+                            print(f"✅ Cleaned up staging file: {staged_file['file_id']}")
+                        except Exception as cleanup_error:
+                            cleanup_errors.append(f"Failed to cleanup {staged_file['file_id']}: {cleanup_error}")
+                            print(f"⚠️ Failed to cleanup staging file {staged_file['file_id']}: {cleanup_error}")
+                    
+                    if cleanup_errors:
+                        print(f"⚠️ Cleanup encountered {len(cleanup_errors)} errors: {cleanup_errors}")
+                        
+                except Exception as cleanup_error:
+                    print(f"⚠️ Cleanup after failure encountered error: {cleanup_error}")
+        
+        # Results summary
+        successful_tests = [r for r in sequential_results if r['success']]
+        first_context_detected = [r for r in successful_tests if r.get('first_context_detected', False)]
+        second_context_detected = [r for r in successful_tests if r.get('second_context_detected', False)]
+        
+        print(f"\n📊 Sequential Upload Results: {len(successful_tests)}/{len(sequential_scenarios)} scenarios passed")
+        print(f"🖼️ First Image Context: {len(first_context_detected)}/{len(successful_tests)} follow-ups referenced first image")
+        print(f"🔄 Comparison Context: {len(second_context_detected)}/{len(successful_tests)} follow-ups compared both images")
+        
+        if successful_tests:
+            total_tokens = sum(r['total_tokens'] for r in successful_tests)
+            avg_tokens = total_tokens // len(successful_tests)
+            print(f"📈 Token Usage: {total_tokens} total tokens, ~{avg_tokens} per scenario")
+        
+        if len(successful_tests) == len(sequential_scenarios):
+            print("🎉 ALL SEQUENTIAL IMAGE UPLOAD TESTS PASSED!")
+            print("✅ Multiple image uploads in same conversation work")
+            print("✅ Follow-up questions work for each image set")
+            print("✅ AI can maintain context across multiple image uploads")
+        else:
+            print("❌ Some sequential upload tests failed")
+            
+        return sequential_results
+    
     async def cleanup_test_environment(self):
         """Clean up test users and any remaining resources"""
         print("\n🧹 Cleaning up test environment...")
@@ -1220,6 +1426,9 @@ class ComprehensiveImageVisionLLMInferenceTest:
             # Phase 4: Multi-turn image context streaming
             multi_turn_results = await self.test_multi_turn_image_context_streaming()
             
+            # Phase 5: Sequential image uploads with follow-up questions
+            sequential_results = await self.test_sequential_image_uploads_with_followups()
+            
             # Summary
             print("\n" + "="*80)
             print("🎯 COMPREHENSIVE IMAGE VISION LLM INFERENCE TEST RESULTS")
@@ -1228,13 +1437,15 @@ class ComprehensiveImageVisionLLMInferenceTest:
             streaming_passed = len([r for r in streaming_results if r['success']])
             edit_passed = len([r for r in edit_results if r['success']])
             multi_turn_passed = len([r for r in multi_turn_results if r['success']])
+            sequential_passed = len([r for r in sequential_results if r['success']])
             
             print(f"✅ Regular Streaming Tests: {streaming_passed}/{len(streaming_results)} passed")
             print(f"✅ Edit Streaming Tests: {edit_passed}/{len(edit_results)} passed")
             print(f"✅ Multi-turn Context Tests: {multi_turn_passed}/{len(multi_turn_results)} passed")
+            print(f"✅ Sequential Upload Tests: {sequential_passed}/{len(sequential_results)} passed")
             
-            total_passed = streaming_passed + edit_passed + multi_turn_passed
-            total_tests = len(streaming_results) + len(edit_results) + len(multi_turn_results)
+            total_passed = streaming_passed + edit_passed + multi_turn_passed + sequential_passed
+            total_tests = len(streaming_results) + len(edit_results) + len(multi_turn_results) + len(sequential_results)
             
             print(f"\n📊 Overall Results: {total_passed}/{total_tests} tests passed")
             
