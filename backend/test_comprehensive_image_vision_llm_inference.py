@@ -17,13 +17,24 @@ import uuid
 import os
 import json
 import time
+import logging
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
 import aiohttp
 
+# Suppress SQL logs for cleaner test output
+logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
+
 # Add backend to path
 sys.path.append('.')
+
+# Override database engine echo setting for this test
+import os
+os.environ['DEBUG'] = 'False'
 
 from app.core.database import AsyncSessionLocal
 from app.models.database.user import User
@@ -808,31 +819,31 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 "images": ["dog_test_image.jpg"],
                 "content": "Describe what you see in this image in detail"
             },
-            # {
-            #     "name": "Multiple images with text", 
-            #     "images": ["fifa_test_image.png", "prince_test_image.jpeg"],
-            #     "content": "Compare these two images and describe the differences"
-            # },
-            # {
-            #     "name": "Images only (no text)",
-            #     "images": ["vertical_test_image.jpg"],
-            #     "content": ""  # Empty text content
-            # },
-            # {
-            #     "name": "Three images analysis",
-            #     "images": ["dog_test_image.jpg", "fifa_test_image.png", "whatsapp_test_image.png"],
-            #     "content": "Analyze the content and style of these three images"
-            # },
-            # {
-            #     "name": "Maximum images test (5 images)",
-            #     "images": self.test_images,  # All 5 test images
-            #     "content": "Briefly describe each of these 5 images"
-            # },
-            # {
-            #     "name": "Multiple images with empty text",
-            #     "images": ["dog_test_image.jpg", "fifa_test_image.png"],
-            #     "content": ""  # Test empty content with multiple images
-            # }
+            {
+                "name": "Multiple images with text", 
+                "images": ["fifa_test_image.png", "prince_test_image.jpeg"],
+                "content": "Compare these two images and describe the differences"
+            },
+            {
+                "name": "Images only (no text)",
+                "images": ["vertical_test_image.jpg"],
+                "content": ""  # Empty text content
+            },
+            {
+                "name": "Three images analysis",
+                "images": ["dog_test_image.jpg", "fifa_test_image.png", "whatsapp_test_image.png"],
+                "content": "Analyze the content and style of these three images"
+            },
+            {
+                "name": "Maximum images test (5 images)",
+                "images": self.test_images,  # All 5 test images
+                "content": "Briefly describe each of these 5 images"
+            },
+            {
+                "name": "Multiple images with empty text",
+                "images": ["dog_test_image.jpg", "fifa_test_image.png"],
+                "content": ""  # Test empty content with multiple images
+            }
         ]
         
         streaming_results = []
