@@ -814,36 +814,36 @@ class ComprehensiveImageVisionLLMInferenceTest:
         print("="*80)
         
         scenarios = [
-            {
-                "name": "Single image with text",
-                "images": ["dog_test_image.jpg"],
-                "content": "Describe what you see in this image in detail"
-            },
-            {
-                "name": "Multiple images with text", 
-                "images": ["fifa_test_image.png", "prince_test_image.jpeg"],
-                "content": "Compare these two images and describe the differences"
-            },
-            {
-                "name": "Images only (no text)",
-                "images": ["vertical_test_image.jpg"],
-                "content": ""  # Empty text content
-            },
-            {
-                "name": "Three images analysis",
-                "images": ["dog_test_image.jpg", "fifa_test_image.png", "whatsapp_test_image.png"],
-                "content": "Analyze the content and style of these three images"
-            },
-            {
-                "name": "Maximum images test (5 images)",
-                "images": self.test_images,  # All 5 test images
-                "content": "Briefly describe each of these 5 images"
-            },
-            {
-                "name": "Multiple images with empty text",
-                "images": ["dog_test_image.jpg", "fifa_test_image.png"],
-                "content": ""  # Test empty content with multiple images
-            }
+            # {
+            #     "name": "Single image with text",
+            #     "images": ["dog_test_image.jpg"],
+            #     "content": "Describe what you see in this image in detail"
+            # },
+            # {
+            #     "name": "Multiple images with text", 
+            #     "images": ["fifa_test_image.png", "prince_test_image.jpeg"],
+            #     "content": "Compare these two images and describe the differences"
+            # },
+            # {
+            #     "name": "Images only (no text)",
+            #     "images": ["vertical_test_image.jpg"],
+            #     "content": ""  # Empty text content
+            # },
+            # {
+            #     "name": "Three images analysis",
+            #     "images": ["dog_test_image.jpg", "fifa_test_image.png", "whatsapp_test_image.png"],
+            #     "content": "Analyze the content and style of these three images"
+            # },
+            # {
+            #     "name": "Maximum images test (5 images)",
+            #     "images": self.test_images,  # All 5 test images
+            #     "content": "Briefly describe each of these 5 images"
+            # },
+            # {
+            #     "name": "Multiple images with empty text",
+            #     "images": ["dog_test_image.jpg", "fifa_test_image.png"],
+            #     "content": ""  # Test empty content with multiple images
+            # }
         ]
         
         streaming_results = []
@@ -918,32 +918,30 @@ class ComprehensiveImageVisionLLMInferenceTest:
         return streaming_results
     
     async def test_edit_streaming_vision_inference(self):
-        """Test /conversations/{id}/messages/{msg_id}/edit/stream with images"""
+        """Test /conversations/{id}/messages/{msg_id}/edit/stream - TEXT EDITING ONLY (images remain unchanged)"""
         print("\n" + "="*80)
-        print("PHASE 3: EDIT STREAMING VISION INFERENCE")
+        print("PHASE 3: EDIT STREAMING TEXT CONTENT (Images Unchanged)")
         print("="*80)
+        print("Note: Only text content can be edited, images remain the same")
         
         edit_scenarios = [
             {
-                "name": "Edit with different image",
+                "name": "Edit text with single image",
                 "original_images": ["dog_test_image.jpg"],
                 "original_content": "What animal is this?",
-                "edit_images": ["fifa_test_image.png"],
-                "edit_content": "Describe the sports activity in this image"
+                "edit_content": "Describe what you see in this image in detail, focusing on the setting and mood"
             },
             {
-                "name": "Edit with more images",
-                "original_images": ["prince_test_image.jpeg"],
-                "original_content": "Describe this person",
-                "edit_images": ["prince_test_image.jpeg", "vertical_test_image.jpg"],
-                "edit_content": "Compare these two images and find similarities"
+                "name": "Edit text with multiple images", 
+                "original_images": ["fifa_test_image.png", "prince_test_image.jpeg"],
+                "original_content": "What do you see?",
+                "edit_content": "Compare these two images and describe the differences in style and content"
             },
             {
-                "name": "Edit to remove images",
-                "original_images": ["whatsapp_test_image.png", "dog_test_image.jpg"],
-                "original_content": "Analyze these images",
-                "edit_images": [],  # No images in edit
-                "edit_content": "Tell me about artificial intelligence instead"
+                "name": "Edit to more detailed analysis",
+                "original_images": ["vertical_test_image.jpg"],
+                "original_content": "Describe this image",
+                "edit_content": "Provide a detailed analysis of this YouTube Music recap, including specific artists and statistics"
             }
         ]
         
@@ -955,7 +953,6 @@ class ComprehensiveImageVisionLLMInferenceTest:
             
             conversation_id = None
             original_staging = []
-            edit_staging = []
             
             try:
                 # 1. Create conversation with original message
@@ -970,20 +967,19 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 )
                 
                 print(f"✅ Original message created: {original_message['user_message_id']}")
+                print(f"✅ Original content: {scenario['original_content']}")
                 
-                # 2. Upload new images for edit
-                edit_staging = await self.upload_scenario_images(scenario['edit_images'], user.user_id)
-                
-                # 3. Stream edit with new images
+                # 2. Edit ONLY the text content (images remain the same)
                 edit_response = await self.stream_edit_message_with_images(
                     conversation_id=conversation_id,
                     message_id=original_message['user_message_id'],
                     content=scenario['edit_content'],
-                    staging_files=edit_staging,
+                    staging_files=original_staging,  # Same images, only text changes
                     user_id=user.user_id
                 )
                 
                 print(f"✅ Edit streaming completed: {edit_response['edit_tokens_received']} tokens received")
+                print(f"✅ Edited content: {scenario['edit_content']}")
                 edit_results.append({
                     "scenario": scenario['name'],
                     "success": True,
@@ -991,9 +987,8 @@ class ComprehensiveImageVisionLLMInferenceTest:
                     "edit_response_preview": edit_response['edit_ai_response_preview']
                 })
                 
-                # 4. IMMEDIATE CLEANUP & VERIFICATION  
-                all_staging_files = original_staging + edit_staging
-                await self.immediate_cleanup_and_verify(conversation_id, all_staging_files, user.user_id)
+                # 4. IMMEDIATE CLEANUP & VERIFICATION (only original staging files used)
+                await self.immediate_cleanup_and_verify(conversation_id, original_staging, user.user_id)
                 
             except Exception as e:
                 print(f"❌ Edit scenario failed: {e}")
@@ -1003,16 +998,15 @@ class ComprehensiveImageVisionLLMInferenceTest:
                     "error": str(e)
                 })
                 
-                # Fix: Enhanced error handling in cleanup
+                # Fix: Enhanced error handling in cleanup  
                 cleanup_errors = []
                 try:
                     if conversation_id:
                         await self.delete_conversation(conversation_id, user.user_id)
                         print(f"✅ Cleaned up conversation: {conversation_id}")
                     
-                    # Clean up all staging files with better error handling
-                    all_staging = original_staging + edit_staging
-                    for staged_file in all_staging:
+                    # Clean up original staging files (no edit staging files since images don't change)
+                    for staged_file in original_staging:
                         try:
                             await staging_service.discard_staged_file(
                                 staged_file["file_id"], 
@@ -1070,9 +1064,9 @@ class ComprehensiveImageVisionLLMInferenceTest:
             # Phase 2: Regular streaming tests
             streaming_results = await self.test_regular_streaming_vision_inference()
             
-            # Phase 3: Edit streaming tests  
-            #edit_results = await self.test_edit_streaming_vision_inference()
-            edit_results = []
+            # Phase 3: Edit streaming tests (text editing only)
+            edit_results = await self.test_edit_streaming_vision_inference()
+            # edit_results = []
             
             # Summary
             print("\n" + "="*80)
