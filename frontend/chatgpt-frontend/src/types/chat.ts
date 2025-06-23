@@ -7,6 +7,7 @@ export interface MessageCreate {
   parent_message_id?: string;
   attachments?: string[];
   metadata?: Record<string, any>;
+  staging_files?: Array<{ file_id: string; s3_key: string }>;
 }
 
 // MessageUpdate interface for editing messages
@@ -80,6 +81,7 @@ export interface StreamMessage {
   stream_mode?: 'text' | 'json' | 'function_call';
   attachments?: string[];
   metadata?: Record<string, any>;
+  staging_files?: Array<{ file_id: string; s3_key: string }>;
 }
 
 // SSE Event types from your backend streaming
@@ -126,6 +128,12 @@ export interface Message {
   model_name?: string;
   attachments?: string[];
   metadata?: Record<string, any>;
+  // NEW: Frontend image display support for existing UserMessage component
+  stagingImages?: Array<{
+    fileId: string;
+    filename: string;
+    previewUrl: string;
+  }>;
 }
 
 // Chat state for components

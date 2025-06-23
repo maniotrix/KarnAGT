@@ -28,7 +28,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Clean Architecture - ONLY use these layers
 import { useCurrentUser, useAuthStatus } from '../../app/hooks/auth/useAuth';
-import { useUiStore } from '../../app/stores/uiStore';
+import { useUiStore, useImageStore } from '../../app/stores';
 
 interface ChatProps {
   conversationId?: string;
@@ -51,6 +51,7 @@ export const Chat: React.FC<ChatProps> = ({
   const userQuery = useCurrentUser();
   const authStatus = useAuthStatus();
   const { theme } = useUiStore();
+  const { addImagesFromUpload, getImagesForStaging, clearExpiredImages } = useImageStore();
   const currentUser = userQuery.data;
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const [showActions, setShowActions] = useState(false);
@@ -151,33 +152,94 @@ export const Chat: React.FC<ChatProps> = ({
     }
   }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
 
-  // Handle image upload
+  // Handle image upload - store in imageStore
   const handleImageUpload = useCallback((files: UploadFile[]) => {
-    setUploadedImages(prev => [...prev, ...files]);
-  }, []);
+    console.log('🔍 DEBUG: handleImageUpload called with files:', files);
+    console.log('🔍 DEBUG: Files details:', files.map(f => ({
+      name: f.name,
+      status: f.status,
+      file_id: f.file_id,
+      s3_key: f.s3_key,
+      hasFile: !!f.file
+    })));
+    
+    // Add successful uploads to image store
+    const successfulFiles = files
+      .filter(f => f.status === 'success' && f.file_id && f.s3_key && f.file)
+      .map(f => ({
+        file_id: f.file_id!,
+        s3_key: f.s3_key!,
+        preview: f.preview,
+        file: f.file!
+      }));
+    
+    console.log('🔍 DEBUG: Successful files for image store:', successfulFiles);
+    addImagesFromUpload(successfulFiles);
+    
+    // Keep existing state for now (for upload UI)
+    const newUploadedImages = [...files];
+    console.log('🔍 DEBUG: Setting uploadedImages state to:', newUploadedImages);
+    setUploadedImages(prev => {
+      const updated = [...prev, ...files];
+      console.log('🔍 DEBUG: Updated uploadedImages state:', updated);
+      return updated;
+    });
+  }, [addImagesFromUpload]);
 
   // Handle message submission with quota check and image support
   const handleMessageSubmit = async (e: React.FormEvent) => {
+    console.log('🔍 DEBUG: handleMessageSubmit called');
+    console.log('🔍 DEBUG: Current uploadedImages state:', uploadedImages);
+    console.log('🔍 DEBUG: Input content:', input);
+    console.log('🔍 DEBUG: hasConversation:', hasConversation);
+    
     if (isQuotaExceeded) {
       alert(`Quota exceeded! You've used ${quota.used}/${quota.total} messages. Please upgrade your plan.`);
       return;
     }
 
+    // Clear expired images from cache
+    clearExpiredImages();
+
+    // Get successful uploads as staging files from existing upload system
+    console.log('🔍 DEBUG: Filtering uploadedImages for staging files...');
+    const successfulFiles = uploadedImages.filter(file => file.status === 'success' && file.file_id && file.s3_key);
+    console.log('🔍 DEBUG: Successful files after filter:', successfulFiles);
+    
+    const stagingFiles = successfulFiles.map(file => ({
+      file_id: file.file_id!,
+      s3_key: file.s3_key!,
+    }));
+
+    console.log('🔍 DEBUG: Final staging files for submission:', stagingFiles);
+    console.log('🔍 DEBUG: Staging files count:', stagingFiles.length);
+
     // If we don't have a conversation, ask parent to create one
-    if (!hasConversation && onCreateConversationForMessage && (input.trim() || uploadedImages.length > 0)) {
+    if (!hasConversation && onCreateConversationForMessage && (input.trim() || stagingFiles.length > 0)) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
       await onCreateConversationForMessage(input.trim() || "Image analysis request");
       return;
     }
 
-    // We have a conversation, submit the message normally
+    // We have a conversation, submit the message with staging files using existing handleSubmit
     if (hasConversation) {
-      // TODO: Extend handleSubmit to support images
-      // For now, just submit the text message
-      handleSubmit(e);
+      console.log('🔍 DEBUG: Creating submitEvent with staging files');
+      // Create custom event with staging files data for existing handleSubmit function
+      const submitEvent = {
+        ...e,
+        preventDefault: e.preventDefault.bind(e),
+        stagingFiles, // Add staging files to the event for existing useChat hook
+      };
       
-      // Clear uploaded images after sending
+      console.log('🔍 DEBUG: submitEvent created:', submitEvent);
+      console.log('🔍 DEBUG: submitEvent.stagingFiles:', submitEvent.stagingFiles);
+      console.log('🔍 DEBUG: Calling handleSubmit with submitEvent');
+      
+      handleSubmit(submitEvent as any);
+      
+      // Clear uploaded images after sending - existing functionality
+      console.log('🔍 DEBUG: Clearing uploadedImages state');
       setUploadedImages([]);
       
       // ALWAYS scroll to bottom when user sends message

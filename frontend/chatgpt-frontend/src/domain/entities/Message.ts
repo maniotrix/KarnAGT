@@ -15,6 +15,7 @@ export interface MessageData {
   readonly modelName?: string;
   readonly attachments?: string[];
   readonly metadata?: Record<string, any>;
+  readonly stagingFiles?: Array<{ file_id: string; s3_key: string }>;
 }
 
 export class Message implements MessageData {
@@ -31,7 +32,8 @@ export class Message implements MessageData {
     public readonly costUsd?: number,
     public readonly modelName?: string,
     public readonly attachments?: string[],
-    public readonly metadata?: Record<string, any>
+    public readonly metadata?: Record<string, any>,
+    public readonly stagingFiles?: Array<{ file_id: string; s3_key: string }>
   ) {}
 
   // Factory method from existing MessageResponse
@@ -49,7 +51,8 @@ export class Message implements MessageData {
       response.cost_usd,
       response.model_name,
       response.attachments,
-      response.metadata
+      response.metadata,
+      undefined // stagingFiles are not part of backend responses
     );
   }
 
@@ -61,14 +64,15 @@ export class Message implements MessageData {
     parentMessageId?: string;
     attachments?: string[];
     metadata?: Record<string, any>;
+    stagingFiles?: Array<{ file_id: string; s3_key: string }>; // NEW: For existing upload system
   }): Message {
     const id = crypto.randomUUID();
     const messageId = crypto.randomUUID();
     const now = new Date();
     
-    // Business rules
-    if (!data.content.trim()) {
-      throw new Error('Message content cannot be empty');
+    // Business rules - updated to allow staging files without content
+    if (!data.content.trim() && (!data.stagingFiles || data.stagingFiles.length === 0)) {
+      throw new Error('Message must have content or staging files');
     }
 
     if (data.content.length > 10000) {
@@ -88,7 +92,8 @@ export class Message implements MessageData {
       undefined,
       undefined,
       data.attachments,
-      data.metadata
+      data.metadata,
+      data.stagingFiles
     );
   }
 
@@ -139,6 +144,7 @@ export class Message implements MessageData {
       parent_message_id: this.parentMessageId,
       attachments: this.attachments,
       metadata: this.metadata,
+      staging_files: this.stagingFiles,
     };
   }
 
