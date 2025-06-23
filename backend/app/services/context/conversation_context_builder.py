@@ -77,16 +77,16 @@ class ConversationContextBuilder:
             logger.info("No overflow detected, including all previous messages")
             for message in reversed(previous_messages):  # Reverse to chronological order
                 # Extract OpenAI file IDs from message attachments
-                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if openai_file_ids:
+                if message_file_ids:
                     # Build multimodal message with images
                     message_dict = self._build_message_with_attachments(
                         message.role, 
                         message.content, 
-                        openai_file_ids
+                        message_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to context")
+                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to context")
                 else:
                     # Text-only message
                     message_dict = {
@@ -127,16 +127,16 @@ class ConversationContextBuilder:
             # Add recent messages in chronological order
             for message in reversed(recent_messages):
                 # Extract OpenAI file IDs from message attachments
-                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if openai_file_ids:
+                if message_file_ids:
                     # Build multimodal message with images
                     message_dict = self._build_message_with_attachments(
                         message.role, 
                         message.content, 
-                        openai_file_ids
+                        message_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to context")
+                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to context")
                 else:
                     # Text-only message
                     message_dict = {
@@ -229,16 +229,16 @@ class ConversationContextBuilder:
             
             for message in reversed(previous_messages):  # Reverse to chronological order
                 # Extract OpenAI file IDs from message attachments
-                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if openai_file_ids:
+                if message_file_ids:
                     # Build multimodal message with images
                     message_dict = self._build_message_with_attachments(
                         message.role, 
                         message.content, 
-                        openai_file_ids
+                        message_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to conversation history")
+                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to conversation history")
                 else:
                     # Text-only message
                     message_dict = {
@@ -277,16 +277,16 @@ class ConversationContextBuilder:
             # Add recent messages as history (in chronological order)
             for message in reversed(recent_messages):
                 # Extract OpenAI file IDs from message attachments
-                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if openai_file_ids:
+                if message_file_ids:
                     # Build multimodal message with images
                     message_dict = self._build_message_with_attachments(
                         message.role, 
                         message.content, 
-                        openai_file_ids
+                        message_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to conversation history")
+                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to conversation history")
                 else:
                     # Text-only message
                     message_dict = {
