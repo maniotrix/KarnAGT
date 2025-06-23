@@ -64,6 +64,7 @@ class ConversationContextBuilder:
             logger.info("No previous messages found, returning only latest user message")
             # Build final user message with images if provided
             final_message = self._build_user_message_with_images(latest_user_message, openai_file_ids or [])
+            logger.info(f"Final context built: {len(final_message)} messages, {count_tokens(final_message['content'])} total tokens \n {final_message}")
             return [final_message]
         
         # Step 2: Check if we need summarization
@@ -75,10 +76,25 @@ class ConversationContextBuilder:
             # No overflow, include all messages
             logger.info("No overflow detected, including all previous messages")
             for message in reversed(previous_messages):  # Reverse to chronological order
-                context_messages.append({
-                    "role": message.role,
-                    "content": message.content
-                })
+                # Extract OpenAI file IDs from message attachments
+                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                
+                if openai_file_ids:
+                    # Build multimodal message with images
+                    message_dict = self._build_message_with_attachments(
+                        message.role, 
+                        message.content, 
+                        openai_file_ids
+                    )
+                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to context")
+                else:
+                    # Text-only message
+                    message_dict = {
+                        "role": message.role,
+                        "content": message.content
+                    }
+                
+                context_messages.append(message_dict)
         else:
             # Overflow detected, need summarization
             logger.info(f"Overflow detected, summarizing messages from index {overflow_index} onwards")
@@ -110,10 +126,25 @@ class ConversationContextBuilder:
             
             # Add recent messages in chronological order
             for message in reversed(recent_messages):
-                context_messages.append({
-                    "role": message.role,
-                    "content": message.content
-                })
+                # Extract OpenAI file IDs from message attachments
+                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                
+                if openai_file_ids:
+                    # Build multimodal message with images
+                    message_dict = self._build_message_with_attachments(
+                        message.role, 
+                        message.content, 
+                        openai_file_ids
+                    )
+                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to context")
+                else:
+                    # Text-only message
+                    message_dict = {
+                        "role": message.role,
+                        "content": message.content
+                    }
+                
+                context_messages.append(message_dict)
         
         # Step 3: Add the latest user message with images
         final_message = self._build_user_message_with_images(latest_user_message, openai_file_ids or [])
@@ -197,10 +228,25 @@ class ConversationContextBuilder:
             context_dict["overflow"] = False
             
             for message in reversed(previous_messages):  # Reverse to chronological order
-                context_dict["recent_conversation_history"].append({
-                    "role": message.role,
-                    "content": message.content
-                })
+                # Extract OpenAI file IDs from message attachments
+                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                
+                if openai_file_ids:
+                    # Build multimodal message with images
+                    message_dict = self._build_message_with_attachments(
+                        message.role, 
+                        message.content, 
+                        openai_file_ids
+                    )
+                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to conversation history")
+                else:
+                    # Text-only message
+                    message_dict = {
+                        "role": message.role,
+                        "content": message.content
+                    }
+                
+                context_dict["recent_conversation_history"].append(message_dict)
         else:
             # Overflow detected, need summarization
             logger.info(f"Overflow detected, summarizing messages from index {overflow_index} onwards")
@@ -230,10 +276,25 @@ class ConversationContextBuilder:
             
             # Add recent messages as history (in chronological order)
             for message in reversed(recent_messages):
-                context_dict["recent_conversation_history"].append({
-                    "role": message.role,
-                    "content": message.content
-                })
+                # Extract OpenAI file IDs from message attachments
+                openai_file_ids = self._extract_openai_file_ids_from_message(message)
+                
+                if openai_file_ids:
+                    # Build multimodal message with images
+                    message_dict = self._build_message_with_attachments(
+                        message.role, 
+                        message.content, 
+                        openai_file_ids
+                    )
+                    logger.info(f"Added {message.role} message with {len(openai_file_ids)} images to conversation history")
+                else:
+                    # Text-only message
+                    message_dict = {
+                        "role": message.role,
+                        "content": message.content
+                    }
+                
+                context_dict["recent_conversation_history"].append(message_dict)
         
         # Log final context statistics
         history_count = len(context_dict["recent_conversation_history"])
@@ -248,6 +309,48 @@ class ConversationContextBuilder:
         
         return context_dict
     
+    def _extract_openai_file_ids_from_message(self, message: 'Message') -> List[str]:
+        """Extract OpenAI file IDs from a message's attachments"""
+        attachments = message.attachments
+        if attachments is None or len(attachments) == 0:
+            return []
+        
+        openai_file_ids = []
+        for attachment in attachments:
+            if isinstance(attachment, dict) and attachment.get('openai_file_id'):
+                openai_file_ids.append(attachment['openai_file_id'])
+        
+        return openai_file_ids
+
+    def _build_message_with_attachments(self, role: str, content: str, openai_file_ids: List[str]) -> Dict[str, Any]:
+        """Build message with optional image attachments for conversation history"""
+        if not openai_file_ids:
+            # Text-only message
+            return {
+                "role": role,
+                "content": content
+            }
+        
+        # Multimodal message with images
+        content_parts = []
+        
+        # Add text content only if it's not empty
+        if content and content.strip():
+            content_parts.append({"type": "input_text", "text": content})
+        
+        # Add images
+        for file_id in openai_file_ids:
+            content_parts.append({
+                "type": "input_image", 
+                "file_id": file_id
+            })
+        
+        logger.info(f"Built multimodal {role} message with {len(openai_file_ids)} images and {'text' if content.strip() else 'no text'}")
+        return {
+            "role": role,
+            "content": content_parts
+        }
+
     def _get_overflow_index(self, messages: List[Message]) -> int:
         """
         Return the index in conversation from where summarization starts.
