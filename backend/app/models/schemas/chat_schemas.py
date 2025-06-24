@@ -130,6 +130,7 @@ class MessageResponse(BaseSchema):
     finish_reason: Optional[str] = None
     parent_message_id: Optional[int] = None
     has_children: bool = False
+    attachments: Optional[List[Dict[str, Any]]] = Field(None, description="Message attachments")
     extra_metadata: Dict[str, Any] = {}  # Changed from metadata to match database field
     created_at: datetime
     

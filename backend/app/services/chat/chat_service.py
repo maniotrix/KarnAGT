@@ -540,6 +540,7 @@ class ChatService:
                     cost_usd=msg.cost_usd or 0.0,
                     model_name=msg.model_name,
                     finish_reason=None,  # Not stored in database
+                    attachments=msg.attachments or [],
                     extra_metadata=msg.extra_metadata or {},
                     created_at=msg.created_at
                 )
