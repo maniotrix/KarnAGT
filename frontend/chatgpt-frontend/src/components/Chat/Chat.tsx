@@ -201,17 +201,28 @@ export const Chat: React.FC<ChatProps> = ({
     // Clear expired images from cache
     clearExpiredImages();
 
-    // Get successful uploads as staging files from existing upload system
-    console.log('🔍 DEBUG: Filtering uploadedImages for staging files...');
-    const successfulFiles = uploadedImages.filter(file => file.status === 'success' && file.file_id && file.s3_key);
+    // Get successful uploads
+    console.log('🔍 DEBUG: Filtering uploadedImages for successful uploads...');
+    const successfulFiles = uploadedImages.filter(file => file.status === 'success' && file.file_id && file.s3_key && file.file);
     console.log('🔍 DEBUG: Successful files after filter:', successfulFiles);
     
+    // Prepare staging files for backend
     const stagingFiles = successfulFiles.map(file => ({
       file_id: file.file_id!,
       s3_key: file.s3_key!,
     }));
 
-    console.log('🔍 DEBUG: Final staging files for submission:', stagingFiles);
+    // Prepare actual image data for frontend display
+    const imageData = successfulFiles.map(file => ({
+      fileId: file.file_id!,
+      filename: file.name,
+      file: file.file!,
+      blobUrl: URL.createObjectURL(file.file!),
+      s3Key: file.s3_key!
+    }));
+
+    console.log('🔍 DEBUG: Final staging files for backend:', stagingFiles);
+    console.log('🔍 DEBUG: Image data for frontend:', imageData);
     console.log('🔍 DEBUG: Staging files count:', stagingFiles.length);
 
     // If we don't have a conversation, ask parent to create one
@@ -222,23 +233,25 @@ export const Chat: React.FC<ChatProps> = ({
       return;
     }
 
-    // We have a conversation, submit the message with staging files using existing handleSubmit
+    // We have a conversation, submit the message with both staging files and image data
     if (hasConversation) {
-      console.log('🔍 DEBUG: Creating submitEvent with staging files');
-      // Create custom event with staging files data for existing handleSubmit function
+      console.log('🔍 DEBUG: Creating submitEvent with staging files and image data');
+      // Create custom event with both staging files and image data
       const submitEvent = {
         ...e,
         preventDefault: e.preventDefault.bind(e),
-        stagingFiles, // Add staging files to the event for existing useChat hook
+        stagingFiles, // For backend
+        imageData, // For frontend display
       };
       
       console.log('🔍 DEBUG: submitEvent created:', submitEvent);
       console.log('🔍 DEBUG: submitEvent.stagingFiles:', submitEvent.stagingFiles);
+      console.log('🔍 DEBUG: submitEvent.imageData:', submitEvent.imageData);
       console.log('🔍 DEBUG: Calling handleSubmit with submitEvent');
       
       handleSubmit(submitEvent as any);
       
-      // Clear uploaded images after sending - existing functionality
+      // Clear uploaded images after sending
       console.log('🔍 DEBUG: Clearing uploadedImages state');
       setUploadedImages([]);
       

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Message } from '../../types/chat';
+import React, { useState, useEffect } from 'react';
+import { Message, ImageAttachment } from '../../types/chat';
+import { useImageUrls } from '../../hooks/useImageUrls';
 
 // Markdown Support
 import ReactMarkdown from 'react-markdown';
@@ -23,22 +24,14 @@ import { motion } from 'framer-motion';
 // Clean Architecture Integration
 import { useUiStore } from '../../app/stores/uiStore';
 
-interface StagingImage {
-  fileId: string;
-  filename: string;
-  previewUrl: string; // blob URL or backend URL
-}
-
 interface UserMessageProps {
   message: Message;
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
-  stagingImages?: StagingImage[]; // Frontend-first approach
 }
 
 export const UserMessage: React.FC<UserMessageProps> = ({ 
   message, 
-  onEdit,
-  stagingImages = []
+  onEdit
 }) => {
   // Clean Architecture Integration
   const { theme } = useUiStore();
@@ -54,6 +47,44 @@ export const UserMessage: React.FC<UserMessageProps> = ({
   // Image modal functionality
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
+  // ✅ 2025 APPROACH: On-demand URL generation with caching
+  const imageUrls = useImageUrls();
+  const [attachmentUrls, setAttachmentUrls] = useState<{[fileId: string]: string}>({});
+
+  // Extract file IDs from attachments
+  const attachmentFileIds = React.useMemo(() => {
+    if (!message.attachments?.length) return [];
+    
+    return message.attachments
+      .map(attachment => {
+        if (typeof attachment === 'object' && attachment !== null) {
+          return attachment.file_id;
+        }
+        if (typeof attachment === 'string') {
+          return attachment;
+        }
+        return null;
+      })
+      .filter((id): id is string => id !== null);
+  }, [message.attachments]);
+
+  // Generate URLs when component mounts or attachments change
+  useEffect(() => {
+    if (attachmentFileIds.length > 0) {
+      imageUrls.generateUrls(attachmentFileIds)
+        .then(results => {
+          const urlMap: {[fileId: string]: string} = {};
+          Object.entries(results).forEach(([fileId, urlData]) => {
+            urlMap[fileId] = urlData.display;
+          });
+          setAttachmentUrls(urlMap);
+        })
+        .catch(error => {
+          console.error('Failed to generate attachment URLs:', error);
+        });
+    }
+  }, [attachmentFileIds]); // Removed imageUrls from dependencies to prevent infinite loop
+
   const formatTime = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date;
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -118,30 +149,96 @@ export const UserMessage: React.FC<UserMessageProps> = ({
 
   const canEdit = onEdit && !isSaving;
 
-  // Render image display
-  const renderImages = () => {
-    if (!stagingImages.length) return null;
+  // ✅ MODERN: Get images using metadata + generated URLs  
+  const getDisplayImages = () => {
+    // FIRST: Use local images if available (fresh uploads before AI response)
+    if (message.localImages?.length) {
+      return message.localImages.map(img => ({
+        id: img.fileId,
+        filename: img.filename,
+        url: img.blobUrl
+      }));
+    }
+    
+    // SECOND: Use backend attachments with on-demand generated URLs
+    if (message.attachments?.length) {
+      return message.attachments
+        .map((attachment, index) => {
+          // Handle attachment objects (preferred)
+          if (typeof attachment === 'object' && attachment !== null) {
+            const fileId = attachment.file_id;
+            const generatedUrl = attachmentUrls[fileId];
+            
+            return {
+              id: fileId,
+              filename: attachment.filename || attachment.original_filename || `Image ${index + 1}`,
+              url: generatedUrl || null // Will show loading if null
+            };
+          }
+          // Handle string file IDs (legacy/fallback)  
+          else if (typeof attachment === 'string') {
+            const generatedUrl = attachmentUrls[attachment];
+            
+            return {
+              id: attachment,
+              filename: `Image ${index + 1}`,
+              url: generatedUrl || null
+            };
+          }
+          return null;
+        })
+        .filter(Boolean) as Array<{ id: string; filename: string; url: string | null }>;
+    }
+    
+    return [];
+  };
 
-    if (stagingImages.length === 1) {
+  const displayImages = getDisplayImages();
+
+  // Render images with loading states
+  const renderImages = () => {
+    if (!displayImages.length) return null;
+
+    if (displayImages.length === 1) {
       // Single image - larger display
-      const image = stagingImages[0];
+      const image = displayImages[0];
+      
       return (
         <div className="flex w-[70%] flex-col items-end mb-2">
           <div className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64">
-            <Dialog.Root open={selectedImage === image.previewUrl} onOpenChange={(open) => !open && setSelectedImage(null)}>
-              <Dialog.Trigger asChild>
-                <button 
-                  onClick={() => setSelectedImage(image.previewUrl)}
-                  className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64"
-                >
-                  <img 
-                    alt={image.filename}
-                    className="max-w-full object-cover object-center overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64 w-fit transition-opacity duration-300 opacity-100"
-                    src={image.previewUrl}
-                  />
-                </button>
-              </Dialog.Trigger>
-            </Dialog.Root>
+            {image.url ? (
+              <Dialog.Root open={selectedImage === image.url} onOpenChange={(open) => !open && setSelectedImage(null)}>
+                <Dialog.Trigger asChild>
+                  <button 
+                    onClick={() => setSelectedImage(image.url!)}
+                    className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64"
+                  >
+                    <img 
+                      alt={image.filename}
+                      className="max-w-full object-cover object-center overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64 w-fit transition-opacity duration-300 opacity-100"
+                      src={image.url}
+                    />
+                  </button>
+                </Dialog.Trigger>
+              </Dialog.Root>
+            ) : (
+              // Loading state
+              <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center">
+                {imageUrls.isLoading(image.id) ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span className="text-sm text-gray-600">Loading...</span>
+                  </div>
+                ) : imageUrls.hasError(image.id) ? (
+                  <div className="text-red-600 text-sm text-center">
+                    <div>⚠️ Failed to load</div>
+                    <div className="text-xs mt-1">{imageUrls.getError(image.id)}</div>
+                  </div>
+                ) : (
+                  <div className="text-gray-400 text-sm">📷 Image</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       );
@@ -150,36 +247,47 @@ export const UserMessage: React.FC<UserMessageProps> = ({
       return (
         <div className="flex w-[70%] flex-col items-end mb-2">
           <div className="flex flex-row items-center justify-end gap-1 max-w-72">
-            {stagingImages.slice(0, 2).map((image, index) => (
+            {displayImages.slice(0, 2).map((image, index) => (
               <div 
-                key={image.fileId}
+                key={image.id}
                 className={`h-32 w-32 overflow-hidden rounded-lg ${
                   index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
                 }`}
               >
-                <Dialog.Root open={selectedImage === image.previewUrl} onOpenChange={(open) => !open && setSelectedImage(null)}>
-                  <Dialog.Trigger asChild>
-                    <button 
-                      onClick={() => setSelectedImage(image.previewUrl)}
-                      className={`h-32 w-32 overflow-hidden rounded-lg ${
-                        index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
-                      }`}
-                    >
-                      <img 
-                        alt={image.filename}
-                        className={`max-w-full aspect-square object-cover object-center h-32 w-32 overflow-hidden rounded-lg w-fit transition-opacity duration-300 opacity-100 ${
+                {image.url ? (
+                  <Dialog.Root open={selectedImage === image.url} onOpenChange={(open) => !open && setSelectedImage(null)}>
+                    <Dialog.Trigger asChild>
+                      <button 
+                        onClick={() => setSelectedImage(image.url!)}
+                        className={`h-32 w-32 overflow-hidden rounded-lg ${
                           index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
                         }`}
-                        src={image.previewUrl}
-                      />
-                    </button>
-                  </Dialog.Trigger>
-                </Dialog.Root>
+                      >
+                        <img 
+                          alt={image.filename}
+                          className={`max-w-full aspect-square object-cover object-center h-32 w-32 overflow-hidden rounded-lg w-fit transition-opacity duration-300 opacity-100 ${
+                            index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
+                          }`}
+                          src={image.url}
+                        />
+                      </button>
+                    </Dialog.Trigger>
+                  </Dialog.Root>
+                ) : (
+                  // Loading state
+                  <div className="h-32 w-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                    {imageUrls.isLoading(image.id) ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    ) : (
+                      <div className="text-gray-400 text-xs">📷</div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
-            {stagingImages.length > 2 && (
+            {displayImages.length > 2 && (
               <div className="text-xs text-gray-500 ml-2">
-                +{stagingImages.length - 2} more
+                +{displayImages.length - 2} more
               </div>
             )}
           </div>

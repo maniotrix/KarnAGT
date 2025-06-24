@@ -21,8 +21,8 @@ export function useChat(options: ChatOptions = {}) {
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const queryClient = useQueryClient();
 
-  // Image store integration
-  const { getImagesForStaging, updateImageUrls, setImageLoading, setImageError, isImageExpired } = useImageStore();
+  // Image store integration - only need clearExpiredImages now
+  const { clearExpiredImages } = useImageStore();
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -222,41 +222,27 @@ export function useChat(options: ChatOptions = {}) {
   }, [currentStreamId]);
 
   // Send message with SSE streaming
-  const sendMessage = useCallback(async (content: string, conversationId: string, stagingFiles: Array<{ file_id: string; s3_key: string }> = []) => {
+  const sendMessage = useCallback(async (content: string, conversationId: string, stagingFiles: Array<{ file_id: string; s3_key: string }> = [], imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> = []) => {
     if (!conversationId) {
       console.error('❌ No conversation ID provided');
       return;
     }
 
     console.log('📤 Sending message with staging files:', stagingFiles);
+    console.log('📤 Sending message with image data:', imageData);
     
-    // STEP 1: Create user message with LOCAL PREVIEW IMAGES first
-    const stagingImages = getImagesForStaging(stagingFiles);
-    console.log('🖼️ Using local preview images:', stagingImages);
-    
+    // STEP 1: Create user message with actual image data for immediate display
     const userMessage: Message = {
+      id: `temp_${Date.now()}`,
       message_id: `temp_${Date.now()}`,
-      conversation_id: conversationId,
-      content,
       role: 'user',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      is_edited: false,
-      parent_message_id: null,
-      has_attachments: stagingImages.length > 0,
-      attachments: [],
-      token_usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-      cost_info: { cost: 0, model: '', currency: 'USD' },
-      metadata: {},
-      // Use local preview images immediately
-      stagingImages: stagingImages.map(img => ({
-        fileId: img.fileId,
-        filename: img.filename,
-        previewUrl: img.previewUrl
-      })),
+      content,
+      createdAt: new Date(),
+      // Store actual image data for immediate display
+      localImages: imageData.length > 0 ? imageData : undefined,
     };
 
-    // STEP 2: Add to UI immediately with local preview images
+    // STEP 2: Add to UI immediately with actual image data
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setError(null);
@@ -278,15 +264,10 @@ export function useChat(options: ChatOptions = {}) {
       };
 
       console.log('🔍 DEBUG: Prepared StreamMessage object:', streamMessage);
-      console.log('🔍 DEBUG: StreamMessage.staging_files:', streamMessage.staging_files);
-      console.log('🔍 DEBUG: StreamMessage JSON:', JSON.stringify(streamMessage, null, 2));
 
       // STEP 4: Start streaming to backend
       const url = buildApiUrl(API_ENDPOINTS.CHAT.STREAM_MESSAGE(conversationId));
       const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-      
-      console.log('🔍 DEBUG: About to send request to:', url);
-      console.log('🔍 DEBUG: Request body (stringified):', JSON.stringify(streamMessage));
       
       const response = await fetch(url, {
         method: 'POST',
@@ -309,13 +290,12 @@ export function useChat(options: ChatOptions = {}) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let streamIdCaptured = false;
 
       if (!reader) {
         throw new Error('No response body');
       }
 
-      console.log('🌊 Stream started, waiting for stream_id...');
+      console.log('🌊 Stream started...');
       
       let assistantMessage: Message | null = null;
       let assistantContent = '';
@@ -350,13 +330,6 @@ export function useChat(options: ChatOptions = {}) {
             try {
               const parsed = JSON.parse(data);
               
-              // Capture stream_id for potential cancellation
-              if (!streamIdCaptured && parsed.stream_id) {
-                setCurrentStreamId(parsed.stream_id);
-                streamIdCaptured = true;
-                console.log('🎯 Captured stream_id:', parsed.stream_id);
-              }
-              
               // Handle different event types
               if (parsed.type === 'token' && parsed.data?.content) {
                 const token = parsed.data.content;
@@ -365,37 +338,29 @@ export function useChat(options: ChatOptions = {}) {
                 // Update or create assistant message
                 if (!assistantMessage) {
                   assistantMessage = {
+                    id: `temp_assistant_${Date.now()}`,
                     message_id: `temp_assistant_${Date.now()}`,
-                    conversation_id: conversationId,
-                    content: assistantContent,
                     role: 'assistant',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    is_edited: false,
-                    parent_message_id: userMessage.message_id,
-                    has_attachments: false,
-                    attachments: [],
-                    token_usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-                    cost_info: { cost: 0, model: '', currency: 'USD' },
-                    metadata: {},
-                    stagingImages: [],
+                    content: assistantContent,
+                    createdAt: new Date(),
                   };
                   
                   setMessages(prev => [...prev, assistantMessage!]);
                 } else {
                   // Update existing assistant message
                   assistantMessage.content = assistantContent;
-                  assistantMessage.updated_at = new Date().toISOString();
                   
                   setMessages(prev => prev.map(msg => 
-                    msg.message_id === assistantMessage!.message_id 
+                    msg.id === assistantMessage!.id 
                       ? { ...assistantMessage! }
                       : msg
                   ));
                 }
                 
-                // Call token callback
-                options.onToken?.(token);
+                // Call token callback if exists
+                if (options.onTokenUpdate) {
+                  options.onTokenUpdate({ type: 'token', content: token, message_id: assistantMessage.message_id || '' });
+                }
               } else if (parsed.type === 'completion' || parsed.type === 'end') {
                 console.log('✅ Stream completed with completion/end event');
                 if (parsed.data?.message) {
@@ -403,11 +368,9 @@ export function useChat(options: ChatOptions = {}) {
                   const finalMessage = parsed.data.message;
                   if (assistantMessage) {
                     assistantMessage.message_id = finalMessage.message_id;
-                    assistantMessage.token_usage = finalMessage.token_usage || assistantMessage.token_usage;
-                    assistantMessage.cost_info = finalMessage.cost_info || assistantMessage.cost_info;
                     
                     setMessages(prev => prev.map(msg => 
-                      msg.message_id === `temp_assistant_${Date.now()}` || msg.message_id === assistantMessage!.message_id
+                      msg.id === assistantMessage!.id
                         ? { ...assistantMessage! }
                         : msg
                     ));
@@ -421,66 +384,32 @@ export function useChat(options: ChatOptions = {}) {
           }
         }
       }
-      
-      // STEP 6: After streaming completes, fetch backend image URLs asynchronously
-      if (stagingFiles.length > 0) {
-        console.log('🔄 Fetching backend image URLs asynchronously...');
-        
-        // Mark images as loading
-        stagingFiles.forEach(sf => setImageLoading(sf.file_id, true));
-        
-        try {
-          const fileIds = stagingFiles.map(sf => sf.file_id);
-          const fetchResults = await imageService.fetchMultipleImageUrls(fileIds, 10000);
-          
-          // Update image store with backend URLs
-          Object.entries(fetchResults).forEach(([fileId, result]) => {
-            if (result.success && result.url) {
-              updateImageUrls(fileId, result.url, result.expiresAt);
-              console.log(`✅ Updated image URL for ${fileId}`);
-            } else {
-              setImageError(fileId, result.error || 'Failed to fetch image');
-              console.error(`❌ Failed to fetch image URL for ${fileId}:`, result.error);
-            }
-          });
-          
-          // Update the user message with backend URLs
-          setMessages(prev => prev.map(msg => {
-            if (msg.message_id === userMessage.message_id) {
-              const updatedStagingImages = msg.stagingImages?.map(img => {
-                const fetchResult = fetchResults[img.fileId];
-                if (fetchResult?.success && fetchResult.url) {
-                  return { ...img, previewUrl: fetchResult.url };
-                }
-                return img;
-              });
-              
-              return { ...msg, stagingImages: updatedStagingImages };
-            }
-            return msg;
-          }));
-          
-        } catch (error) {
-          console.error('❌ Failed to fetch backend image URLs:', error);
-          stagingFiles.forEach(sf => setImageError(sf.file_id, 'Failed to fetch backend URL'));
-        }
-      }
 
+      // STEP 6: Update user message with final backend message ID if available
+      // The localImages will remain for display, backend attachments will be available on refresh
+      
     } catch (error) {
       console.error('❌ Error in sendMessage:', error);
       setError(error as Error);
-      options.onError?.(error as Error);
+      
+      // Create proper StreamErrorEvent for callback
+      if (options.onError) {
+        options.onError({
+          type: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
       
       // Remove the temporary user message on error
-      setMessages(prev => prev.filter(msg => msg.message_id !== userMessage.message_id));
+      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
     } finally {
       setIsLoading(false);
-      setCurrentStreamId(null);
     }
-  }, [options, setMessages, setInput, setError, setIsLoading, setCurrentStreamId, getImagesForStaging, updateImageUrls, setImageLoading, setImageError]);
+  }, [options, setMessages, setInput, setError, setIsLoading]);
 
   // Handle submit
-  const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Array<{ file_id: string; s3_key: string }> })) => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Array<{ file_id: string; s3_key: string }>; imageData?: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> })) => {
     console.log('🔍 DEBUG: handleSubmit called in useChat');
     console.log('🔍 DEBUG: Event object:', e);
     console.log('🔍 DEBUG: Event type:', typeof e);
@@ -498,11 +427,14 @@ export function useChat(options: ChatOptions = {}) {
       return;
     }
 
-    // Extract staging files from custom event if present
+    // Extract staging files and image data from custom event if present
     const stagingFiles = (e as any)?.stagingFiles || [];
+    const imageData = (e as any)?.imageData || [];
     console.log('🔍 DEBUG: Extracted stagingFiles from event:', stagingFiles);
+    console.log('🔍 DEBUG: Extracted imageData from event:', imageData);
     console.log('🔍 DEBUG: stagingFiles type:', typeof stagingFiles);
     console.log('🔍 DEBUG: stagingFiles length:', stagingFiles.length);
+    console.log('🔍 DEBUG: imageData length:', imageData.length);
     
     // Validate that we have either content or staging files
     if (!input.trim() && stagingFiles.length === 0) {
@@ -514,11 +446,12 @@ export function useChat(options: ChatOptions = {}) {
     console.log('🔍 DEBUG: Message to send:', messageToSend);
     console.log('🔍 DEBUG: Conversation ID:', conversation.conversation_id);
     console.log('🔍 DEBUG: About to call sendMessage with staging files:', stagingFiles);
+    console.log('🔍 DEBUG: About to call sendMessage with image data:', imageData);
     
     // Clear input IMMEDIATELY when user submits
     setInput('');
     
-    await sendMessage(messageToSend, conversation.conversation_id, stagingFiles);
+    await sendMessage(messageToSend, conversation.conversation_id, stagingFiles, imageData);
   }, [isAuthenticated, conversation, input, sendMessage]);
 
   // Append message (for programmatic sending)
