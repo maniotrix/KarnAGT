@@ -1,5 +1,25 @@
 // Backend types from your chat_schemas.py
 
+// Image attachment object structure (from backend)
+export interface ImageAttachment {
+  type?: string;
+  file_id: string;
+  openai_file_id?: string;
+  filename: string;
+  original_filename?: string;
+  content_type?: string;
+  size?: number;
+  dimensions?: { width: number; height: number };
+  urls?: {
+    display?: string;
+    api?: string;
+    thumbnail?: string;
+    [key: string]: string | undefined;
+  };
+  s3_key?: string;
+  uploaded_at?: string;
+}
+
 // Exact MessageCreate from your backend line 15
 export interface MessageCreate {
   content: string;
@@ -7,6 +27,7 @@ export interface MessageCreate {
   parent_message_id?: string;
   attachments?: string[];
   metadata?: Record<string, any>;
+  staging_files?: Array<{ file_id: string; s3_key: string }>;
 }
 
 // MessageUpdate interface for editing messages
@@ -26,7 +47,7 @@ export interface MessageResponse {
   total_tokens?: number;
   cost_usd?: number;
   model_name?: string;
-  attachments?: string[];
+  attachments?: string[] | ImageAttachment[]; // Can be either string IDs or full attachment objects
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -80,6 +101,7 @@ export interface StreamMessage {
   stream_mode?: 'text' | 'json' | 'function_call';
   attachments?: string[];
   metadata?: Record<string, any>;
+  staging_files?: Array<{ file_id: string; s3_key: string }>;
 }
 
 // SSE Event types from your backend streaming
@@ -124,8 +146,16 @@ export interface Message {
   total_tokens?: number;
   cost_usd?: number;
   model_name?: string;
-  attachments?: string[];
+  attachments?: string[] | ImageAttachment[]; // Can be either string IDs or full attachment objects
   metadata?: Record<string, any>;
+  // LOCAL IMAGE DATA: Keep actual image data for immediate display after send
+  localImages?: Array<{
+    fileId: string;
+    filename: string;
+    file: File;
+    blobUrl: string;
+    s3Key: string;
+  }>;
 }
 
 // Chat state for components

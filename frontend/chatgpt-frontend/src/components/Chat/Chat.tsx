@@ -4,6 +4,7 @@ import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ChatActions } from './ChatActions';
+import type { UploadFile } from '../../types/upload';
 
 // Modern UI Libraries
 import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
@@ -27,7 +28,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Clean Architecture - ONLY use these layers
 import { useCurrentUser, useAuthStatus } from '../../app/hooks/auth/useAuth';
-import { useUiStore } from '../../app/stores/uiStore';
+import { useUiStore } from '../../app/stores';
+import { ConversationImagesProvider } from '../../contexts/ConversationImagesContext';
 
 interface ChatProps {
   conversationId?: string;
@@ -55,6 +57,7 @@ export const Chat: React.FC<ChatProps> = ({
   const [showActions, setShowActions] = useState(false);
   const [shouldShowScrollButton, setShouldShowScrollButton] = useState(false);
   const [scrollToBottomFn, setScrollToBottomFn] = useState<(() => void) | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<UploadFile[]>([]);
 
   // Calculate quota using clean architecture user data
   const calculateQuota = () => {
@@ -149,24 +152,96 @@ export const Chat: React.FC<ChatProps> = ({
     }
   }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
 
-  // Handle message submission with quota check
+  // Handle image upload - store in imageStore
+  const handleImageUpload = useCallback((files: UploadFile[]) => {
+    console.log('🔍 DEBUG: handleImageUpload called with files:', files);
+    console.log('🔍 DEBUG: Files details:', files.map(f => ({
+      name: f.name,
+      status: f.status,
+      file_id: f.file_id,
+      s3_key: f.s3_key,
+      hasFile: !!f.file
+    })));
+    
+    // Images are now handled directly in the message data, no need for separate store
+    
+    // Keep existing state for now (for upload UI)
+    const newUploadedImages = [...files];
+    console.log('🔍 DEBUG: Setting uploadedImages state to:', newUploadedImages);
+    setUploadedImages(prev => {
+      const updated = [...prev, ...files];
+      console.log('🔍 DEBUG: Updated uploadedImages state:', updated);
+      return updated;
+    });
+  }, []);
+
+  // Handle message submission with quota check and image support
   const handleMessageSubmit = async (e: React.FormEvent) => {
+    console.log('🔍 DEBUG: handleMessageSubmit called');
+    console.log('🔍 DEBUG: Current uploadedImages state:', uploadedImages);
+    console.log('🔍 DEBUG: Input content:', input);
+    console.log('🔍 DEBUG: hasConversation:', hasConversation);
+    
     if (isQuotaExceeded) {
       alert(`Quota exceeded! You've used ${quota.used}/${quota.total} messages. Please upgrade your plan.`);
       return;
     }
 
+    // Image caching is now handled by TanStack Query automatically
+
+    // Get successful uploads
+    console.log('🔍 DEBUG: Filtering uploadedImages for successful uploads...');
+    const successfulFiles = uploadedImages.filter(file => file.status === 'success' && file.file_id && file.s3_key && file.file);
+    console.log('🔍 DEBUG: Successful files after filter:', successfulFiles);
+    
+    // Prepare staging files for backend
+    const stagingFiles = successfulFiles.map(file => ({
+      file_id: file.file_id!,
+      s3_key: file.s3_key!,
+    }));
+
+    // Prepare actual image data for frontend display
+    const imageData = successfulFiles.map(file => ({
+      fileId: file.file_id!,
+      filename: file.name,
+      file: file.file!,
+      blobUrl: URL.createObjectURL(file.file!),
+      s3Key: file.s3_key!
+    }));
+
+    console.log('🔍 DEBUG: Final staging files for backend:', stagingFiles);
+    console.log('🔍 DEBUG: Image data for frontend:', imageData);
+    console.log('🔍 DEBUG: Staging files count:', stagingFiles.length);
+
     // If we don't have a conversation, ask parent to create one
-    if (!hasConversation && onCreateConversationForMessage && input.trim()) {
+    if (!hasConversation && onCreateConversationForMessage && (input.trim() || stagingFiles.length > 0)) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
-      await onCreateConversationForMessage(input.trim());
+      await onCreateConversationForMessage(input.trim() || "Image analysis request");
       return;
     }
 
-    // We have a conversation, submit the message normally
+    // We have a conversation, submit the message with both staging files and image data
     if (hasConversation) {
-      handleSubmit(e);
+      console.log('🔍 DEBUG: Creating submitEvent with staging files and image data');
+      // Create custom event with both staging files and image data
+      const submitEvent = {
+        ...e,
+        preventDefault: e.preventDefault.bind(e),
+        stagingFiles, // For backend
+        imageData, // For frontend display
+      };
+      
+      console.log('🔍 DEBUG: submitEvent created:', submitEvent);
+      console.log('🔍 DEBUG: submitEvent.stagingFiles:', submitEvent.stagingFiles);
+      console.log('🔍 DEBUG: submitEvent.imageData:', submitEvent.imageData);
+      console.log('🔍 DEBUG: Calling handleSubmit with submitEvent');
+      
+      handleSubmit(submitEvent as any);
+      
+      // Clear uploaded images after sending
+      console.log('🔍 DEBUG: Clearing uploadedImages state');
+      setUploadedImages([]);
       
       // ALWAYS scroll to bottom when user sends message
       setTimeout(() => {
@@ -323,15 +398,20 @@ export const Chat: React.FC<ChatProps> = ({
 
       {/* Main Content Area - This will grow and the inner MessageList will scroll */}
       <div className="flex-1 overflow-hidden min-h-0 relative">
-        <MessageList
-          messages={messages}
-          isLoading={isLoading}
-          onLoadMore={handleLoadMore}
+        <ConversationImagesProvider 
+          messages={messages} 
           conversationId={conversation?.conversation_id}
-          hasMoreMessages={hasMoreMessages}
-          onScrollStateChange={handleScrollStateChange}
-          onEdit={editMessage}
-        />
+        >
+          <MessageList
+            messages={messages}
+            isLoading={isLoading}
+            onLoadMore={handleLoadMore}
+            conversationId={conversation?.conversation_id}
+            hasMoreMessages={hasMoreMessages}
+            onScrollStateChange={handleScrollStateChange}
+            onEdit={editMessage}
+          />
+        </ConversationImagesProvider>
         
         {/* Scroll to bottom button - Centered in chat area */}
         <AnimatePresence>
@@ -381,6 +461,8 @@ export const Chat: React.FC<ChatProps> = ({
               ? "Quota exceeded. Please upgrade your plan."
               : "Type your message..."
           }
+          onImageUpload={handleImageUpload}
+          enableImageUpload={!isQuotaExceeded && isAuthenticated}
         />
         {error && (
           <div className="mt-2 text-sm text-red-600 dark:text-red-400">

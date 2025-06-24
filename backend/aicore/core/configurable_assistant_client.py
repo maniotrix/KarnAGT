@@ -112,7 +112,7 @@ class ConfigurableAssistantClient:
     
     async def send_message(
         self,
-        message: str,
+        message: List[Dict[str, Any]],
         message_type: str = "text",
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -120,7 +120,7 @@ class ConfigurableAssistantClient:
         Send a message to the AI assistant and get a response
         
         Args:
-            message: The user message content
+            message: The conversation context as list of message dicts
             message_type: Type of message (text, image, etc.)
             metadata: Optional metadata for the message
             
@@ -163,7 +163,7 @@ class ConfigurableAssistantClient:
     
     async def send_message_streaming(
         self,
-        message: str,
+        message: List[Dict[str, Any]],
         callback: Callable[[str], None],
         message_type: str = "text",
         metadata: Optional[Dict[str, Any]] = None
@@ -172,7 +172,7 @@ class ConfigurableAssistantClient:
         Send a message with streaming response
         
         Args:
-            message: The user message content
+            message: The conversation context as list of message dicts
             callback: Callback function for streaming tokens
             message_type: Type of message
             metadata: Optional metadata

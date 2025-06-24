@@ -80,8 +80,8 @@ class User(Base):
         """Check if user can access a feature based on subscription tier"""
         feature_tiers = {
             "basic_chat": ["free", "pro", "enterprise"],
-            "memory_management": ["pro", "enterprise"],
-            "file_upload": ["pro", "enterprise"],
+            "memory_management": ["free", "pro", "enterprise"],  # Allow free users
+            "file_upload": ["free", "pro", "enterprise"],  # Allow free users
             "advanced_tools": ["enterprise"],
             "api_access": ["enterprise"],
             "priority_support": ["pro", "enterprise"],

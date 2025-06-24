@@ -52,11 +52,11 @@ class MessageService:
     
     async def create_message(self, conversation_id: str, message_data: MessageCreate) -> Message:
         """
-        Create a new message
+        Create a new message with proper attachment handling
         
         Args:
             conversation_id: The conversation ID (UUID string)
-            message_data: Message creation data
+            message_data: Message creation data with attachments
             
         Returns:
             Created Message instance
@@ -75,6 +75,9 @@ class MessageService:
             if not conv_int_id:
                 raise ValueError(f"Conversation {conversation_id} not found")
             
+            # Get attachments from message_data
+            attachments = getattr(message_data, 'attachments', []) or []
+            
             # Create message instance
             message = Message(
                 message_id=str(uuid.uuid4()),
@@ -83,6 +86,7 @@ class MessageService:
                 role=message_data.role,
                 message_type=getattr(message_data, 'message_type', 'text'),
                 status=getattr(message_data, 'status', 'completed'),
+                attachments=attachments,  # Use the dedicated attachments column
                 extra_metadata=getattr(message_data, 'metadata', {})
             )
             
@@ -90,7 +94,8 @@ class MessageService:
             await self.db.commit()
             await self.db.refresh(message)
             
-            logger.info(f"Created message {message.message_id} for conversation {conversation_id}")
+            attachment_info = f" with {len(attachments)} attachments" if attachments else ""
+            logger.info(f"Created message {message.message_id} for conversation {conversation_id}{attachment_info}")
             return message
             
         except Exception as e:

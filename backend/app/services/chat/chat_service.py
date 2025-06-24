@@ -187,7 +187,8 @@ class ChatService:
         conversation_id: str,
         content: str,
         message_type: str = "text",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        staging_files: Optional[List[Dict[str, str]]] = None
     ) -> MessageResponse:
         """
         Send a message and get AI response
@@ -221,10 +222,26 @@ class ChatService:
                     f"Quota exceeded: {quota_status.get('reason', 'Unknown reason')}"
                 )
             
+            # Process staging files if provided
+            message_attachments = []
+            openai_file_ids = []
+            
+            if staging_files:
+                from app.services.chat.attachment_service import AttachmentService
+                attachment_service = AttachmentService()
+                
+                message_attachments, openai_file_ids = await attachment_service.commit_staging_files_direct(
+                    staging_files, self.user_uuid, self.db
+                )
+            
             # Save user message
             user_message_data = MessageCreate(
                 content=content,
-                role="user"
+                role="user",
+                parent_message_id=None,
+                attachments=message_attachments,
+                status="completed",
+                staging_files=staging_files
             )
             
             user_message = await self.message_service.create_message(conversation_id, user_message_data)
@@ -248,7 +265,12 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
-            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
+            llm_context = await get_context_for_conversation(
+                conversation_id, 
+                self.db, 
+                content,
+                openai_file_ids=openai_file_ids
+            )
             # Process message with AI
             ai_response_data = await assistant_client.send_message(
                 llm_context,
@@ -324,7 +346,8 @@ class ChatService:
         content: str,
         streaming_callback: Callable[[str], None],
         message_type: str = "text",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        staging_files: Optional[List[Dict[str, str]]] = None
     ) -> MessageResponse:
         """
         Send a message with streaming response
@@ -355,10 +378,26 @@ class ChatService:
                     f"Quota exceeded: {quota_status.get('reason', 'Unknown reason')}"
                 )
             
+            # Process staging files if provided (same as non-streaming)
+            message_attachments = []
+            openai_file_ids = []
+            
+            if staging_files:
+                from app.services.chat.attachment_service import AttachmentService
+                attachment_service = AttachmentService()
+                
+                message_attachments, openai_file_ids = await attachment_service.commit_staging_files_direct(
+                    staging_files, self.user_uuid, self.db
+                )
+            
             # Save user message
             user_message_data = MessageCreate(
                 content=content,
-                role="user"
+                role="user",
+                parent_message_id=None,
+                attachments=message_attachments,
+                status="completed",
+                staging_files=staging_files
             )
             
             user_message = await self.message_service.create_message(conversation_id, user_message_data)
@@ -382,7 +421,12 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
-            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
+            llm_context = await get_context_for_conversation(
+                conversation_id, 
+                self.db, 
+                content,
+                openai_file_ids=openai_file_ids
+            )
             # Process message with streaming
             ai_response_data = await assistant_client.send_message_streaming(
                 llm_context,
@@ -496,6 +540,7 @@ class ChatService:
                     cost_usd=msg.cost_usd or 0.0,
                     model_name=msg.model_name,
                     finish_reason=None,  # Not stored in database
+                    attachments=msg.attachments or [],
                     extra_metadata=msg.extra_metadata or {},
                     created_at=msg.created_at
                 )
@@ -617,7 +662,8 @@ class ChatService:
         conversation_id: str,
         content: str,
         message_type: str = "text",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        openai_file_ids: Optional[List[str]] = None
     ) -> MessageResponse:
         """
         Generate an AI response only (for message editing scenarios)
@@ -672,7 +718,12 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
-            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
+            llm_context = await get_context_for_conversation(
+                conversation_id, 
+                self.db, 
+                content,
+                openai_file_ids=openai_file_ids
+            )
             # Process message with AI (using the edited content)
             ai_response_data = await assistant_client.send_message(
                 llm_context,
@@ -749,7 +800,8 @@ class ChatService:
         content: str,
         streaming_callback: Callable[[str], None],
         message_type: str = "text",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        openai_file_ids: Optional[List[str]] = None
     ) -> MessageResponse:
         """
         Generate an AI response only with streaming (for message editing scenarios with streaming)
@@ -804,7 +856,12 @@ class ChatService:
                 ]
                 assistant_client.set_conversation_context(context_messages)
             
-            llm_context = await get_context_for_conversation(conversation_id, self.db, content)
+            llm_context = await get_context_for_conversation(
+                conversation_id, 
+                self.db, 
+                content,
+                openai_file_ids=openai_file_ids
+            )
             # Process message with AI using streaming (using the edited content)
             ai_response_data = await assistant_client.send_message_streaming(
                 llm_context,

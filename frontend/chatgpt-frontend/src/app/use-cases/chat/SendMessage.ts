@@ -7,6 +7,7 @@ export interface SendMessageRequest {
   conversationId: string;
   content: string;
   parentMessageId?: string;
+  stagingFiles?: Array<{ file_id: string; s3_key: string }>;
 }
 
 export interface SendMessageResponse {
@@ -21,20 +22,35 @@ export class SendMessage {
   async execute(request: SendMessageRequest): Promise<SendMessageResponse> {
     try {
       // Input validation
-      if (!request.content?.trim()) {
-        throw new Error('Message content cannot be empty');
+      if (!request.content?.trim() && (!request.stagingFiles || request.stagingFiles.length === 0)) {
+        throw new Error('Message must have content or images');
       }
 
-      if (request.content.length > 4000) {
+      if (request.content && request.content.length > 4000) {
         throw new Error('Message content cannot exceed 4000 characters');
+      }
+
+      // Validate staging files if present
+      if (request.stagingFiles && request.stagingFiles.length > 0) {
+        if (request.stagingFiles.length > 10) {
+          throw new Error('Cannot attach more than 10 images per message');
+        }
+
+        // Validate each staging file has required fields
+        for (const file of request.stagingFiles) {
+          if (!file.file_id || !file.s3_key) {
+            throw new Error('Invalid staging file data');
+          }
+        }
       }
 
       // Business logic: Create message entity first to validate
       const messageData = {
         conversationId: request.conversationId,
-        content: request.content.trim(),
+        content: request.content?.trim() || '',
         role: 'user' as const,
         parentMessageId: request.parentMessageId,
+        stagingFiles: request.stagingFiles,
       };
 
       // This will validate through domain entity

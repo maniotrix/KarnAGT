@@ -11,6 +11,7 @@ import { chatApi } from '../services/chatApi';
 import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
 import { chatKeys } from '../app/hooks/chat';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
+import { imageService } from '../app/services';
 
 export function useChat(options: ChatOptions = {}) {
   // Auth state
@@ -18,6 +19,8 @@ export function useChat(options: ChatOptions = {}) {
   const authStatus = useAuthStatus();
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const queryClient = useQueryClient();
+
+  // Image handling is now managed directly in message data
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -217,35 +220,36 @@ export function useChat(options: ChatOptions = {}) {
   }, [currentStreamId]);
 
   // Send message with SSE streaming
-  const sendMessage = useCallback(async (content: string, conversationId: string) => {
-    if (!content.trim() || !conversationId) return;
+  const sendMessage = useCallback(async (content: string, conversationId: string, stagingFiles: Array<{ file_id: string; s3_key: string }> = [], imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> = []) => {
+    if (!conversationId) {
+      console.error('❌ No conversation ID provided');
+      return;
+    }
 
-    setError(null);
-    setIsLoading(true);
+    console.log('📤 Sending message with staging files:', stagingFiles);
+    console.log('📤 Sending message with image data:', imageData);
     
-    // Add user message immediately
+    // STEP 1: Create user message with actual image data for immediate display
     const userMessage: Message = {
-      id: `temp-${Date.now()}`,
+      id: `temp_${Date.now()}`,
+      message_id: `temp_${Date.now()}`,
       role: 'user',
       content,
       createdAt: new Date(),
+      // Store actual image data for immediate display
+      localImages: imageData.length > 0 ? imageData : undefined,
     };
-    
+
+    // STEP 2: Add to UI immediately with actual image data
     setMessages(prev => [...prev, userMessage]);
-    
-    // Create assistant message placeholder
-    const assistantMessage: Message = {
-      id: `assistant-${Date.now()}`,
-      role: 'assistant',
-      content: '',
-      createdAt: new Date(),
-    };
-    
-    currentStreamingMessageRef.current = assistantMessage;
-    setMessages(prev => [...prev, assistantMessage]);
+    setInput('');
+    setError(null);
+    setIsLoading(true);
+
+    options.onStreamStart?.();
     
     try {
-      // Prepare stream message
+      // STEP 3: Prepare stream message for backend
       const streamMessage: StreamMessage = {
         conversation_id: conversationId,
         content,
@@ -254,11 +258,15 @@ export function useChat(options: ChatOptions = {}) {
         stream_mode: 'text',
         attachments: [],
         metadata: {},
+        staging_files: stagingFiles, // Send staging files to backend
       };
 
-      // Use fetch with SSE response handling
+      console.log('🔍 DEBUG: Prepared StreamMessage object:', streamMessage);
+
+      // STEP 4: Start streaming to backend
       const url = buildApiUrl(API_ENDPOINTS.CHAT.STREAM_MESSAGE(conversationId));
       const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -276,155 +284,135 @@ export function useChat(options: ChatOptions = {}) {
 
       options.onStreamStart?.();
 
-      // Read SSE stream
+      // STEP 5: Process stream response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let streamIdCaptured = false;
 
       if (!reader) {
         throw new Error('No response body');
       }
 
-      console.log('🌊 Stream started, waiting for stream_id...');
-
+      console.log('🌊 Stream started...');
+      
+      let assistantMessage: Message | null = null;
+      let assistantContent = '';
+      
       while (true) {
         const { done, value } = await reader.read();
         
         if (done) {
-          setIsLoading(false);
-          setCurrentStreamId(null);
+          console.log('✅ Stream completed');
           break;
         }
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
         
-        // Keep the last incomplete line in the buffer
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
+        while (buffer.includes('\n')) {
+          const lineIndex = buffer.indexOf('\n');
+          const line = buffer.substring(0, lineIndex);
+          buffer = buffer.substring(lineIndex + 1);
+          
           if (line.trim() === '') continue;
           
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            // Try to capture stream_id from this event (critical for stop button)
-            if (!streamIdCaptured) {
-              const extractedStreamId = extractStreamIdFromSSE(data);
-              if (extractedStreamId) {
-                setCurrentStreamId(extractedStreamId);
-                streamIdCaptured = true;
-                console.log('🎯 STREAM_ID CAPTURED:', extractedStreamId);
-              }
-            }
+            const data = line.substring(6);
             
             if (data === '[DONE]') {
-              setIsLoading(false);
-              setCurrentStreamId(null);
-              options.onStreamEnd?.({
-                type: 'end',
-                message: currentStreamingMessageRef.current as any,
-                conversation: conversation as any
-              });
-              queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
-              continue;
+              console.log('✅ Stream completed with [DONE]');
+              break;
             }
-
+            
+            if (data === '') continue;
+            
             try {
-              const event = JSON.parse(data);
+              const parsed = JSON.parse(data);
               
-              switch (event.type) {
-                case 'token':
-                  // Update assistant message content
-                  if (currentStreamingMessageRef.current && event.data?.content) {
-                    const token = event.data.content;
-                    options.onTokenUpdate?.({
-                      type: 'token',
-                      content: token,
-                      message_id: currentStreamingMessageRef.current.id
-                    });
+              // Handle different event types
+              if (parsed.type === 'token' && parsed.data?.content) {
+                const token = parsed.data.content;
+                assistantContent += token;
+                
+                // Update or create assistant message
+                if (!assistantMessage) {
+                  assistantMessage = {
+                    id: `temp_assistant_${Date.now()}`,
+                    message_id: `temp_assistant_${Date.now()}`,
+                    role: 'assistant',
+                    content: assistantContent,
+                    createdAt: new Date(),
+                  };
+                  
+                  setMessages(prev => [...prev, assistantMessage!]);
+                } else {
+                  // Update existing assistant message
+                  assistantMessage.content = assistantContent;
+                  
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessage!.id 
+                      ? { ...assistantMessage! }
+                      : msg
+                  ));
+                }
+                
+                // Call token callback if exists
+                if (options.onTokenUpdate) {
+                  options.onTokenUpdate({ type: 'token', content: token, message_id: assistantMessage.message_id || '' });
+                }
+              } else if (parsed.type === 'completion' || parsed.type === 'end') {
+                console.log('✅ Stream completed with completion/end event');
+                if (parsed.data?.message) {
+                  // Update with final message data
+                  const finalMessage = parsed.data.message;
+                  if (assistantMessage) {
+                    assistantMessage.message_id = finalMessage.message_id;
                     
                     setMessages(prev => prev.map(msg => 
-                      msg.id === currentStreamingMessageRef.current?.id
-                        ? { ...msg, content: msg.content + token }
+                      msg.id === assistantMessage!.id
+                        ? { ...assistantMessage! }
                         : msg
                     ));
                   }
-                  break;
-                  
-                case 'completion':
-                  // Update message with final metadata
-                  if (currentStreamingMessageRef.current && event.data) {
-                    const finalData = event.data;
-                    setMessages(prev => prev.map(msg => 
-                      msg.id === currentStreamingMessageRef.current?.id
-                        ? {
-                            ...msg,
-                            message_id: finalData.message_id || msg.message_id,
-                            total_tokens: finalData.usage?.total_tokens,
-                            cost_usd: finalData.cost_usd,
-                            model_name: finalData.model_name,
-                          }
-                        : msg
-                    ));
-                    
-                    // Update token usage
-                    if (finalData.usage) {
-                      setTokenUsage(prev => ({
-                        total: prev.total + (finalData.usage.total_tokens || 0),
-                        cost: prev.cost + (finalData.cost_usd || 0),
-                        model: finalData.model_name || prev.model,
-                      }));
-                    }
-                    
-                    // Update conversation
-                    if (conversation) {
-                      setConversation(prev => prev ? {
-                        ...prev,
-                        message_count: prev.message_count + 2, // user + assistant
-                        total_tokens_used: prev.total_tokens_used + (finalData.usage?.total_tokens || 0),
-                        total_cost_usd: prev.total_cost_usd + (finalData.cost_usd || 0),
-                        last_message_at: new Date().toISOString(),
-                      } : null);
-                    }
-                  }
-                  break;
-                  
-                case 'error':
-                  setError(new Error(event.data?.error || 'Stream error'));
-                  options.onError?.(event.data?.error || 'Stream error');
-                  break;
-                  
-                case 'end':
-                case 'stream_end':
-                  setIsLoading(false);
-                  setCurrentStreamId(null);
-                  options.onStreamEnd?.({
-                    type: 'end',
-                    message: currentStreamingMessageRef.current as any,
-                    conversation: conversation as any
-                  });
-                  queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
-                  break;
+                }
+                break;
               }
-            } catch (error) {
-              console.error('Failed to parse SSE data:', error, 'Raw data:', data);
+            } catch (parseError) {
+              console.warn('⚠️ Failed to parse SSE data:', data, parseError);
             }
           }
         }
       }
+
+      // STEP 6: Update user message with final backend message ID if available
+      // The localImages will remain for display, backend attachments will be available on refresh
+      
     } catch (error) {
-      setError(error instanceof Error ? error : new Error('Failed to send message'));
-      setIsLoading(false);
-      setCurrentStreamId(null);
+      console.error('❌ Error in sendMessage:', error);
+      setError(error as Error);
+      
+      // Create proper StreamErrorEvent for callback
+      if (options.onError) {
+        options.onError({
+          type: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+      
+      // Remove the temporary user message on error
+      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
     } finally {
-      currentStreamingMessageRef.current = null;
+      setIsLoading(false);
     }
-  }, [conversation, options, queryClient]);
+  }, [options, setMessages, setInput, setError, setIsLoading]);
 
   // Handle submit
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Array<{ file_id: string; s3_key: string }>; imageData?: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> })) => {
+    console.log('🔍 DEBUG: handleSubmit called in useChat');
+    console.log('🔍 DEBUG: Event object:', e);
+    console.log('🔍 DEBUG: Event type:', typeof e);
+    console.log('🔍 DEBUG: Event keys:', e ? Object.keys(e) : 'no event');
+    
     e?.preventDefault();
     
     if (!isAuthenticated) {
@@ -437,13 +425,31 @@ export function useChat(options: ChatOptions = {}) {
       return;
     }
 
-    if (input.trim()) {
-      const messageToSend = input.trim();
-      // Clear input IMMEDIATELY when user submits
-      setInput('');
-      
-      await sendMessage(messageToSend, conversation.conversation_id);
+    // Extract staging files and image data from custom event if present
+    const stagingFiles = (e as any)?.stagingFiles || [];
+    const imageData = (e as any)?.imageData || [];
+    console.log('🔍 DEBUG: Extracted stagingFiles from event:', stagingFiles);
+    console.log('🔍 DEBUG: Extracted imageData from event:', imageData);
+    console.log('🔍 DEBUG: stagingFiles type:', typeof stagingFiles);
+    console.log('🔍 DEBUG: stagingFiles length:', stagingFiles.length);
+    console.log('🔍 DEBUG: imageData length:', imageData.length);
+    
+    // Validate that we have either content or staging files
+    if (!input.trim() && stagingFiles.length === 0) {
+      setError(new Error('Message must have content or images'));
+      return;
     }
+
+    const messageToSend = input.trim();
+    console.log('🔍 DEBUG: Message to send:', messageToSend);
+    console.log('🔍 DEBUG: Conversation ID:', conversation.conversation_id);
+    console.log('🔍 DEBUG: About to call sendMessage with staging files:', stagingFiles);
+    console.log('🔍 DEBUG: About to call sendMessage with image data:', imageData);
+    
+    // Clear input IMMEDIATELY when user submits
+    setInput('');
+    
+    await sendMessage(messageToSend, conversation.conversation_id, stagingFiles, imageData);
   }, [isAuthenticated, conversation, input, sendMessage]);
 
   // Append message (for programmatic sending)

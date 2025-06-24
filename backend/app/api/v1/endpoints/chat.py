@@ -240,17 +240,26 @@ async def send_message(
     
     This endpoint processes the message synchronously and returns the complete AI response.
     For real-time streaming responses, use the /stream endpoint instead.
+    
+    **Image Support:**
+    - Upload images to staging area first: POST /ai-files/staging/bulk-upload
+    - Include staging_files in request: [{"file_id": "img_abc", "s3_key": "path/file"}]
+    - Images will be committed to permanent storage and sent to OpenAI Vision API
     """
     logger.info(f"Sending message to conversation {conversation_id} for user {current_user.user_id}")
     
     try:
         chat_service = ChatService(db, current_user)
         
-        # Send message and get AI response
+        # Send message and get AI response (now with staging files support)
+        # Determine message type based on content
+        message_type = "multimodal" if message_data.staging_files else "text"
+        
         response = await chat_service.send_message(
             conversation_id=conversation_id,
             content=message_data.content,
-            message_type="text"
+            message_type=message_type,
+            staging_files=message_data.staging_files
         )
         
         return response
@@ -293,6 +302,11 @@ async def stream_message(
     This endpoint uses Server-Sent Events (SSE) to stream the AI response token by token.
     Perfect for providing a ChatGPT-like experience with real-time feedback.
     
+    **Image Support:**
+    - Upload images to staging area first: POST /ai-files/staging/bulk-upload
+    - Include staging_files in request: [{"file_id": "img_abc", "s3_key": "path/file"}]
+    - Images will be committed to permanent storage and sent to OpenAI Vision API
+    
     The response will be a stream of SSE events:
     - `token`: Individual tokens as they're generated
     - `completion`: Final message with metadata
@@ -308,10 +322,14 @@ async def stream_message(
         # Create the streaming generator with client disconnection detection
         async def stream_with_disconnection_detection():
             """Wrapper generator that detects client disconnection"""
+            # Determine message type based on content
+            message_type = "multimodal" if message_data.staging_files else "text"
+            
             stream_generator = streaming_service.stream_message_response(
                 conversation_id=conversation_id,
                 content=message_data.content,
-                message_type="text"
+                message_type=message_type,
+                staging_files=message_data.staging_files
             )
             
             try:
@@ -624,14 +642,24 @@ async def edit_and_resend_message(
         deleted_count = await message_service.delete_messages_after(message_id)
         logger.info(f"Deleted {deleted_count} subsequent messages")
         
-        # Step 3: Generate new AI response
+        # Step 3: Extract existing OpenAI file IDs from the edited message
+        openai_file_ids = []
+        if updated_message.attachments:
+            for attachment in updated_message.attachments:
+                if isinstance(attachment, dict) and 'openai_file_id' in attachment:
+                    openai_file_ids.append(attachment['openai_file_id'])
+                    
+        logger.info(f"Extracted {len(openai_file_ids)} existing OpenAI file IDs for message editing")
+        
+        # Step 4: Generate new AI response
         chat_service = ChatService(db, current_user)
         
-        # Generate AI response with the edited content
+        # Generate AI response with the edited content and existing file IDs
         ai_response = await chat_service.generate_ai_response_only(
             conversation_id=conversation_id,
             content=update_data.content,
-            message_type="text"
+            message_type="text",
+            openai_file_ids=openai_file_ids  # Pass existing file IDs
         )
         
         logger.info(f"Successfully edited message {message_id} and generated new AI response")
