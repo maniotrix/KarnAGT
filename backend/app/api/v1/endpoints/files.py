@@ -24,6 +24,7 @@ import io
 import json
 import asyncio
 import time
+from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.core.config import get_settings
@@ -891,4 +892,86 @@ async def list_user_images(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list images"
+        )
+
+
+@router.post("/images/bulk-presigned-urls")
+async def bulk_generate_presigned_urls(
+    request: BulkImageMetadataRequest,  # Reuse existing request model
+    current_user: User = Depends(get_current_verified_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk generate presigned URLs for image attachments (2025 Industry Standard)
+    
+    This follows the modern approach: generate URLs only when needed for display.
+    - **file_ids**: List of file IDs to generate URLs for (max 200)
+    - Validates file ownership through database lookup
+    - Generates secure presigned URLs (24-hour expiration) 
+    - Returns URLs that work without authentication in HTML img tags
+    - Can be cached on frontend to avoid repeated calls
+    
+    **Security:**
+    - Only generates URLs for images owned by the authenticated user
+    """
+    logger.info(f"Bulk presigned URL request from user {current_user.user_id}, {len(request.file_ids)} files")
+    
+    # Validate bulk URL limits (same as metadata)
+    if len(request.file_ids) > MAX_BULK_METADATA_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many files. Maximum {MAX_BULK_METADATA_FILES} files allowed per bulk URL request"
+        )
+    
+    try:
+        url_results = {}
+        
+        # Process each file ID with ownership validation
+        for file_id in request.file_ids:
+            try:
+                # Validate ownership and generate presigned URL
+                presigned_url = await storage_service.serve_image_securely(
+                    file_id=file_id,
+                    user_id=current_user.user_id, 
+                    db=db
+                )
+                
+                if presigned_url:
+                    url_results[file_id] = {
+                        "display": presigned_url,
+                        "thumbnail": presigned_url,  # Use same URL for now
+                        "expires_at": (datetime.now() + timedelta(hours=24)).isoformat(),
+                        "success": True
+                    }
+                    logger.debug(f"Generated presigned URL for {file_id}")
+                else:
+                    url_results[file_id] = {
+                        "error": "Access denied or file not found",
+                        "success": False
+                    }
+                    logger.warning(f"Access denied for file {file_id}")
+                    
+            except Exception as e:
+                logger.error(f"Error generating URL for {file_id}: {e}")
+                url_results[file_id] = {
+                    "error": f"Failed to generate URL: {str(e)}",
+                    "success": False
+                }
+        
+        successful_urls = len([r for r in url_results.values() if r.get('success')])
+        
+        return {
+            "success": True,
+            "message": f"Generated presigned URLs for {successful_urls}/{len(request.file_ids)} files",
+            "total_requested": len(request.file_ids),
+            "successful_urls": successful_urls,
+            "failed_urls": len(request.file_ids) - successful_urls,
+            "urls": url_results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in bulk presigned URL generation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate presigned URLs"
         ) 
