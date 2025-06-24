@@ -28,7 +28,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Clean Architecture - ONLY use these layers
 import { useCurrentUser, useAuthStatus } from '../../app/hooks/auth/useAuth';
-import { useUiStore, useImageStore } from '../../app/stores';
+import { useUiStore } from '../../app/stores';
+import { ConversationImagesProvider } from '../../contexts/ConversationImagesContext';
 
 interface ChatProps {
   conversationId?: string;
@@ -51,7 +52,6 @@ export const Chat: React.FC<ChatProps> = ({
   const userQuery = useCurrentUser();
   const authStatus = useAuthStatus();
   const { theme } = useUiStore();
-  const { addImagesFromUpload, getImagesForStaging, clearExpiredImages } = useImageStore();
   const currentUser = userQuery.data;
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const [showActions, setShowActions] = useState(false);
@@ -163,18 +163,7 @@ export const Chat: React.FC<ChatProps> = ({
       hasFile: !!f.file
     })));
     
-    // Add successful uploads to image store
-    const successfulFiles = files
-      .filter(f => f.status === 'success' && f.file_id && f.s3_key && f.file)
-      .map(f => ({
-        file_id: f.file_id!,
-        s3_key: f.s3_key!,
-        preview: f.preview,
-        file: f.file!
-      }));
-    
-    console.log('🔍 DEBUG: Successful files for image store:', successfulFiles);
-    addImagesFromUpload(successfulFiles);
+    // Images are now handled directly in the message data, no need for separate store
     
     // Keep existing state for now (for upload UI)
     const newUploadedImages = [...files];
@@ -184,7 +173,7 @@ export const Chat: React.FC<ChatProps> = ({
       console.log('🔍 DEBUG: Updated uploadedImages state:', updated);
       return updated;
     });
-  }, [addImagesFromUpload]);
+  }, []);
 
   // Handle message submission with quota check and image support
   const handleMessageSubmit = async (e: React.FormEvent) => {
@@ -198,8 +187,7 @@ export const Chat: React.FC<ChatProps> = ({
       return;
     }
 
-    // Clear expired images from cache
-    clearExpiredImages();
+    // Image caching is now handled by TanStack Query automatically
 
     // Get successful uploads
     console.log('🔍 DEBUG: Filtering uploadedImages for successful uploads...');
@@ -410,15 +398,20 @@ export const Chat: React.FC<ChatProps> = ({
 
       {/* Main Content Area - This will grow and the inner MessageList will scroll */}
       <div className="flex-1 overflow-hidden min-h-0 relative">
-        <MessageList
-          messages={messages}
-          isLoading={isLoading}
-          onLoadMore={handleLoadMore}
+        <ConversationImagesProvider 
+          messages={messages} 
           conversationId={conversation?.conversation_id}
-          hasMoreMessages={hasMoreMessages}
-          onScrollStateChange={handleScrollStateChange}
-          onEdit={editMessage}
-        />
+        >
+          <MessageList
+            messages={messages}
+            isLoading={isLoading}
+            onLoadMore={handleLoadMore}
+            conversationId={conversation?.conversation_id}
+            hasMoreMessages={hasMoreMessages}
+            onScrollStateChange={handleScrollStateChange}
+            onEdit={editMessage}
+          />
+        </ConversationImagesProvider>
         
         {/* Scroll to bottom button - Centered in chat area */}
         <AnimatePresence>

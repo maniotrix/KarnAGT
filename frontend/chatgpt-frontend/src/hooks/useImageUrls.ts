@@ -1,4 +1,11 @@
-import { useState, useCallback } from 'react';
+/**
+ * 🚨 DEPRECATED: Use ConversationImagesProvider + useConversationImagesContext instead
+ * 
+ * This file is kept for reference but should not be used in new code.
+ * The new conversation-level approach eliminates multiple API requests.
+ */
+
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { buildApiUrl, ENV } from '../config/env';
 
 interface ImageUrls {
@@ -7,227 +14,164 @@ interface ImageUrls {
   expires_at: string;
 }
 
-interface ImageUrlCache {
-  [fileId: string]: {
-    urls: ImageUrls;
-    cachedAt: number;
-    expiresAt: number;
+interface BulkUrlResponse {
+  urls: Record<string, ImageUrls>;
+}
+
+/**
+ * 🎯 CLEAN SOLUTION: Normalized Query Keys + TanStack Query Deduplication
+ * 
+ * Problem: Multiple components requesting different file subsets = multiple API calls
+ * Solution: Normalize all requests to use the same query pattern that TanStack Query can deduplicate
+ * 
+ * ✅ Zero delays, zero timeouts, zero race conditions
+ * ✅ TanStack Query handles deduplication automatically  
+ * ✅ Simple, predictable, follows React Query patterns
+ * ✅ One API call per unique file set (naturally cached)
+ */
+
+// Cache key factory - simple and consistent
+const imageUrlKeys = {
+  all: ['imageUrls'] as const,
+  files: (fileIds: string[]) => [...imageUrlKeys.all, 'files', fileIds.sort()] as const,
+};
+
+// Fetch function for bulk URL generation
+const fetchBulkImageUrls = async (fileIds: string[]): Promise<Record<string, ImageUrls>> => {
+  if (!fileIds.length) return {};
+
+  console.log('🌐 API CALL: Fetching URLs for', fileIds.length, 'files:', fileIds);
+  
+  const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
+  const response = await fetch(
+    buildApiUrl('/api/v1/files/images/bulk-presigned-urls'),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ file_ids: fileIds }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image URLs: ${response.status} ${response.statusText}`);
+  }
+
+  const data: BulkUrlResponse = await response.json();
+  return data.urls || {};
+};
+
+/**
+ * Hook for getting image URLs with automatic TanStack Query deduplication
+ * 
+ * @param fileIds Array of file IDs to get URLs for
+ * @returns Query result with image URLs and helper functions
+ */
+export function useImageUrls(fileIds: string[] = []) {
+  const normalizedFileIds = fileIds.filter(Boolean).sort();
+  
+  const query = useQuery({
+    queryKey: imageUrlKeys.files(normalizedFileIds),
+    queryFn: () => fetchBulkImageUrls(normalizedFileIds),
+    enabled: normalizedFileIds.length > 0,
+    
+    // Cache for 20 hours (URLs expire in 24 hours)
+    staleTime: 20 * 60 * 60 * 1000, // 20 hours - data stays fresh
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours - keep in cache
+    
+    // Background refetch when URLs are about to expire
+    refetchInterval: 22 * 60 * 60 * 1000, // 22 hours
+    refetchIntervalInBackground: true,
+    
+    // Retry configuration
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  // Helper functions for easy access
+  const getUrl = (fileId: string): string | null => {
+    const urls = query.data;
+    return urls?.[fileId]?.display || null;
+  };
+
+  const getThumbnail = (fileId: string): string | null => {
+    const urls = query.data;
+    return urls?.[fileId]?.thumbnail || null;
+  };
+
+  const isFileLoading = (fileId: string): boolean => {
+    return query.isLoading && normalizedFileIds.includes(fileId);
+  };
+
+  const hasFileError = (fileId: string): boolean => {
+    return query.isError && normalizedFileIds.includes(fileId);
+  };
+
+  const getFileError = (fileId: string): string | null => {
+    if (!hasFileError(fileId)) return null;
+    return query.error instanceof Error ? query.error.message : 'Unknown error';
+  };
+
+  return {
+    // Raw data
+    imageUrls: query.data || {},
+    
+    // Helper functions
+    getUrl,
+    getThumbnail,
+    
+    // State helpers
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    
+    // Per-file helpers
+    isFileLoading,
+    hasFileError,
+    getFileError,
+    
+    // Actions
+    refetch: query.refetch,
+    
+    // Debug info
+    queryKey: imageUrlKeys.files(normalizedFileIds),
   };
 }
 
-// Global cache shared across components (24-hour TTL)
-const globalImageCache: ImageUrlCache = {};
-const CACHE_TTL = 23 * 60 * 60 * 1000; // 23 hours (before 24h presigned URL expires)
+/**
+ * Hook for getting a single image URL (convenience wrapper)
+ * 
+ * @param fileId Single file ID to get URL for
+ * @returns Simple object with url, loading, and error states
+ */
+export function useImageUrl(fileId: string | null) {
+  const result = useImageUrls(fileId ? [fileId] : []);
+  
+  return {
+    url: fileId ? result.getUrl(fileId) : null,
+    thumbnail: fileId ? result.getThumbnail(fileId) : null,
+    isLoading: result.isLoading,
+    isError: result.isError,
+    error: result.error,
+    refetch: result.refetch,
+  };
+}
 
 /**
- * Hook for on-demand image URL generation following 2025 industry standards
+ * 🧪 TESTING: Function to check how TanStack Query deduplication works
  * 
- * - Saves metadata only in messages (no permanent URLs)
- * - Generates presigned URLs only when needed
- * - Caches URLs globally to avoid repeated API calls
- * - Automatically handles expiration and refresh
+ * Usage in console:
+ * ```
+ * import { debugQueryDeduplication } from './useImageUrls';
+ * debugQueryDeduplication();
+ * ```
  */
-export function useImageUrls() {
-  const [loading, setLoading] = useState<{[fileId: string]: boolean}>({});
-  const [errors, setErrors] = useState<{[fileId: string]: string}>({});
-
-  const getCachedUrl = useCallback((fileId: string): ImageUrls | null => {
-    const cached = globalImageCache[fileId];
-    if (!cached) return null;
-
-    // Check if cache is still valid
-    const now = Date.now();
-    if (now > cached.expiresAt) {
-      delete globalImageCache[fileId];
-      return null;
-    }
-
-    return cached.urls;
-  }, []);
-
-  const generateUrls = useCallback(async (fileIds: string[]): Promise<{[fileId: string]: ImageUrls}> => {
-    if (!fileIds.length) return {};
-
-    // Filter out already cached URLs
-    const uncachedFileIds = fileIds.filter(id => {
-      const cached = globalImageCache[id];
-      if (!cached) return true;
-      
-      // Check if cache is still valid
-      const now = Date.now();
-      if (now > cached.expiresAt) {
-        delete globalImageCache[id];
-        return true;
-      }
-      
-      return false;
-    });
-    
-    if (!uncachedFileIds.length) {
-      // Return cached URLs
-      const result: {[fileId: string]: ImageUrls} = {};
-      fileIds.forEach(id => {
-        const cached = globalImageCache[id];
-        if (cached) result[id] = cached.urls;
-      });
-      return result;
-    }
-
-    // Set loading state
-    const loadingState: {[fileId: string]: boolean} = {};
-    uncachedFileIds.forEach(id => { loadingState[id] = true; });
-    setLoading(prev => ({ ...prev, ...loadingState }));
-
-    try {
-      const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-      const response = await fetch(
-        buildApiUrl('/api/v1/files/images/bulk-presigned-urls'),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ file_ids: uncachedFileIds }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate URLs: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const now = Date.now();
-      const results: {[fileId: string]: ImageUrls} = {};
-
-      // Cache successful results
-      Object.entries(data.urls).forEach(([fileId, urlData]: [string, any]) => {
-        if (urlData.display) {
-          const urls: ImageUrls = {
-            display: urlData.display,
-            thumbnail: urlData.thumbnail || urlData.display,
-            expires_at: urlData.expires_at,
-          };
-
-          // Cache with TTL
-          globalImageCache[fileId] = {
-            urls,
-            cachedAt: now,
-            expiresAt: now + CACHE_TTL,
-          };
-
-          results[fileId] = urls;
-        } else if (urlData.error) {
-          setErrors(prev => ({ ...prev, [fileId]: urlData.error }));
-        }
-      });
-
-      // Include previously cached URLs
-      fileIds.forEach(id => {
-        if (!results[id]) {
-          const cached = globalImageCache[id];
-          if (cached) results[id] = cached.urls;
-        }
-      });
-
-      return results;
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorState: {[fileId: string]: string} = {};
-      uncachedFileIds.forEach(id => { errorState[id] = errorMessage; });
-      setErrors(prev => ({ ...prev, ...errorState }));
-      throw error;
-
-    } finally {
-      // Clear loading state
-      const clearLoadingState: {[fileId: string]: boolean} = {};
-      uncachedFileIds.forEach(id => { clearLoadingState[id] = false; });
-      setLoading(prev => ({ ...prev, ...clearLoadingState }));
-    }
-  }, []); // Removed getCachedUrl dependency and inlined the logic
-
-  const getUrl = useCallback(async (fileId: string): Promise<string | null> => {
-    // First check cache
-    const cached = globalImageCache[fileId];
-    if (cached) {
-      const now = Date.now();
-      if (now <= cached.expiresAt) {
-        return cached.urls.display;
-      } else {
-        delete globalImageCache[fileId];
-      }
-    }
-    
-    // Generate URL if not cached - inline the API call to avoid circular dependency
-    setLoading(prev => ({ ...prev, [fileId]: true }));
-    
-    try {
-      const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-      const response = await fetch(
-        buildApiUrl('/api/v1/files/images/bulk-presigned-urls'),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ file_ids: [fileId] }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate URL: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const urlData = data.urls[fileId];
-      
-      if (urlData?.display) {
-        const urls: ImageUrls = {
-          display: urlData.display,
-          thumbnail: urlData.thumbnail || urlData.display,
-          expires_at: urlData.expires_at,
-        };
-
-        // Cache with TTL
-        const now = Date.now();
-        globalImageCache[fileId] = {
-          urls,
-          cachedAt: now,
-          expiresAt: now + CACHE_TTL,
-        };
-
-        return urls.display;
-      }
-      
-      return null;
-    } catch (error) {
-      setErrors(prev => ({ ...prev, [fileId]: error instanceof Error ? error.message : 'Unknown error' }));
-      return null;
-    } finally {
-      setLoading(prev => ({ ...prev, [fileId]: false }));
-    }
-  }, []);
-
-  const isLoading = useCallback((fileId: string): boolean => {
-    return loading[fileId] || false;
-  }, [loading]);
-
-  const getError = useCallback((fileId: string): string | null => {
-    return errors[fileId] || null;
-  }, [errors]);
-
-  const hasError = useCallback((fileId: string): boolean => {
-    return !!errors[fileId];
-  }, [errors]);
-
-  return {
-    getCachedUrl,
-    generateUrls,
-    getUrl,
-    isLoading,
-    getError,
-    hasError,
-  };
+export function debugQueryDeduplication() {
+  console.log('🔍 Testing TanStack Query deduplication:');
+  console.log('Key for ["img1", "img2"]:', imageUrlKeys.files(['img1', 'img2']));
+  console.log('Key for ["img2", "img1"]:', imageUrlKeys.files(['img2', 'img1'])); // Should be same
+  console.log('Key for ["img1"]:', imageUrlKeys.files(['img1']));
+  console.log('Key for ["img3"]:', imageUrlKeys.files(['img3']));
 } 

@@ -11,7 +11,6 @@ import { chatApi } from '../services/chatApi';
 import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
 import { chatKeys } from '../app/hooks/chat';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
-import { useImageStore } from '../app/stores';
 import { imageService } from '../app/services';
 
 export function useChat(options: ChatOptions = {}) {
@@ -21,8 +20,7 @@ export function useChat(options: ChatOptions = {}) {
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const queryClient = useQueryClient();
 
-  // Image store integration - only need clearExpiredImages now
-  const { clearExpiredImages } = useImageStore();
+  // Image handling is now managed directly in message data
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);

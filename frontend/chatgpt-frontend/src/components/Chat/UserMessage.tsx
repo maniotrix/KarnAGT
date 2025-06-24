@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Message, ImageAttachment } from '../../types/chat';
-import { useImageUrls } from '../../hooks/useImageUrls';
+import { useConversationImagesContext } from '../../contexts/ConversationImagesContext';
 
 // Markdown Support
 import ReactMarkdown from 'react-markdown';
@@ -47,43 +47,10 @@ export const UserMessage: React.FC<UserMessageProps> = ({
   // Image modal functionality
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
-  // ✅ 2025 APPROACH: On-demand URL generation with caching
-  const imageUrls = useImageUrls();
-  const [attachmentUrls, setAttachmentUrls] = useState<{[fileId: string]: string}>({});
+  // File IDs are now handled at the conversation level by ConversationImagesProvider
 
-  // Extract file IDs from attachments
-  const attachmentFileIds = React.useMemo(() => {
-    if (!message.attachments?.length) return [];
-    
-    return message.attachments
-      .map(attachment => {
-        if (typeof attachment === 'object' && attachment !== null) {
-          return attachment.file_id;
-        }
-        if (typeof attachment === 'string') {
-          return attachment;
-        }
-        return null;
-      })
-      .filter((id): id is string => id !== null);
-  }, [message.attachments]);
-
-  // Generate URLs when component mounts or attachments change
-  useEffect(() => {
-    if (attachmentFileIds.length > 0) {
-      imageUrls.generateUrls(attachmentFileIds)
-        .then(results => {
-          const urlMap: {[fileId: string]: string} = {};
-          Object.entries(results).forEach(([fileId, urlData]) => {
-            urlMap[fileId] = urlData.display;
-          });
-          setAttachmentUrls(urlMap);
-        })
-        .catch(error => {
-          console.error('Failed to generate attachment URLs:', error);
-        });
-    }
-  }, [attachmentFileIds]); // Removed imageUrls from dependencies to prevent infinite loop
+  // ✅ CONVERSATION CONTEXT: Get image URLs from conversation-level provider
+  const { getImageUrl, isLoading, isError } = useConversationImagesContext();
 
   const formatTime = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date;
@@ -167,22 +134,22 @@ export const UserMessage: React.FC<UserMessageProps> = ({
           // Handle attachment objects (preferred)
           if (typeof attachment === 'object' && attachment !== null) {
             const fileId = attachment.file_id;
-            const generatedUrl = attachmentUrls[fileId];
+            const generatedUrl = getImageUrl(fileId);
             
             return {
               id: fileId,
               filename: attachment.filename || attachment.original_filename || `Image ${index + 1}`,
-              url: generatedUrl || null // Will show loading if null
+              url: generatedUrl // Will be null if loading/error
             };
           }
           // Handle string file IDs (legacy/fallback)  
           else if (typeof attachment === 'string') {
-            const generatedUrl = attachmentUrls[attachment];
+            const generatedUrl = getImageUrl(attachment);
             
             return {
               id: attachment,
               filename: `Image ${index + 1}`,
-              url: generatedUrl || null
+              url: generatedUrl
             };
           }
           return null;
@@ -224,15 +191,15 @@ export const UserMessage: React.FC<UserMessageProps> = ({
             ) : (
               // Loading state
               <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center">
-                {imageUrls.isLoading(image.id) ? (
+                {isLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                     <span className="text-sm text-gray-600">Loading...</span>
                   </div>
-                ) : imageUrls.hasError(image.id) ? (
+                ) : isError ? (
                   <div className="text-red-600 text-sm text-center">
                     <div>⚠️ Failed to load</div>
-                    <div className="text-xs mt-1">{imageUrls.getError(image.id)}</div>
+                    <div className="text-xs mt-1">Image unavailable</div>
                   </div>
                 ) : (
                   <div className="text-gray-400 text-sm">📷 Image</div>
@@ -276,7 +243,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 ) : (
                   // Loading state
                   <div className="h-32 w-32 bg-gray-100 rounded-lg flex items-center justify-center">
-                    {imageUrls.isLoading(image.id) ? (
+                    {isLoading ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                     ) : (
                       <div className="text-gray-400 text-xs">📷</div>
