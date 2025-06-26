@@ -1,0 +1,4 @@
+# add cache files to ignore
+
+cache/
+**/cache/
