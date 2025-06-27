@@ -4,11 +4,22 @@ from llama_index.core.vector_stores import SimpleVectorStore
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
+from llama_index.core.readers.base import BaseReader
+from typing import Optional
 import os
 import time
 import psutil
 import torch
 from dotenv import load_dotenv
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+backend_dir = os.path.dirname(os.path.dirname(current_dir))
+
+import sys
+sys.path.append(backend_dir)
+
+from app.utils.CustomPptxReader import OpenAIPptxReader
 
 # Uncomment the vector store you want to use:
 
@@ -88,63 +99,6 @@ class PerformanceMonitor:
 # Initialize performance monitor
 perf_monitor = PerformanceMonitor()
 
-def warm_up_models():
-    """Pre-load document processing models to avoid cold start"""
-    print("🔥 Warming up document processing models...")
-    perf_monitor.start_timing("Model Warmup")
-    
-    global shared_reader  # Create a global reader to reuse
-    
-    try:
-        from llama_index.core import SimpleDirectoryReader
-        
-        # Try to process a PDF from test_docs to trigger vision model loading
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        backend_dir = os.path.dirname(os.path.dirname(current_dir))
-        test_docs_dir = os.path.join(backend_dir, "test_docs")
-        
-        # Look for a small PDF file to warm up with
-        warmup_files = []
-        if os.path.exists(test_docs_dir):
-            for file in os.listdir(test_docs_dir):
-                if file.endswith('.pdf'):
-                    file_path = os.path.join(test_docs_dir, file)
-                    # Get file size to find a smaller PDF
-                    file_size = os.path.getsize(file_path)
-                    warmup_files.append((file_path, file_size))
-            
-            # Sort by file size and pick the smallest PDF
-            if warmup_files:
-                warmup_files.sort(key=lambda x: x[1])
-                smallest_pdf = warmup_files[0][0]
-                print(f"   Using {os.path.basename(smallest_pdf)} ({warmup_files[0][1]/1024:.1f}KB) for vision model warmup...")
-                
-                # Create a shared reader instance and warm it up
-                shared_reader = SimpleDirectoryReader(input_files=[smallest_pdf])
-                warmup_docs = shared_reader.load_data()
-                print(f"   ✅ Processed {len(warmup_docs)} PDF pages - Vision models loaded!")
-                
-                # Now create the actual reader for all documents but reuse the warmed models
-                print("   🔄 Creating main document reader...")
-                shared_reader = SimpleDirectoryReader(test_docs_dir)
-                print("   ✅ Main document reader created with warmed models!")
-            else:
-                print("   No PDF files found for vision model warmup")
-                shared_reader = None
-        else:
-            print("   test_docs directory not found, skipping vision model warmup")
-            shared_reader = None
-            
-    except Exception as e:
-        print(f"   ⚠️  Vision model warmup failed: {e}")
-        print("   📝 Will load models during document processing instead")
-        shared_reader = None
-    
-    perf_monitor.end_timing("Model Warmup")
-    print("✅ Model warmup completed!")
-    
-    return shared_reader
-
 print("🧪 Testing LlamaIndex RAG with different vector databases...")
 print("🖥️  System Information:")
 device_info = get_device_info()
@@ -152,14 +106,7 @@ for key, value in device_info.items():
     print(f"   {key}: {value}")
 print()
 
-# Warm up models before processing
-shared_reader = warm_up_models()
-print()
 
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-
-backend_dir = os.path.dirname(os.path.dirname(current_dir))
 test_docs_dir = os.path.join(backend_dir, "test_docs")
 
 
@@ -171,13 +118,14 @@ Settings.embed_model = OpenAIEmbedding()
 perf_monitor.start_timing("Document Loading")
 from llama_index.core import SimpleDirectoryReader
 
-# Use the pre-warmed reader if available, otherwise create new one
-if shared_reader is not None:
-    print("📄 Using pre-warmed document reader...")
-    docs = shared_reader.load_data()
-else:
-    print("📄 Creating new document reader (no warmup available)...")
-    docs = SimpleDirectoryReader(test_docs_dir).load_data()
+print("📄 Creating new document reader...")
+pptx_reader = OpenAIPptxReader(enable_logging=True)
+file_extractor: Optional[dict[str, BaseReader]] = {
+    ".pptx": pptx_reader,
+    ".ppt": pptx_reader
+    }
+exclude = ["*.pdf"]
+docs = SimpleDirectoryReader(test_docs_dir, file_extractor=file_extractor, exclude=exclude).load_data()
 
 perf_monitor.end_timing("Document Loading")
 print(f"✅ Loaded {len(docs)} documents from test_docs folder")
@@ -232,7 +180,10 @@ cache_file = os.path.join(cache_dir, "index_cache.json")
 embeddings_cache = os.path.join(cache_dir, "embeddings_cache.pkl")
 cache_metadata = os.path.join(cache_dir, "cache_metadata.json")
 
-def is_cache_valid():
+def is_cache_valid(enable_cache: bool = False):
+    if not enable_cache:
+        return False
+    
     """Check if cache is still valid based on document modification times"""
     if not all(os.path.exists(f) for f in [cache_file, embeddings_cache, cache_metadata]):
         return False
@@ -362,9 +313,7 @@ print("✅ RAG query engine created!")
 # Try multiple queries relevant to your documents
 queries = [
     "What is Trykaa and what does the company do?",
-    # "Tell me about AI agents and their capabilities",
-    # "What are the key features of distributed systems?",
-    # "How do human cells compare to AI agents?"
+    "What do customer reviews say about Trykaa? What are the ratings and feedback?",
 ]
 
 print(f"\n🔍 Testing {len(queries)} queries on your real documents...")
