@@ -39,6 +39,7 @@ class OpenAIPptxReader(BaseReader):
         api_key: Optional[str] = None,
         enable_logging: bool = False,
         enable_delay: bool = False,
+        delay_seconds: int = 2,
         model_name: str = "gpt-4o"
     ) -> None:
         """Init parser with configurable OpenAI client."""
@@ -52,8 +53,10 @@ class OpenAIPptxReader(BaseReader):
         # Use OpenAI client instead of heavy models
         self.client = AsyncOpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
         self.enable_logging = enable_logging
-        self.caption_agent = get_default_caption_agent(model_name)
         self.enable_delay = enable_delay
+        self.delay_seconds = delay_seconds
+        self.model_name = model_name
+        self.caption_agent = get_default_caption_agent(self.model_name)
         
         # Setup logger
         self.logger = logging.getLogger(__name__)
@@ -174,8 +177,8 @@ class OpenAIPptxReader(BaseReader):
                         # Add delay to avoid rate limiting if this isn't the first image
                         if total_images > 0 and self.enable_delay:
                             if self.enable_logging:
-                                self.logger.debug(f"Adding 2s delay before processing image {total_images + 1}")
-                            await asyncio.sleep(2.0)  # 2-second delay between images
+                                self.logger.debug(f"Adding {self.delay_seconds}s delay before processing image {total_images + 1}")
+                            await asyncio.sleep(self.delay_seconds)  # delay between images
                         
                         caption = await self.caption_image(f.name)
                         result += f"\n Image: {caption}\n\n"

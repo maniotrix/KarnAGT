@@ -54,11 +54,8 @@ class TestConfig:
     enable_logging: bool = True
     exclude_patterns: List[str] = None
     enable_cache: bool = False
-    enable_delay: bool = False
-
-    def __post_init__(self):
-        if self.exclude_patterns is None:
-            self.exclude_patterns = ["*.pdf"]
+    enable_delay: bool = True
+    delay_seconds: int = 1
 
 class PerformanceMonitor:
     """Monitor and track performance metrics."""
@@ -157,7 +154,10 @@ class RAGTestRunner:
         from llama_index.core import SimpleDirectoryReader
         
         print("📄 Creating new document reader...")
-        pptx_reader = OpenAIPptxReader(enable_logging=self.config.enable_logging, model_name=self.config.model, enable_delay=self.config.enable_delay)
+        pptx_reader = OpenAIPptxReader(enable_logging=self.config.enable_logging, 
+                                        model_name=self.config.model, 
+                                        enable_delay=self.config.enable_delay, 
+                                        delay_seconds=self.config.delay_seconds)
         file_extractor: Dict[str, BaseReader] = {
             ".pptx": pptx_reader,
             ".ppt": pptx_reader
@@ -309,36 +309,6 @@ class RAGTestRunner:
         
         return index
     
-    def run_queries_sync(self, queries: List[str]) -> List[float]:
-        """Run queries synchronously."""
-        print(f"\n🔍 Testing {len(queries)} queries on your real documents...")
-        query_times = []
-        
-        for i, query in enumerate(queries, 1):
-            print(f"\n❓ Query {i}: '{query}'")
-            
-            query_name = f"Query {i} (RAG Inference)"
-            self.perf_monitor.start_timing(query_name)
-            response = self.query_engine.query(query)
-            query_time = self.perf_monitor.end_timing(query_name)
-            query_times.append(query_time)
-            
-            print(f"🤖 Answer: {response}")
-            print(f"⚡ Query processed in {query_time:.3f}s")
-            
-            if hasattr(response, 'source_nodes') and response.source_nodes:
-                print(f"📚 Sources ({len(response.source_nodes)} found):")
-                for j, node in enumerate(response.source_nodes[:3], 1):
-                    source_file = node.metadata.get('file_name', 'Unknown')
-                    source_text = node.text[:100].replace('\n', ' ') + '...'
-                    print(f"   {j}. {source_file}: {source_text}")
-            else:
-                print("📚 No sources found")
-            
-            print("-" * 80)
-        
-        return query_times
-    
     async def run_queries_async(self, queries: List[str]) -> List[float]:
         """Run queries asynchronously but sequentially for clean output."""
         print(f"\n🔍 Testing {len(queries)} queries asynchronously (sequential for clean output)...")
@@ -458,6 +428,7 @@ class RAGTestRunner:
         queries = [
             "What is Trykaa and what does the company do?",
             "What do customer reviews say about Trykaa? What are the ratings and feedback?",
+            
         ]
         
         query_times = await self.run_queries_async(queries)
@@ -465,6 +436,21 @@ class RAGTestRunner:
         
 def main():
     """Main function - runs async test when executed directly."""
+    excluded_patterns = [
+        # "*.pdf",
+        # "*.docx",
+        # "*.doc",
+        # "*.txt",
+        # "*.csv",
+        # "*.xls",
+        # "*.xlsx",
+        # "*.pptx",
+        # "*.ppt",
+        # "*.jpg",
+        # "*.jpeg",
+        # "*.png",
+        # "*.gif"
+        ]
     config = TestConfig(
         model="gpt-4o-mini-2024-07-18",
         chunk_size=512,
@@ -472,9 +458,13 @@ def main():
         similarity_top_k=3,
         num_workers=2,
         enable_logging=True,
-        exclude_patterns=["*.pdf"],
-        enable_cache=False
+        exclude_patterns=excluded_patterns if len(excluded_patterns) > 0 else None,
+        enable_cache=False,
+        enable_delay=True,
+        delay_seconds=1
     )
+    
+    print(f"Using Config options: {config}")
     
     runner = RAGTestRunner(config)
     
