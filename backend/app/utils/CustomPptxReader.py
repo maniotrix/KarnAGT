@@ -12,11 +12,19 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from fsspec import AbstractFileSystem
+import asyncio
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import Document
+from agents import Agent, Runner
 
+def get_default_caption_agent(model_name: str = "gpt-4o"):
+    return Agent(
+        name="Caption Agent",
+        model=model_name,  # Fix: Specify the model explicitly
+        instructions="You are an expert at describing images from PowerPoint presentations. Describe images concisely, focusing on key visual elements, text, charts, or diagrams.",
+    )
 
 class OpenAIPptxReader(BaseReader):
     """
@@ -29,9 +37,9 @@ class OpenAIPptxReader(BaseReader):
     def __init__(
         self, 
         api_key: Optional[str] = None,
-        model: str = "gpt-4o",
-        system_prompt: str = "You are an expert at describing images from PowerPoint presentations. Describe images concisely, focusing on key visual elements, text, charts, or diagrams.",
-        enable_logging: bool = False
+        enable_logging: bool = False,
+        enable_delay: bool = False,
+        model_name: str = "gpt-4o"
     ) -> None:
         """Init parser with configurable OpenAI client."""
         try:
@@ -42,10 +50,10 @@ class OpenAIPptxReader(BaseReader):
             )
 
         # Use OpenAI client instead of heavy models
-        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
-        self.model = model
-        self.system_prompt = system_prompt
+        self.client = AsyncOpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
         self.enable_logging = enable_logging
+        self.caption_agent = get_default_caption_agent(model_name)
+        self.enable_delay = enable_delay
         
         # Setup logger
         self.logger = logging.getLogger(__name__)
@@ -58,9 +66,9 @@ class OpenAIPptxReader(BaseReader):
                 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
                 handler.setFormatter(formatter)
                 self.logger.addHandler(handler)
-            self.logger.info(f"OpenAIPptxReader initialized with model: {model}")
+            self.logger.info(f"OpenAIPptxReader initialized with model: {self.caption_agent.model}")
 
-    def caption_image(self, tmp_image_file: str) -> str:
+    async def caption_image(self, tmp_image_file: str) -> str:
         """Generate text caption of image using OpenAI Vision."""
         temp_openai_file_id = None
         
@@ -70,7 +78,7 @@ class OpenAIPptxReader(BaseReader):
                 
             # Upload to OpenAI Files API
             with open(tmp_image_file, 'rb') as f:
-                file_response = self.client.files.create(
+                file_response = await self.client.files.create(
                     file=f,
                     purpose="vision"
                 )
@@ -79,29 +87,35 @@ class OpenAIPptxReader(BaseReader):
             if self.enable_logging:
                 self.logger.debug(f"Uploaded to OpenAI with file_id: {temp_openai_file_id}")
             
-            # Process with vision model
-            response = self.client.responses.create(
-                model=self.model,
-                input=[
-                    {"role": "system", "content": self.system_prompt},
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_image",
-                                "file_id": temp_openai_file_id
-                            }
-                        ]
-                    }
-                ],
+            # Add timeout to prevent hanging
+            result = await asyncio.wait_for(
+                Runner.run(
+                    self.caption_agent,
+                    [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_image",
+                                    "file_id": temp_openai_file_id
+                                }
+                            ]
+                        }
+                    ],
+                ),
+                timeout=60.0  # 60 second timeout
             )
             
-            result = response.output_text.strip()
+            result = result.final_output
             if self.enable_logging:
                 self.logger.debug(f"Vision API response: {result}")
             
             return result
             
+        except asyncio.TimeoutError:
+            if self.enable_logging:
+                self.logger.error(f"Timeout processing image: {tmp_image_file}")
+            return "Error: Image processing timed out after 60 seconds"
         except Exception as e:
             if self.enable_logging:
                 self.logger.error(f"Error processing image: {str(e)}")
@@ -111,14 +125,14 @@ class OpenAIPptxReader(BaseReader):
             # Cleanup: Delete OpenAI file
             if temp_openai_file_id:
                 try:
-                    self.client.files.delete(temp_openai_file_id)
+                    await self.client.files.delete(temp_openai_file_id)
                     if self.enable_logging:
                         self.logger.debug(f"Deleted OpenAI file: {temp_openai_file_id}")
                 except Exception as e:
                     if self.enable_logging:
                         self.logger.warning(f"Failed to delete OpenAI file {temp_openai_file_id}: {e}")
 
-    def load_data(
+    async def aload_data(
         self,
         file: Path,
         extra_info: Optional[Dict] = None,
@@ -156,7 +170,15 @@ class OpenAIPptxReader(BaseReader):
                     try:
                         f.write(image_bytes)
                         f.close()
-                        result += f"\n Image: {self.caption_image(f.name)}\n\n"
+                        
+                        # Add delay to avoid rate limiting if this isn't the first image
+                        if total_images > 0 and self.enable_delay:
+                            if self.enable_logging:
+                                self.logger.debug(f"Adding 2s delay before processing image {total_images + 1}")
+                            await asyncio.sleep(2.0)  # 2-second delay between images
+                        
+                        caption = await self.caption_image(f.name)
+                        result += f"\n Image: {caption}\n\n"
                         slide_images += 1
                         total_images += 1
                     finally:

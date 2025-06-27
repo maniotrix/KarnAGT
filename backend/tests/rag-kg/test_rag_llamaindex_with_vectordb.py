@@ -5,15 +5,18 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.core.readers.base import BaseReader
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import os
 import time
 import psutil
 import torch
+import asyncio
+import json
 from dotenv import load_dotenv
+from dataclasses import dataclass
+from pathlib import Path
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-
 backend_dir = os.path.dirname(os.path.dirname(current_dir))
 
 import sys
@@ -22,9 +25,7 @@ sys.path.append(backend_dir)
 from app.utils.CustomPptxReader import OpenAIPptxReader
 
 # Uncomment the vector store you want to use:
-
-# Option 1: Qdrant (in-memory mode)
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, AsyncQdrantClient
 
 # Option 2: Chroma (in-memory)
 # import chromadb
@@ -34,32 +35,39 @@ from qdrant_client import QdrantClient
 
 load_dotenv()
 
-# Performance monitoring setup
-def get_device_info():
-    """Get CPU and GPU information"""
-    cpu_count = psutil.cpu_count()
-    cpu_freq = psutil.cpu_freq()
-    memory = psutil.virtual_memory()
-    
-    gpu_info = "No GPU detected"
-    if torch.cuda.is_available():
-        gpu_info = f"GPU: {torch.cuda.get_device_name(0)} (CUDA Available)"
-    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        gpu_info = "GPU: Apple Metal Performance Shaders (MPS)"
-    
-    return {
-        "cpu_count": cpu_count,
-        "cpu_freq": f"{cpu_freq.current:.2f} MHz" if cpu_freq else "Unknown",
-        "memory_total": f"{memory.total / (1024**3):.2f} GB",
-        "gpu_info": gpu_info
-    }
+@dataclass
+class DeviceInfo:
+    """System device information."""
+    cpu_count: int
+    cpu_freq: str
+    memory_total: str
+    gpu_info: str
+
+@dataclass
+class TestConfig:
+    """Configuration for RAG test."""
+    model: str = "gpt-4o-mini-2024-07-18"
+    chunk_size: int = 512
+    chunk_overlap: int = 50
+    similarity_top_k: int = 3
+    num_workers: int = 2
+    enable_logging: bool = True
+    exclude_patterns: List[str] = None
+    enable_cache: bool = False
+    enable_delay: bool = False
+
+    def __post_init__(self):
+        if self.exclude_patterns is None:
+            self.exclude_patterns = ["*.pdf"]
 
 class PerformanceMonitor:
+    """Monitor and track performance metrics."""
+    
     def __init__(self):
-        self.timings = {}
+        self.timings: Dict[str, Dict[str, Any]] = {}
         
-    def start_timing(self, operation):
-        """Start timing an operation"""
+    def start_timing(self, operation: str) -> None:
+        """Start timing an operation."""
         print(f"⏱️  Starting {operation}...")
         self.timings[operation] = {
             'start_time': time.time(),
@@ -67,10 +75,10 @@ class PerformanceMonitor:
             'memory_before': psutil.virtual_memory().percent
         }
         
-    def end_timing(self, operation):
-        """End timing an operation"""
+    def end_timing(self, operation: str) -> float:
+        """End timing an operation and return duration."""
         if operation not in self.timings:
-            return
+            return 0.0
             
         timing = self.timings[operation]
         end_time = time.time()
@@ -88,322 +96,393 @@ class PerformanceMonitor:
         
         return duration
         
-    def get_summary(self):
-        """Get performance summary"""
+    def get_summary(self) -> Dict[str, Any]:
+        """Get performance summary."""
         total_time = sum(t.get('duration', 0) for t in self.timings.values())
         return {
             'total_time': total_time,
             'operations': {k: v.get('duration', 0) for k, v in self.timings.items()}
         }
 
-# Initialize performance monitor
-perf_monitor = PerformanceMonitor()
-
-print("🧪 Testing LlamaIndex RAG with different vector databases...")
-print("🖥️  System Information:")
-device_info = get_device_info()
-for key, value in device_info.items():
-    print(f"   {key}: {value}")
-print()
-
-
-test_docs_dir = os.path.join(backend_dir, "test_docs")
-
-
-# Configure LlamaIndex settings globally
-Settings.llm = OpenAI(model="gpt-4o-mini-2024-07-18")
-Settings.embed_model = OpenAIEmbedding()
-
-# Load real documents from test_docs folder
-perf_monitor.start_timing("Document Loading")
-from llama_index.core import SimpleDirectoryReader
-
-print("📄 Creating new document reader...")
-pptx_reader = OpenAIPptxReader(enable_logging=True)
-file_extractor: Optional[dict[str, BaseReader]] = {
-    ".pptx": pptx_reader,
-    ".ppt": pptx_reader
-    }
-exclude = ["*.pdf"]
-docs = SimpleDirectoryReader(test_docs_dir, file_extractor=file_extractor, exclude=exclude).load_data()
-
-perf_monitor.end_timing("Document Loading")
-print(f"✅ Loaded {len(docs)} documents from test_docs folder")
-
-# Print document info
-for i, doc in enumerate(docs[:3]):  # Show first 3 documents
-    print(f"   📄 Document {i+1}: {doc.metadata.get('file_name', 'Unknown')} ({len(doc.text)} chars)")
-if len(docs) > 3:
-    print(f"   📄 ... and {len(docs) - 3} more documents")
-
-# Create node parser
-node_parser = SentenceSplitter(chunk_size=512, chunk_overlap=50)
-
-# ==========================================
-# CHOOSE YOUR VECTOR DATABASE:
-# ==========================================
-
-# Option 1: In-Memory (SimpleVectorStore) - DEFAULT
-# print("📝 Using SimpleVectorStore (in-memory)...")
-# vector_store = SimpleVectorStore()
-# storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
-# Option 2: Qdrant In-Memory with Persistence (OPTIMIZED)
-perf_monitor.start_timing("Vector Store Setup")
-print("📝 Using Qdrant (in-memory mode with caching)...")
-
-# Create cache directory
-cache_dir = os.path.join(os.path.dirname(__file__), "cache")
-os.makedirs(cache_dir, exist_ok=True)
-
-client = QdrantClient(":memory:")  # In-memory mode - no server needed!
-vector_store = QdrantVectorStore(client=client, collection_name="test_collection")
-storage_context = StorageContext.from_defaults(vector_store=vector_store)
-perf_monitor.end_timing("Vector Store Setup")
-
-# Option 3: Chroma In-Memory (Uncomment to use)
-# print("📝 Using ChromaVectorStore (in-memory)...")
-# chroma_client = chromadb.EphemeralClient()
-# chroma_collection = chroma_client.create_collection("llamaindex_test")
-# vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-# storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
-# Option 4: Chroma Persistent (Uncomment to use)
-# print("📝 Using ChromaVectorStore (persistent)...")
-# chroma_client = chromadb.PersistentClient(path="./chroma_db")
-# chroma_collection = chroma_client.get_or_create_collection("llamaindex_test")
-# vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-# storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
-# Check if cached index exists and is valid
-cache_file = os.path.join(cache_dir, "index_cache.json")
-embeddings_cache = os.path.join(cache_dir, "embeddings_cache.pkl")
-cache_metadata = os.path.join(cache_dir, "cache_metadata.json")
-
-def is_cache_valid(enable_cache: bool = False):
-    if not enable_cache:
-        return False
+class RAGTestRunner:
+    """Main class for running RAG performance tests."""
     
-    """Check if cache is still valid based on document modification times"""
-    if not all(os.path.exists(f) for f in [cache_file, embeddings_cache, cache_metadata]):
-        return False
+    def __init__(self, config: TestConfig):
+        self.config = config
+        self.perf_monitor = PerformanceMonitor()
+        self.device_info = self._get_device_info()
+        self.test_docs_dir = os.path.join(backend_dir, "test_docs")
+        self.cache_dir = os.path.join(os.path.dirname(__file__), "cache")
+        
+        # Initialize components
+        self.docs: List[Document] = []
+        self.index: Optional[VectorStoreIndex] = None
+        self.query_engine = None
+        
+        # Setup LlamaIndex settings
+        Settings.llm = OpenAI(model=self.config.model)
+        Settings.embed_model = OpenAIEmbedding()
+        
+    def _get_device_info(self) -> DeviceInfo:
+        """Get CPU and GPU information."""
+        cpu_count = psutil.cpu_count()
+        cpu_freq = psutil.cpu_freq()
+        memory = psutil.virtual_memory()
+        
+        gpu_info = "No GPU detected"
+        if torch.cuda.is_available():
+            gpu_info = f"GPU: {torch.cuda.get_device_name(0)} (CUDA Available)"
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            gpu_info = "GPU: Apple Metal Performance Shaders (MPS)"
+        
+        return DeviceInfo(
+            cpu_count=cpu_count,
+            cpu_freq=f"{cpu_freq.current:.2f} MHz" if cpu_freq else "Unknown",
+            memory_total=f"{memory.total / (1024**3):.2f} GB",
+            gpu_info=gpu_info
+        )
     
-    try:
-        import json
-        with open(cache_metadata, 'r') as f:
-            metadata = json.load(f)
+    def print_system_info(self) -> None:
+        """Print system information."""
+        print("🧪 Testing LlamaIndex RAG with different vector databases...")
+        print("🖥️  System Information:")
+        print(f"   cpu_count: {self.device_info.cpu_count}")
+        print(f"   cpu_freq: {self.device_info.cpu_freq}")
+        print(f"   memory_total: {self.device_info.memory_total}")
+        print(f"   gpu_info: {self.device_info.gpu_info}")
+        print()
+    
+    async def load_documents_async(self) -> List[Document]:
+        """Load documents asynchronously."""
+        from llama_index.core import SimpleDirectoryReader
         
-        cached_doc_count = metadata.get('doc_count', 0)
-        cached_timestamp = metadata.get('timestamp', 0)
+        print("📄 Creating new document reader...")
+        pptx_reader = OpenAIPptxReader(enable_logging=self.config.enable_logging, model_name=self.config.model, enable_delay=self.config.enable_delay)
+        file_extractor: Dict[str, BaseReader] = {
+            ".pptx": pptx_reader,
+            ".ppt": pptx_reader
+        }
         
-        # Check if document count changed
-        if len(docs) != cached_doc_count:
-            print(f"📄 Document count changed: {cached_doc_count} → {len(docs)}")
+        reader = SimpleDirectoryReader(
+            self.test_docs_dir, 
+            file_extractor=file_extractor, 
+            exclude=self.config.exclude_patterns
+        )
+        return await reader.aload_data(show_progress=True, num_workers=self.config.num_workers)
+    
+    async def setup_vector_store(self) -> StorageContext:
+        """Setup vector store with Qdrant server (production setup)."""
+        print("📝 Using Qdrant server (production-ready setup)...")
+        os.makedirs(self.cache_dir, exist_ok=True)
+        
+        # Use Qdrant server for production-ready setup (fixes "text-dense" error)
+        from qdrant_client.models import Distance, VectorParams
+        
+        # Create both sync and async clients for LlamaIndex compatibility
+        client = QdrantClient(host="localhost", port=6333)
+        aclient = AsyncQdrantClient(host="localhost", port=6333)
+        
+        collection_name = "rag_collection"
+        
+        # Create collection with proper schema to avoid "text-dense" error
+        try:
+            await aclient.delete_collection(collection_name)
+            print("🗑️ Cleaned existing collection")
+        except:
+            pass  # Collection doesn't exist
+        
+        # Create collection with proper vector configuration
+        await aclient.create_collection(
+            collection_name=collection_name,
+            vectors_config=VectorParams(
+                size=1536,  # OpenAI text-embedding-ada-002 dimensions
+                distance=Distance.COSINE
+            )
+        )
+        print("✅ Collection created with proper vector schema")
+        
+        vector_store = QdrantVectorStore(
+            client=client, 
+            aclient=aclient, 
+            collection_name=collection_name,
+            enable_hybrid=False  # Disable for better performance
+        )
+        return StorageContext.from_defaults(vector_store=vector_store)
+    
+    def is_cache_valid(self) -> bool:
+        """Check if cache is still valid."""
+        if not self.config.enable_cache:
             return False
         
-        # Check if any documents were modified since cache creation
-        latest_doc_time = 0
-        for doc in docs:
-            file_path = doc.metadata.get('file_path', '')
-            if file_path and os.path.exists(file_path):
-                doc_time = os.path.getmtime(file_path)
-                latest_doc_time = max(latest_doc_time, doc_time)
+        cache_file = os.path.join(self.cache_dir, "index_cache.json")
+        embeddings_cache = os.path.join(self.cache_dir, "embeddings_cache.pkl")
+        cache_metadata = os.path.join(self.cache_dir, "cache_metadata.json")
         
-        if latest_doc_time > cached_timestamp:
-            print(f"📄 Documents modified since cache creation")
+        if not all(os.path.exists(f) for f in [cache_file, embeddings_cache, cache_metadata]):
             return False
         
-        return True
-    except Exception as e:
-        print(f"⚠️  Cache validation failed: {e}")
-        return False
-
-if is_cache_valid():
-    print("🚀 Loading cached index and embeddings...")
-    perf_monitor.start_timing("Loading Cached Index")
-    try:
-        # Load from cache
-        from llama_index.core import load_index_from_storage
-        storage_context = StorageContext.from_defaults(persist_dir=cache_dir)
-        index = load_index_from_storage(storage_context)
-        perf_monitor.end_timing("Loading Cached Index")
-        print("✅ Cached index loaded successfully!")
-    except Exception as e:
-        print(f"⚠️  Cache loading failed: {e}")
-        print("🔄 Creating fresh index...")
-        # Create fresh index if cache fails
-        perf_monitor.start_timing("Document Embedding & Indexing")
+        try:
+            with open(cache_metadata, 'r') as f:
+                metadata = json.load(f)
+            
+            cached_doc_count = metadata.get('doc_count', 0)
+            cached_timestamp = metadata.get('timestamp', 0)
+            
+            if len(self.docs) != cached_doc_count:
+                print(f"📄 Document count changed: {cached_doc_count} → {len(self.docs)}")
+                return False
+            
+            # Check if any documents were modified since cache creation
+            latest_doc_time = 0
+            for doc in self.docs:
+                file_path = doc.metadata.get('file_path', '')
+                if file_path and os.path.exists(file_path):
+                    doc_time = os.path.getmtime(file_path)
+                    latest_doc_time = max(latest_doc_time, doc_time)
+            
+            if latest_doc_time > cached_timestamp:
+                print(f"📄 Documents modified since cache creation")
+                return False
+            
+            return True
+        except Exception as e:
+            print(f"⚠️  Cache validation failed: {e}")
+            return False
+    
+    def create_index(self, storage_context: StorageContext) -> VectorStoreIndex:
+        """Create or load vector index."""
+        node_parser = SentenceSplitter(
+            chunk_size=self.config.chunk_size, 
+            chunk_overlap=self.config.chunk_overlap
+        )
+        
+        if self.is_cache_valid():
+            print("🚀 Loading cached index and embeddings...")
+            self.perf_monitor.start_timing("Loading Cached Index")
+            try:
+                from llama_index.core import load_index_from_storage
+                storage_context = StorageContext.from_defaults(persist_dir=self.cache_dir)
+                index = load_index_from_storage(storage_context)
+                self.perf_monitor.end_timing("Loading Cached Index")
+                print("✅ Cached index loaded successfully!")
+                # Ensure we return the correct type
+                if not isinstance(index, VectorStoreIndex):
+                    raise TypeError(f"Expected VectorStoreIndex, got {type(index)}")
+                return index
+            except Exception as e:
+                print(f"⚠️  Cache loading failed: {e}")
+                print("🔄 Creating fresh index...")
+        
+        # Create fresh index
+        print("🆕 Creating fresh index (first time)...")
+        self.perf_monitor.start_timing("Document Embedding & Indexing")
         index = VectorStoreIndex.from_documents(
-            documents=docs,
+            documents=self.docs,
             storage_context=storage_context,
             transformations=[node_parser],
             show_progress=True
         )
-        perf_monitor.end_timing("Document Embedding & Indexing")
+        self.perf_monitor.end_timing("Document Embedding & Indexing")
         
         # Save to cache
-        print("💾 Saving index to cache...")
-        index.storage_context.persist(persist_dir=cache_dir)
-        
-        # Save cache metadata
-        import json
-        cache_metadata_data = {
-            'doc_count': len(docs),
-            'timestamp': time.time(),
-            'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'model_config': {
-                'llm': getattr(Settings.llm, 'model', 'Unknown'),
-                'embedding': type(Settings.embed_model).__name__,
-                'chunk_size': node_parser.chunk_size,
-                'chunk_overlap': node_parser.chunk_overlap
+        if self.config.enable_cache:
+            print("💾 Saving index to cache...")
+            index.storage_context.persist(persist_dir=self.cache_dir)
+            
+            cache_metadata_data = {
+                'doc_count': len(self.docs),
+                'timestamp': time.time(),
+                'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'model_config': {
+                    'llm': getattr(Settings.llm, 'model', 'Unknown'),
+                    'embedding': type(Settings.embed_model).__name__,
+                    'chunk_size': self.config.chunk_size,
+                    'chunk_overlap': self.config.chunk_overlap
+                }
             }
-        }
+            
+            cache_metadata_file = os.path.join(self.cache_dir, "cache_metadata.json")
+            with open(cache_metadata_file, 'w') as f:
+                json.dump(cache_metadata_data, f, indent=2)
+            
+            print("✅ Index cached for future use!")
         
-        with open(cache_metadata, 'w') as f:
-            json.dump(cache_metadata_data, f, indent=2)
+        return index
+    
+    def run_queries_sync(self, queries: List[str]) -> List[float]:
+        """Run queries synchronously."""
+        print(f"\n🔍 Testing {len(queries)} queries on your real documents...")
+        query_times = []
         
-        print("✅ Index cached for future use!")
-else:
-    # Create the index with your chosen vector store (first time)
-    print("🆕 Creating fresh index (first time)...")
-    perf_monitor.start_timing("Document Embedding & Indexing")
-    index = VectorStoreIndex.from_documents(
-        documents=docs,
-        storage_context=storage_context,
-        transformations=[node_parser],
-        show_progress=True
+        for i, query in enumerate(queries, 1):
+            print(f"\n❓ Query {i}: '{query}'")
+            
+            query_name = f"Query {i} (RAG Inference)"
+            self.perf_monitor.start_timing(query_name)
+            response = self.query_engine.query(query)
+            query_time = self.perf_monitor.end_timing(query_name)
+            query_times.append(query_time)
+            
+            print(f"🤖 Answer: {response}")
+            print(f"⚡ Query processed in {query_time:.3f}s")
+            
+            if hasattr(response, 'source_nodes') and response.source_nodes:
+                print(f"📚 Sources ({len(response.source_nodes)} found):")
+                for j, node in enumerate(response.source_nodes[:3], 1):
+                    source_file = node.metadata.get('file_name', 'Unknown')
+                    source_text = node.text[:100].replace('\n', ' ') + '...'
+                    print(f"   {j}. {source_file}: {source_text}")
+            else:
+                print("📚 No sources found")
+            
+            print("-" * 80)
+        
+        return query_times
+    
+    async def run_queries_async(self, queries: List[str]) -> List[float]:
+        """Run queries asynchronously but sequentially for clean output."""
+        print(f"\n🔍 Testing {len(queries)} queries asynchronously (sequential for clean output)...")
+        query_times = []
+        
+        for i, query in enumerate(queries, 1):
+            print(f"\n❓ Query {i}: '{query}'")
+            
+            query_name = f"Query {i} (RAG Inference)"
+            self.perf_monitor.start_timing(query_name)
+            response = await self.query_engine.aquery(query)
+            query_time = self.perf_monitor.end_timing(query_name)
+            query_times.append(query_time)
+            
+            print(f"🤖 Answer: {response}")
+            print(f"⚡ Query processed in {query_time:.3f}s")
+            
+            if hasattr(response, 'source_nodes') and response.source_nodes:
+                print(f"📚 Sources ({len(response.source_nodes)} found):")
+                for j, node in enumerate(response.source_nodes[:3], 1):
+                    source_file = node.metadata.get('file_name', 'Unknown')
+                    source_text = node.text[:100].replace('\n', ' ') + '...'
+                    print(f"   {j}. {source_file}: {source_text}")
+            else:
+                print("📚 No sources found")
+            
+            print("-" * 80)
+        
+        return query_times
+    
+    def print_performance_summary(self, query_times: List[float]) -> None:
+        """Print comprehensive performance summary."""
+        print(f"\n🎉 LlamaIndex RAG test completed!")
+        
+        print(f"\n📊 PERFORMANCE SUMMARY:")
+        print(f"=" * 60)
+        summary = self.perf_monitor.get_summary()
+        print(f"⏱️  Total Execution Time: {summary['total_time']:.3f}s")
+        print(f"💾 Vector Store Used: QdrantVectorStore")
+        print(f"📄 Documents Processed: {len(self.docs)}")
+        
+        # Cache status
+        operations_dict = summary.get('operations', {})
+        cache_used = any("Loading Cached Index" in op for op in operations_dict.keys()) if isinstance(operations_dict, dict) else False
+        if cache_used:
+            print(f"🚀 Cache Status: USED (Significant speedup!)")
+        else:
+            print(f"💾 Cache Status: CREATED (Next run will be faster!)")
+        print(f"📁 Cache Location: {os.path.relpath(self.cache_dir)}")
+        
+        # Timing breakdown
+        print(f"\n⏱️  Detailed Timing Breakdown:")
+        if isinstance(operations_dict, dict) and isinstance(summary.get('total_time'), (int, float)):
+            total_time = summary['total_time']
+            for operation, duration in operations_dict.items():
+                percentage = (duration / total_time) * 100 if total_time > 0 else 0
+                cache_indicator = ""
+                if "Loading Cached Index" in operation:
+                    cache_indicator = " 🚀 (CACHED!)"
+                elif "Document Embedding & Indexing" in operation:
+                    cache_indicator = " 💾 (will be cached)"
+                print(f"   • {operation}: {duration:.3f}s ({percentage:.1f}%){cache_indicator}")
+        
+        # Query performance
+        if query_times:
+            avg_query_time = sum(query_times) / len(query_times)
+            print(f"\n⚡ Average Query Time: {avg_query_time:.3f}s")
+            print(f"🔥 Queries per Second: {1/avg_query_time:.2f}")
+        
+        # Hardware info
+        print(f"\n🖥️  Hardware Information:")
+        print(f"   • CPU Cores: {self.device_info.cpu_count}")
+        print(f"   • CPU Frequency: {self.device_info.cpu_freq}")
+        print(f"   • Total Memory: {self.device_info.memory_total}")
+        print(f"   • GPU Status: {self.device_info.gpu_info}")
+        
+        # Model config
+        print(f"\n🧠 Model Configuration:")
+        print(f"   • LLM: {self.config.model}")
+        print(f"   • Embedding Model: {type(Settings.embed_model).__name__}")
+        print(f"   • Chunk Size: {self.config.chunk_size}")
+        print(f"   • Chunk Overlap: {self.config.chunk_overlap}")
+    
+    async def run_test_async(self) -> None:
+        """Run the complete test asynchronously."""
+        self.print_system_info()
+        
+        # Load documents
+        self.perf_monitor.start_timing("Document Loading")
+        self.docs = await self.load_documents_async()
+        self.perf_monitor.end_timing("Document Loading")
+        
+        print(f"✅ Loaded {len(self.docs)} documents from test_docs folder")
+        for i, doc in enumerate(self.docs[:3]):
+            print(f"   📄 Document {i+1}: {doc.metadata.get('file_name', 'Unknown')} ({len(doc.text)} chars)")
+        if len(self.docs) > 3:
+            print(f"   📄 ... and {len(self.docs) - 3} more documents")
+        
+        # Setup vector store
+        self.perf_monitor.start_timing("Vector Store Setup")
+        storage_context = await self.setup_vector_store()
+        self.perf_monitor.end_timing("Vector Store Setup")
+        
+        # Create index
+        self.index = self.create_index(storage_context)
+        
+        # Create query engine
+        print("🔍 Creating RAG query engine...")
+        self.query_engine = self.index.as_query_engine(
+            similarity_top_k=self.config.similarity_top_k,
+            response_mode="tree_summarize",
+            verbose=True
+        )
+        print("✅ RAG query engine created!")
+        
+        # Run queries
+        queries = [
+            "What is Trykaa and what does the company do?",
+            "What do customer reviews say about Trykaa? What are the ratings and feedback?",
+        ]
+        
+        query_times = await self.run_queries_async(queries)
+        self.print_performance_summary(query_times)
+        
+def main():
+    """Main function - runs async test when executed directly."""
+    config = TestConfig(
+        model="gpt-4o-mini-2024-07-18",
+        chunk_size=512,
+        chunk_overlap=50,
+        similarity_top_k=3,
+        num_workers=2,
+        enable_logging=True,
+        exclude_patterns=["*.pdf"],
+        enable_cache=False
     )
-    perf_monitor.end_timing("Document Embedding & Indexing")
     
-    # Save to cache for future runs
-    print("💾 Saving index to cache...")
-    index.storage_context.persist(persist_dir=cache_dir)
+    runner = RAGTestRunner(config)
     
-    # Save cache metadata
-    import json
-    cache_metadata_data = {
-        'doc_count': len(docs),
-        'timestamp': time.time(),
-        'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
-        'model_config': {
-            'llm': getattr(Settings.llm, 'model', 'Unknown'),
-            'embedding': type(Settings.embed_model).__name__,
-            'chunk_size': node_parser.chunk_size,
-            'chunk_overlap': node_parser.chunk_overlap
-        }
-    }
-    
-    with open(cache_metadata, 'w') as f:
-        json.dump(cache_metadata_data, f, indent=2)
-    
-    print("✅ Index cached for future use!")
+    # Run async test for better performance
+    asyncio.run(runner.run_test_async())
 
-print("✅ Vector store created and documents indexed!")
-print("🔍 Creating RAG query engine...")
-
-# Create query engine
-query_engine = index.as_query_engine(
-    similarity_top_k=3,
-    response_mode="tree_summarize",
-    verbose=True
-)
-
-print("✅ RAG query engine created!")
-
-# Try multiple queries relevant to your documents
-queries = [
-    "What is Trykaa and what does the company do?",
-    "What do customer reviews say about Trykaa? What are the ratings and feedback?",
-]
-
-print(f"\n🔍 Testing {len(queries)} queries on your real documents...")
-
-for i, query in enumerate(queries, 1):
-    print(f"\n❓ Query {i}: '{query}'")
-    
-    # Time each query individually
-    query_name = f"Query {i} (RAG Inference)"
-    perf_monitor.start_timing(query_name)
-    response = query_engine.query(query)
-    query_time = perf_monitor.end_timing(query_name)
-    
-    print(f"🤖 Answer: {response}")
-    print(f"⚡ Query processed in {query_time:.3f}s")
-    
-    # Show sources for ALL queries
-    if hasattr(response, 'source_nodes') and response.source_nodes:
-        print(f"📚 Sources ({len(response.source_nodes)} found):")
-        for j, node in enumerate(response.source_nodes[:3], 1):  # Show top 3 sources
-            source_file = node.metadata.get('file_name', 'Unknown')
-            source_text = node.text[:100].replace('\n', ' ') + '...'
-            print(f"   {j}. {source_file}: {source_text}")
-    else:
-        print("📚 No sources found")
-    
-    print("-" * 80)
-
-print(f"\n🎉 LlamaIndex RAG test completed!")
-
-# Performance Summary
-print(f"\n📊 PERFORMANCE SUMMARY:")
-print(f"=" * 60)
-summary = perf_monitor.get_summary()
-print(f"⏱️  Total Execution Time: {summary['total_time']:.3f}s")
-print(f"💾 Vector Store Used: {type(vector_store).__name__}")
-print(f"📄 Documents Processed: {len(docs)}")
-
-# Check if cache was used
-operations_dict = summary.get('operations', {})
-cache_used = False
-if isinstance(operations_dict, dict):
-    cache_used = any("Loading Cached Index" in op for op in operations_dict.keys())
-if cache_used:
-    print(f"🚀 Cache Status: USED (Significant speedup!)")
-    print(f"📁 Cache Location: {os.path.relpath(cache_dir)}")
-else:
-    print(f"💾 Cache Status: CREATED (Next run will be faster!)")
-    print(f"📁 Cache Location: {os.path.relpath(cache_dir)}")
-
-print(f"\n⏱️  Detailed Timing Breakdown:")
-operations = summary.get('operations', {})
-total_time = summary.get('total_time', 0)
-if isinstance(operations, dict) and isinstance(total_time, (int, float)):
-    for operation, duration in operations.items():
-        percentage = (duration / total_time) * 100 if total_time > 0 else 0
-        cache_indicator = ""
-        if "Loading Cached Index" in operation:
-            cache_indicator = " 🚀 (CACHED!)"
-        elif "Document Embedding & Indexing" in operation:
-            cache_indicator = " 💾 (will be cached)"
-        elif "Model Warmup" in operation:
-            cache_indicator = " 🔥 (optimization)"
-        print(f"   • {operation}: {duration:.3f}s ({percentage:.1f}%){cache_indicator}")
-
-# Calculate average query time
-query_times = []
-if isinstance(operations, dict):
-    query_times = [duration for op, duration in operations.items() if 'Query' in op and 'RAG Inference' in op]
-if query_times:
-    avg_query_time = sum(query_times) / len(query_times)
-    print(f"\n⚡ Average Query Time: {avg_query_time:.3f}s")
-    print(f"🔥 Queries per Second: {1/avg_query_time:.2f}")
-
-# Hardware utilization summary
-print(f"\n🖥️  Hardware Information:")
-print(f"   • CPU Cores: {device_info['cpu_count']}")
-print(f"   • CPU Frequency: {device_info['cpu_freq']}")
-print(f"   • Total Memory: {device_info['memory_total']}")
-print(f"   • GPU Status: {device_info['gpu_info']}")
-
-# Embedding model info
-print(f"\n🧠 Model Configuration:")
-llm_model = getattr(Settings.llm, 'model', 'Unknown')
-print(f"   • LLM: {llm_model}")
-print(f"   • Embedding Model: {type(Settings.embed_model).__name__}")
-print(f"   • Chunk Size: {node_parser.chunk_size}")
-print(f"   • Chunk Overlap: {node_parser.chunk_overlap}")
-
-print(f"\n🔧 To use different vector stores, uncomment the relevant section above")
+if __name__ == "__main__":
+    main()
 
 # Additional vector databases LlamaIndex supports:
 print(f"\n📋 LlamaIndex supports these vector databases:")
