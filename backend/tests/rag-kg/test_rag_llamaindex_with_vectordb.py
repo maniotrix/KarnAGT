@@ -429,51 +429,51 @@ class RAGTestRunner:
         
         # === TRYKAA QUERIES ===
         # Queries for Trykaa business documents (Strategic Deep Dive, Pitch Deck, Transforming Future)
-        trykaa_queries = [
-            "What is Trykaa and what does the company do?",
-            "What do customer reviews say about Trykaa? What are the ratings and feedback?",
-            "What is Trykaa's business model and revenue strategy?",
-            "What are Trykaa's key competitive advantages in the fashion retail space?",
-            "What are the main challenges Trykaa faces in the online fashion market?",
-            "What is Trykaa's target market and customer demographics?",
-            "What technology solutions does Trykaa use for their platform?",
-            "What are Trykaa's future growth plans and expansion strategies?",
-            "What is Trykaa's market positioning compared to competitors?",
-            "What are the key metrics and KPIs mentioned for Trykaa's performance?",
-        ]
-        queries.extend(trykaa_queries)
+        # trykaa_queries = [
+        #     "What is Trykaa and what does the company do?",
+        #     "What do customer reviews say about Trykaa? What are the ratings and feedback?",
+        #     "What is Trykaa's business model and revenue strategy?",
+        #     "What are Trykaa's key competitive advantages in the fashion retail space?",
+        #     "What are the main challenges Trykaa faces in the online fashion market?",
+        #     "What is Trykaa's target market and customer demographics?",
+        #     "What technology solutions does Trykaa use for their platform?",
+        #     "What are Trykaa's future growth plans and expansion strategies?",
+        #     "What is Trykaa's market positioning compared to competitors?",
+        #     "What are the key metrics and KPIs mentioned for Trykaa's performance?",
+        # ]
+        # queries.extend(trykaa_queries)
         
-        # === AI AGENTS QUERIES ===
-        # Queries for "Comparing a Human Cell to AI Agents" and "Practical Guide to Building Agents"
-        ai_agents_queries = [
-            "What are the key similarities between human cells and AI agents?",
-            "What are the projected differences between AI agents in 2025 vs 2035?",
-            "What are the main components of an AI agent architecture?",
-            "What are the best practices for building AI agents?",
-            "What are the different types of AI agents mentioned in the documents?",
-            "What are the key challenges in building effective AI agents?",
-            "How do AI agents handle decision-making processes?",
-            "What are the ethical considerations for AI agent development?",
-            "What tools and frameworks are recommended for building AI agents?",
-            "What are the performance metrics for evaluating AI agents?",
-        ]
-        queries.extend(ai_agents_queries)
+        # # === AI AGENTS QUERIES ===
+        # # Queries for "Comparing a Human Cell to AI Agents" and "Practical Guide to Building Agents"
+        # ai_agents_queries = [
+        #     "What are the key similarities between human cells and AI agents?",
+        #     "What are the projected differences between AI agents in 2025 vs 2035?",
+        #     "What are the main components of an AI agent architecture?",
+        #     "What are the best practices for building AI agents?",
+        #     "What are the different types of AI agents mentioned in the documents?",
+        #     "What are the key challenges in building effective AI agents?",
+        #     "How do AI agents handle decision-making processes?",
+        #     "What are the ethical considerations for AI agent development?",
+        #     "What tools and frameworks are recommended for building AI agents?",
+        #     "What are the performance metrics for evaluating AI agents?",
+        # ]
+        # queries.extend(ai_agents_queries)
         
-        # === DISTRIBUTED SYSTEMS QUERIES ===
-        # Queries for "Assignment 6: Distributed Systems (Middleware)"
-        distributed_systems_queries = [
-            "What are the key concepts of distributed systems middleware?",
-            "What are the main types of middleware discussed in the assignment?",
-            "What are the advantages and disadvantages of different middleware approaches?",
-            "What are the common patterns in distributed systems architecture?",
-            "What are the key challenges in implementing distributed systems?",
-            "What are the performance considerations for distributed systems middleware?",
-            "What are the security aspects of distributed systems mentioned?",
-            "What are the fault tolerance mechanisms in distributed systems?",
-            "What are the scalability strategies for distributed systems?",
-            "What are the communication protocols used in distributed systems?",
-        ]
-        queries.extend(distributed_systems_queries)
+        # # === DISTRIBUTED SYSTEMS QUERIES ===
+        # # Queries for "Assignment 6: Distributed Systems (Middleware)"
+        # distributed_systems_queries = [
+        #     "What are the key concepts of distributed systems middleware?",
+        #     "What are the main types of middleware discussed in the assignment?",
+        #     "What are the advantages and disadvantages of different middleware approaches?",
+        #     "What are the common patterns in distributed systems architecture?",
+        #     "What are the key challenges in implementing distributed systems?",
+        #     "What are the performance considerations for distributed systems middleware?",
+        #     "What are the security aspects of distributed systems mentioned?",
+        #     "What are the fault tolerance mechanisms in distributed systems?",
+        #     "What are the scalability strategies for distributed systems?",
+        #     "What are the communication protocols used in distributed systems?",
+        # ]
+        # queries.extend(distributed_systems_queries)
         
         # === IRCTC TRAIN TICKET QUERIES ===
         # Queries for "abhilasha_6_april_ticket.pdf" - IRCTC generated train ticket
