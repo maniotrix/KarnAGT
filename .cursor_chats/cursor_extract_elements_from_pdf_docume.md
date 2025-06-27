@@ -1,5 +1,5 @@
 # Extract elements from PDF document
-_Exported on 6/27/2025 at 17:11:32 GMT+5:30 from Cursor (1.1.6)_
+_Exported on 6/27/2025 at 18:20:29 GMT+5:30 from Cursor (1.1.6)_
 
 ---
 
@@ -1261,4 +1261,2995 @@ Your PDF contains:
 # Install Tesseract OCR engine
 # Download from: https://github.com/tesseract-ocr/tesseract
 ```
+
+---
+
+**User**
+
+@base.py take a look at this llamaindex pdf reader..how can we modify this such that we detect if there are images in the pdf pages fast...if iamges are found we would a captioning similar to @CustomPptxReader.py 
+
+---
+
+**Cursor**
+
+Looking at both files, I can see that the LlamaIndex PDFReader is very basic (only text extraction with pypdf) while the CustomPptxReader has sophisticated image captioning with OpenAI Vision. Let me create an enhanced PDFReader that combines both approaches:
+
+```python
+"""
+Enhanced PDF Reader with Image Detection and Captioning
+
+Combines LlamaIndex PDFReader with fast image detection and OpenAI Vision captioning
+similar to CustomPptxReader.py approach.
+"""
+
+import io
+import os
+import tempfile
+import logging
+import asyncio
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from tenacity import retry, stop_after_attempt
+
+from fsspec import AbstractFileSystem
+from openai import AsyncOpenAI
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.readers.file.base import get_default_fs, is_default_fs
+from llama_index.core.schema import Document
+
+# Import for fast image detection
+try:
+    import fitz  # PyMuPDF for fast image detection
+except ImportError:
+    fitz = None
+
+logger = logging.getLogger(__name__)
+RETRY_TIMES = 3
+
+class EnhancedPDFReader(BaseReader):
+    """Enhanced PDF parser with fast image detection and OpenAI Vision captioning."""
+
+    def __init__(
+        self, 
+        return_full_document: Optional[bool] = False,
+        enable_image_captioning: bool = True,
+        openai_api_key: Optional[str] = None,
+        image_caption_prompt: str = "Describe this image concisely, focusing on key visual elements, text, charts, or diagrams.",
+        enable_fast_image_detection: bool = True,
+        model_name: str = "gpt-4o"
+    ) -> None:
+        """
+        Initialize Enhanced PDFReader.
+        
+        Args:
+            return_full_document: Whether to return full document or page-by-page
+            enable_image_captioning: Whether to caption images using OpenAI Vision
+            openai_api_key: OpenAI API key (or set OPENAI_API_KEY env var)
+            image_caption_prompt: Prompt for image captioning
+            enable_fast_image_detection: Use PyMuPDF for fast image detection
+            model_name: OpenAI model for image captioning
+        """
+        self.return_full_document = return_full_document
+        self.enable_image_captioning = enable_image_captioning
+        self.enable_fast_image_detection = enable_fast_image_detection and fitz is not None
+        self.model_name = model_name
+        self.image_caption_prompt = image_caption_prompt
+        
+        # Initialize OpenAI client if image captioning is enabled
+        if self.enable_image_captioning:
+            self.openai_client = AsyncOpenAI(api_key=openai_api_key or os.getenv("OPENAI_API_KEY"))
+        else:
+            self.openai_client = None
+            
+        self.logger = logging.getLogger(__name__)
+
+    async def caption_image_async(self, image_bytes: bytes, image_format: str = "png") -> str:
+        """Generate text caption of image using OpenAI Vision - similar to CustomPptxReader approach."""
+        if not self.openai_client:
+            return "Image captioning disabled"
+            
+        temp_openai_file_id = None
+        
+        try:
+            # Save image temporarily
+            with tempfile.NamedTemporaryFile(suffix=f".{image_format}", delete=False) as tmp_file:
+                tmp_file.write(image_bytes)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Upload to OpenAI Files API
+                with open(tmp_file_path, 'rb') as f:
+                    file_response = await self.openai_client.files.create(
+                        file=f,
+                        purpose="vision"
+                    )
+                    temp_openai_file_id = file_response.id
+                
+                # Analyze with Vision API using chat completions
+                response = await self.openai_client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text", 
+                                    "text": self.image_caption_prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/{image_format};base64,{image_bytes.hex()}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=300
+                )
+                
+                return response.choices[0].message.content or "No description provided"
+                
+            finally:
+                # Cleanup temp file
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.logger.error(f"Error captioning image: {e}")
+            return f"Error captioning image: {str(e)}"
+            
+        finally:
+            # Cleanup: Delete OpenAI file
+            if temp_openai_file_id:
+                try:
+                    await self.openai_client.files.delete(temp_openai_file_id)
+                except Exception as e:
+                    self.logger.warning(f"Failed to delete OpenAI file {temp_openai_file_id}: {e}")
+
+    def has_images_fast(self, file_path: Path) -> tuple[bool, int, List[Dict[str, Any]]]:
+        """
+        Fast image detection using PyMuPDF.
+        
+        Returns:
+            (has_images, total_image_count, image_info_by_page)
+        """
+        if not self.enable_fast_image_detection:
+            return False, 0, []
+            
+        try:
+            doc = fitz.Document(str(file_path))
+            total_images = 0
+            image_info_by_page = []
+            
+            for page_num in range(doc.page_count):
+                page = doc[page_num]
+                image_list = page.get_images()
+                page_image_count = len(image_list)
+                total_images += page_image_count
+                
+                # Store basic image info for later processing
+                page_images = []
+                for img_index, img in enumerate(image_list):
+                    try:
+                        # Get basic image info without extracting the full image data yet
+                        xref = img[0]
+                        page_images.append({
+                            'page_num': page_num,
+                            'img_index': img_index,
+                            'xref': xref,
+                            'img_info': img  # Full image info from PyMuPDF
+                        })
+                    except Exception as e:
+                        self.logger.warning(f"Error getting image info on page {page_num}, image {img_index}: {e}")
+                
+                image_info_by_page.append(page_images)
+            
+            doc.close()
+            has_images = total_images > 0
+            
+            self.logger.info(f"Fast image detection: {total_images} images found across {doc.page_count} pages")
+            return has_images, total_images, image_info_by_page
+            
+        except Exception as e:
+            self.logger.error(f"Fast image detection failed: {e}")
+            return False, 0, []
+
+    async def extract_and_caption_images(self, file_path: Path, image_info_by_page: List[List[Dict[str, Any]]]) -> Dict[int, List[str]]:
+        """
+        Extract images and generate captions.
+        
+        Returns:
+            Dict mapping page_num to list of image captions
+        """
+        captions_by_page = {}
+        
+        if not self.enable_image_captioning or not image_info_by_page:
+            return captions_by_page
+            
+        try:
+            doc = fitz.Document(str(file_path))
+            
+            for page_num, page_images in enumerate(image_info_by_page):
+                if not page_images:
+                    continue
+                    
+                page_captions = []
+                
+                for img_info in page_images:
+                    try:
+                        # Extract the actual image data
+                        xref = img_info['xref']
+                        base_image = doc.extract_image(xref)
+                        image_bytes = base_image["image"]
+                        image_ext = base_image["ext"]
+                        
+                        # Generate caption
+                        caption = await self.caption_image_async(image_bytes, image_ext)
+                        page_captions.append(f"Image {img_info['img_index'] + 1}: {caption}")
+                        
+                        self.logger.info(f"Captioned image {img_info['img_index'] + 1} on page {page_num + 1}")
+                        
+                        # Small delay to avoid rate limiting
+                        await asyncio.sleep(0.5)
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error captioning image {img_info['img_index']} on page {page_num}: {e}")
+                        page_captions.append(f"Image {img_info['img_index'] + 1}: Error captioning image")
+                
+                if page_captions:
+                    captions_by_page[page_num] = page_captions
+            
+            doc.close()
+            
+        except Exception as e:
+            self.logger.error(f"Image extraction and captioning failed: {e}")
+            
+        return captions_by_page
+
+    @retry(stop=stop_after_attempt(RETRY_TIMES))
+    async def load_data_async(
+        self,
+        file: Path,
+        extra_info: Optional[Dict] = None,
+        fs: Optional[AbstractFileSystem] = None,
+    ) -> List[Document]:
+        """Parse file with async image captioning."""
+        if not isinstance(file, Path):
+            file = Path(file)
+
+        # Step 1: Fast image detection
+        has_images, total_images, image_info_by_page = self.has_images_fast(file)
+        
+        self.logger.info(f"Processing PDF: {file.name}")
+        self.logger.info(f"Images detected: {total_images}")
+
+        # Step 2: Extract and caption images if found
+        captions_by_page = {}
+        if has_images and self.enable_image_captioning:
+            self.logger.info("Starting image captioning...")
+            captions_by_page = await self.extract_and_caption_images(file, image_info_by_page)
+            self.logger.info(f"Captioned images on {len(captions_by_page)} pages")
+
+        # Step 3: Extract text using pypdf (following original LlamaIndex approach)
+        try:
+            import pypdf
+        except ImportError:
+            raise ImportError("pypdf is required to read PDF files: `pip install pypdf`")
+            
+        fs = fs or get_default_fs()
+        with fs.open(str(file), "rb") as fp:
+            stream = fp if is_default_fs(fs) else io.BytesIO(fp.read())
+            pdf = pypdf.PdfReader(stream)
+            num_pages = len(pdf.pages)
+
+            docs = []
+
+            # Step 4: Combine text and image captions
+            if self.return_full_document:
+                # Return whole PDF as single document
+                metadata = {"file_name": file.name, "total_images": total_images}
+                if extra_info is not None:
+                    metadata.update(extra_info)
+
+                # Extract text from all pages
+                all_text_parts = []
+                for page_num in range(num_pages):
+                    page_text = pdf.pages[page_num].extract_text()
+                    
+                    # Add page header
+                    all_text_parts.append(f"\n--- Page {page_num + 1} ---")
+                    
+                    # Add page text
+                    if page_text.strip():
+                        all_text_parts.append(page_text)
+                    
+                    # Add image captions for this page
+                    if page_num in captions_by_page:
+                        all_text_parts.append("\n[IMAGES ON THIS PAGE]")
+                        for caption in captions_by_page[page_num]:
+                            all_text_parts.append(f"- {caption}")
+                        all_text_parts.append("[END IMAGES]\n")
+
+                full_text = "\n".join(all_text_parts)
+                docs.append(Document(text=full_text, metadata=metadata))
+
+            else:
+                # Return each page as separate document
+                for page_num in range(num_pages):
+                    page_text = pdf.pages[page_num].extract_text()
+                    page_label = pdf.page_labels[page_num] if hasattr(pdf, 'page_labels') else str(page_num + 1)
+
+                    metadata = {
+                        "page_label": page_label, 
+                        "file_name": file.name,
+                        "page_number": page_num + 1,
+                        "images_on_page": len(image_info_by_page[page_num]) if page_num < len(image_info_by_page) else 0
+                    }
+                    if extra_info is not None:
+                        metadata.update(extra_info)
+
+                    # Combine text and image captions for this page
+                    content_parts = []
+                    
+                    if page_text.strip():
+                        content_parts.append(page_text)
+                    
+                    # Add image captions
+                    if page_num in captions_by_page:
+                        content_parts.append("\n[IMAGES ON THIS PAGE]")
+                        for caption in captions_by_page[page_num]:
+                            content_parts.append(f"- {caption}")
+                        content_parts.append("[END IMAGES]")
+
+                    final_text = "\n".join(content_parts) if content_parts else ""
+                    docs.append(Document(text=final_text, metadata=metadata))
+
+            return docs
+
+    def load_data(
+        self,
+        file: Path,
+        extra_info: Optional[Dict] = None,
+        fs: Optional[AbstractFileSystem] = None,
+    ) -> List[Document]:
+        """Synchronous wrapper for load_data_async."""
+        return asyncio.run(self.load_data_async(file, extra_info, fs))
+
+
+# Test function
+async def test_enhanced_pdf_reader():
+    """Test the enhanced PDF reader."""
+    pdf_path = Path(__file__).parent.parent.parent / "test_docs" / "abhilasha_6_april_ticket.pdf"
+    
+    if not pdf_path.exists():
+        print(f"Test PDF not found: {pdf_path}")
+        return
+    
+    print(f"Testing Enhanced PDF Reader with: {pdf_path.name}")
+    
+    # Initialize reader
+    reader = EnhancedPDFReader(
+        return_full_document=False,  # Get page-by-page results
+        enable_image_captioning=True,
+        enable_fast_image_detection=True
+    )
+    
+    try:
+        # Load and process the PDF
+        documents = await reader.load_data_async(pdf_path)
+        
+        print(f"\n{'='*60}")
+        print(f"ENHANCED PDF READER RESULTS") 
+        print(f"{'='*60}")
+        print(f"Total documents: {len(documents)}")
+        
+        for i, doc in enumerate(documents):
+            print(f"\nDocument {i+1}:")
+            print(f"  Metadata: {doc.metadata}")
+            print(f"  Text length: {len(doc.text)} characters")
+            
+            if doc.text.strip():
+                preview = doc.text[:300].replace('\n', ' ').strip()
+                print(f"  Text preview: {preview}...")
+            else:
+                print(f"  No text content")
+        
+        return documents
+        
+    except Exception as e:
+        print(f"Error testing enhanced PDF reader: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    asyncio.run(test_enhanced_pdf_reader())
+```
+
+Now let's test the enhanced PDF reader to see how it works with our train ticket PDF:
+
+---
+
+**User**
+
+@CustomPptxReader.py use agents like in this file for getting response form ai
+
+---
+
+**Cursor**
+
+Looking at the CustomPptxReader.py, I can see it uses an `Agent` and `Runner` pattern instead of direct OpenAI API calls. Let me modify the enhanced PDF reader to use the same agents approach:
+
+```python
+from fsspec import AbstractFileSystem
+from openai import AsyncOpenAI
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.readers.file.base import get_default_fs, is_default_fs
+from llama_index.core.schema import Document
+
+# Import for fast image detection
+try:
+    import fitz  # PyMuPDF for fast image detection
+except ImportError:
+    fitz = None
+
+->
+
+from fsspec import AbstractFileSystem
+from openai import AsyncOpenAI
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.readers.file.base import get_default_fs, is_default_fs
+from llama_index.core.schema import Document
+
+# Import agents like in CustomPptxReader
+from agents import Agent, Runner
+
+# Import for fast image detection
+try:
+    import fitz  # PyMuPDF for fast image detection
+except ImportError:
+    fitz = None
+```
+
+```python
+logger = logging.getLogger(__name__)
+RETRY_TIMES = 3
+
+->
+
+logger = logging.getLogger(__name__)
+RETRY_TIMES = 3
+
+def get_default_caption_agent(model_name: str = "gpt-4o"):
+    """Create default caption agent - similar to CustomPptxReader approach"""
+    return Agent(
+        name="PDF Image Caption Agent",
+        model=model_name,
+        instructions="You are an expert at describing images from PDF documents. Describe images concisely, focusing on key visual elements, text, charts, diagrams, or important document content.",
+    )
+```
+
+```python
+        self.return_full_document = return_full_document
+        self.enable_image_captioning = enable_image_captioning
+        self.enable_fast_image_detection = enable_fast_image_detection and fitz is not None
+        self.model_name = model_name
+        self.image_caption_prompt = image_caption_prompt
+        
+        # Initialize OpenAI client if image captioning is enabled
+        if self.enable_image_captioning:
+            self.openai_client = AsyncOpenAI(api_key=openai_api_key or os.getenv("OPENAI_API_KEY"))
+        else:
+            self.openai_client = None
+            
+        self.logger = logging.getLogger(__name__)
+
+->
+
+        self.return_full_document = return_full_document
+        self.enable_image_captioning = enable_image_captioning
+        self.enable_fast_image_detection = enable_fast_image_detection and fitz is not None
+        self.model_name = model_name
+        self.image_caption_prompt = image_caption_prompt
+        
+        # Initialize caption agent like in CustomPptxReader
+        if self.enable_image_captioning:
+            self.caption_agent = get_default_caption_agent(self.model_name)
+            # Also keep OpenAI client for file uploads
+            self.openai_client = AsyncOpenAI(api_key=openai_api_key or os.getenv("OPENAI_API_KEY"))
+        else:
+            self.caption_agent = None
+            self.openai_client = None
+            
+        self.logger = logging.getLogger(__name__)
+```
+
+Now let me replace the image captioning method to use the agents approach like in CustomPptxReader:
+
+```python
+    async def caption_image_async(self, image_bytes: bytes, image_format: str = "png") -> str:
+        """Generate text caption of image using OpenAI Vision - similar to CustomPptxReader approach."""
+        if not self.openai_client:
+            return "Image captioning disabled"
+            
+        temp_openai_file_id = None
+        
+        try:
+            # Save image temporarily
+            with tempfile.NamedTemporaryFile(suffix=f".{image_format}", delete=False) as tmp_file:
+                tmp_file.write(image_bytes)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Upload to OpenAI Files API
+                with open(tmp_file_path, 'rb') as f:
+                    file_response = await self.openai_client.files.create(
+                        file=f,
+                        purpose="vision"
+                    )
+                    temp_openai_file_id = file_response.id
+                
+                # Analyze with Vision API using chat completions
+                response = await self.openai_client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text", 
+                                    "text": self.image_caption_prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/{image_format};base64,{image_bytes.hex()}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=300
+                )
+                
+                return response.choices[0].message.content or "No description provided"
+                
+            finally:
+                # Cleanup temp file
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.logger.error(f"Error captioning image: {e}")
+            return f"Error captioning image: {str(e)}"
+            
+        finally:
+            # Cleanup: Delete OpenAI file
+            if temp_openai_file_id:
+                try:
+                    await self.openai_client.files.delete(temp_openai_file_id)
+                except Exception as e:
+                    self.logger.warning(f"Failed to delete OpenAI file {temp_openai_file_id}: {e}")
+
+->
+
+    async def caption_image_async(self, image_bytes: bytes, image_format: str = "png") -> str:
+        """Generate text caption of image using Agents - exactly like CustomPptxReader approach."""
+        if not self.caption_agent or not self.openai_client:
+            return "Image captioning disabled"
+            
+        temp_openai_file_id = None
+        
+        try:
+            # Save image temporarily
+            with tempfile.NamedTemporaryFile(suffix=f".{image_format}", delete=False) as tmp_file:
+                tmp_file.write(image_bytes)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Upload to OpenAI Files API (same as CustomPptxReader)
+                with open(tmp_file_path, 'rb') as f:
+                    file_response = await self.openai_client.files.create(
+                        file=f,
+                        purpose="vision"
+                    )
+                    temp_openai_file_id = file_response.id
+                
+                if self.logger:
+                    self.logger.debug(f"Uploaded to OpenAI with file_id: {temp_openai_file_id}")
+                
+                # Use agents Runner like in CustomPptxReader
+                result = await asyncio.wait_for(
+                    Runner.run(
+                        self.caption_agent,
+                        [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "input_image",
+                                        "file_id": temp_openai_file_id
+                                    }
+                                ]
+                            }
+                        ],
+                    ),
+                    timeout=60.0  # 60 second timeout
+                )
+                
+                result = result.final_output
+                if self.logger:
+                    self.logger.debug(f"Vision API response: {result}")
+                
+                return result or "No description provided"
+                
+            finally:
+                # Cleanup temp file
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+                    
+        except asyncio.TimeoutError:
+            if self.logger:
+                self.logger.error(f"Timeout processing image")
+            return "Error: Image processing timed out after 60 seconds"
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error captioning image: {e}")
+            return f"Error captioning image: {str(e)}"
+            
+        finally:
+            # Cleanup: Delete OpenAI file
+            if temp_openai_file_id:
+                try:
+                    await self.openai_client.files.delete(temp_openai_file_id)
+                    if self.logger:
+                        self.logger.debug(f"Deleted OpenAI file: {temp_openai_file_id}")
+                except Exception as e:
+                    if self.logger:
+                        self.logger.warning(f"Failed to delete OpenAI file {temp_openai_file_id}: {e}")
+```
+
+Now let me update the initialization docstring to reflect that we're using agents:
+
+```python
+        """
+        Initialize Enhanced PDFReader.
+        
+        Args:
+            return_full_document: Whether to return full document or page-by-page
+            enable_image_captioning: Whether to caption images using OpenAI Vision
+            openai_api_key: OpenAI API key (or set OPENAI_API_KEY env var)
+            image_caption_prompt: Prompt for image captioning
+            enable_fast_image_detection: Use PyMuPDF for fast image detection
+            model_name: OpenAI model for image captioning
+        """
+
+->
+
+        """
+        Initialize Enhanced PDFReader.
+        
+        Args:
+            return_full_document: Whether to return full document or page-by-page
+            enable_image_captioning: Whether to caption images using OpenAI Vision Agents
+            openai_api_key: OpenAI API key (or set OPENAI_API_KEY env var)
+            image_caption_prompt: Prompt for image captioning (used in agent instructions)
+            enable_fast_image_detection: Use PyMuPDF for fast image detection
+            model_name: OpenAI model for image captioning agent
+        """
+```
+
+Now let me also add better logging similar to CustomPptxReader:
+
+```python
+        self.logger = logging.getLogger(__name__)
+
+->
+
+        # Setup logger like in CustomPptxReader
+        self.logger = logging.getLogger(__name__)
+        if self.enable_image_captioning and self.caption_agent:
+            self.logger.info(f"EnhancedPDFReader initialized with model: {self.caption_agent.model}")
+```
+
+Perfect! Now the enhanced PDF reader uses the same agents approach as the CustomPptxReader. Let me create a simple test to show the key improvements:
+
+```python
+"""
+Test Enhanced PDF Reader with Agents
+
+This demonstrates the enhanced PDF reader that uses the same agents approach
+as CustomPptxReader.py for image captioning.
+"""
+
+import asyncio
+import logging
+from pathlib import Path
+from enhanced_pdf_reader import EnhancedPDFReader
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+
+async def test_enhanced_pdf_reader_agents():
+    """Test the enhanced PDF reader with agents approach."""
+    
+    # Path to test PDF
+    pdf_path = Path(__file__).parent.parent.parent / "test_docs" / "abhilasha_6_april_ticket.pdf"
+    
+    if not pdf_path.exists():
+        print(f"❌ Test PDF not found: {pdf_path}")
+        return
+    
+    print(f"🔍 Testing Enhanced PDF Reader with Agents")
+    print(f"📄 File: {pdf_path.name}")
+    print("=" * 60)
+    
+    # Initialize reader with agents (like CustomPptxReader)
+    reader = EnhancedPDFReader(
+        return_full_document=False,  # Page-by-page analysis
+        enable_image_captioning=True,  # Use agents for captioning
+        enable_fast_image_detection=True,  # Fast PyMuPDF detection
+        model_name="gpt-4o"  # Same model as CustomPptxReader
+    )
+    
+    try:
+        print("🚀 Processing PDF with Agents...")
+        
+        # Load and process the PDF
+        documents = await reader.load_data_async(pdf_path)
+        
+        print(f"\n✅ RESULTS")
+        print(f"Total documents: {len(documents)}")
+        
+        # Show results for each page
+        for i, doc in enumerate(documents):
+            page_num = doc.metadata.get('page_number', i + 1)
+            images_count = doc.metadata.get('images_on_page', 0)
+            
+            print(f"\n📄 Page {page_num}:")
+            print(f"   📊 Images: {images_count}")
+            print(f"   📝 Text length: {len(doc.text)} characters")
+            
+            if doc.text.strip():
+                # Show a preview of the content
+                lines = doc.text.split('\n')
+                preview_lines = []
+                
+                for line in lines[:5]:  # First 5 lines
+                    if line.strip():
+                        preview_lines.append(f"      {line.strip()}")
+                
+                if preview_lines:
+                    print(f"   📖 Content preview:")
+                    print('\n'.join(preview_lines))
+                    if len(lines) > 5:
+                        print(f"      ... ({len(lines) - 5} more lines)")
+            else:
+                print(f"   📖 Content: No text extracted (image-based PDF)")
+        
+        print(f"\n🎯 SUMMARY:")
+        print(f"   • Used agents approach (like CustomPptxReader)")
+        print(f"   • Fast image detection with PyMuPDF")
+        print(f"   • Agent-based image captioning")
+        print(f"   • Combined text + image descriptions")
+        
+        return documents
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    asyncio.run(test_enhanced_pdf_reader_agents())
+```
+
+Perfect! I've successfully modified the enhanced PDF reader to use the **agents approach** exactly like the CustomPptxReader.py. Here's what I've implemented:
+
+## 🔄 **Key Changes Made**
+
+### **1. Agents Integration (like CustomPptxReader)**
+```python
+# Import agents like in CustomPptxReader
+from agents import Agent, Runner
+
+def get_default_caption_agent(model_name: str = "gpt-4o"):
+    """Create default caption agent - similar to CustomPptxReader approach"""
+    return Agent(
+        name="PDF Image Caption Agent",
+        model=model_name,
+        instructions="You are an expert at describing images from PDF documents...",
+    )
+```
+
+### **2. Agent-Based Image Captioning**
+```python
+# Use agents Runner like in CustomPptxReader
+result = await asyncio.wait_for(
+    Runner.run(
+        self.caption_agent,
+        [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_image",
+                        "file_id": temp_openai_file_id
+                    }
+                ]
+            }
+        ],
+    ),
+    timeout=60.0  # 60 second timeout
+)
+```
+
+## 🎯 **Enhanced PDF Reader Features**
+
+### **🚀 Fast Performance**
+- **Step 1**: Fast image detection with PyMuPDF (detects images without extracting them)
+- **Step 2**: Only processes images if found
+- **Step 3**: Uses agents for intelligent captioning
+- **Step 4**: Combines text + image descriptions
+
+### **🤖 Agents Approach Benefits**
+1. **Consistent with CustomPptxReader** - Same agents pattern
+2. **Better Error Handling** - Timeout and retry logic
+3. **Efficient Processing** - Only captions when images detected
+4. **Rich Context** - Specialized instructions for PDF images
+
+### **📊 Output Format**
+```python
+# Each page becomes a Document with:
+{
+    "text": "Combined text + image captions",
+    "metadata": {
+        "page_number": 1,
+        "file_name": "document.pdf", 
+        "images_on_page": 5,
+        "page_label": "1"
+    }
+}
+```
+
+## 🔍 **Usage Example**
+```python
+# Initialize like CustomPptxReader
+reader = EnhancedPDFReader(
+    enable_image_captioning=True,  # Uses agents
+    model_name="gpt-4o",           # Same model
+    enable_fast_image_detection=True
+)
+
+# Process PDF
+documents = await reader.load_data_async(pdf_path)
+```
+
+The enhanced PDF reader now perfectly mirrors the CustomPptxReader's agents approach while adding fast image detection and combining text + image content into LlamaIndex Document format!
+
+```python
+# Import agents like in CustomPptxReader
+from agents import Agent, Runner
+
+def get_default_caption_agent(model_name: str = "gpt-4o"):
+    """Create default caption agent - similar to CustomPptxReader approach"""
+    return Agent(
+        name="PDF Image Caption Agent",
+        model=model_name,
+        instructions="You are an expert at describing images from PDF documents...",
+    )
+```
+
+```python
+# Use agents Runner like in CustomPptxReader
+result = await asyncio.wait_for(
+    Runner.run(
+        self.caption_agent,
+        [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_image",
+                        "file_id": temp_openai_file_id
+                    }
+                ]
+            }
+        ],
+    ),
+    timeout=60.0  # 60 second timeout
+)
+```
+
+```python
+# Each page becomes a Document with:
+{
+    "text": "Combined text + image captions",
+    "metadata": {
+        "page_number": 1,
+        "file_name": "document.pdf", 
+        "images_on_page": 5,
+        "page_label": "1"
+    }
+}
+```
+
+```python
+# Initialize like CustomPptxReader
+reader = EnhancedPDFReader(
+    enable_image_captioning=True,  # Uses agents
+    model_name="gpt-4o",           # Same model
+    enable_fast_image_detection=True
+)
+
+# Process PDF
+documents = await reader.load_data_async(pdf_path)
+```
+
+I can see the issue! The error "document closed" indicates that the PyMuPDF document is being closed prematurely in the `has_images_fast` method, but then we're trying to use it again later. Let me fix the document lifecycle management:
+
+```python
+    def has_images_fast(self, file_path: Path) -> tuple[bool, int, List[Dict[str, Any]]]:
+        """
+        Fast image detection using PyMuPDF.
+        
+        Returns:
+            (has_images, total_image_count, image_info_by_page)
+        """
+        if not self.enable_fast_image_detection:
+            return False, 0, []
+            
+        try:
+            doc = fitz.Document(str(file_path))
+            total_images = 0
+            image_info_by_page = []
+            
+            for page_num in range(doc.page_count):
+                page = doc[page_num]
+                image_list = page.get_images()
+                page_image_count = len(image_list)
+                total_images += page_image_count
+                
+                # Store basic image info for later processing
+                page_images = []
+                for img_index, img in enumerate(image_list):
+                    try:
+                        # Get basic image info without extracting the full image data yet
+                        xref = img[0]
+                        page_images.append({
+                            'page_num': page_num,
+                            'img_index': img_index,
+                            'xref': xref,
+                            'img_info': img  # Full image info from PyMuPDF
+                        })
+                    except Exception as e:
+                        self.logger.warning(f"Error getting image info on page {page_num}, image {img_index}: {e}")
+                
+                image_info_by_page.append(page_images)
+            
+            doc.close()
+            has_images = total_images > 0
+            
+            self.logger.info(f"Fast image detection: {total_images} images found across {doc.page_count} pages")
+            return has_images, total_images, image_info_by_page
+            
+        except Exception as e:
+            self.logger.error(f"Fast image detection failed: {e}")
+            return False, 0, []
+
+->
+
+    def has_images_fast(self, file_path: Path) -> tuple[bool, int, List[Dict[str, Any]]]:
+        """
+        Fast image detection using PyMuPDF.
+        
+        Returns:
+            (has_images, total_image_count, image_info_by_page)
+        """
+        if not self.enable_fast_image_detection:
+            return False, 0, []
+            
+        try:
+            doc = fitz.Document(str(file_path))
+            total_images = 0
+            image_info_by_page = []
+            
+            for page_num in range(doc.page_count):
+                page = doc[page_num]
+                image_list = page.get_images()
+                page_image_count = len(image_list)
+                total_images += page_image_count
+                
+                # Store basic image info for later processing
+                page_images = []
+                for img_index, img in enumerate(image_list):
+                    try:
+                        # Get basic image info without extracting the full image data yet
+                        xref = img[0]
+                        page_images.append({
+                            'page_num': page_num,
+                            'img_index': img_index,
+                            'xref': xref,
+                            'img_info': img  # Full image info from PyMuPDF
+                        })
+                    except Exception as e:
+                        self.logger.warning(f"Error getting image info on page {page_num}, image {img_index}: {e}")
+                
+                image_info_by_page.append(page_images)
+            
+            page_count = doc.page_count  # Store before closing
+            doc.close()
+            has_images = total_images > 0
+            
+            self.logger.info(f"Fast image detection: {total_images} images found across {page_count} pages")
+            return has_images, total_images, image_info_by_page
+            
+        except Exception as e:
+            self.logger.error(f"Fast image detection failed: {e}")
+            return False, 0, []
+```
+
+Now let me also fix the main issue - we need to ensure that the document isn't being accessed after it's closed. Let me restructure the approach to open and close the document properly in each method:
+
+```python
+    async def extract_and_caption_images(self, file_path: Path, image_info_by_page: List[List[Dict[str, Any]]]) -> Dict[int, List[str]]:
+        """
+        Extract images and generate captions.
+        
+        Returns:
+            Dict mapping page_num to list of image captions
+        """
+        captions_by_page = {}
+        
+        if not self.enable_image_captioning or not image_info_by_page:
+            return captions_by_page
+            
+        try:
+            doc = fitz.Document(str(file_path))
+            
+            for page_num, page_images in enumerate(image_info_by_page):
+                if not page_images:
+                    continue
+                    
+                page_captions = []
+                
+                for img_info in page_images:
+                    try:
+                        # Extract the actual image data
+                        xref = img_info['xref']
+                        base_image = doc.extract_image(xref)
+                        image_bytes = base_image["image"]
+                        image_ext = base_image["ext"]
+                        
+                        # Generate caption
+                        caption = await self.caption_image_async(image_bytes, image_ext)
+                        page_captions.append(f"Image {img_info['img_index'] + 1}: {caption}")
+                        
+                        self.logger.info(f"Captioned image {img_info['img_index'] + 1} on page {page_num + 1}")
+                        
+                        # Small delay to avoid rate limiting
+                        await asyncio.sleep(0.5)
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error captioning image {img_info['img_index']} on page {page_num}: {e}")
+                        page_captions.append(f"Image {img_info['img_index'] + 1}: Error captioning image")
+                
+                if page_captions:
+                    captions_by_page[page_num] = page_captions
+            
+            doc.close()
+            
+        except Exception as e:
+            self.logger.error(f"Image extraction and captioning failed: {e}")
+            
+        return captions_by_page
+
+->
+
+    async def extract_and_caption_images(self, file_path: Path, image_info_by_page: List[List[Dict[str, Any]]]) -> Dict[int, List[str]]:
+        """
+        Extract images and generate captions.
+        
+        Returns:
+            Dict mapping page_num to list of image captions
+        """
+        captions_by_page = {}
+        
+        if not self.enable_image_captioning or not image_info_by_page:
+            return captions_by_page
+            
+        doc = None
+        try:
+            doc = fitz.Document(str(file_path))
+            
+            for page_num, page_images in enumerate(image_info_by_page):
+                if not page_images:
+                    continue
+                    
+                page_captions = []
+                
+                for img_info in page_images:
+                    try:
+                        # Extract the actual image data
+                        xref = img_info['xref']
+                        base_image = doc.extract_image(xref)
+                        image_bytes = base_image["image"]
+                        image_ext = base_image["ext"]
+                        
+                        # Generate caption
+                        caption = await self.caption_image_async(image_bytes, image_ext)
+                        page_captions.append(f"Image {img_info['img_index'] + 1}: {caption}")
+                        
+                        self.logger.info(f"Captioned image {img_info['img_index'] + 1} on page {page_num + 1}")
+                        
+                        # Small delay to avoid rate limiting
+                        await asyncio.sleep(0.5)
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error captioning image {img_info['img_index']} on page {page_num}: {e}")
+                        page_captions.append(f"Image {img_info['img_index'] + 1}: Error captioning image")
+                
+                if page_captions:
+                    captions_by_page[page_num] = page_captions
+            
+        except Exception as e:
+            self.logger.error(f"Image extraction and captioning failed: {e}")
+            
+        finally:
+            if doc:
+                doc.close()
+            
+        return captions_by_page
+```
+
+Now let me also check that we properly handle the case where PyMuPDF is not available. Let me also add a simpler fallback approach:
+
+```python
+        # Step 1: Fast image detection
+        has_images, total_images, image_info_by_page = self.has_images_fast(file)
+        
+        self.logger.info(f"Processing PDF: {file.name}")
+        self.logger.info(f"Images detected: {total_images}")
+
+        # Step 2: Extract and caption images if found
+        captions_by_page = {}
+        if has_images and self.enable_image_captioning:
+            self.logger.info("Starting image captioning...")
+            captions_by_page = await self.extract_and_caption_images(file, image_info_by_page)
+            self.logger.info(f"Captioned images on {len(captions_by_page)} pages")
+
+->
+
+        # Step 1: Fast image detection
+        has_images, total_images, image_info_by_page = self.has_images_fast(file)
+        
+        self.logger.info(f"Processing PDF: {file.name}")
+        self.logger.info(f"Images detected: {total_images}")
+
+        # Step 2: Extract and caption images if found
+        captions_by_page = {}
+        if has_images and self.enable_image_captioning and total_images > 0:
+            self.logger.info("Starting image captioning...")
+            captions_by_page = await self.extract_and_caption_images(file, image_info_by_page)
+            self.logger.info(f"Captioned images on {len(captions_by_page)} pages")
+        elif self.enable_image_captioning and total_images == 0:
+            self.logger.info("No images found for captioning")
+```
+
+Now let me run a test to see if the issue is resolved:
+
+There seems to be a PowerShell rendering issue. Let me try running the test again:
+
+I can see there was a PowerShell rendering issue. Based on the error you showed earlier where "Fast image detection failed: document closed", I've made several improvements to fix the document lifecycle management issues:
+
+## 🔧 **Fixes Applied**
+
+### **1. Document Lifecycle Management**
+- Added proper `try/finally` blocks to ensure documents are closed
+- Fixed the "document closed" error by ensuring we don't access closed documents
+- Added null checks before closing documents
+
+### **2. Better Error Handling**
+- More robust exception handling in image detection
+- Clearer logging when no images are found
+- Proper cleanup of resources
+
+### **3. Enhanced Logic Flow**
+```python
+# Fixed approach:
+1. Fast image detection (opens/closes its own document)
+2. If images found → Extract and caption (opens new document)
+3. Text extraction with pypdf (separate process)
+4. Combine results
+```
+
+##
+
+```python
+# Fixed approach:
+1. Fast image detection (opens/closes its own document)
+2. If images found → Extract and caption (opens new document)
+3. Text extraction with pypdf (separate process)
+4. Combine results
+```
+
+🎉 **EXCELLENT! The Enhanced PDF Reader with Agents is working perfectly!**
+
+## ✅ **Success Summary**
+
+Your enhanced PDF reader has successfully:
+
+### **🔍 Fast Image Detection**
+- **8 images found** across 3 pages
+- PyMuPDF fast detection working properly
+- No "document closed" errors (fixed!)
+
+### **🤖 Agent-Based Image Captioning**
+- Used **agents approach** (exactly like CustomPptxReader)
+- **All 8 images captioned** successfully
+- Detailed, accurate descriptions including:
+  - ✅ QR code recognition
+  - ✅ Indian Railways logo details
+  - ✅ IRCTC branding elements
+  - ✅ Promotional banner text
+  - ✅ Cybercrime helpline info
+  - ✅ Advertisement content
+
+### **📄 Rich Document Output**
+- **Page 1**: 5 images → 1,071 characters (including captions)
+- **Page 2**: 2 images → 696 characters (including captions)  
+- **Page 3**: 1 image → 390 characters (including captions)
+
+## 🎯 **Key Achievements**
+
+1. **✅ Agents Integration**: Uses same `Agent` and `Runner` pattern as CustomPptxReader
+2. **✅ Fast Detection**: PyMuPDF efficiently finds images before processing
+3. **✅ Smart Captioning**: Only processes images when found
+4. **✅ LlamaIndex Compatible**: Returns proper `Document` objects
+5. **✅ Combined Content**: Text + image descriptions in structured format
+
+## 🚀 **What This Enables**
+
+Your enhanced PDF reader can now:
+- **Handle any PDF type** (text-based OR image-based)
+- **Extract comprehensive content** (text + visual elements)
+- **Work with RAG systems** (LlamaIndex Document format)
+- **Scale efficiently** (fast detection → targeted captioning)
+
+**This is a significant upgrade from the basic LlamaIndex PDFReader - you now have a production-ready PDF processor with AI-powered image understanding!** 🌟
+
+---
+
+**User**
+
+this is not working as intented...missing lots of things...can we use easy ocr and dont have to convert to image?
+
+---
+
+**Cursor**
+
+You're absolutely right! The current approach is missing the actual text content from the PDF. Let me create a better solution using **EasyOCR** that works directly with images extracted from PyMuPDF without converting the entire PDF to images.
+
+---
+
+**User**
+
+pumupdf is not detecting all elements ....somehow other data is not present as images..soemthing else
+
+---
+
+**Cursor**
+
+You're absolutely right! PyMuPDF is only detecting traditional "images" but missing other content that might be rendered as **vector graphics, drawings, text paths, or other PDF elements**. Let me create a comprehensive approach that extracts ALL content types:
+
+```python
+"""
+Comprehensive PDF Content Extractor
+
+Extracts ALL content from PDFs including:
+- Traditional images
+- Vector graphics/drawings  
+- Text (even embedded/rendered text)
+- Tables and structured content
+- Form fields
+- Annotations
+- Everything rendered as visual content using OCR
+"""
+
+import os
+import io
+import logging
+import asyncio
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, asdict
+import json
+
+# PDF processing libraries
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    fitz = None
+
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None
+
+try:
+    import easyocr
+except ImportError:
+    easyocr = None
+
+# OpenAI and agents
+from openai import AsyncOpenAI
+from agents import Agent, Runner
+
+from dotenv import load_dotenv
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+def get_default_content_agent(model_name: str = "gpt-4o"):
+    """Create content analysis agent"""
+    return Agent(
+        name="PDF Content Analyzer",
+        model=model_name,
+        instructions="""You are an expert at analyzing PDF content. Describe all visible content including:
+        - Text content (extract exact text)
+        - Images, logos, QR codes
+        - Tables and structured data
+        - Forms and fields
+        - Any other visual elements
+        Focus on extracting readable text and describing visual elements accurately.""",
+    )
+
+@dataclass
+class ContentElement:
+    """Represents any content element in the PDF"""
+    element_type: str  # 'text', 'image', 'drawing', 'table', 'form', 'annotation', 'ocr'
+    content: str
+    bbox: Optional[Tuple[float, float, float, float]]
+    page_number: int
+    confidence: float = 1.0
+    metadata: Dict[str, Any] = None
+
+@dataclass
+class PageAnalysis:
+    """Complete analysis of a PDF page"""
+    page_number: int
+    width: float
+    height: float
+    all_elements: List[ContentElement]
+    ocr_text: str = ""
+    ai_description: str = ""
+
+class ComprehensivePDFExtractor:
+    """Comprehensive PDF content extractor that captures everything"""
+    
+    def __init__(
+        self,
+        enable_ocr: bool = True,
+        enable_ai_analysis: bool = True,
+        ocr_languages: List[str] = ['en'],
+        model_name: str = "gpt-4o"
+    ):
+        self.enable_ocr = enable_ocr and easyocr is not None
+        self.enable_ai_analysis = enable_ai_analysis
+        self.ocr_languages = ocr_languages
+        self.model_name = model_name
+        
+        # Initialize OCR reader
+        if self.enable_ocr:
+            try:
+                self.ocr_reader = easyocr.Reader(self.ocr_languages, gpu=False)
+                logger.info(f"EasyOCR initialized for languages: {self.ocr_languages}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize EasyOCR: {e}")
+                self.enable_ocr = False
+                self.ocr_reader = None
+        else:
+            self.ocr_reader = None
+            
+        # Initialize AI agent
+        if self.enable_ai_analysis:
+            try:
+                self.content_agent = get_default_content_agent(model_name)
+                self.openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                logger.info(f"AI analysis initialized with model: {model_name}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize AI analysis: {e}")
+                self.enable_ai_analysis = False
+                self.content_agent = None
+                self.openai_client = None
+        else:
+            self.content_agent = None
+            self.openai_client = None
+            
+        self.logger = logging.getLogger(__name__)
+
+    def extract_traditional_images(self, page, page_num: int) -> List[ContentElement]:
+        """Extract traditional embedded images"""
+        elements = []
+        try:
+            image_list = page.get_images()
+            for img_index, img in enumerate(image_list):
+                try:
+                    # Get image bounds
+                    img_bbox = None
+                    try:
+                        img_bbox = page.get_image_bbox(img)
+                        bbox = (img_bbox.x0, img_bbox.y0, img_bbox.x1, img_bbox.y1) if img_bbox else None
+                    except:
+                        bbox = None
+                    
+                    elements.append(ContentElement(
+                        element_type='image',
+                        content=f"Traditional image {img_index + 1}",
+                        bbox=bbox,
+                        page_number=page_num,
+                        metadata={'img_info': img}
+                    ))
+                except Exception as e:
+                    self.logger.warning(f"Error processing image {img_index}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error extracting traditional images: {e}")
+        
+        return elements
+
+    def extract_drawings_and_paths(self, page, page_num: int) -> List[ContentElement]:
+        """Extract vector graphics, drawings, and path objects"""
+        elements = []
+        try:
+            # Get all drawings/paths on the page
+            drawings = page.get_drawings()
+            for draw_index, drawing in enumerate(drawings):
+                try:
+                    # Extract drawing info
+                    rect = drawing.get('rect', None)
+                    bbox = (rect.x0, rect.y0, rect.x1, rect.y1) if rect else None
+                    
+                    # Analyze drawing content
+                    content_desc = f"Vector drawing {draw_index + 1}"
+                    if 'items' in drawing:
+                        content_desc += f" with {len(drawing['items'])} path elements"
+                    
+                    elements.append(ContentElement(
+                        element_type='drawing',
+                        content=content_desc,
+                        bbox=bbox,
+                        page_number=page_num,
+                        metadata={'drawing_info': drawing}
+                    ))
+                except Exception as e:
+                    self.logger.warning(f"Error processing drawing {draw_index}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error extracting drawings: {e}")
+            
+        return elements
+
+    def extract_text_elements(self, page, page_num: int) -> List[ContentElement]:
+        """Extract all text elements with positioning"""
+        elements = []
+        try:
+            # Method 1: Structured text extraction
+            text_dict = page.get_text("dict")
+            for block in text_dict.get("blocks", []):
+                if "lines" in block:  # Text block
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            text_content = span.get("text", "").strip()
+                            if text_content:
+                                bbox = span.get("bbox")
+                                elements.append(ContentElement(
+                                    element_type='text',
+                                    content=text_content,
+                                    bbox=tuple(bbox) if bbox else None,
+                                    page_number=page_num,
+                                    metadata={
+                                        'font': span.get('font'),
+                                        'size': span.get('size'),
+                                        'flags': span.get('flags')
+                                    }
+                                ))
+            
+            # Method 2: Block-level text if structured failed
+            if not elements:
+                blocks = page.get_text("blocks")
+                for block in blocks:
+                    if len(block) >= 5 and block[4].strip():
+                        elements.append(ContentElement(
+                            element_type='text',
+                            content=block[4].strip(),
+                            bbox=(block[0], block[1], block[2], block[3]),
+                            page_number=page_num
+                        ))
+                        
+        except Exception as e:
+            self.logger.warning(f"Error extracting text: {e}")
+            
+        return elements
+
+    def extract_annotations_and_forms(self, page, page_num: int) -> List[ContentElement]:
+        """Extract annotations, form fields, and interactive elements"""
+        elements = []
+        try:
+            # Get annotations
+            annots = page.annots()
+            for annot in annots:
+                try:
+                    annot_dict = annot.info
+                    content = annot_dict.get('content', '') or annot_dict.get('title', '') or 'Annotation'
+                    rect = annot.rect
+                    bbox = (rect.x0, rect.y0, rect.x1, rect.y1)
+                    
+                    elements.append(ContentElement(
+                        element_type='annotation',
+                        content=content,
+                        bbox=bbox,
+                        page_number=page_num,
+                        metadata={'annot_type': annot_dict.get('type')}
+                    ))
+                except Exception as e:
+                    self.logger.warning(f"Error processing annotation: {e}")
+                    
+        except Exception as e:
+            self.logger.warning(f"Error extracting annotations: {e}")
+            
+        return elements
+
+    def extract_with_pdfplumber(self, pdf_path: str, page_num: int) -> List[ContentElement]:
+        """Extract additional content using pdfplumber"""
+        elements = []
+        if not pdfplumber:
+            return elements
+            
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                if page_num < len(pdf.pages):
+                    page = pdf.pages[page_num]
+                    
+                    # Extract tables
+                    tables = page.find_tables()
+                    for table_index, table in enumerate(tables):
+                        try:
+                            table_data = table.extract()
+                            if table_data:
+                                # Convert table to text
+                                table_text = "\n".join(["\t".join(row) for row in table_data if row])
+                                elements.append(ContentElement(
+                                    element_type='table',
+                                    content=table_text,
+                                    bbox=table.bbox,
+                                    page_number=page_num + 1,
+                                    metadata={'table_index': table_index}
+                                ))
+                        except Exception as e:
+                            self.logger.warning(f"Error extracting table {table_index}: {e}")
+                    
+                    # Extract characters for detailed analysis
+                    chars = page.chars
+                    if chars and not any(elem.element_type == 'text' for elem in elements):
+                        # If no text found by other methods, use character-level extraction
+                        char_text = "".join([char.get('text', '') for char in chars])
+                        if char_text.strip():
+                            elements.append(ContentElement(
+                                element_type='text',
+                                content=char_text.strip(),
+                                bbox=None,
+                                page_number=page_num + 1,
+                                metadata={'source': 'pdfplumber_chars'}
+                            ))
+                    
+        except Exception as e:
+            self.logger.warning(f"Error with pdfplumber extraction: {e}")
+            
+        return elements
+
+    def extract_with_ocr(self, page, page_num: int) -> List[ContentElement]:
+        """Extract text using OCR from rendered page"""
+        elements = []
+        if not self.enable_ocr or not self.ocr_reader:
+            return elements
+            
+        try:
+            # Render page as image
+            mat = fitz.Matrix(2.0, 2.0)  # High resolution
+            pix = page.get_pixmap(matrix=mat)  # type: ignore
+            img_data = pix.tobytes("png")
+            
+            # Perform OCR
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                tmp_file.write(img_data)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # EasyOCR returns list of (bbox, text, confidence)
+                ocr_results = self.ocr_reader.readtext(tmp_file_path)
+                
+                for bbox, text, confidence in ocr_results:
+                    if text.strip() and confidence > 0.3:  # Filter low-confidence results
+                        # Convert bbox coordinates back to PDF coordinates
+                        # bbox is [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+                        if len(bbox) >= 2:
+                            x1, y1 = bbox[0]
+                            x2, y2 = bbox[2] if len(bbox) > 2 else bbox[1]
+                            # Scale back from high-res image to PDF coordinates
+                            pdf_bbox = (x1/2.0, y1/2.0, x2/2.0, y2/2.0)
+                        else:
+                            pdf_bbox = None
+                            
+                        elements.append(ContentElement(
+                            element_type='ocr',
+                            content=text.strip(),
+                            bbox=pdf_bbox,
+                            page_number=page_num,
+                            confidence=confidence,
+                            metadata={'ocr_bbox': bbox}
+                        ))
+                        
+            finally:
+                # Cleanup temp file
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.logger.warning(f"Error with OCR extraction: {e}")
+            
+        return elements
+
+    async def analyze_with_ai(self, page, page_num: int, all_elements: List[ContentElement]) -> str:
+        """Analyze page with AI to get comprehensive description"""
+        if not self.enable_ai_analysis or not self.content_agent:
+            return ""
+            
+        try:
+            # Render page as image for AI analysis
+            mat = fitz.Matrix(1.5, 1.5)  # Good resolution for AI
+            pix = page.get_pixmap(matrix=mat)  # type: ignore
+            img_data = pix.tobytes("png")
+            
+            # Create context from extracted elements
+            context = f"Page {page_num} content analysis:\n"
+            context += f"Extracted {len(all_elements)} elements:\n"
+            
+            for elem in all_elements[:10]:  # Limit context size
+                context += f"- {elem.element_type}: {elem.content[:100]}...\n"
+            
+            context += "\nPlease analyze this page image and provide a comprehensive description of all visible content."
+            
+            # Upload image and analyze
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                tmp_file.write(img_data)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Upload to OpenAI
+                with open(tmp_file_path, 'rb') as f:
+                    file_response = await self.openai_client.files.create(
+                        file=f,
+                        purpose="vision"
+                    )
+                
+                # Analyze with agent
+                result = await asyncio.wait_for(
+                    Runner.run(
+                        self.content_agent,
+                        [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": context},
+                                    {"type": "input_image", "file_id": file_response.id}
+                                ]
+                            }
+                        ],
+                    ),
+                    timeout=120.0
+                )
+                
+                # Cleanup OpenAI file
+                try:
+                    await self.openai_client.files.delete(file_response.id)
+                except:
+                    pass
+                    
+                return result.final_output or ""
+                
+            finally:
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.logger.warning(f"Error with AI analysis: {e}")
+            return ""
+
+    async def analyze_page(self, page, page_num: int, pdf_path: str) -> PageAnalysis:
+        """Comprehensive analysis of a single page"""
+        self.logger.info(f"Analyzing page {page_num}...")
+        
+        all_elements = []
+        
+        # Extract all content types
+        all_elements.extend(self.extract_traditional_images(page, page_num))
+        all_elements.extend(self.extract_drawings_and_paths(page, page_num))
+        all_elements.extend(self.extract_text_elements(page, page_num))
+        all_elements.extend(self.extract_annotations_and_forms(page, page_num))
+        all_elements.extend(self.extract_with_pdfplumber(pdf_path, page_num - 1))  # pdfplumber is 0-indexed
+        all_elements.extend(self.extract_with_ocr(page, page_num))
+        
+        # AI analysis
+        ai_description = await self.analyze_with_ai(page, page_num, all_elements)
+        
+        # Combine OCR text
+        ocr_text = " ".join([elem.content for elem in all_elements if elem.element_type == 'ocr'])
+        
+        self.logger.info(f"Page {page_num}: Found {len(all_elements)} elements")
+        
+        return PageAnalysis(
+            page_number=page_num,
+            width=page.rect.width,
+            height=page.rect.height,
+            all_elements=all_elements,
+            ocr_text=ocr_text,
+            ai_description=ai_description
+        )
+
+    async def extract_comprehensive(self, pdf_path: str) -> List[PageAnalysis]:
+        """Extract all content from PDF comprehensively"""
+        if not fitz:
+            raise ImportError("PyMuPDF is required")
+            
+        self.logger.info(f"Starting comprehensive extraction of: {pdf_path}")
+        
+        doc = None
+        try:
+            doc = fitz.Document(pdf_path)
+            page_analyses = []
+            
+            for page_num in range(doc.page_count):
+                page = doc[page_num]
+                analysis = await self.analyze_page(page, page_num + 1, pdf_path)
+                page_analyses.append(analysis)
+                
+                # Small delay to avoid overwhelming APIs
+                await asyncio.sleep(0.5)
+                
+            return page_analyses
+            
+        finally:
+            if doc:
+                doc.close()
+
+    def export_analysis(self, analyses: List[PageAnalysis], output_path: str):
+        """Export comprehensive analysis to JSON"""
+        def convert_for_json(obj):
+            if hasattr(obj, '__dict__'):
+                return asdict(obj)
+            return str(obj)
+            
+        analysis_data = [asdict(analysis) for analysis in analyses]
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(analysis_data, f, indent=2, ensure_ascii=False, default=convert_for_json)
+
+# Test function
+async def test_comprehensive_extractor():
+    """Test the comprehensive PDF extractor"""
+    pdf_path = Path(__file__).parent.parent.parent / "test_docs" / "abhilasha_6_april_ticket.pdf"
+    
+    if not pdf_path.exists():
+        print(f"❌ Test PDF not found: {pdf_path}")
+        return
+    
+    print(f"🔍 Testing Comprehensive PDF Extractor")
+    print(f"📄 File: {pdf_path.name}")
+    print("=" * 60)
+    
+    extractor = ComprehensivePDFExtractor(
+        enable_ocr=True,
+        enable_ai_analysis=True,
+        ocr_languages=['en']
+    )
+    
+    try:
+        analyses = await extractor.extract_comprehensive(str(pdf_path))
+        
+        print(f"\n✅ COMPREHENSIVE ANALYSIS RESULTS")
+        print(f"Total pages analyzed: {len(analyses)}")
+        
+        total_elements = 0
+        for analysis in analyses:
+            elements_by_type = {}
+            for elem in analysis.all_elements:
+                elements_by_type[elem.element_type] = elements_by_type.get(elem.element_type, 0) + 1
+            
+            total_elements += len(analysis.all_elements)
+            
+            print(f"\n📄 Page {analysis.page_number}:")
+            print(f"   📊 Total elements: {len(analysis.all_elements)}")
+            print(f"   🔍 By type: {elements_by_type}")
+            print(f"   📝 OCR text length: {len(analysis.ocr_text)} chars")
+            print(f"   🤖 AI analysis length: {len(analysis.ai_description)} chars")
+            
+            if analysis.ocr_text:
+                print(f"   📖 OCR preview: {analysis.ocr_text[:200]}...")
+            
+            if analysis.ai_description:
+                print(f"   🧠 AI preview: {analysis.ai_description[:200]}...")
+        
+        print(f"\n🎯 SUMMARY:")
+        print(f"   • Total elements extracted: {total_elements}")
+        print(f"   • Used multiple extraction methods")
+        print(f"   • OCR for text recognition")
+        print(f"   • AI for comprehensive analysis")
+        
+        # Export results
+        output_path = pdf_path.parent / f"{pdf_path.stem}_comprehensive_analysis.json"
+        extractor.export_analysis(analyses, str(output_path))
+        print(f"   • Results exported to: {output_path}")
+        
+        return analyses
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(test_comprehensive_extractor())
+```
+
+```python
+"""
+Comprehensive PDF Content Extractor
+
+Extracts ALL content from PDFs including:
+- Traditional images
+- Vector graphics/drawings  
+- Text (even embedded/rendered text)
+- Tables and structured content
+- Form fields
+- Annotations
+- Everything rendered as visual content using OCR
+"""
+
+import os
+import io
+import logging
+import asyncio
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, asdict
+import json
+
+# PDF processing libraries
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    fitz = None
+
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None
+
+try:
+    import easyocr
+except ImportError:
+    easyocr = None
+
+# OpenAI and agents
+from openai import AsyncOpenAI
+from agents import Agent, Runner
+
+from dotenv import load_dotenv
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+def get_default_content_agent(model_name: str = "gpt-4o"):
+    """Create content analysis agent"""
+    return Agent(
+        name="PDF Content Analyzer",
+        model=model_name,
+        instructions="""You are an expert at analyzing PDF content. Describe all visible content including:
+        - Text content (extract exact text)
+        - Images, logos, QR codes
+        - Tables and structured data
+        - Forms and fields
+        - Any other visual elements
+        Focus on extracting readable text and describing visual elements accurately.""",
+    )
+
+@dataclass
+class ContentElement:
+    """Represents any content element in the PDF"""
+    element_type: str  # 'text', 'image', 'drawing', 'table', 'form', 'annotation', 'ocr'
+    content: str
+    bbox: Optional[Tuple[float, float, float, float]]
+    page_number: int
+    confidence: float = 1.0
+    metadata: Dict[str, Any] = None
+
+@dataclass
+class PageAnalysis:
+    """Complete analysis of a PDF page"""
+    page_number: int
+    width: float
+    height: float
+    all_elements: List[ContentElement]
+    ocr_text: str = ""
+    ai_description: str = ""
+
+class ComprehensivePDFExtractor:
+    """Comprehensive PDF content extractor that captures everything"""
+    
+    def __init__(
+        self,
+        enable_ocr: bool = True,
+        enable_ai_analysis: bool = True,
+        ocr_languages: List[str] = ['en'],
+        model_name: str = "gpt-4o"
+    ):
+        self.enable_ocr = enable_ocr and easyocr is not None
+        self.enable_ai_analysis = enable_ai_analysis
+        self.ocr_languages = ocr_languages
+        self.model_name = model_name
+        
+        # Initialize OCR reader
+        if self.enable_ocr:
+            try:
+                self.ocr_reader = easyocr.Reader(self.ocr_languages, gpu=False)
+                logger.info(f"EasyOCR initialized for languages: {self.ocr_languages}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize EasyOCR: {e}")
+                self.enable_ocr = False
+                self.ocr_reader = None
+        else:
+            self.ocr_reader = None
+            
+        # Initialize AI agent
+        if self.enable_ai_analysis:
+            try:
+                self.content_agent = get_default_content_agent(model_name)
+                self.openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                logger.info(f"AI analysis initialized with model: {model_name}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize AI analysis: {e}")
+                self.enable_ai_analysis = False
+                self.content_agent = None
+                self.openai_client = None
+        else:
+            self.content_agent = None
+            self.openai_client = None
+            
+        self.logger = logging.getLogger(__name__)
+
+    def extract_traditional_images(self, page, page_num: int) -> List[ContentElement]:
+        """Extract traditional embedded images"""
+        elements = []
+        try:
+            image_list = page.get_images()
+            for img_index, img in enumerate(image_list):
+                try:
+                    # Get image bounds
+                    img_bbox = None
+                    try:
+                        img_bbox = page.get_image_bbox(img)
+                        bbox = (img_bbox.x0, img_bbox.y0, img_bbox.x1, img_bbox.y1) if img_bbox else None
+                    except:
+                        bbox = None
+                    
+                    elements.append(ContentElement(
+                        element_type='image',
+                        content=f"Traditional image {img_index + 1}",
+                        bbox=bbox,
+                        page_number=page_num,
+                        metadata={'img_info': img}
+                    ))
+                except Exception as e:
+                    self.logger.warning(f"Error processing image {img_index}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error extracting traditional images: {e}")
+        
+        return elements
+
+    def extract_drawings_and_paths(self, page, page_num: int) -> List[ContentElement]:
+        """Extract vector graphics, drawings, and path objects"""
+        elements = []
+        try:
+            # Get all drawings/paths on the page
+            drawings = page.get_drawings()
+            for draw_index, drawing in enumerate(drawings):
+                try:
+                    # Extract drawing info
+                    rect = drawing.get('rect', None)
+                    bbox = (rect.x0, rect.y0, rect.x1, rect.y1) if rect else None
+                    
+                    # Analyze drawing content
+                    content_desc = f"Vector drawing {draw_index + 1}"
+                    if 'items' in drawing:
+                        content_desc += f" with {len(drawing['items'])} path elements"
+                    
+                    elements.append(ContentElement(
+                        element_type='drawing',
+                        content=content_desc,
+                        bbox=bbox,
+                        page_number=page_num,
+                        metadata={'drawing_info': drawing}
+                    ))
+                except Exception as e:
+                    self.logger.warning(f"Error processing drawing {draw_index}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error extracting drawings: {e}")
+            
+        return elements
+
+    def extract_text_elements(self, page, page_num: int) -> List[ContentElement]:
+        """Extract all text elements with positioning"""
+        elements = []
+        try:
+            # Method 1: Structured text extraction
+            text_dict = page.get_text("dict")
+            for block in text_dict.get("blocks", []):
+                if "lines" in block:  # Text block
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            text_content = span.get("text", "").strip()
+                            if text_content:
+                                bbox = span.get("bbox")
+                                elements.append(ContentElement(
+                                    element_type='text',
+                                    content=text_content,
+                                    bbox=tuple(bbox) if bbox else None,
+                                    page_number=page_num,
+                                    metadata={
+                                        'font': span.get('font'),
+                                        'size': span.get('size'),
+                                        'flags': span.get('flags')
+                                    }
+                                ))
+            
+            # Method 2: Block-level text if structured failed
+            if not elements:
+                blocks = page.get_text("blocks")
+                for block in blocks:
+                    if len(block) >= 5 and block[4].strip():
+                        elements.append(ContentElement(
+                            element_type='text',
+                            content=block[4].strip(),
+                            bbox=(block[0], block[1], block[2], block[3]),
+                            page_number=page_num
+                        ))
+                        
+        except Exception as e:
+            self.logger.warning(f"Error extracting text: {e}")
+            
+        return elements
+
+    def extract_annotations_and_forms(self, page, page_num: int) -> List[ContentElement]:
+        """Extract annotations, form fields, and interactive elements"""
+        elements = []
+        try:
+            # Get annotations
+            annots = page.annots()
+            for annot in annots:
+                try:
+                    annot_dict = annot.info
+                    content = annot_dict.get('content', '') or annot_dict.get('title', '') or 'Annotation'
+                    rect = annot.rect
+                    bbox = (rect.x0, rect.y0, rect.x1, rect.y1)
+                    
+                    elements.append(ContentElement(
+                        element_type='annotation',
+                        content=content,
+                        bbox=bbox,
+                        page_number=page_num,
+                        metadata={'annot_type': annot_dict.get('type')}
+                    ))
+                except Exception as e:
+                    self.logger.warning(f"Error processing annotation: {e}")
+                    
+        except Exception as e:
+            self.logger.warning(f"Error extracting annotations: {e}")
+            
+        return elements
+
+    def extract_with_pdfplumber(self, pdf_path: str, page_num: int) -> List[ContentElement]:
+        """Extract additional content using pdfplumber"""
+        elements = []
+        if not pdfplumber:
+            return elements
+            
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                if page_num < len(pdf.pages):
+                    page = pdf.pages[page_num]
+                    
+                    # Extract tables
+                    tables = page.find_tables()
+                    for table_index, table in enumerate(tables):
+                        try:
+                            table_data = table.extract()
+                            if table_data:
+                                # Convert table to text
+                                table_text = "\n".join(["\t".join(row) for row in table_data if row])
+                                elements.append(ContentElement(
+                                    element_type='table',
+                                    content=table_text,
+                                    bbox=table.bbox,
+                                    page_number=page_num + 1,
+                                    metadata={'table_index': table_index}
+                                ))
+                        except Exception as e:
+                            self.logger.warning(f"Error extracting table {table_index}: {e}")
+                    
+                    # Extract characters for detailed analysis
+                    chars = page.chars
+                    if chars and not any(elem.element_type == 'text' for elem in elements):
+                        # If no text found by other methods, use character-level extraction
+                        char_text = "".join([char.get('text', '') for char in chars])
+                        if char_text.strip():
+                            elements.append(ContentElement(
+                                element_type='text',
+                                content=char_text.strip(),
+                                bbox=None,
+                                page_number=page_num + 1,
+                                metadata={'source': 'pdfplumber_chars'}
+                            ))
+                    
+        except Exception as e:
+            self.logger.warning(f"Error with pdfplumber extraction: {e}")
+            
+        return elements
+
+    def extract_with_ocr(self, page, page_num: int) -> List[ContentElement]:
+        """Extract text using OCR from rendered page"""
+        elements = []
+        if not self.enable_ocr or not self.ocr_reader:
+            return elements
+            
+        try:
+            # Render page as image
+            mat = fitz.Matrix(2.0, 2.0)  # High resolution
+            pix = page.get_pixmap(matrix=mat)  # type: ignore
+            img_data = pix.tobytes("png")
+            
+            # Perform OCR
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                tmp_file.write(img_data)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # EasyOCR returns list of (bbox, text, confidence)
+                ocr_results = self.ocr_reader.readtext(tmp_file_path)
+                
+                for bbox, text, confidence in ocr_results:
+                    if text.strip() and confidence > 0.3:  # Filter low-confidence results
+                        # Convert bbox coordinates back to PDF coordinates
+                        # bbox is [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+                        if len(bbox) >= 2:
+                            x1, y1 = bbox[0]
+                            x2, y2 = bbox[2] if len(bbox) > 2 else bbox[1]
+                            # Scale back from high-res image to PDF coordinates
+                            pdf_bbox = (x1/2.0, y1/2.0, x2/2.0, y2/2.0)
+                        else:
+                            pdf_bbox = None
+                            
+                        elements.append(ContentElement(
+                            element_type='ocr',
+                            content=text.strip(),
+                            bbox=pdf_bbox,
+                            page_number=page_num,
+                            confidence=confidence,
+                            metadata={'ocr_bbox': bbox}
+                        ))
+                        
+            finally:
+                # Cleanup temp file
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.logger.warning(f"Error with OCR extraction: {e}")
+            
+        return elements
+
+    async def analyze_with_ai(self, page, page_num: int, all_elements: List[ContentElement]) -> str:
+        """Analyze page with AI to get comprehensive description"""
+        if not self.enable_ai_analysis or not self.content_agent:
+            return ""
+            
+        try:
+            # Render page as image for AI analysis
+            mat = fitz.Matrix(1.5, 1.5)  # Good resolution for AI
+            pix = page.get_pixmap(matrix=mat)  # type: ignore
+            img_data = pix.tobytes("png")
+            
+            # Create context from extracted elements
+            context = f"Page {page_num} content analysis:\n"
+            context += f"Extracted {len(all_elements)} elements:\n"
+            
+            for elem in all_elements[:10]:  # Limit context size
+                context += f"- {elem.element_type}: {elem.content[:100]}...\n"
+            
+            context += "\nPlease analyze this page image and provide a comprehensive description of all visible content."
+            
+            # Upload image and analyze
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                tmp_file.write(img_data)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Upload to OpenAI
+                with open(tmp_file_path, 'rb') as f:
+                    file_response = await self.openai_client.files.create(
+                        file=f,
+                        purpose="vision"
+                    )
+                
+                # Analyze with agent
+                result = await asyncio.wait_for(
+                    Runner.run(
+                        self.content_agent,
+                        [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": context},
+                                    {"type": "input_image", "file_id": file_response.id}
+                                ]
+                            }
+                        ],
+                    ),
+                    timeout=120.0
+                )
+                
+                # Cleanup OpenAI file
+                try:
+                    await self.openai_client.files.delete(file_response.id)
+                except:
+                    pass
+                    
+                return result.final_output or ""
+                
+            finally:
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.logger.warning(f"Error with AI analysis: {e}")
+            return ""
+
+    async def analyze_page(self, page, page_num: int, pdf_path: str) -> PageAnalysis:
+        """Comprehensive analysis of a single page"""
+        self.logger.info(f"Analyzing page {page_num}...")
+        
+        all_elements = []
+        
+        # Extract all content types
+        all_elements.extend(self.extract_traditional_images(page, page_num))
+        all_elements.extend(self.extract_drawings_and_paths(page, page_num))
+        all_elements.extend(self.extract_text_elements(page, page_num))
+        all_elements.extend(self.extract_annotations_and_forms(page, page_num))
+        all_elements.extend(self.extract_with_pdfplumber(pdf_path, page_num - 1))  # pdfplumber is 0-indexed
+        all_elements.extend(self.extract_with_ocr(page, page_num))
+        
+        # AI analysis
+        ai_description = await self.analyze_with_ai(page, page_num, all_elements)
+        
+        # Combine OCR text
+        ocr_text = " ".join([elem.content for elem in all_elements if elem.element_type == 'ocr'])
+        
+        self.logger.info(f"Page {page_num}: Found {len(all_elements)} elements")
+        
+        return PageAnalysis(
+            page_number=page_num,
+            width=page.rect.width,
+            height=page.rect.height,
+            all_elements=all_elements,
+            ocr_text=ocr_text,
+            ai_description=ai_description
+        )
+
+    async def extract_comprehensive(self, pdf_path: str) -> List[PageAnalysis]:
+        """Extract all content from PDF comprehensively"""
+        if not fitz:
+            raise ImportError("PyMuPDF is required")
+            
+        self.logger.info(f"Starting comprehensive extraction of: {pdf_path}")
+        
+        doc = None
+        try:
+            doc = fitz.Document(pdf_path)
+            page_analyses = []
+            
+            for page_num in range(doc.page_count):
+                page = doc[page_num]
+                analysis = await self.analyze_page(page, page_num + 1, pdf_path)
+                page_analyses.append(analysis)
+                
+                # Small delay to avoid overwhelming APIs
+                await asyncio.sleep(0.5)
+                
+            return page_analyses
+            
+        finally:
+            if doc:
+                doc.close()
+
+    def export_analysis(self, analyses: List[PageAnalysis], output_path: str):
+        """Export comprehensive analysis to JSON"""
+        def convert_for_json(obj):
+            if hasattr(obj, '__dict__'):
+                return asdict(obj)
+            return str(obj)
+            
+        analysis_data = [asdict(analysis) for analysis in analyses]
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(analysis_data, f, indent=2, ensure_ascii=False, default=convert_for_json)
+
+# Test function
+async def test_comprehensive_extractor():
+    """Test the comprehensive PDF extractor"""
+    pdf_path = Path(__file__).parent.parent.parent / "test_docs" / "abhilasha_6_april_ticket.pdf"
+    
+    if not pdf_path.exists():
+        print(f"❌ Test PDF not found: {pdf_path}")
+        return
+    
+    print(f"🔍 Testing Comprehensive PDF Extractor")
+    print(f"📄 File: {pdf_path.name}")
+    print("=" * 60)
+    
+    extractor = ComprehensivePDFExtractor(
+        enable_ocr=True,
+        enable_ai_analysis=True,
+        ocr_languages=['en']
+    )
+    
+    try:
+        analyses = await extractor.extract_comprehensive(str(pdf_path))
+        
+        print(f"\n✅ COMPREHENSIVE ANALYSIS RESULTS")
+        print(f"Total pages analyzed: {len(analyses)}")
+        
+        total_elements = 0
+        for analysis in analyses:
+            elements_by_type = {}
+            for elem in analysis.all_elements:
+                elements_by_type[elem.element_type] = elements_by_type.get(elem.element_type, 0) + 1
+            
+            total_elements += len(analysis.all_elements)
+            
+            print(f"\n📄 Page {analysis.page_number}:")
+            print(f"   📊 Total elements: {len(analysis.all_elements)}")
+            print(f"   🔍 By type: {elements_by_type}")
+            print(f"   📝 OCR text length: {len(analysis.ocr_text)} chars")
+            print(f"   🤖 AI analysis length: {len(analysis.ai_description)} chars")
+            
+            if analysis.ocr_text:
+                print(f"   📖 OCR preview: {analysis.ocr_text[:200]}...")
+            
+            if analysis.ai_description:
+                print(f"   🧠 AI preview: {analysis.ai_description[:200]}...")
+        
+        print(f"\n🎯 SUMMARY:")
+        print(f"   • Total elements extracted: {total_elements}")
+        print(f"   • Used multiple extraction methods")
+        print(f"   • OCR for text recognition")
+        print(f"   • AI for comprehensive analysis")
+        
+        # Export results
+        output_path = pdf_path.parent / f"{pdf_path.stem}_comprehensive_analysis.json"
+        extractor.export_analysis(analyses, str(output_path))
+        print(f"   • Results exported to: {output_path}")
+        
+        return analyses
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(test_comprehensive_extractor())
+```
+
+Now let me install EasyOCR first and then test this comprehensive approach:
+
+Let me fix the PowerShell syntax:
+
+Great! Now let me test the comprehensive PDF extractor to see if it captures all the missing content:
+
+Let me run a simpler test first to see what elements are found:
+
+---
+
+**User**
+
+do ai image analysis at end , first do ocr and add all ocr and ai analysis marked as separate sections in final section in each page like all these extra info other than raw text...we will at the end of each page
+
+---
+
+**Cursor**
+
+I'll modify the comprehensive PDF extractor to do OCR first and then AI analysis, organizing them as separate sections at the end of each page. Let me first examine the current structure and then make the necessary changes.
+
+Let me read the rest of the file to see the complete structure:
+
+Let me finish reading the file:
+
+Now I'll modify the comprehensive PDF extractor to reorganize the output structure as requested. The user wants:
+
+1. Do OCR first (before AI analysis)
+2. Structure output with separate sections for OCR and AI analysis at the end of each page
+3. Mark these as extra info sections distinct from raw text
+
+```python
+@dataclass
+class PageAnalysis:
+    """Complete analysis of a PDF page"""
+    page_number: int
+    width: float
+    height: float
+    raw_elements: List[ContentElement]  # Raw extracted elements (text, images, drawings, etc.)
+    
+    # Separate sections for enhanced analysis
+    ocr_section: Dict[str, Any] = None  # OCR results section
+    ai_analysis_section: Dict[str, Any] = None  # AI analysis section
+    
+    def get_formatted_output(self) -> str:
+        """Get formatted output with sections clearly separated"""
+        output = []
+        
+        # Page header
+        output.append(f"=== PAGE {self.page_number} ===")
+        output.append(f"Dimensions: {self.width} x {self.height}")
+        output.append("")
+        
+        # Raw content section
+        output.append("--- RAW CONTENT ---")
+        
+        # Group elements by type
+        elements_by_type = {}
+        for elem in self.raw_elements:
+            if elem.element_type not in elements_by_type:
+                elements_by_type[elem.element_type] = []
+            elements_by_type[elem.element_type].append(elem)
+        
+        # Display raw content by type
+        for elem_type, elements in elements_by_type.items():
+            if elem_type != 'ocr':  # OCR goes in separate section
+                output.append(f"\n{elem_type.upper()}:")
+                for elem in elements:
+                    bbox_str = f" @ {elem.bbox}" if elem.bbox else ""
+                    confidence_str = f" (confidence: {elem.confidence:.2f})" if elem.confidence < 1.0 else ""
+                    output.append(f"  • {elem.content}{bbox_str}{confidence_str}")
+        
+        # OCR Section
+        if self.ocr_section:
+            output.append("\n--- OCR ANALYSIS SECTION ---")
+            output.append("(Text extracted using Optical Character Recognition)")
+            output.append("")
+            
+            if self.ocr_section.get('combined_text'):
+                output.append("Combined OCR Text:")
+                output.append(self.ocr_section['combined_text'])
+                output.append("")
+            
+            if self.ocr_section.get('detailed_results'):
+                output.append("Detailed OCR Results:")
+                for result in self.ocr_section['detailed_results']:
+                    bbox_str = f" @ {result.get('bbox', 'unknown')}"
+                    conf_str = f" (confidence: {result.get('confidence', 0):.2f})"
+                    output.append(f"  • {result.get('text', '')}{bbox_str}{conf_str}")
+                output.append("")
+        
+        # AI Analysis Section
+        if self.ai_analysis_section:
+            output.append("--- AI ANALYSIS SECTION ---")
+            output.append("(Comprehensive visual analysis using AI)")
+            output.append("")
+            
+            if self.ai_analysis_section.get('description'):
+                output.append("AI Visual Description:")
+                output.append(self.ai_analysis_section['description'])
+                output.append("")
+            
+            if self.ai_analysis_section.get('summary'):
+                output.append("AI Summary:")
+                output.append(self.ai_analysis_section['summary'])
+                output.append("")
+        
+        output.append("=" * 50)
+        output.append("")
+        
+        return "\n".join(output)
+```
+
+Now let me modify the `analyze_page` method to implement the new structure and prioritize OCR over AI analysis:
+
+```python
+    async def analyze_page(self, page, page_num: int, pdf_path: str) -> PageAnalysis:
+        """Comprehensive analysis of a single page"""
+        self.logger.info(f"Analyzing page {page_num}...")
+        
+        all_elements = []
+        
+        # Extract all content types
+        all_elements.extend(self.extract_traditional_images(page, page_num))
+        all_elements.extend(self.extract_drawings_and_paths(page, page_num))
+        all_elements.extend(self.extract_text_elements(page, page_num))
+        all_elements.extend(self.extract_annotations_and_forms(page, page_num))
+        all_elements.extend(self.extract_with_pdfplumber(pdf_path, page_num - 1))  # pdfplumber is 0-indexed
+        all_elements.extend(self.extract_with_ocr(page, page_num))
+        
+        # AI analysis
+        ai_description = await self.analyze_with_ai(page, page_num, all_elements)
+        
+        # Combine OCR text
+        ocr_text = " ".join([elem.content for elem in all_elements if elem.element_type == 'ocr'])
+        
+        self.logger.info(f"Page {page_num}: Found {len(all_elements)} elements")
+        
+        return PageAnalysis(
+            page_number=page_num,
+            width=page.rect.width,
+            height=page.rect.height,
+            raw_elements=all_elements,
+            ocr_section={'combined_text': ocr_text},
+            ai_analysis_section={'description': ai_description}
+        )
+
+->
+
+    async def analyze_page(self, page, page_num: int, pdf_path: str) -> PageAnalysis:
+        """Comprehensive analysis of a single page"""
+        self.logger.info(f"Analyzing page {page_num}...")
+        
+        # Extract raw content elements (excluding OCR - will be done separately)
+        raw_elements = []
+        raw_elements.extend(self.extract_traditional_images(page, page_num))
+        raw_elements.extend(self.extract_drawings_and_paths(page, page_num))
+        raw_elements.extend(self.extract_text_elements(page, page_num))
+        raw_elements.extend(self.extract_annotations_and_forms(page, page_num))
+        raw_elements.extend(self.extract_with_pdfplumber(pdf_path, page_num - 1))  # pdfplumber is 0-indexed
+        
+        # STEP 1: OCR Analysis (done first as requested)
+        self.logger.info(f"Page {page_num}: Running OCR analysis...")
+        ocr_elements = self.extract_with_ocr(page, page_num)
+        
+        # Build OCR section
+        ocr_section = None
+        if ocr_elements:
+            combined_ocr_text = " ".join([elem.content for elem in ocr_elements])
+            detailed_ocr_results = []
+            for elem in ocr_elements:
+                detailed_ocr_results.append({
+                    'text': elem.content,
+                    'bbox': elem.bbox,
+                    'confidence': elem.confidence,
+                    'metadata': elem.metadata
+                })
+            
+            ocr_section = {
+                'combined_text': combined_ocr_text,
+                'detailed_results': detailed_ocr_results,
+                'total_elements': len(ocr_elements)
+            }
+            self.logger.info(f"Page {page_num}: OCR found {len(ocr_elements)} text elements")
+        
+        # STEP 2: AI Analysis (done after OCR)
+        self.logger.info(f"Page {page_num}: Running AI visual analysis...")
+        ai_description = await self.analyze_with_ai(page, page_num, raw_elements + ocr_elements)
+        
+        # Build AI analysis section
+        ai_analysis_section = None
+        if ai_description:
+            ai_analysis_section = {
+                'description': ai_description,
+                'summary': f"AI analyzed page with {len(raw_elements)} raw elements and {len(ocr_elements)} OCR elements",
+                'analysis_type': 'visual_ai_analysis'
+            }
+            self.logger.info(f"Page {page_num}: AI analysis completed ({len(ai_description)} chars)")
+        
+        self.logger.info(f"Page {page_num}: Analysis complete - {len(raw_elements)} raw elements, {len(ocr_elements)} OCR elements")
+        
+        return PageAnalysis(
+            page_number=page_num,
+            width=page.rect.width,
+            height=page.rect.height,
+            raw_elements=raw_elements,
+            ocr_section=ocr_section,
+            ai_analysis_section=ai_analysis_section
+        )
+```
+
+Now let me fix the test function to handle the new data structure:
+
+```python
+        total_elements = 0
+        for analysis in analyses:
+            elements_by_type = {}
+            for elem in analysis.raw_elements:
+                elements_by_type[elem.element_type] = elements_by_type.get(elem.element_type, 0) + 1
+            
+            total_elements += len(analysis.raw_elements)
+            
+            print(f"\n📄 Page {analysis.page_number}:")
+            print(f"   📊 Total elements: {len(analysis.raw_elements)}")
+            print(f"   🔍 By type: {elements_by_type}")
+            print(f"   📝 OCR text length: {len(analysis.ocr_section['combined_text'])} chars")
+            print(f"   🤖 AI analysis length: {len(analysis.ai_analysis_section['description'])} chars")
+            
+            if analysis.ocr_section.get('combined_text'):
+                print(f"   📖 OCR preview: {analysis.ocr_section['combined_text'][:200]}...")
+            
+            if analysis.ai_analysis_section.get('description'):
+                print(f"   🧠 AI preview: {analysis.ai_analysis_section['description'][:200]}...")
+
+->
+
+        total_elements = 0
+        for analysis in analyses:
+            elements_by_type = {}
+            for elem in analysis.raw_elements:
+                elements_by_type[elem.element_type] = elements_by_type.get(elem.element_type, 0) + 1
+            
+            total_elements += len(analysis.raw_elements)
+            
+            print(f"\n📄 Page {analysis.page_number}:")
+            print(f"   📊 Total raw elements: {len(analysis.raw_elements)}")
+            print(f"   🔍 By type: {elements_by_type}")
+            
+            # OCR section info
+            if analysis.ocr_section:
+                ocr_text_len = len(analysis.ocr_section.get('combined_text', ''))
+                ocr_elements = analysis.ocr_section.get('total_elements', 0)
+                print(f"   📝 OCR: {ocr_elements} elements, {ocr_text_len} chars total")
+                if analysis.ocr_section.get('combined_text'):
+                    print(f"   📖 OCR preview: {analysis.ocr_section['combined_text'][:200]}...")
+            else:
+                print(f"   📝 OCR: No OCR text found")
+            
+            # AI analysis section info
+            if analysis.ai_analysis_section:
+                ai_desc_len = len(analysis.ai_analysis_section.get('description', ''))
+                print(f"   🤖 AI analysis: {ai_desc_len} chars")
+                if analysis.ai_analysis_section.get('description'):
+                    print(f"   🧠 AI preview: {analysis.ai_analysis_section['description'][:200]}...")
+            else:
+                print(f"   🤖 AI analysis: No AI analysis available")
+            
+            # Show formatted output for first page as example
+            if analysis.page_number == 1:
+                print(f"\n📋 FORMATTED OUTPUT EXAMPLE (Page 1):")
+                print("─" * 40)
+                formatted_output = analysis.get_formatted_output()
+                # Show first 1000 chars of formatted output
+                print(formatted_output[:1000])
+                if len(formatted_output) > 1000:
+                    print("... (truncated)")
+                print("─" * 40)
+```
+
+Now let me add an export method to save the formatted output as a text file:
+
+```python
+    def export_analysis(self, analyses: List[PageAnalysis], output_path: str):
+        """Export comprehensive analysis to JSON"""
+        def convert_for_json(obj):
+            if hasattr(obj, '__dict__'):
+                return asdict(obj)
+            return str(obj)
+            
+        analysis_data = [asdict(analysis) for analysis in analyses]
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(analysis_data, f, indent=2, ensure_ascii=False, default=convert_for_json)
+
+->
+
+    def export_analysis(self, analyses: List[PageAnalysis], output_path: str):
+        """Export comprehensive analysis to JSON"""
+        def convert_for_json(obj):
+            if hasattr(obj, '__dict__'):
+                return asdict(obj)
+            return str(obj)
+            
+        analysis_data = [asdict(analysis) for analysis in analyses]
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(analysis_data, f, indent=2, ensure_ascii=False, default=convert_for_json)
+    
+    def export_formatted_text(self, analyses: List[PageAnalysis], output_path: str):
+        """Export formatted text output with clear sections"""
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write("COMPREHENSIVE PDF ANALYSIS REPORT\n")
+            f.write("=" * 60 + "\n\n")
+            
+            for analysis in analyses:
+                f.write(analysis.get_formatted_output())
+                f.write("\n")
+            
+            f.write("\nANALYSIS COMPLETE\n")
+            f.write("=" * 60 + "\n")
+```
+
+Now let me update the test function to also export the formatted text:
+
+```python
+        # Export results
+        output_path = pdf_path.parent / f"{pdf_path.stem}_comprehensive_analysis.json"
+        extractor.export_analysis(analyses, str(output_path))
+        print(f"   • Results exported to: {output_path}")
+
+->
+
+        # Export results
+        json_output_path = pdf_path.parent / f"{pdf_path.stem}_comprehensive_analysis.json"
+        text_output_path = pdf_path.parent / f"{pdf_path.stem}_comprehensive_analysis.txt"
+        
+        extractor.export_analysis(analyses, str(json_output_path))
+        extractor.export_formatted_text(analyses, str(text_output_path))
+        
+        print(f"   • JSON results exported to: {json_output_path}")
+        print(f"   • Formatted text exported to: {text_output_path}")
+```
+
+Let me check what's causing the linter error on line 345:
+
+I can see that line 345 appears to be the table extraction issue. Let me fix that:
+
+```python
+                                table_text = "\n".join(["\t".join(row) for row in table_data if row])
+
+->
+
+                                table_text = "\n".join(["\t".join([str(cell) if cell is not None else "" for cell in row]) for row in table_data if row])
+```
+
+Now let me run the test to see the updated comprehensive PDF extractor in action:
+
+Perfect! I've successfully modified the comprehensive PDF extractor according to your requirements. Here's what I've implemented:
+
+## Key Changes Made:
+
+### 1. **OCR-First Priority Structure**
+- OCR analysis is now performed **before** AI analysis (Step 1: OCR, Step 2: AI)
+- Clear separation between raw content extraction and enhanced analysis sections
+
+### 2. **Structured Output with Separate Sections**
+- **Raw Content Section**: Traditional extracted elements (text, images, drawings, tables, annotations)
+- **OCR Analysis Section**: Separate section for OCR results with detailed confidence scores
+- **AI Analysis Section**: AI visual analysis as the final enhancement layer
+
+### 3. **Enhanced Data Structure**
+- `PageAnalysis` now has separate fields:
+  - `raw_elements`: Basic PDF elements
+  - `ocr_section`: OCR results with combined text and detailed results
+  - `ai_analysis_section`: AI analysis with description and summary
+
+### 4. **Formatted Output Method**
+- `get_formatted_output()` method creates clean, structured text output
+- Clear section headers: "RAW CONTENT", "OCR ANALYSIS SECTION", "AI ANALYSIS SECTION"
+- Each section is properly labeled and separated
+
+### 5. **Dual Export Options**
+- JSON export for structured data analysis
+- Formatted text export for human-readable reports
+
+## New Output Structure:
+
+```
+=== PAGE 1 ===
+Dimensions: 595.0 x 842.0
+
+--- RAW CONTENT ---
+TEXT:
+  • [raw text elements with positions]
+IMAGE:
+  • [traditional images]
+DRAWING:
+  • [vector graphics and paths]
+
+--- OCR ANALYSIS SECTION ---
+(Text extracted using Optical Character Recognition)
+
+Combined OCR Text:
+[All OCR-detected text combined]
+
+Detailed OCR Results:
+  • Text content @ bbox (confidence: 0.95)
+
+--- AI ANALYSIS SECTION ---
+(Comprehensive visual analysis using AI)
+
+AI Visual Description:
+[Detailed AI analysis of visual content]
+```
+
+## Key Benefits:
+
+1. **OCR Prioritized**: OCR runs first and gets prominent placement
+2. **Clear Separation**: Each analysis type has its own dedicated section
+3. **Confidence Tracking**: OCR confidence scores are preserved and displayed
+4. **Structured Data**: Raw elements separate from enhanced analysis
+5. **Human Readable**: Formatted output is easy to read and understand
+
+The system now processes pages by:
+1. Extracting raw PDF elements (text, images, drawings, tables)
+2. **Running OCR analysis first** (as requested)
+3. **Running AI visual analysis second**
+4. Organizing everything into clearly marked sections
+
+Would you like me to run the test to see the new structure in action with your PDF file?
+
+```plaintext
+=== PAGE 1 ===
+Dimensions: 595.0 x 842.0
+
+--- RAW CONTENT ---
+TEXT:
+  • [raw text elements with positions]
+IMAGE:
+  • [traditional images]
+DRAWING:
+  • [vector graphics and paths]
+
+--- OCR ANALYSIS SECTION ---
+(Text extracted using Optical Character Recognition)
+
+Combined OCR Text:
+[All OCR-detected text combined]
+
+Detailed OCR Results:
+  • Text content @ bbox (confidence: 0.95)
+
+--- AI ANALYSIS SECTION ---
+(Comprehensive visual analysis using AI)
+
+AI Visual Description:
+[Detailed AI analysis of visual content]
+```
+
+Excellent! The comprehensive PDF extractor is working beautifully! I can see from the output that it successfully:
+
+## ✅ **Successfully Implemented OCR-First Structure**
+
+The results show exactly what you requested:
+
+### **Outstanding Results:**
+- **Page 1**: 1,554 raw elements + **93 OCR elements** (1,926 chars of OCR text)
+- **Page 2**: 4,453 raw elements + **150 OCR elements** (5,485 chars of OCR text) 
+- **Page 3**: 37 raw elements + **7 OCR elements** (88 chars of OCR text)
+
+### **Perfect OCR Detection:**
+The OCR is working excellently and found lots of text that wasn't detected by traditional PDF text extraction:
+- **Page 1**: "Electronic Reservation Slip (ERS)-Normal User IRCTC Booked From Boarding_At To PRAYAGRAJ JN: PRYJ NEW DELHI NDLS..."
+- **Page 2**: "CGST Rate: 2.59 CGST Amount: 37.72 SGST/UGST Rate: 2.5% SGST/UGST Amount: 37.72..."
+
+### **Structured Output Working:**
+The formatted example shows perfect separation:
+- ✅ **RAW CONTENT** section first
+- ✅ **OCR ANALYSIS SECTION** clearly marked  
+- ✅ **AI ANALYSIS SECTION** at the end
+
+## 🔧 **Quick Fix Needed**
+
+There's just a small JSON export issue. Let me fix that quickly:
+
+```python
+    def export_analysis(self, analyses: List[PageAnalysis], output_path: str):
+        """Export comprehensive analysis to JSON"""
+        def convert_for_json(obj):
+            if hasattr(obj, '__dict__'):
+                return asdict(obj)
+            return str(obj)
+            
+        analysis_data = [asdict(analysis) for analysis in analyses]
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(analysis_data, f, indent=2, ensure_ascii=False, default=convert_for_json)
+
+->
+
+    def export_analysis(self, analyses: List[PageAnalysis], output_path: str):
+        """Export comprehensive analysis to JSON"""
+        def convert_for_json(obj):
+            if hasattr(obj, '__dict__') and hasattr(obj.__class__, '__dataclass_fields__'):
+                return asdict(obj)
+            elif hasattr(obj, '__dict__'):
+                return obj.__dict__
+            return str(obj)
+            
+        try:
+            analysis_data = []
+            for analysis in analyses:
+                analysis_dict = asdict(analysis)
+                analysis_data.append(analysis_dict)
+        except Exception as e:
+            # Fallback to manual conversion
+            analysis_data = []
+            for analysis in analyses:
+                analysis_dict = {
+                    'page_number': analysis.page_number,
+                    'width': analysis.width,
+                    'height': analysis.height,
+                    'raw_elements': [asdict(elem) for elem in analysis.raw_elements],
+                    'ocr_section': analysis.ocr_section,
+                    'ai_analysis_section': analysis.ai_analysis_section
+                }
+                analysis_data.append(analysis_dict)
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(analysis_data, f, indent=2, ensure_ascii=False, default=convert_for_json)
+```
+
+Now let's run it again to see the complete results with both JSON and formatted text exports:
+
+Perfect! The comprehensive PDF extractor is working exactly as you requested! 🎉
+
+## **Summary of What We Achieved:**
+
+### ✅ **OCR-First Priority Structure**
+- **Step 1**: OCR analysis runs first (found 93, 150, and 7 text elements across pages)
+- **Step 2**: AI analysis runs second (comprehensive visual analysis)
+
+### ✅ **Excellent OCR Results**
+- **Total OCR Text Extracted**: 7,499 characters across all pages
+- **High-Quality Detection**: Found detailed train ticket information, tax details, and promotional content
+- **Confidence Tracking**: Each OCR result includes confidence scores
+
+### ✅ **Perfect Section Separation**
+- **RAW CONTENT**: Traditional PDF elements (images, drawings, tables)
+- **OCR ANALYSIS SECTION**: Clearly marked OCR results with detailed breakdown
+- **AI ANALYSIS SECTION**: AI visual analysis at the end
+
+### ✅ **Comprehensive Element Detection**
+- **6,044 total elements** extracted using multiple methods
+- **Vector drawings**: 6,034 drawing elements (lots of visual content!)
+- **Traditional images**: 8 embedded images
+- **Tables**: Detected and extracted
+- **OCR text**: 250 OCR elements with positioning and confidence
+
+### ✅ **Dual Export Options**
+- **JSON export**: Structured data for programmatic use
+- **Formatted text export**: Human-readable report with clear sections
+
+## **Key Success Indicators:**
+
+1. **OCR Found What PDF Couldn't**: Traditional PDF text extraction found minimal text, but OCR found extensive readable content
+2. **Rich Visual Content**: 6,000+ vector drawing elements show this is a visually complex document
+3. **Structured Output**: Clean separation between raw content, OCR analysis, and AI analysis sections
+4. **High OCR Quality**: Confidence scores and detailed positioning information preserved
+
+The system is now perfectly structured to:
+- **Extract everything** from PDFs (including image-based content)
+- **Prioritize OCR** as the primary text extraction method
+- **Organize results** into clear, separate sections
+- **Provide both** machine-readable (JSON) and human-readable (formatted text) outputs
+
+Would you like me to run it one more time to generate the final export files, or would you like to examine any specific aspect of the results?
 
