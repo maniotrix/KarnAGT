@@ -125,13 +125,22 @@ class StorageBackend(ABC):
         pass
     
     @abstractmethod
-    async def download_file(self, key: str, local_path: str) -> bool:
-        """Download a single file from storage to local path"""
+    async def download_file(self, key: str, local_path: str) -> Optional[str]:
+        """Download a single file from storage to local path. Returns local path if successful, None if failed."""
         pass
     
     @abstractmethod
-    async def download_directory(self, directory_prefix: str, local_dir: str) -> bool:
-        """Download all files from a directory (prefix) to local directory"""
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> Dict[str, Any]:
+        """Download all files from a directory (prefix) to local directory. 
+        Returns dict with 'directory' (local dir path) and 'files' (list of downloaded file paths)."""
+        pass
+    
+    @abstractmethod
+    async def download_multiple_files(self, keys: List[str], local_dir: str) -> Dict[str, Any]:
+        """Download multiple specific files by S3 keys to local directory. 
+        Returns dict with 'directory' (local dir path), 'files' (list of downloaded file paths), 
+        'failed_keys' (list of keys that failed to download), 'total_requested' (total files requested), 
+        'successful' (number of files successfully downloaded), and 'failed_count' (number of files that failed)."""
         pass
 
 class S3StorageBackend(StorageBackend):
@@ -245,7 +254,7 @@ class S3StorageBackend(StorageBackend):
             logger.error(f"Failed to clear directory {directory_prefix}: {e}")
             return False
     
-    async def download_file(self, key: str, local_path: str) -> bool:
+    async def download_file(self, key: str, local_path: str) -> Optional[str]:
         """Download a single file from S3/MinIO to local path"""
         try:
             # Ensure local directory exists
@@ -254,15 +263,15 @@ class S3StorageBackend(StorageBackend):
             # Download file
             self.s3_client.download_file(self.bucket_name, key, local_path)
             logger.info(f"Downloaded file: {key} -> {local_path}")
-            return True
+            return local_path
         except ClientError as e:
             logger.error(f"Failed to download file {key}: {e}")
-            return False
+            return None
         except Exception as e:
             logger.error(f"Failed to download file {key}: {e}")
-            return False
+            return None
     
-    async def download_directory(self, directory_prefix: str, local_dir: str) -> bool:
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> Dict[str, Any]:
         """Download all files from a directory (prefix) to local directory"""
         try:
             # Add trailing slash if not present
@@ -272,7 +281,7 @@ class S3StorageBackend(StorageBackend):
             # Ensure local directory exists
             os.makedirs(local_dir, exist_ok=True)
             
-            downloaded_count = 0
+            downloaded_files = []
             
             # List all objects with this prefix
             response = self.s3_client.list_objects_v2(
@@ -282,7 +291,7 @@ class S3StorageBackend(StorageBackend):
             
             if 'Contents' not in response:
                 logger.info(f"No files found in directory: {directory_prefix}")
-                return True
+                return {"directory": local_dir, "files": downloaded_files}
             
             # Download files in batches
             while True:
@@ -303,7 +312,7 @@ class S3StorageBackend(StorageBackend):
                     # Download file
                     try:
                         self.s3_client.download_file(self.bucket_name, s3_key, local_file_path)
-                        downloaded_count += 1
+                        downloaded_files.append(local_file_path)
                         logger.info(f"Downloaded: {s3_key} -> {local_file_path}")
                     except Exception as e:
                         logger.error(f"Failed to download file {s3_key}: {e}")
@@ -320,16 +329,78 @@ class S3StorageBackend(StorageBackend):
                     ContinuationToken=response['NextContinuationToken']
                 )
             
-            logger.info(f"Downloaded {downloaded_count} files from directory: {directory_prefix}")
-            return True
+            logger.info(f"Downloaded {len(downloaded_files)} files from directory: {directory_prefix}")
+            return {"directory": local_dir, "files": downloaded_files}
             
         except ClientError as e:
             logger.error(f"Failed to download directory {directory_prefix}: {e}")
-            return False
+            return {"directory": local_dir, "files": []}
         except Exception as e:
             logger.error(f"Failed to download directory {directory_prefix}: {e}")
-            return False
-     
+            return {"directory": local_dir, "files": []}
+    
+    async def download_multiple_files(self, keys: List[str], local_dir: str) -> Dict[str, Any]:
+        """Download multiple specific files by S3 keys to local directory"""
+        try:
+            # Ensure local directory exists
+            os.makedirs(local_dir, exist_ok=True)
+            
+            downloaded_files = []
+            failed_keys = []
+            
+            logger.info(f"Starting download of {len(keys)} files to {local_dir}")
+            
+            for s3_key in keys:
+                try:
+                    # Extract filename from S3 key
+                    filename = os.path.basename(s3_key)
+                    if not filename:  # Handle keys ending with /
+                        filename = f"file_{uuid.uuid4().hex[:8]}"
+                    
+                    # Create local file path
+                    local_file_path = os.path.join(local_dir, filename)
+                    
+                    # Handle duplicate filenames by adding suffix
+                    if os.path.exists(local_file_path):
+                        name, ext = os.path.splitext(filename)
+                        counter = 1
+                        while os.path.exists(local_file_path):
+                            local_file_path = os.path.join(local_dir, f"{name}_{counter}{ext}")
+                            counter += 1
+                    
+                    # Download file
+                    self.s3_client.download_file(self.bucket_name, s3_key, local_file_path)
+                    downloaded_files.append(local_file_path)
+                    logger.info(f"Downloaded: {s3_key} -> {local_file_path}")
+                    
+                except Exception as e:
+                    failed_keys.append(s3_key)
+                    logger.error(f"Failed to download {s3_key}: {e}")
+                    continue
+            
+            result = {
+                "directory": local_dir,
+                "files": downloaded_files,
+                "failed_keys": failed_keys,
+                "total_requested": len(keys),
+                "successful": len(downloaded_files),
+                "failed_count": len(failed_keys)
+            }
+            
+            logger.info(f"Download complete: {len(downloaded_files)}/{len(keys)} files successful")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to download multiple files: {e}")
+            return {
+                "directory": local_dir,
+                "files": [],
+                "failed_keys": keys,  # All keys failed
+                "total_requested": len(keys),
+                "successful": 0,
+                "failed_count": len(keys)
+            }
+    
     async def ensure_bucket_exists(self):
         """Ensure the bucket exists, create it if it doesn't"""
         try:
@@ -681,11 +752,11 @@ class ImageStorageService:
         """Clear all files in a specific directory"""
         return self.storage.clear_directory(self.storage.bucket_name, directory_prefix)
     
-    async def download_file(self, s3_key: str, local_path: str) -> bool:
+    async def download_file(self, s3_key: str, local_path: str) -> Optional[str]:
         """Download a single file from storage to local path"""
         return await self.storage.download_file(s3_key, local_path)
     
-    async def download_directory(self, directory_prefix: str, local_dir: str) -> bool:
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> Dict[str, Any]:
         """Download all files from a directory to local directory"""
         return await self.storage.download_directory(directory_prefix, local_dir)
     
