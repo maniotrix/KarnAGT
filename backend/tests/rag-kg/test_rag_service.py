@@ -111,7 +111,6 @@ class RAGTestRunner:
         print(f"   gpu_info: {self.device_info.gpu_info}")
         print()
     
-     
     def print_performance_summary(self, query_times: List[float]) -> None:
         """Print comprehensive performance summary."""
         print(f"\n🎉 LlamaIndex RAG test completed!")
@@ -119,29 +118,37 @@ class RAGTestRunner:
         print(f"\n📊 PERFORMANCE SUMMARY:")
         print(f"=" * 60)
         summary = self.perf_monitor.get_summary()
-        print(f"⏱️  Total Execution Time: {summary['total_time']:.3f}s")
-        
-        # Cache status
-        operations_dict = summary.get('operations', {})
+        total_time = summary.get('total_time', 0)
+        print(f"⏱️  Total Execution Time: {total_time:.3f}s")
         
         # Timing breakdown
         print(f"\n⏱️  Detailed Timing Breakdown:")
-        if isinstance(operations_dict, dict) and isinstance(summary.get('total_time'), (int, float)):
-            total_time = summary['total_time']
+        operations_dict = summary.get('operations', {})
+        
+        if operations_dict and total_time > 0:
             for operation, duration in operations_dict.items():
-                percentage = (duration / total_time) * 100 if total_time > 0 else 0
-                cache_indicator = ""
-                if "Loading Cached Index" in operation:
-                    cache_indicator = " 🚀 (CACHED!)"
-                elif "Document Embedding & Indexing" in operation:
-                    cache_indicator = " 💾 (will be cached)"
-                print(f"   • {operation}: {duration:.3f}s ({percentage:.1f}%){cache_indicator}")
+                if isinstance(duration, (int, float)) and duration > 0:
+                    percentage = (duration / total_time) * 100
+                    print(f"   • {operation}: {duration:.3f}s ({percentage:.1f}%)")
+        else:
+            print("   • No detailed timing data available")
         
         # Query performance
         if query_times:
-            avg_query_time = sum(query_times) / len(query_times)
-            print(f"\n⚡ Average Query Time: {avg_query_time:.3f}s")
-            print(f"🔥 Queries per Second: {1/avg_query_time:.2f}")
+            total_query_time = sum(query_times)
+            avg_query_time = total_query_time / len(query_times)
+            min_query_time = min(query_times)
+            max_query_time = max(query_times)
+            
+            print(f"\n⚡ Query Performance:")
+            print(f"   • Total Queries: {len(query_times)}")
+            print(f"   • Total Query Time: {total_query_time:.3f}s")
+            print(f"   • Average Query Time: {avg_query_time:.3f}s")
+            print(f"   • Fastest Query: {min_query_time:.3f}s")
+            print(f"   • Slowest Query: {max_query_time:.3f}s")
+            print(f"   • Queries per Second: {1/avg_query_time:.2f}")
+        else:
+            print(f"\n⚡ Query Performance: No queries executed")
         
         # Hardware info
         print(f"\n🖥️  Hardware Information:")
@@ -156,10 +163,38 @@ class RAGTestRunner:
         print(f"   • Embedding Model: {type(self.config.embedding_model).__name__}")
         print(f"   • Chunk Size: {self.config.chunk_size}")
         print(f"   • Chunk Overlap: {self.config.chunk_overlap}")
+        
+        # Performance insights
+        print(f"\n💡 Performance Insights:")
+        if operations_dict:
+            indexing_time = operations_dict.get("Document Indexing/Loading", 0)
+            query_time = operations_dict.get("Query Processing", 0)
+            
+            if indexing_time > 0 and query_time > 0:
+                ratio = indexing_time / query_time
+                print(f"   • Index/Query time ratio: {ratio:.1f}:1")
+                if ratio > 10:
+                    print(f"   • 🔍 Index creation dominates - consider caching")
+                elif ratio < 2:
+                    print(f"   • ⚡ Well-balanced performance")
+            
+            if query_times and len(query_times) > 1:
+                query_avg = sum(query_times) / len(query_times)
+                variance = sum((t - query_avg)**2 for t in query_times) / len(query_times)
+                std_dev = variance ** 0.5
+                if std_dev / query_avg > 0.5:
+                    print(f"   • ⚠️  High query time variability (std: {std_dev:.3f}s)")
+                else:
+                    print(f"   • ✅ Consistent query performance")
+        else:
+            print(f"   • No performance data available for analysis")
     
     async def run_test_async(self) -> None:
         """Run the complete test asynchronously."""
         self.print_system_info()
+        
+        # Start timing for index creation/loading
+        self.perf_monitor.start_timing("Document Indexing/Loading")
         
         # Run queries - organized by document for easy commenting
         queries = []
@@ -250,12 +285,30 @@ class RAGTestRunner:
         # queries = trykaa_queries[:3]  # Test only first 3 Trykaa queries
         # queries = ai_agents_queries[:3]  # Test only first 3 AI agent queries
         
+        # Get the index (this is where most of the time is spent on first run)
         index = await self.rag_service.get_query_index(self.test_docs_dir)
+        
+        # End timing for index creation/loading
+        index_time = self.perf_monitor.end_timing("Document Indexing/Loading")
+        
+        # Start timing for query processing
+        self.perf_monitor.start_timing("Query Processing")
+        
         query_times = []
         for i, query in enumerate(queries, 1):
+            # Time individual query
+            query_start = time.time()
+            
             query_results : List[QueryWithResult] = await self.rag_service.get_query_results_from_index(index, [query])
+            
+            query_end = time.time()
+            individual_query_time = query_end - query_start
+            query_times.append(individual_query_time)
+            
             print(f"Query {i}: {query}")
             print(f"Query Result: {query_results[0].result}")
+            print(f"⏱️  Query Time: {individual_query_time:.3f}s")
+            
             if hasattr(query_results[0].result, 'source_nodes') and query_results[0].result.source_nodes:
                 print(f"📚 Sources ({len(query_results[0].result.source_nodes)} found):")
                 for j, node in enumerate(query_results[0].result.source_nodes[:3], 1):
@@ -265,8 +318,12 @@ class RAGTestRunner:
             else:
                 print("📚 No sources found")
             print("-" * 60)
-            query_times.append(query_results[0].query_time)
+            
+        # End timing for query processing
+        self.perf_monitor.end_timing("Query Processing")
+        
         self.print_performance_summary(query_times)
+
 def main():
     """Main function - runs async test when executed directly."""
     excluded_patterns = [
