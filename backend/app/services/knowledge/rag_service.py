@@ -135,6 +135,34 @@ class RAGService:
         
         return index
     
+    async def run_single_query_async(self, index: VectorStoreIndex, query: str) -> QueryWithResult:
+        """Run a single query asynchronously."""
+        logger.info(f"Running single query: {query}")
+        
+        # Create query engine
+        logger.info(f"Creating query engine with similarity_top_k: {self.config.similarity_top_k}")
+        query_engine = index.as_query_engine(
+            similarity_top_k=self.config.similarity_top_k,
+            response_mode="tree_summarize",
+            verbose=True
+        )
+        logger.info("Query engine created successfully")
+        
+        logger.info(f"Processing query: {query}")
+        start_time = time.time()
+        
+        response = await query_engine.aquery(query)
+        query_time = time.time() - start_time
+        
+        logger.info(f"Query {query} completed in {query_time:.3f}s")
+        
+        if hasattr(response, 'source_nodes') and response.source_nodes:
+            logger.info(f"Found {len(response.source_nodes)} source nodes for query {query}")
+        else:
+            logger.info(f"No source nodes found for query {query}")
+            
+        return QueryWithResult(query, response, response.source_nodes, query_time)
+    
     async def run_queries_async(self, index: VectorStoreIndex, queries: List[str]) -> List[QueryWithResult]:
         """Run queries asynchronously but sequentially for clean output."""
         logger.info(f"Starting query processing for {len(queries)} queries")
