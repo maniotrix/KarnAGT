@@ -113,6 +113,11 @@ class StorageBackend(ABC):
     def get_s3_path(self, key: str) -> str:
         """Get S3 path format for s3fs and similar libraries"""
         pass
+    
+    @abstractmethod
+    def clear_bucket(self, bucket_name: str) -> bool:
+        """Clear bucket of all files"""
+        pass
 
 class S3StorageBackend(StorageBackend):
     """S3-compatible storage backend (MinIO/AWS S3)"""
@@ -132,6 +137,48 @@ class S3StorageBackend(StorageBackend):
             config=Config(signature_version='s3v4'),
             region_name=self.region
         )
+        
+    def clear_bucket(self, bucket_name: str) -> bool:
+        """Clear bucket of all files"""
+        try:
+            # List all objects in the bucket
+            response = self.s3_client.list_objects_v2(Bucket=bucket_name)
+            
+            if 'Contents' not in response:
+                logger.info(f"Bucket {bucket_name} is already empty")
+                return True
+            
+            # Delete all objects in batches
+            while True:
+                # Get up to 1000 objects
+                objects_to_delete = []
+                for obj in response.get('Contents', []):
+                    objects_to_delete.append({'Key': obj['Key']})
+                
+                if not objects_to_delete:
+                    break
+                
+                # Delete the batch
+                self.s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': objects_to_delete}
+                )
+                
+                # Check if there are more objects
+                if not response.get('IsTruncated', False):
+                    break
+                
+                # Get next batch
+                response = self.s3_client.list_objects_v2(
+                    Bucket=bucket_name,
+                    ContinuationToken=response['NextContinuationToken']
+                )
+            
+            logger.info(f"Cleared all files from bucket: {bucket_name}")
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to clear bucket {bucket_name}: {e}")
+            return False
     
     async def ensure_bucket_exists(self):
         """Ensure the bucket exists, create it if it doesn't"""
