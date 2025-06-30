@@ -142,6 +142,93 @@ async def test_s3_file_doc_loading():
     # print(f"Cleared temp directory: {TEMP_DIR}")
     
     
+async def test_temp_directory_cleanup():
+    """Test that temporary directories are properly cleaned up after document processing."""
+    print("\n=== Testing Temp Directory Cleanup ===")
+    
+    rag_config = RAGConfig(s3_bucket_name="test-rag-bucket")
+    
+    # Upload test file to S3 (same as before)
+    test_docs_dir = os.path.join(backend_dir, "test_docs")
+    test_docs_file_name = "PRY NDLS 20 June.pdf"
+    test_docs_file = os.path.join(test_docs_dir, test_docs_file_name)
+    
+    file_id = generate_file_id()
+    s3_key = generate_storage_key(file_id, test_docs_file_name)
+    s3_storage_backend = S3StorageBackend(bucket_name=rag_config.s3_bucket_name)
+    
+    # Clear bucket and upload file
+    await s3_storage_backend.ensure_bucket_exists()
+    s3_storage_backend.clear_bucket(rag_config.s3_bucket_name)
+    content_type = get_content_type(test_docs_file)
+    await s3_storage_backend.upload_file_direct(test_docs_file, s3_key, content_type)
+    
+    # Track temp directories before processing
+    temp_dir_before = []
+    try:
+        import tempfile
+        temp_root = tempfile.gettempdir()
+        print(f"System temp directory: {temp_root}")
+        
+        # List any existing s3_docs directories before our test
+        import glob
+        existing_s3_dirs = glob.glob(os.path.join(temp_root, "s3_docs_*"))
+        print(f"Existing S3 temp directories before test: {len(existing_s3_dirs)}")
+        temp_dir_before = existing_s3_dirs.copy()
+        
+        # Load documents - this will create and cleanup temp directory
+        rag_service = RAGService(RAGConfig())
+        documents = await rag_service.load_s3_files_async(rag_config.s3_bucket_name, [s3_key])
+        
+        # Check if any new temp directories remain after processing
+        existing_s3_dirs_after = glob.glob(os.path.join(temp_root, "s3_docs_*"))
+        new_temp_dirs = [d for d in existing_s3_dirs_after if d not in temp_dir_before]
+        
+        print(f"✅ Documents loaded: {len(documents)}")
+        print(f"✅ S3 temp directories before: {len(temp_dir_before)}")
+        print(f"✅ S3 temp directories after: {len(existing_s3_dirs_after)}")
+        print(f"✅ New temp directories remaining: {len(new_temp_dirs)}")
+        
+        if len(new_temp_dirs) == 0:
+            print("🎉 SUCCESS: All temporary directories were properly cleaned up!")
+        else:
+            print(f"⚠️  WARNING: {len(new_temp_dirs)} temp directories remain: {new_temp_dirs}")
+            
+        # Verify document metadata shows original temp path
+        if documents:
+            first_doc = documents[0]
+            if 'file_path' in first_doc.metadata:
+                temp_path = first_doc.metadata['file_path']
+                print(f"📁 Document was processed from: {temp_path}")
+                print(f"📁 Temp directory existed during processing: {os.path.dirname(temp_path)}")
+                
+                # Check if that specific directory still exists
+                temp_dir_used = os.path.dirname(temp_path)
+                if os.path.exists(temp_dir_used):
+                    print(f"❌ ERROR: Temp directory still exists: {temp_dir_used}")
+                else:
+                    print(f"✅ SUCCESS: Temp directory was cleaned up: {temp_dir_used}")
+    
+    finally:
+        # Cleanup S3
+        await s3_storage_backend.delete_file(s3_key)
+        print(f"🧹 Cleaned up S3 file: {s3_key}")
+
 if __name__ == "__main__":
-    asyncio.run(test_s3_file_doc_loading())
+    import asyncio
+    
+    async def run_all_tests():
+        print("🚀 Running S3 Document Loading Tests")
+        print("=" * 50)
+        
+        # Test 1: Original document loading test
+        await test_s3_file_doc_loading()
+        
+        # Test 2: Temp directory cleanup verification
+        await test_temp_directory_cleanup()
+        
+        print("\n" + "=" * 50)
+        print("✅ All tests completed!")
+    
+    asyncio.run(run_all_tests())
     
