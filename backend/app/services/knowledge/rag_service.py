@@ -1,7 +1,7 @@
 from llama_index.core import VectorStoreIndex, Document, Settings, StorageContext
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.vector_stores.qdrant import QdrantVectorStore
-from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.vector_stores.qdrant import QdrantVectorStore # type: ignore
+from llama_index.embeddings.openai import OpenAIEmbedding # type: ignore
 from llama_index.llms.openai import OpenAI
 from llama_index.core.readers.base import BaseReader
 from app.utils.CustomPptxReader import OpenAIPptxReader
@@ -12,11 +12,10 @@ import time
 import logging
 from dataclasses import dataclass
 
-from app.services.knowledge.config import RAGConfig
+from app.services.knowledge.config import QdrantConfig, RAGConfig
 
 # Setup logging
 logger = logging.getLogger(__name__)
-
 @dataclass
 class QueryWithResult:
     query: str
@@ -66,26 +65,22 @@ class RAGService:
         
         return documents
     
-    async def setup_vector_store(self) -> StorageContext:
+    async def setup_vector_store(self, qdrant_config: QdrantConfig) -> StorageContext:
         """Setup vector store with Qdrant server (production setup)."""
         logger.info("Setting up Qdrant vector store")
         print("📝 Using Qdrant server (production-ready setup)...")
         
-        # Use Qdrant server for production-ready setup (fixes "text-dense" error)
-        from qdrant_client.models import Distance, VectorParams
-        
         # Create both sync and async clients for LlamaIndex compatibility
         logger.info("Creating Qdrant clients (sync and async)")
-        client = QdrantClient(host="localhost", port=6333)
-        aclient = AsyncQdrantClient(host="localhost", port=6333)
+        client = QdrantClient(url=qdrant_config.url)
+        aclient = AsyncQdrantClient(url=qdrant_config.url)
         
-        collection_name = "rag_collection"
-        logger.info(f"Using collection name: {collection_name}")
+        logger.info(f"Using collection name: {qdrant_config.collection_name}")
         
         # Create collection with proper schema to avoid "text-dense" error
         try:
             logger.info("Attempting to delete existing collection")
-            await aclient.delete_collection(collection_name)
+            await aclient.delete_collection(qdrant_config.collection_name)
             logger.info("Successfully deleted existing collection")
             print("🗑️ Cleaned existing collection")
         except Exception as e:
@@ -94,12 +89,12 @@ class RAGService:
         
         # Create collection with proper vector configuration
         logger.info("Creating new collection with vector configuration")
+        
+        logger.info(f"Using Qdrant config: {qdrant_config}")
+        
         await aclient.create_collection(
-            collection_name=collection_name,
-            vectors_config=VectorParams(
-                size=1536,  # OpenAI text-embedding-ada-002 dimensions
-                distance=Distance.COSINE
-            )
+            collection_name=qdrant_config.collection_name,
+            vectors_config=qdrant_config.vectors_config
         )
         logger.info("Collection created successfully")
         print("✅ Collection created with proper vector schema")
@@ -108,7 +103,7 @@ class RAGService:
         vector_store = QdrantVectorStore(
             client=client, 
             aclient=aclient, 
-            collection_name=collection_name,
+            collection_name=qdrant_config.collection_name,
             enable_hybrid=False  # Disable for better performance
         )
         
@@ -176,22 +171,22 @@ class RAGService:
         return query_with_results
     
     
-    async def get_query_index(self, docs_dir: str) -> VectorStoreIndex:
+    async def get_query_index(self, docs_dir: str, qdrant_config: QdrantConfig) -> VectorStoreIndex:
         """Get the query index asynchronously."""
         logger.info(f"Getting query index for {docs_dir}")
         docs = await self.load_documents_async(docs_dir)
         
         logger.info(f"Loaded {len(docs)} documents")
-        storage_context = await self.setup_vector_store()
+        storage_context = await self.setup_vector_store(qdrant_config)
         
         logger.info("Vector store setup completed successfully")
         index = self.create_index(storage_context, docs)
         logger.info("Index created successfully")
         return index
     
-    async def get_query_results(self, docs_dir: str, queries: List[str]) -> List[QueryWithResult]:
+    async def get_query_results(self, docs_dir: str, queries: List[str], qdrant_config: QdrantConfig) -> List[QueryWithResult]:
         """Get query results asynchronously."""
-        index = await self.get_query_index(docs_dir)
+        index = await self.get_query_index(docs_dir, qdrant_config)
         logger.info(f"Running {len(queries)} queries")
         return await self.run_queries_async(index, queries)
     
