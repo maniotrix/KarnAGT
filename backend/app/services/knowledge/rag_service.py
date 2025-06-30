@@ -6,8 +6,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.core.readers.base import BaseReader
 from app.utils.CustomPptxReader import OpenAIPptxReader
 from qdrant_client import QdrantClient, AsyncQdrantClient
-from qdrant_client.models import Distance, VectorParams
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import time
 import logging
 from dataclasses import dataclass
