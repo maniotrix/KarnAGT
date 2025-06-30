@@ -118,6 +118,21 @@ class StorageBackend(ABC):
     def clear_bucket(self, bucket_name: str) -> bool:
         """Clear bucket of all files"""
         pass
+    
+    @abstractmethod
+    def clear_directory(self, bucket_name: str, directory_prefix: str) -> bool:
+        """Clear all files in a specific directory (prefix)"""
+        pass
+    
+    @abstractmethod
+    async def download_file(self, key: str, local_path: str) -> bool:
+        """Download a single file from storage to local path"""
+        pass
+    
+    @abstractmethod
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> bool:
+        """Download all files from a directory (prefix) to local directory"""
+        pass
 
 class S3StorageBackend(StorageBackend):
     """S3-compatible storage backend (MinIO/AWS S3)"""
@@ -179,7 +194,142 @@ class S3StorageBackend(StorageBackend):
         except ClientError as e:
             logger.error(f"Failed to clear bucket {bucket_name}: {e}")
             return False
+
+    def clear_directory(self, bucket_name: str, directory_prefix: str) -> bool:
+        """Clear all files in a specific directory (prefix)"""
+        try:
+            # Add trailing slash if not present to ensure we're targeting a directory
+            if not directory_prefix.endswith('/'):
+                directory_prefix += '/'
+            
+            # List all objects with this prefix
+            response = self.s3_client.list_objects_v2(
+                Bucket=bucket_name,
+                Prefix=directory_prefix
+            )
+            
+            if 'Contents' not in response:
+                logger.info(f"Directory {directory_prefix} is already empty")
+                return True
+            
+            # Delete objects in batches
+            while True:
+                objects_to_delete = []
+                for obj in response.get('Contents', []):
+                    objects_to_delete.append({'Key': obj['Key']})
+                
+                if not objects_to_delete:
+                    break
+                
+                # Delete the batch (max 1000 objects per request)
+                self.s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': objects_to_delete}
+                )
+                
+                # Check if there are more objects
+                if not response.get('IsTruncated', False):
+                    break
+                
+                # Get next batch
+                response = self.s3_client.list_objects_v2(
+                    Bucket=bucket_name,
+                    Prefix=directory_prefix,
+                    ContinuationToken=response['NextContinuationToken']
+                )
+            
+            logger.info(f"Cleared directory: {directory_prefix}")
+            return True
+            
+        except ClientError as e:
+            logger.error(f"Failed to clear directory {directory_prefix}: {e}")
+            return False
     
+    async def download_file(self, key: str, local_path: str) -> bool:
+        """Download a single file from S3/MinIO to local path"""
+        try:
+            # Ensure local directory exists
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            
+            # Download file
+            self.s3_client.download_file(self.bucket_name, key, local_path)
+            logger.info(f"Downloaded file: {key} -> {local_path}")
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to download file {key}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to download file {key}: {e}")
+            return False
+    
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> bool:
+        """Download all files from a directory (prefix) to local directory"""
+        try:
+            # Add trailing slash if not present
+            if not directory_prefix.endswith('/'):
+                directory_prefix += '/'
+            
+            # Ensure local directory exists
+            os.makedirs(local_dir, exist_ok=True)
+            
+            downloaded_count = 0
+            
+            # List all objects with this prefix
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix=directory_prefix
+            )
+            
+            if 'Contents' not in response:
+                logger.info(f"No files found in directory: {directory_prefix}")
+                return True
+            
+            # Download files in batches
+            while True:
+                for obj in response.get('Contents', []):
+                    s3_key = obj['Key']
+                    
+                    # Skip directories (keys ending with /)
+                    if s3_key.endswith('/'):
+                        continue
+                    
+                    # Create relative path for local file
+                    relative_path = s3_key[len(directory_prefix):]  # Remove prefix
+                    local_file_path = os.path.join(local_dir, relative_path)
+                    
+                    # Ensure subdirectories exist
+                    os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+                    
+                    # Download file
+                    try:
+                        self.s3_client.download_file(self.bucket_name, s3_key, local_file_path)
+                        downloaded_count += 1
+                        logger.info(f"Downloaded: {s3_key} -> {local_file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to download file {s3_key}: {e}")
+                        continue
+                
+                # Check if there are more objects
+                if not response.get('IsTruncated', False):
+                    break
+                
+                # Get next batch
+                response = self.s3_client.list_objects_v2(
+                    Bucket=self.bucket_name,
+                    Prefix=directory_prefix,
+                    ContinuationToken=response['NextContinuationToken']
+                )
+            
+            logger.info(f"Downloaded {downloaded_count} files from directory: {directory_prefix}")
+            return True
+            
+        except ClientError as e:
+            logger.error(f"Failed to download directory {directory_prefix}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to download directory {directory_prefix}: {e}")
+            return False
+     
     async def ensure_bucket_exists(self):
         """Ensure the bucket exists, create it if it doesn't"""
         try:
@@ -526,6 +676,18 @@ class ImageStorageService:
     async def delete_image(self, s3_key: str) -> bool:
         """Delete image from storage"""
         return await self.storage.delete_file(s3_key)
+    
+    def clear_directory(self, directory_prefix: str) -> bool:
+        """Clear all files in a specific directory"""
+        return self.storage.clear_directory(self.storage.bucket_name, directory_prefix)
+    
+    async def download_file(self, s3_key: str, local_path: str) -> bool:
+        """Download a single file from storage to local path"""
+        return await self.storage.download_file(s3_key, local_path)
+    
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> bool:
+        """Download all files from a directory to local directory"""
+        return await self.storage.download_directory(directory_prefix, local_dir)
     
     async def get_presigned_url(self, s3_key: str, expire_seconds: int = 3600) -> str:
         """Get presigned URL for secure access"""
