@@ -4,6 +4,7 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore # type: ignore
 from llama_index.embeddings.openai import OpenAIEmbedding # type: ignore
 from llama_index.llms.openai import OpenAI
 from llama_index.core.readers.base import BaseReader
+from llama_index.core import SimpleDirectoryReader
 from app.utils.CustomPptxReader import OpenAIPptxReader
 from qdrant_client import QdrantClient, AsyncQdrantClient
 from typing import List, Dict, Any
@@ -12,6 +13,7 @@ import logging
 from dataclasses import dataclass
 
 from app.services.knowledge.config import QdrantConfig, RAGConfig
+from app.core.config import settings
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -34,22 +36,30 @@ class RAGService:
         Settings.llm = OpenAI(model=self.config.llm_model)
         Settings.embed_model = OpenAIEmbedding()
         
-    async def load_documents_async(self, docs_dir: str) -> List[Document]:
-        """Load documents asynchronously."""
-        from llama_index.core import SimpleDirectoryReader
         
-        logger.info(f"Starting document loading from directory: {docs_dir}")
-        print("📄 Creating new document reader...")
-        
-        logger.info("Setting up custom PPTX reader with config")
+    def get_file_extractor(self) -> Dict[str, BaseReader]:
+        """Get file extractor for the RAG service."""
         pptx_reader = OpenAIPptxReader(enable_logging=self.config.enable_logging, 
                                         model_name=self.config.llm_model, 
                                         enable_delay=self.config.enable_delay, 
                                         delay_seconds=self.config.delay_seconds)
+        
         file_extractor: Dict[str, BaseReader] = {
             ".pptx": pptx_reader,
             ".ppt": pptx_reader
         }
+        
+        logger.info("Successfully set up file extractor with pptx reader.")
+        
+        return file_extractor
+        
+    async def load_dir_documents_async(self, docs_dir: str) -> List[Document]:
+        """Load documents asynchronously."""
+        
+        logger.info(f"Starting document loading from directory: {docs_dir}")
+        print("📄 Creating new document reader...")
+        
+        file_extractor: Dict[str, BaseReader] = self.get_file_extractor()
         
         logger.info(f"Creating SimpleDirectoryReader with {self.config.num_workers} workers")
         reader = SimpleDirectoryReader(
@@ -59,7 +69,57 @@ class RAGService:
         )
         
         logger.info("Loading documents asynchronously...")
-        documents = await reader.aload_data(show_progress=True, num_workers=self.config.num_workers)
+        documents = await reader.aload_data(show_progress=self.config.show_progress, 
+                                            num_workers=self.config.num_workers)
+        logger.info(f"Successfully loaded {len(documents)} documents")
+        
+        return documents
+    
+    async def load_s3_documents_async(self, s3_path: str) -> List[Document]:
+        """Load documents from S3 asynchronously."""        
+        logger.info(f"Starting document loading from S3 path: {s3_path}")
+        print("📄 Creating new document reader...")
+        
+        from s3fs import S3FileSystem # type: ignore
+
+        # Create the filesystem using s3fs with proper endpoint configuration
+        s3fs_config = {
+            'anon': False,
+            'key': settings.S3_ACCESS_KEY_ID,
+            'secret': settings.S3_SECRET_ACCESS_KEY,
+            'cache_regions': False
+        }
+        
+        # Add endpoint URL for MinIO or custom S3 endpoints
+        if settings.S3_ENDPOINT_URL:
+            s3fs_config['endpoint_url'] = settings.S3_ENDPOINT_URL
+            logger.info(f"Using custom S3 endpoint: {settings.S3_ENDPOINT_URL}")
+        
+        s3_fs = S3FileSystem(**s3fs_config)
+
+        # Convert S3 path for s3fs usage
+        # Input: "s3://bucket/path/file.pdf" or just "bucket/path/file.pdf"
+        if s3_path.startswith('s3://'):
+            # Remove s3:// prefix: "s3://bucket/path/file.pdf" -> "bucket/path/file.pdf"
+            s3fs_path = s3_path[5:]
+        else:
+            s3fs_path = s3_path
+            
+        logger.info(f"S3FS path: {s3fs_path}")
+
+        # Initialize the SimpleDirectoryReader with the required parameters
+        reader = SimpleDirectoryReader(
+            input_files=[s3fs_path],
+            fs=s3_fs,
+            recursive=True,  # Recursively searches all subdirectories
+            filename_as_id=True,
+            file_extractor=self.get_file_extractor(),
+            exclude=self.config.exclude_patterns
+        )
+        
+        logger.info("Loading documents asynchronously...")
+        documents = await reader.aload_data(show_progress=self.config.show_progress, 
+                                            num_workers=self.config.num_workers)
         logger.info(f"Successfully loaded {len(documents)} documents")
         
         return documents
@@ -128,7 +188,7 @@ class RAGService:
             documents=docs,
             storage_context=storage_context,
             transformations=[node_parser],
-            show_progress=True
+            show_progress=self.config.show_progress
         )
         logger.info("Vector index created successfully")
         
@@ -201,7 +261,7 @@ class RAGService:
     async def get_query_index(self, docs_dir: str, qdrant_config: QdrantConfig) -> VectorStoreIndex:
         """Get the query index asynchronously."""
         logger.info(f"Getting query index for {docs_dir}")
-        docs = await self.load_documents_async(docs_dir)
+        docs = await self.load_dir_documents_async(docs_dir)
         
         logger.info(f"Loaded {len(docs)} documents")
         storage_context = await self.setup_vector_store(qdrant_config)

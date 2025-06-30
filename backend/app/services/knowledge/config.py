@@ -592,3 +592,7 @@ class RAGConfig:
     # Rate limiting and delays
     enable_delay: bool = True
     delay_seconds: int = 2
+    
+    show_progress: bool = True
+    
+    s3_bucket_name: str = "rag-files"
