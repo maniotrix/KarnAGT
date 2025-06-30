@@ -16,6 +16,8 @@ from app.services.knowledge.config import RAGConfig
 from app.services.storage.storage import S3StorageBackend, get_content_type
 
 load_dotenv()
+TEMP_DIR = os.path.join(current_dir, "tmp")
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 def generate_file_id() -> str:
     """Generate unique file ID"""
@@ -34,9 +36,29 @@ def extract_directory_from_s3_key(s3_key: str) -> str:
     path_parts = s3_key.split("/")
     return "/".join(path_parts[:-1])  # All parts except the last (filename)
 
+async def download_file_from_s3(bucket_name: str, s3_key: str):
+    """Download a file from S3 to a local temp path"""
+    s3_storage_backend = S3StorageBackend(bucket_name=bucket_name)
+    
+    # Extract filename from S3 key
+    filename = os.path.basename(s3_key)
+    local_file_path = os.path.join(TEMP_DIR, filename)
+    
+    downloaded_file_path = await s3_storage_backend.download_file(s3_key, local_file_path)
+    if downloaded_file_path is None:
+        raise Exception(f"Failed to download file {s3_key} to {local_file_path}")
+    return downloaded_file_path
+
+async def clear_temp_dir():
+    """Clear the temp directory"""
+    import shutil
+    shutil.rmtree(TEMP_DIR)
+    os.makedirs(TEMP_DIR, exist_ok=True)
+
 async def test_s3_file_doc_loading():
+    await clear_temp_dir()
     """Test loading documents from S3."""
-    rag_config = RAGConfig()
+    rag_config = RAGConfig(s3_bucket_name="test-rag-bucket")
     # upload test files to s3
     test_docs_dir = os.path.join(backend_dir, "test_docs")
     test_docs_file_name = "PRY NDLS 20 June.pdf"
@@ -90,9 +112,18 @@ async def test_s3_file_doc_loading():
     input_dir = f"{rag_config.s3_bucket_name}/{directory_path}"
     print(f"Input directory for SimpleDirectoryReader: {input_dir}")
     
+    # try:
+    #     # download the file from s3
+    #     downloaded_file_path = await download_file_from_s3(rag_config.s3_bucket_name, s3_key)
+    #     print(f"Downloaded file path: {downloaded_file_path}")
+    # except Exception as e:
+    #     print(f"Error downloading file from S3: {e}")
+    
+    
+    
     documents = []
     try:
-        documents = await rag_service.load_s3_file_async(s3_key)
+        documents = await rag_service.load_s3_files_async(rag_config.s3_bucket_name, [s3_key])
     except Exception as e:
         import traceback
         print(f"Error loading documents from S3: {e}")
@@ -105,6 +136,10 @@ async def test_s3_file_doc_loading():
     # finally delete the file from s3
     await s3_storage_backend.delete_file(s3_key)
     print(f"Deleted file from S3 with key: {s3_key}")
+    
+    # # clear the temp directory
+    # await clear_temp_dir()
+    # print(f"Cleared temp directory: {TEMP_DIR}")
     
     
 if __name__ == "__main__":

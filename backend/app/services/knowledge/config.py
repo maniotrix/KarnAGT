@@ -577,6 +577,7 @@ class RAGConfig:
     # Performance settings
     enable_logging: bool = True
     enable_hybrid_search: bool = False
+    max_concurrent_downloads: int = 5  # Maximum concurrent S3 downloads
     
     # Query settings
     response_mode: str = "tree_summarize"

@@ -13,7 +13,9 @@ import logging
 from dataclasses import dataclass
 
 from app.services.knowledge.config import QdrantConfig, RAGConfig
-from app.core.config import settings
+from app.services.storage.storage import S3StorageBackend
+from app.services.knowledge.s3_directory_reader import S3DirectoryReader
+
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -75,13 +77,27 @@ class RAGService:
         
         return documents
     
-    async def load_s3_file_async(self, s3_key: str) -> List[Document]:
-        """Load documents from S3 asynchronously."""        
-        raise NotImplementedError("This method is not implemented")
-    
-    async def load_s3_dir_async(self, s3_dir: str) -> List[Document]:
-        """Load documents from S3 asynchronously."""        
-        raise NotImplementedError("This method is not implemented")
+    async def load_s3_files_async(self, s3_bucket_name: str, s3_keys: List[str]) -> List[Document]:
+        """Load documents from S3 asynchronously with optimized resource management."""
+        
+        # Create reusable storage backend
+        storage_backend = S3StorageBackend(bucket_name=s3_bucket_name)
+        
+        # Create S3 directory reader with configuration
+        s3_reader = S3DirectoryReader(
+            storage_backend=storage_backend,
+            max_concurrent_downloads=self.config.max_concurrent_downloads
+        )
+        
+        documents = await s3_reader.load_documents_from_s3_keys(
+            s3_keys=s3_keys,
+            file_extractor=self.get_file_extractor(),
+            exclude_patterns=self.config.exclude_patterns,
+            num_workers=self.config.num_workers,
+            show_progress=self.config.show_progress,
+            add_s3_metadata=True
+        )
+        return documents
     
     async def setup_vector_store(self, qdrant_config: QdrantConfig) -> StorageContext:
         """Setup vector store with Qdrant server (production setup)."""

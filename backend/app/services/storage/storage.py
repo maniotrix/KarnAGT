@@ -304,10 +304,18 @@ class S3StorageBackend(StorageBackend):
                     
                     # Create relative path for local file
                     relative_path = s3_key[len(directory_prefix):]  # Remove prefix
+                    
+                    # Validate relative path
+                    if not relative_path or relative_path.startswith('/'):
+                        logger.warning(f"Invalid relative path '{relative_path}' for S3 key '{s3_key}', skipping")
+                        continue
+                    
                     local_file_path = os.path.join(local_dir, relative_path)
                     
-                    # Ensure subdirectories exist
-                    os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+                    # Ensure subdirectories exist (only if there are subdirectories)
+                    local_file_dir = os.path.dirname(local_file_path)
+                    if local_file_dir != local_dir:  # Only create if it's a subdirectory
+                        os.makedirs(local_file_dir, exist_ok=True)
                     
                     # Download file
                     try:
@@ -339,8 +347,8 @@ class S3StorageBackend(StorageBackend):
             logger.error(f"Failed to download directory {directory_prefix}: {e}")
             return {"directory": local_dir, "files": []}
     
-    async def download_multiple_files(self, keys: List[str], local_dir: str) -> Dict[str, Any]:
-        """Download multiple specific files by S3 keys to local directory"""
+    async def download_multiple_files(self, keys: List[str], local_dir: str, max_concurrent: int = 5) -> Dict[str, Any]:
+        """Download multiple specific files by S3 keys to local directory with concurrency control"""
         try:
             # Ensure local directory exists
             os.makedirs(local_dir, exist_ok=True)
@@ -348,37 +356,54 @@ class S3StorageBackend(StorageBackend):
             downloaded_files = []
             failed_keys = []
             
-            logger.info(f"Starting download of {len(keys)} files to {local_dir}")
+            logger.info(f"Starting concurrent download of {len(keys)} files to {local_dir} (max concurrent: {max_concurrent})")
             
-            for s3_key in keys:
-                try:
-                    # Extract filename from S3 key
-                    filename = os.path.basename(s3_key)
-                    if not filename:  # Handle keys ending with /
-                        filename = f"file_{uuid.uuid4().hex[:8]}"
-                    
-                    # Create local file path
-                    local_file_path = os.path.join(local_dir, filename)
-                    
-                    # Handle duplicate filenames by adding suffix
-                    if os.path.exists(local_file_path):
-                        name, ext = os.path.splitext(filename)
-                        counter = 1
-                        while os.path.exists(local_file_path):
-                            local_file_path = os.path.join(local_dir, f"{name}_{counter}{ext}")
-                            counter += 1
-                    
-                    # Download file
-                    self.s3_client.download_file(self.bucket_name, s3_key, local_file_path)
-                    downloaded_files.append(local_file_path)
-                    logger.info(f"Downloaded: {s3_key} -> {local_file_path}")
-                    
-                except Exception as e:
-                    failed_keys.append(s3_key)
-                    logger.error(f"Failed to download {s3_key}: {e}")
-                    continue
+            # Use semaphore for concurrency control
+            semaphore = asyncio.Semaphore(max_concurrent)
             
-            result = {
+            async def download_single_file(s3_key: str) -> Dict[str, Any]:
+                async with semaphore:
+                    try:
+                        # Extract filename from S3 key
+                        filename = os.path.basename(s3_key)
+                        if not filename:  # Handle keys ending with /
+                            filename = f"file_{uuid.uuid4().hex[:8]}"
+                        
+                        # Create local file path
+                        local_file_path = os.path.join(local_dir, filename)
+                        
+                        # Handle duplicate filenames by adding suffix
+                        if os.path.exists(local_file_path):
+                            name, ext = os.path.splitext(filename)
+                            counter = 1
+                            while os.path.exists(local_file_path):
+                                local_file_path = os.path.join(local_dir, f"{name}_{counter}{ext}")
+                                counter += 1
+                        
+                        # Download file (use await to make it async-compatible)
+                        result = await self.download_file(s3_key, local_file_path)
+                        if result:
+                            return {"success": True, "s3_key": s3_key, "local_path": result}
+                        else:
+                            return {"success": False, "s3_key": s3_key, "error": "Download failed"}
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to download {s3_key}: {e}")
+                        return {"success": False, "s3_key": s3_key, "error": str(e)}
+            
+            # Execute downloads concurrently
+            results = await asyncio.gather(*[download_single_file(key) for key in keys])
+            
+            # Process results
+            for result in results:
+                if result["success"]:
+                    downloaded_files.append(result["local_path"])
+                    logger.info(f"Downloaded: {result['s3_key']} -> {result['local_path']}")
+                else:
+                    failed_keys.append(result["s3_key"])
+                    logger.error(f"Failed to download {result['s3_key']}: {result.get('error', 'Unknown error')}")
+            
+            result_dict = {
                 "directory": local_dir,
                 "files": downloaded_files,
                 "failed_keys": failed_keys,
@@ -387,8 +412,8 @@ class S3StorageBackend(StorageBackend):
                 "failed_count": len(failed_keys)
             }
             
-            logger.info(f"Download complete: {len(downloaded_files)}/{len(keys)} files successful")
-            return result
+            logger.info(f"Concurrent download complete: {len(downloaded_files)}/{len(keys)} files successful")
+            return result_dict
             
         except Exception as e:
             logger.error(f"Failed to download multiple files: {e}")
