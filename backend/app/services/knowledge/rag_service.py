@@ -75,54 +75,13 @@ class RAGService:
         
         return documents
     
-    async def load_s3_documents_async(self, s3_path: str) -> List[Document]:
+    async def load_s3_file_async(self, s3_key: str) -> List[Document]:
         """Load documents from S3 asynchronously."""        
-        logger.info(f"Starting document loading from S3 path: {s3_path}")
-        print("📄 Creating new document reader...")
-        
-        from s3fs import S3FileSystem # type: ignore
-
-        # Create the filesystem using s3fs with proper endpoint configuration
-        s3fs_config = {
-            'anon': False,
-            'key': settings.S3_ACCESS_KEY_ID,
-            'secret': settings.S3_SECRET_ACCESS_KEY,
-            'cache_regions': False
-        }
-        
-        # Add endpoint URL for MinIO or custom S3 endpoints
-        if settings.S3_ENDPOINT_URL:
-            s3fs_config['endpoint_url'] = settings.S3_ENDPOINT_URL
-            logger.info(f"Using custom S3 endpoint: {settings.S3_ENDPOINT_URL}")
-        
-        s3_fs = S3FileSystem(**s3fs_config)
-
-        # Convert S3 path for s3fs usage
-        # Input: "s3://bucket/path/file.pdf" or just "bucket/path/file.pdf"
-        if s3_path.startswith('s3://'):
-            # Remove s3:// prefix: "s3://bucket/path/file.pdf" -> "bucket/path/file.pdf"
-            s3fs_path = s3_path[5:]
-        else:
-            s3fs_path = s3_path
-            
-        logger.info(f"S3FS path: {s3fs_path}")
-
-        # Initialize the SimpleDirectoryReader with the required parameters
-        reader = SimpleDirectoryReader(
-            input_files=[s3fs_path],
-            fs=s3_fs,
-            recursive=True,  # Recursively searches all subdirectories
-            filename_as_id=True,
-            file_extractor=self.get_file_extractor(),
-            exclude=self.config.exclude_patterns
-        )
-        
-        logger.info("Loading documents asynchronously...")
-        documents = await reader.aload_data(show_progress=self.config.show_progress, 
-                                            num_workers=self.config.num_workers)
-        logger.info(f"Successfully loaded {len(documents)} documents")
-        
-        return documents
+        raise NotImplementedError("This method is not implemented")
+    
+    async def load_s3_dir_async(self, s3_dir: str) -> List[Document]:
+        """Load documents from S3 asynchronously."""        
+        raise NotImplementedError("This method is not implemented")
     
     async def setup_vector_store(self, qdrant_config: QdrantConfig) -> StorageContext:
         """Setup vector store with Qdrant server (production setup)."""

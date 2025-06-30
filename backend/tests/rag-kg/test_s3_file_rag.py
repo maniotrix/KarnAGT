@@ -19,13 +19,20 @@ load_dotenv()
 
 def generate_file_id() -> str:
     """Generate unique file ID"""
-    return f"img_{uuid.uuid4().hex[:8]}"
+    return f"file_{uuid.uuid4().hex[:8]}"
 
 def generate_storage_key( file_id: str, filename: str) -> str:
     """Generate S3 key for file storage"""
     date_prefix = datetime.now().strftime("%Y/%m/%d")
     file_extension = os.path.splitext(filename)[1].lower()
-    return f"images/{date_prefix}/{file_id}{file_extension}"
+    return f"files/{date_prefix}/{file_id}{file_extension}"
+
+def extract_directory_from_s3_key(s3_key: str) -> str:
+    """Extract directory path from S3 key (everything except the filename)"""
+    # s3_key = "files/2025/06/30/file_abc123.pdf" 
+    # returns = "files/2025/06/30"
+    path_parts = s3_key.split("/")
+    return "/".join(path_parts[:-1])  # All parts except the last (filename)
 
 async def test_s3_file_doc_loading():
     """Test loading documents from S3."""
@@ -40,11 +47,28 @@ async def test_s3_file_doc_loading():
     file_id = generate_file_id()
     s3_key = generate_storage_key(file_id, test_docs_file_name)
     s3_storage_backend = S3StorageBackend(bucket_name=rag_config.s3_bucket_name)
+    
+    # Clear bucket first (and ensure it exists)
+    print("Clearing and ensuring bucket exists...")
+    await s3_storage_backend.ensure_bucket_exists()
+    s3_storage_backend.clear_bucket(rag_config.s3_bucket_name)
+    
     content_type = get_content_type(test_docs_file)
     
     # upload file to s3
     print(f"Uploading file {test_docs_file} to S3 with key: {s3_key}...")
     await s3_storage_backend.upload_file_direct(test_docs_file, s3_key, content_type)
+    
+    # Verify file exists after upload
+    try:
+        response = s3_storage_backend.s3_client.head_object(
+            Bucket=rag_config.s3_bucket_name, 
+            Key=s3_key
+        )
+        print(f"✅ File verified in S3: {s3_key}, Size: {response.get('ContentLength', 'unknown')}")
+    except Exception as e:
+        print(f"❌ File NOT found in S3 after upload: {e}")
+        return
     
     # Wait a moment for eventual consistency
     print("Waiting for file to be available...")
@@ -58,8 +82,23 @@ async def test_s3_file_doc_loading():
     print(f"Generated S3 path: {s3_path}")
     print(f"Bucket name being used: {rag_config.s3_bucket_name}")
     
-    # Use the full S3 path (s3fs will handle the path parsing)
-    documents = await rag_service.load_s3_documents_async(s3_path)
+    # Extract the directory path from the S3 key
+    directory_path = extract_directory_from_s3_key(s3_key)
+    print(f"Directory path: {directory_path}")
+    
+    # Create the input_dir for SimpleDirectoryReader (bucket + directory path)
+    input_dir = f"{rag_config.s3_bucket_name}/{directory_path}"
+    print(f"Input directory for SimpleDirectoryReader: {input_dir}")
+    
+    documents = []
+    try:
+        documents = await rag_service.load_s3_file_async(s3_key)
+    except Exception as e:
+        import traceback
+        print(f"Error loading documents from S3: {e}")
+        print(f"Error type: {type(e)}")
+        print(f"Error traceback: {traceback.format_exc()}")
+        
     print(f"Loaded {len(documents)} documents from S3")
     print(f"Document content: {documents}")
     
