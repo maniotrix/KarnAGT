@@ -565,29 +565,29 @@ class RAGConfig:
     
     # Model configuration
     llm_model: str = "gpt-4o-mini-2024-07-18"
-    embedding_model: str = "text-embedding-ada-002"
+    embedding_model: str = "text-embedding-3-large"  # Use the most accurate embedding model
     
-    # Document processing - ROBUST SETTINGS for comprehensive information retrieval
-    chunk_size: int = 1024  # Larger chunks to keep related info together
-    chunk_overlap: int = 200  # Substantial overlap to preserve context across chunks
-    num_workers: int = 2
+    # Document processing - OPTIMIZED SETTINGS based on research
+    chunk_size: int = 1024  # Optimal balance per LlamaIndex research
+    chunk_overlap: int = 200  # Substantial overlap (20% of chunk_size)
+    num_workers: int = 4  # Increased for better multiprocessing performance
     
-    similarity_top_k: int = 10  # Retrieve more chunks to avoid missing information
+    similarity_top_k: int = 12  # Balanced retrieval for comprehensive coverage
     
     # Performance settings
     enable_logging: bool = True
     enable_hybrid_search: bool = False
-    max_concurrent_downloads: int = 5  # Maximum concurrent S3 downloads
+    max_concurrent_downloads: int = 8  # Increased for better S3 performance
     
-    # Query settings
-    response_mode: str = "tree_summarize"
+    # Query settings - OPTIMIZED for better results
+    response_mode: str = "tree_summarize"  # Best for multiple sources
     include_metadata: bool = True
-    max_source_nodes: int = 5
+    max_source_nodes: int = 8  # Balanced between quality and cost
     
     # File processing
     exclude_patterns: Optional[List[str]] = None
     supported_extensions: List[str] = field(default_factory=lambda: [
-        ".pdf", ".docx", ".doc", ".txt", ".pptx", ".ppt"
+        ".pdf", ".docx", ".doc", ".txt", ".pptx", ".ppt", ".csv", ".xlsx", ".md"
     ])
     
     # Rate limiting and delays
@@ -597,43 +597,42 @@ class RAGConfig:
     show_progress: bool = True
     
     s3_bucket_name: str = "rag-files"
-    
+
     @classmethod
     def for_robust_retrieval(cls, **kwargs) -> "RAGConfig":
         """
         Create a robust RAG configuration that minimizes information loss.
         
-        This configuration is designed to handle any file metadata variations
-        and ensure comprehensive information retrieval regardless of:
-        - File timestamps or metadata differences
-        - Chunking variations between local/S3 processing
-        - Content fragmentation across chunks
+        Based on research findings - handles metadata variations and ensures 
+        comprehensive retrieval regardless of file processing differences.
         """
         defaults = {
-            "chunk_size": 1024,  # Larger chunks keep related information together
-            "chunk_overlap": 300,  # High overlap ensures context preservation
-            "similarity_top_k": 15,  # Retrieve many chunks to avoid missing info
-            "response_mode": "tree_summarize",  # Better for combining multiple sources
-            "max_source_nodes": 10,  # Allow more sources in final response
+            "chunk_size": 1024,  # Optimal size per research
+            "chunk_overlap": 300,  # 30% overlap for maximum context preservation
+            "similarity_top_k": 15,  # High retrieval to avoid missing information
+            "response_mode": "tree_summarize",  # Best for combining multiple sources
+            "max_source_nodes": 12,  # Allow many sources for completeness
+            "num_workers": 6,  # Higher parallelism
+            "max_concurrent_downloads": 10,
+            "embedding_model": "text-embedding-3-large",  # Most accurate
         }
         
-        # Override defaults with any provided kwargs
         defaults.update(kwargs)
         return cls(**defaults)
     
     @classmethod
     def for_precise_retrieval(cls, **kwargs) -> "RAGConfig":
         """
-        Create a precise RAG configuration for when you need exact information.
-        
-        Use this when you need to find specific details like names, numbers,
-        dates, etc. that might be split across chunks.
+        Optimized for finding specific details (names, numbers, dates).
+        Uses very large chunks to minimize information splitting.
         """
         defaults = {
-            "chunk_size": 2048,  # Very large chunks to minimize splitting
-            "chunk_overlap": 400,  # Very high overlap
+            "chunk_size": 2048,  # Very large chunks
+            "chunk_overlap": 512,  # 25% overlap
             "similarity_top_k": 20,  # Retrieve many candidates
-            "response_mode": "compact",  # More focused on exact matches
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 15,
+            "embedding_model": "text-embedding-3-large",
         }
         
         defaults.update(kwargs)
@@ -642,14 +641,35 @@ class RAGConfig:
     @classmethod
     def for_fast_processing(cls, **kwargs) -> "RAGConfig":
         """
-        Create a fast RAG configuration when speed is more important than completeness.
+        Optimized for speed over completeness.
         """
         defaults = {
-            "chunk_size": 512,
-            "chunk_overlap": 50,
-            "similarity_top_k": 5,
-            "num_workers": 4,
-            "max_concurrent_downloads": 10,
+            "chunk_size": 512,  # Smaller chunks for speed
+            "chunk_overlap": 50,  # Minimal overlap
+            "similarity_top_k": 5,  # Fewer retrievals
+            "num_workers": 8,  # Maximum parallelism
+            "max_concurrent_downloads": 12,
+            "response_mode": "compact",  # Faster processing
+            "max_source_nodes": 5,
+            "enable_delay": False,
+        }
+        
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_cost_optimized(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for minimal token usage and costs.
+        """
+        defaults = {
+            "llm_model": "gpt-4o-mini-2024-07-18",  # Cheapest quality model
+            "embedding_model": "text-embedding-3-small",  # Cheaper embedding
+            "chunk_size": 800,  # Moderate size
+            "chunk_overlap": 100,  # Lower overlap
+            "similarity_top_k": 6,  # Fewer retrievals
+            "response_mode": "compact",
+            "max_source_nodes": 5,
         }
         
         defaults.update(kwargs)
@@ -658,16 +678,16 @@ class RAGConfig:
     @classmethod
     def for_gpt4(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for GPT-4 (expensive but high quality).
-        Lower retrieval to control costs, rely on model intelligence.
+        Optimized for GPT-4 (expensive but highest quality).
         """
         defaults = {
             "llm_model": "gpt-4",
+            "embedding_model": "text-embedding-3-large",  # Best embedding for best model
             "chunk_size": 1536,  # Larger chunks for better context
-            "chunk_overlap": 200,
-            "similarity_top_k": 5,  # Lower to control costs
-            "response_mode": "tree_summarize",  # GPT-4 handles complexity well
-            "max_source_nodes": 5,
+            "chunk_overlap": 256,  # ~17% overlap
+            "similarity_top_k": 8,  # Moderate retrieval to control costs
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 8,
         }
         defaults.update(kwargs)
         return cls(**defaults)
@@ -675,14 +695,14 @@ class RAGConfig:
     @classmethod
     def for_gpt4o_mini(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for GPT-4o-mini (cheap and fast).
-        Higher retrieval since cost is low.
+        Optimized for GPT-4o-mini (best cost/performance ratio).
         """
         defaults = {
             "llm_model": "gpt-4o-mini-2024-07-18",
-            "chunk_size": 1024,
-            "chunk_overlap": 200,
-            "similarity_top_k": 15,  # Higher since it's cheap
+            "embedding_model": "text-embedding-3-large",  # Use best embedding with cheap LLM
+            "chunk_size": 1024,  # Optimal size
+            "chunk_overlap": 200,  # 20% overlap
+            "similarity_top_k": 12,  # Higher since it's cheap
             "response_mode": "tree_summarize",
             "max_source_nodes": 10,
         }
@@ -692,14 +712,14 @@ class RAGConfig:
     @classmethod
     def for_gpt35_turbo(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for GPT-3.5-turbo (medium cost, smaller context).
-        Balanced approach.
+        Optimized for GPT-3.5-turbo (limited context window).
         """
         defaults = {
             "llm_model": "gpt-3.5-turbo",
-            "chunk_size": 800,  # Smaller due to context limits
-            "chunk_overlap": 150,
-            "similarity_top_k": 8,  # Moderate retrieval
+            "embedding_model": "text-embedding-3-small",  # Match model tier
+            "chunk_size": 800,  # Smaller for context limits
+            "chunk_overlap": 150,  # ~19% overlap
+            "similarity_top_k": 8,
             "response_mode": "compact",  # Simpler for GPT-3.5
             "max_source_nodes": 6,
         }
@@ -707,50 +727,39 @@ class RAGConfig:
         return cls(**defaults)
     
     @classmethod
-    def for_small_embedding_model(cls, embedding_model: str = "all-MiniLM-L6-v2", **kwargs) -> "RAGConfig":
+    def for_claude(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for smaller embedding models (384 dimensions).
-        Smaller chunks to fit model limits.
+        Optimized for Claude models (massive context window).
         """
         defaults = {
-            "embedding_model": embedding_model,
-            "chunk_size": 400,  # Smaller to fit model context
-            "chunk_overlap": 80,
-            "similarity_top_k": 12,  # More chunks since they're smaller
+            "llm_model": "claude-3-5-sonnet-20241022",
+            "embedding_model": "text-embedding-3-large",
+            "chunk_size": 2048,  # Large chunks for big context
+            "chunk_overlap": 400,  # 20% overlap
+            "similarity_top_k": 25,  # Many chunks since context is huge
             "response_mode": "tree_summarize",
+            "max_source_nodes": 20,
         }
         defaults.update(kwargs)
         return cls(**defaults)
     
-    @classmethod
-    def for_claude(cls, **kwargs) -> "RAGConfig":
-        """
-        Optimized for Claude models (large context window).
-        Can handle many chunks efficiently.
-        """
-        defaults = {
-            "llm_model": "claude-3-sonnet",
-            "chunk_size": 2048,  # Large chunks for Claude's big context
-            "chunk_overlap": 400,
-            "similarity_top_k": 20,  # Many chunks since context is huge
-            "response_mode": "tree_summarize",
-            "max_source_nodes": 15,
-        }
-        defaults.update(kwargs)
-        return cls(**defaults)
+    # =============================================================================
+    # VECTOR STORE SPECIFIC CONFIGURATIONS
+    # =============================================================================
     
     @classmethod
     def for_qdrant_production(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for Qdrant in production (high accuracy, scalable).
-        Qdrant's HNSW provides excellent accuracy, so fewer candidates needed.
+        Optimized for Qdrant (best accuracy, HNSW algorithm).
+        Based on benchmark: 6-13min indexing, 10s for 10k queries.
         """
         defaults = {
-            "chunk_size": 1024,
-            "chunk_overlap": 200,
+            "chunk_size": 1024,  # Optimal for Qdrant HNSW
+            "chunk_overlap": 200,  # 20% overlap
             "similarity_top_k": 10,  # Qdrant's accuracy allows lower k
             "response_mode": "tree_summarize",
             "max_source_nodes": 8,
+            "embedding_model": "text-embedding-3-large",  # Best accuracy
         }
         defaults.update(kwargs)
         return cls(**defaults)
@@ -758,15 +767,16 @@ class RAGConfig:
     @classmethod
     def for_chroma_development(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for Chroma (good for prototyping, decent accuracy).
-        Similar to Qdrant but slightly more conservative.
+        Optimized for Chroma (good for prototyping).
+        Based on benchmark: 39-268min indexing, 60s for 10k queries.
         """
         defaults = {
             "chunk_size": 1024,
-            "chunk_overlap": 200,
-            "similarity_top_k": 12,  # Slightly higher for safety
+            "chunk_overlap": 250,  # Higher overlap to compensate for lower accuracy
+            "similarity_top_k": 15,  # Higher k due to potential misses
             "response_mode": "tree_summarize",
-            "max_source_nodes": 10,
+            "max_source_nodes": 12,
+            "num_workers": 2,  # Chroma is single-threaded
         }
         defaults.update(kwargs)
         return cls(**defaults)
@@ -774,12 +784,12 @@ class RAGConfig:
     @classmethod
     def for_faiss_speed(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for FAISS with speed-focused indexes (IVF, etc.).
-        FAISS can be fast but less accurate, so retrieve more candidates.
+        Optimized for FAISS (fastest queries but accuracy varies by index type).
+        Based on benchmark: Best query performance but requires custom scaling.
         """
         defaults = {
             "chunk_size": 1024,
-            "chunk_overlap": 250,  # Higher overlap to compensate for potential misses
+            "chunk_overlap": 300,  # Higher overlap for accuracy compensation
             "similarity_top_k": 20,  # Higher k due to potential accuracy loss
             "response_mode": "tree_summarize",
             "max_source_nodes": 15,
@@ -788,17 +798,36 @@ class RAGConfig:
         return cls(**defaults)
     
     @classmethod
-    def for_pinecone_cloud(cls, **kwargs) -> "RAGConfig":
+    def for_milvus_scale(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for Pinecone (cloud-based, good accuracy but API limits).
-        Balance between accuracy and API call costs.
+        Optimized for Milvus (distributed, high throughput).
+        Based on benchmark: 15,000 QPS, 8ms latency.
         """
         defaults = {
             "chunk_size": 1024,
             "chunk_overlap": 200,
-            "similarity_top_k": 8,  # Lower due to API cost considerations
+            "similarity_top_k": 12,
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 10,
+            "num_workers": 8,  # Take advantage of distributed processing
+            "max_concurrent_downloads": 15,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_pinecone_cloud(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for Pinecone (cloud-based, API rate limits).
+        """
+        defaults = {
+            "chunk_size": 1024,
+            "chunk_overlap": 200,
+            "similarity_top_k": 8,  # Lower due to API costs
             "response_mode": "tree_summarize",
             "max_source_nodes": 8,
+            "enable_delay": True,  # Respect rate limits
+            "delay_seconds": 1,
         }
         defaults.update(kwargs)
         return cls(**defaults)
@@ -806,31 +835,68 @@ class RAGConfig:
     @classmethod
     def for_weaviate_semantic(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for Weaviate (semantic search capabilities).
-        Weaviate's semantic features allow for more nuanced retrieval.
+        Optimized for Weaviate (semantic search, hybrid capabilities).
+        Based on benchmark: 10-30min indexing, 35s for 10k queries.
         """
         defaults = {
-            "chunk_size": 1536,  # Larger chunks for semantic understanding
-            "chunk_overlap": 300,
+            "chunk_size": 1536,  # Larger for semantic understanding
+            "chunk_overlap": 300,  # ~20% overlap
             "similarity_top_k": 12,
             "response_mode": "tree_summarize",
             "max_source_nodes": 10,
+            "enable_hybrid_search": True,  # Take advantage of Weaviate's features
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    # =============================================================================
+    # EMBEDDING MODEL SPECIFIC CONFIGURATIONS  
+    # =============================================================================
+    
+    @classmethod
+    def for_openai_ada_002(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for text-embedding-ada-002 (1536 dimensions, older model).
+        """
+        defaults = {
+            "embedding_model": "text-embedding-ada-002",
+            "chunk_size": 1024,  # Safe size for ada-002
+            "chunk_overlap": 200,
+            "similarity_top_k": 12,  # Slightly higher for older model
         }
         defaults.update(kwargs)
         return cls(**defaults)
     
     @classmethod
-    def for_simple_vector_store(cls, **kwargs) -> "RAGConfig":
+    def for_openai_3_large(cls, **kwargs) -> "RAGConfig":
         """
-        Optimized for SimpleVectorStore (in-memory, exact search).
-        Perfect accuracy but limited scale, so can use lower k.
+        Optimized for text-embedding-3-large (3072 dimensions, best accuracy).
         """
         defaults = {
-            "chunk_size": 1024,
-            "chunk_overlap": 150,
-            "similarity_top_k": 5,  # Lower k since search is exact
-            "response_mode": "compact",  # Simpler processing for simple store
-            "max_source_nodes": 5,
+            "embedding_model": "text-embedding-3-large",
+            "chunk_size": 1024,  # Optimal for best model
+            "chunk_overlap": 200,
+            "similarity_top_k": 10,  # Lower k due to high accuracy
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_sentence_transformers(cls, model_name: str = "all-MiniLM-L6-v2", **kwargs) -> "RAGConfig":
+        """
+        Optimized for Sentence Transformers models (384-768 dimensions).
+        """
+        # Model-specific chunk sizes
+        chunk_sizes = {
+            "all-MiniLM-L6-v2": 400,  # 384 dim
+            "all-mpnet-base-v2": 600,  # 768 dim
+        }
+        
+        defaults = {
+            "embedding_model": model_name,
+            "chunk_size": chunk_sizes.get(model_name, 400),
+            "chunk_overlap": 80,  # 20% of smaller chunk
+            "similarity_top_k": 15,  # More chunks since they're smaller
         }
         defaults.update(kwargs)
         return cls(**defaults)
