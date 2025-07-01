@@ -7,7 +7,7 @@ from llama_index.core.readers.base import BaseReader
 from llama_index.core import SimpleDirectoryReader
 from app.utils.CustomPptxReader import OpenAIPptxReader
 from qdrant_client import QdrantClient, AsyncQdrantClient
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import time
 import logging
 from dataclasses import dataclass
@@ -16,6 +16,8 @@ from app.services.knowledge.config import QdrantConfig, RAGConfig
 from app.services.storage.storage import S3StorageBackend
 from app.services.knowledge.s3_directory_reader import S3DirectoryReader
 
+from app.services.knowledge.metadata_util import MetadataCleanerPostprocessor
+from llama_index.core.schema import NodeWithScore
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -40,6 +42,52 @@ class RAGService:
         # NOTE: This uses the default openai embedding model, not using config.embedding_model
         Settings.embed_model = OpenAIEmbedding()
         
+        # Initialize metadata cleaner postprocessor
+        self.metadata_cleaner = MetadataCleanerPostprocessor()
+        logger.info("Initialized MetadataCleanerPostprocessor for secure LLM context")
+    
+    def configure_metadata_cleaner(self, keep_keys: List[str] = None, store_original: bool = True) -> None:
+        """
+        Reconfigure the metadata cleaner with custom settings.
+        
+        Args:
+            keep_keys: List of metadata keys to keep for LLM context
+            store_original: Whether to store original metadata in extra_info
+        """
+        self.metadata_cleaner = MetadataCleanerPostprocessor(
+            keep_keys=keep_keys, 
+            store_original=store_original
+        )
+        logger.info(f"Reconfigured MetadataCleanerPostprocessor with custom settings")
+    
+    def test_metadata_cleaning(self, sample_metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Test the metadata cleaning process with sample metadata.
+        
+        Args:
+            sample_metadata: Sample metadata dictionary to test
+            
+        Returns:
+            Dict showing original vs cleaned metadata
+        """
+        from llama_index.core.schema import TextNode
+        
+        # Create a test node
+        test_node = TextNode(text="test content", metadata=sample_metadata.copy())
+        test_node_with_score = NodeWithScore(node=test_node, score=1.0)
+        
+        # Clean the metadata
+        cleaned_nodes = self.metadata_cleaner._postprocess_nodes([test_node_with_score])
+        
+        result = {
+            "original_metadata": sample_metadata,
+            "cleaned_metadata": cleaned_nodes[0].node.metadata,
+            "stored_original": cleaned_nodes[0].node.extra_info if hasattr(cleaned_nodes[0].node, 'extra_info') else None,
+            "removed_keys": set(sample_metadata.keys()) - set(cleaned_nodes[0].node.metadata.keys())
+        }
+        
+        logger.info(f"Metadata cleaning test - Removed {len(result['removed_keys'])} sensitive keys")
+        return result
         
     def get_file_extractor(self) -> Dict[str, BaseReader]:
         """Get file extractor for the RAG service."""
@@ -180,7 +228,8 @@ class RAGService:
         query_engine = index.as_query_engine(
             similarity_top_k=self.config.similarity_top_k,
             response_mode="tree_summarize",
-            verbose=True
+            verbose=True,
+            node_postprocessors=[self.metadata_cleaner]
         )
         logger.info("Query engine created successfully")
         
@@ -208,7 +257,8 @@ class RAGService:
         query_engine = index.as_query_engine(
             similarity_top_k=self.config.similarity_top_k,
             response_mode="tree_summarize",
-            verbose=True
+            verbose=True,
+            node_postprocessors=[self.metadata_cleaner]
         )
         logger.info("Query engine created successfully")
         
