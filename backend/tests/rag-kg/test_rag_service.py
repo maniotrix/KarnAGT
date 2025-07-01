@@ -3,6 +3,7 @@ import os
 import time
 import asyncio
 from dotenv import load_dotenv
+import uuid
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(os.path.dirname(current_dir))
@@ -11,10 +12,24 @@ import sys
 sys.path.append(backend_dir)
 
 from app.services.knowledge.rag_service import RAGService, QueryWithResult
-from app.services.knowledge.config import RAGConfig, get_default_qdrant_config
+from app.services.knowledge.config import RAGConfig, get_default_qdrant_config, QdrantConfig
 from app.utils.profiler_util import PerformanceMonitor
 
 load_dotenv()
+
+async def cleanup_qdrant_collection(qdrant_config: QdrantConfig):
+    """Clean up Qdrant collection using existing client."""
+    print("🧹 Cleaning up Qdrant collection...")
+    
+    try:
+        from qdrant_client import AsyncQdrantClient
+        aclient = AsyncQdrantClient(url=qdrant_config.url)
+        await aclient.delete_collection(qdrant_config.collection_name)
+        print(f"   🗑️  Deleted collection: {qdrant_config.collection_name}")
+    except Exception as e:
+        print(f"   ⚠️  Collection cleanup warning: {e}")
+    
+    print("✅ Qdrant cleanup completed")
 
 class RAGTestRunner:
     """Main class for running RAG performance tests."""
@@ -195,7 +210,7 @@ class RAGTestRunner:
         # queries = ai_agents_queries[:3]  # Test only first 3 AI agent queries
         
         # Get the index (this is where most of the time is spent on first run)
-        qdrant_config = get_default_qdrant_config()
+        qdrant_config = get_default_qdrant_config(collection_name=f"test_rag_service_{uuid.uuid4().hex[:8]}")
         index = await self.rag_service.get_query_index(self.test_docs_dir, qdrant_config)
         
         # End timing for index creation/loading
@@ -233,6 +248,10 @@ class RAGTestRunner:
         self.perf_monitor.end_timing("Query Processing")
         
         self.print_performance_summary(query_times)
+        
+        # Cleanup Qdrant collection
+        await cleanup_qdrant_collection(qdrant_config)
+        print("✅ Qdrant cleanup completed")
 
 def main():
     """Main function - runs async test when executed directly."""
