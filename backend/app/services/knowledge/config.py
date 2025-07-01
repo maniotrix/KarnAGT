@@ -567,12 +567,12 @@ class RAGConfig:
     llm_model: str = "gpt-4o-mini-2024-07-18"
     embedding_model: str = "text-embedding-ada-002"
     
-    # Document processing
-    chunk_size: int = 512
-    chunk_overlap: int = 50
+    # Document processing - ROBUST SETTINGS for comprehensive information retrieval
+    chunk_size: int = 1024  # Larger chunks to keep related info together
+    chunk_overlap: int = 200  # Substantial overlap to preserve context across chunks
     num_workers: int = 2
     
-    similarity_top_k: int = 3
+    similarity_top_k: int = 10  # Retrieve more chunks to avoid missing information
     
     # Performance settings
     enable_logging: bool = True
@@ -597,3 +597,240 @@ class RAGConfig:
     show_progress: bool = True
     
     s3_bucket_name: str = "rag-files"
+    
+    @classmethod
+    def for_robust_retrieval(cls, **kwargs) -> "RAGConfig":
+        """
+        Create a robust RAG configuration that minimizes information loss.
+        
+        This configuration is designed to handle any file metadata variations
+        and ensure comprehensive information retrieval regardless of:
+        - File timestamps or metadata differences
+        - Chunking variations between local/S3 processing
+        - Content fragmentation across chunks
+        """
+        defaults = {
+            "chunk_size": 1024,  # Larger chunks keep related information together
+            "chunk_overlap": 300,  # High overlap ensures context preservation
+            "similarity_top_k": 15,  # Retrieve many chunks to avoid missing info
+            "response_mode": "tree_summarize",  # Better for combining multiple sources
+            "max_source_nodes": 10,  # Allow more sources in final response
+        }
+        
+        # Override defaults with any provided kwargs
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_precise_retrieval(cls, **kwargs) -> "RAGConfig":
+        """
+        Create a precise RAG configuration for when you need exact information.
+        
+        Use this when you need to find specific details like names, numbers,
+        dates, etc. that might be split across chunks.
+        """
+        defaults = {
+            "chunk_size": 2048,  # Very large chunks to minimize splitting
+            "chunk_overlap": 400,  # Very high overlap
+            "similarity_top_k": 20,  # Retrieve many candidates
+            "response_mode": "compact",  # More focused on exact matches
+        }
+        
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_fast_processing(cls, **kwargs) -> "RAGConfig":
+        """
+        Create a fast RAG configuration when speed is more important than completeness.
+        """
+        defaults = {
+            "chunk_size": 512,
+            "chunk_overlap": 50,
+            "similarity_top_k": 5,
+            "num_workers": 4,
+            "max_concurrent_downloads": 10,
+        }
+        
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_gpt4(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for GPT-4 (expensive but high quality).
+        Lower retrieval to control costs, rely on model intelligence.
+        """
+        defaults = {
+            "llm_model": "gpt-4",
+            "chunk_size": 1536,  # Larger chunks for better context
+            "chunk_overlap": 200,
+            "similarity_top_k": 5,  # Lower to control costs
+            "response_mode": "tree_summarize",  # GPT-4 handles complexity well
+            "max_source_nodes": 5,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_gpt4o_mini(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for GPT-4o-mini (cheap and fast).
+        Higher retrieval since cost is low.
+        """
+        defaults = {
+            "llm_model": "gpt-4o-mini-2024-07-18",
+            "chunk_size": 1024,
+            "chunk_overlap": 200,
+            "similarity_top_k": 15,  # Higher since it's cheap
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 10,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_gpt35_turbo(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for GPT-3.5-turbo (medium cost, smaller context).
+        Balanced approach.
+        """
+        defaults = {
+            "llm_model": "gpt-3.5-turbo",
+            "chunk_size": 800,  # Smaller due to context limits
+            "chunk_overlap": 150,
+            "similarity_top_k": 8,  # Moderate retrieval
+            "response_mode": "compact",  # Simpler for GPT-3.5
+            "max_source_nodes": 6,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_small_embedding_model(cls, embedding_model: str = "all-MiniLM-L6-v2", **kwargs) -> "RAGConfig":
+        """
+        Optimized for smaller embedding models (384 dimensions).
+        Smaller chunks to fit model limits.
+        """
+        defaults = {
+            "embedding_model": embedding_model,
+            "chunk_size": 400,  # Smaller to fit model context
+            "chunk_overlap": 80,
+            "similarity_top_k": 12,  # More chunks since they're smaller
+            "response_mode": "tree_summarize",
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_claude(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for Claude models (large context window).
+        Can handle many chunks efficiently.
+        """
+        defaults = {
+            "llm_model": "claude-3-sonnet",
+            "chunk_size": 2048,  # Large chunks for Claude's big context
+            "chunk_overlap": 400,
+            "similarity_top_k": 20,  # Many chunks since context is huge
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 15,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_qdrant_production(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for Qdrant in production (high accuracy, scalable).
+        Qdrant's HNSW provides excellent accuracy, so fewer candidates needed.
+        """
+        defaults = {
+            "chunk_size": 1024,
+            "chunk_overlap": 200,
+            "similarity_top_k": 10,  # Qdrant's accuracy allows lower k
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 8,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_chroma_development(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for Chroma (good for prototyping, decent accuracy).
+        Similar to Qdrant but slightly more conservative.
+        """
+        defaults = {
+            "chunk_size": 1024,
+            "chunk_overlap": 200,
+            "similarity_top_k": 12,  # Slightly higher for safety
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 10,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_faiss_speed(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for FAISS with speed-focused indexes (IVF, etc.).
+        FAISS can be fast but less accurate, so retrieve more candidates.
+        """
+        defaults = {
+            "chunk_size": 1024,
+            "chunk_overlap": 250,  # Higher overlap to compensate for potential misses
+            "similarity_top_k": 20,  # Higher k due to potential accuracy loss
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 15,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_pinecone_cloud(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for Pinecone (cloud-based, good accuracy but API limits).
+        Balance between accuracy and API call costs.
+        """
+        defaults = {
+            "chunk_size": 1024,
+            "chunk_overlap": 200,
+            "similarity_top_k": 8,  # Lower due to API cost considerations
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 8,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_weaviate_semantic(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for Weaviate (semantic search capabilities).
+        Weaviate's semantic features allow for more nuanced retrieval.
+        """
+        defaults = {
+            "chunk_size": 1536,  # Larger chunks for semantic understanding
+            "chunk_overlap": 300,
+            "similarity_top_k": 12,
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 10,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_simple_vector_store(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for SimpleVectorStore (in-memory, exact search).
+        Perfect accuracy but limited scale, so can use lower k.
+        """
+        defaults = {
+            "chunk_size": 1024,
+            "chunk_overlap": 150,
+            "similarity_top_k": 5,  # Lower k since search is exact
+            "response_mode": "compact",  # Simpler processing for simple store
+            "max_source_nodes": 5,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)

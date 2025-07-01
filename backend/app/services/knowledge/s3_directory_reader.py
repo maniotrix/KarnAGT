@@ -116,6 +116,17 @@ class S3DirectoryReader:
         
         logger.info(f"Starting document loading from {len(s3_keys)} S3 keys")
         
+        # Create mapping of S3 keys to original filenames for metadata preservation  
+        s3_key_to_original_filename = {}
+        for s3_key in s3_keys:
+            # Try to extract original filename from S3 metadata
+            original_filename = await self._get_original_filename_from_s3_metadata(s3_key)
+            if not original_filename:
+                # Fallback: guess original filename from the provided s3_key
+                original_filename = self._extract_original_filename_from_context(s3_key)
+            
+            s3_key_to_original_filename[s3_key] = original_filename
+        
         async with self.temp_directory_context() as temp_dir:
             # Step 1: Download files with streaming
             download_result = await self.download_files_streaming(s3_keys, temp_dir)
@@ -123,6 +134,19 @@ class S3DirectoryReader:
             if download_result["success_count"] == 0:
                 logger.error("No files downloaded successfully")
                 return []
+            
+            # Create mapping of local filenames to S3 keys and original filenames
+            local_to_s3_mapping = {}
+            for download_info in download_result["successful_downloads"]:
+                local_path = download_info["local_path"] 
+                s3_key = download_info["s3_key"]
+                local_filename = os.path.basename(local_path)
+                original_filename = s3_key_to_original_filename.get(s3_key, local_filename)
+                
+                local_to_s3_mapping[local_filename] = {
+                    "s3_key": s3_key,
+                    "original_filename": original_filename
+                }
             
             # Step 2: Process documents using SimpleDirectoryReader
             logger.info(f"Processing {download_result['success_count']} downloaded files")
@@ -139,21 +163,68 @@ class S3DirectoryReader:
                 num_workers=num_workers
             )
             
-            # Step 3: Add S3 metadata if requested
-            if add_s3_metadata:
-                for doc in documents:
-                    if hasattr(doc, 'metadata') and doc.metadata:
+            # Step 3: Fix metadata to preserve original filenames and add S3 metadata
+            for doc in documents:
+                if hasattr(doc, 'metadata') and doc.metadata:
+                    current_file_path = doc.metadata.get('file_path', '')
+                    current_filename = os.path.basename(current_file_path)
+                    
+                    # Look up original filename and S3 key
+                    mapping_info = local_to_s3_mapping.get(current_filename)
+                    if mapping_info:
+                        # CRITICAL FIX: Restore original filename in metadata
+                        doc.metadata['file_name'] = mapping_info["original_filename"]
+                        
+                        if add_s3_metadata:
+                            doc.metadata['source_type'] = 's3'
+                            doc.metadata['s3_bucket'] = self.storage_backend.bucket_name
+                            doc.metadata['s3_key'] = mapping_info["s3_key"]
+                            # Keep both for compatibility
+                            doc.metadata['s3_original_filename'] = mapping_info["original_filename"]
+                    
+                    elif add_s3_metadata:
+                        # Fallback if mapping not found
                         doc.metadata['source_type'] = 's3'
                         doc.metadata['s3_bucket'] = self.storage_backend.bucket_name
-                        # Try to match document to original S3 key
-                        if 'file_path' in doc.metadata:
-                            filename = os.path.basename(doc.metadata['file_path'])
-                            matching_keys = [key for key in s3_keys if os.path.basename(key) == filename]
-                            if matching_keys:
-                                doc.metadata['s3_key'] = matching_keys[0]
             
-            logger.info(f"Successfully processed {len(documents)} documents from S3")
+            logger.info(f"Successfully processed {len(documents)} documents from S3 with restored filenames")
             return documents
+    
+    async def _get_original_filename_from_s3_metadata(self, s3_key: str) -> Optional[str]:
+        """Try to get original filename from S3 object metadata."""
+        try:
+            response = self.storage_backend.s3_client.head_object(
+                Bucket=self.storage_backend.bucket_name,
+                Key=s3_key
+            )
+            # Check if original filename is stored in S3 metadata
+            # S3 metadata keys are case-insensitive and often lowercase
+            metadata = response.get('Metadata', {})
+            
+            # Try different possible metadata key variations
+            for key in ['original-filename', 'original_filename', 'originalfilename']:
+                if key in metadata:
+                    original_filename = metadata[key]
+                    logger.debug(f"Found original filename in S3 metadata: {original_filename}")
+                    return original_filename
+            
+            return None
+        except Exception as e:
+            logger.debug(f"Could not get S3 metadata for {s3_key}: {e}")
+            return None
+    
+    def _extract_original_filename_from_context(self, s3_key: str) -> str:
+        """
+        Extract or guess original filename from S3 key or context.
+        
+        This is a fallback method when S3 metadata is not available.
+        In a proper implementation, the original filename should be passed
+        to this method or stored in S3 metadata during upload.
+        """
+        # For now, return the S3 key basename as fallback
+        # In practice, this should be enhanced to receive original filenames
+        # from the calling context (e.g., from upload records or metadata)
+        return os.path.basename(s3_key)
     
     async def load_documents_from_s3_directory(
         self,

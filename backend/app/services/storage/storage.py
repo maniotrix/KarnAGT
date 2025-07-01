@@ -481,19 +481,27 @@ class S3StorageBackend(StorageBackend):
             # Ensure bucket exists before upload
             await self.ensure_bucket_exists()
             
+            # Prepare metadata for original filename preservation
+            metadata = {}
+            
             # Handle both file paths and file objects
             if isinstance(file_path_or_obj, str):
-                # It's a file path, open the file
+                # It's a file path, extract original filename and store in metadata
+                original_filename = os.path.basename(file_path_or_obj)
+                metadata['original-filename'] = original_filename
+                
+                # Open the file and upload
                 with open(file_path_or_obj, 'rb') as file_obj:
                     self.s3_client.put_object(
                         Bucket=self.bucket_name,
                         Key=key,
                         Body=file_obj,
-                        ContentType=content_type
+                        ContentType=content_type,
+                        Metadata=metadata  # Store original filename in S3 metadata
                         # No ACL = private by default, no direct access
                     )
             else:
-                # It's already a file-like object
+                # It's already a file-like object, no original filename available
                 self.s3_client.put_object(
                     Bucket=self.bucket_name,
                     Key=key,

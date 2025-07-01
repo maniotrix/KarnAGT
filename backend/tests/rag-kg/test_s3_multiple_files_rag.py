@@ -208,7 +208,8 @@ async def test_s3_multiple_files_rag():
         index = await rag_service.get_query_index_from_s3(
             rag_config.s3_bucket_name, 
             uploaded_s3_keys, 
-            qdrant_config
+            qdrant_config,
+            add_s3_metadata=False
         )
         print(f"✅ Created index from S3 documents")
         

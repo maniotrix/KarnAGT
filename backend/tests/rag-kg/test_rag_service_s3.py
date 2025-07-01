@@ -14,8 +14,82 @@ sys.path.append(backend_dir)
 from app.services.knowledge.rag_service import RAGService, QueryWithResult
 from app.services.knowledge.config import RAGConfig, get_default_qdrant_config, QdrantConfig
 from app.utils.profiler_util import PerformanceMonitor
+from app.services.storage.storage import S3StorageBackend, generate_file_id, generate_storage_key, get_content_type
 
 load_dotenv()
+
+async def upload_all_test_files_to_s3(rag_config: RAGConfig) -> List[str]:
+    """Upload ALL files from test_docs directory to S3 and return their S3 keys."""
+    
+    test_docs_dir = os.path.join(backend_dir, "test_docs")
+    s3_storage_backend = S3StorageBackend(bucket_name=rag_config.s3_bucket_name)
+    
+    # Get all files from test_docs directory
+    all_files = []
+    if os.path.exists(test_docs_dir):
+        for filename in os.listdir(test_docs_dir):
+            file_path = os.path.join(test_docs_dir, filename)
+            if os.path.isfile(file_path):  # Only include files, not directories
+                all_files.append(filename)
+    
+    print(f"📤 Uploading ALL {len(all_files)} test files from test_docs to S3...")
+    
+    # Clear bucket first and ensure it exists
+    print("🧹 Clearing and ensuring bucket exists...")
+    await s3_storage_backend.ensure_bucket_exists()
+    s3_storage_backend.clear_bucket(rag_config.s3_bucket_name)
+    
+    uploaded_keys = []
+    
+    for filename in all_files:
+        file_path = os.path.join(test_docs_dir, filename)
+        
+        # Use existing functions from storage.py
+        file_id = generate_file_id()
+        s3_key = generate_storage_key(file_id, filename)
+        content_type = get_content_type(file_path)
+        
+        # Upload file to S3
+        print(f"   📄 Uploading: {filename} -> {s3_key}")
+        await s3_storage_backend.upload_file_direct(file_path, s3_key, content_type)
+        uploaded_keys.append(s3_key)
+        
+        # Verify file exists
+        try:
+            response = s3_storage_backend.s3_client.head_object(
+                Bucket=rag_config.s3_bucket_name, 
+                Key=s3_key
+            )
+            size_mb = response.get('ContentLength', 0) / 1024 / 1024
+            print(f"     ✅ Verified: {size_mb:.2f} MB")
+        except Exception as e:
+            print(f"     ❌ Verification failed: {e}")
+            
+    print(f"✅ Successfully uploaded {len(uploaded_keys)} files")
+    
+    # Wait for eventual consistency
+    print("⏳ Waiting for S3 eventual consistency...")
+    await asyncio.sleep(3)
+    
+    return uploaded_keys
+
+async def cleanup_s3_files(s3_keys: List[str], bucket_name: str):
+    """Clean up uploaded S3 files using existing storage backend."""
+    if not s3_keys:
+        return
+        
+    print(f"🧹 Cleaning up {len(s3_keys)} S3 files...")
+    s3_storage_backend = S3StorageBackend(bucket_name=bucket_name)
+    
+    for s3_key in s3_keys:
+        try:
+            await s3_storage_backend.delete_file(s3_key)
+            print(f"   🗑️  Deleted: {s3_key}")
+        except Exception as e:
+            print(f"   ❌ Failed to delete {s3_key}: {e}")
+            
+    print("✅ S3 cleanup completed")
+
 
 async def cleanup_qdrant_collection(qdrant_config: QdrantConfig):
     """Clean up Qdrant collection using existing client."""
@@ -35,10 +109,13 @@ class RAGTestRunner:
     """Main class for running RAG performance tests."""
     
     def __init__(self, config: RAGConfig):
-        self.config = config
+        self.rag_config = config
         self.rag_service = RAGService(config)
         self.perf_monitor = PerformanceMonitor()
-        self.test_docs_dir = os.path.join(backend_dir, "test_docs")
+        
+        # clear s3 bucket
+        s3_storage_backend = S3StorageBackend(bucket_name=self.rag_config.s3_bucket_name)
+        s3_storage_backend.clear_bucket(self.rag_config.s3_bucket_name)
         
     
     def print_performance_summary(self, query_times: List[float]) -> None:
@@ -83,10 +160,10 @@ class RAGTestRunner:
         
         # Model config
         print(f"\n🧠 Model Configuration:")
-        print(f"   • LLM: {self.config.llm_model}")
-        print(f"   • Embedding Model: {type(self.config.embedding_model).__name__}")
-        print(f"   • Chunk Size: {self.config.chunk_size}")
-        print(f"   • Chunk Overlap: {self.config.chunk_overlap}")
+        print(f"   • LLM: {self.rag_config.llm_model}")
+        print(f"   • Embedding Model: {type(self.rag_config.embedding_model).__name__}")
+        print(f"   • Chunk Size: {self.rag_config.chunk_size}")
+        print(f"   • Chunk Overlap: {self.rag_config.chunk_overlap}")
         
         # Performance insights
         print(f"\n💡 Performance Insights:")
@@ -211,7 +288,12 @@ class RAGTestRunner:
         
         # Get the index (this is where most of the time is spent on first run)
         qdrant_config = get_default_qdrant_config(collection_name=f"test_rag_service_{uuid.uuid4().hex[:8]}")
-        index = await self.rag_service.get_query_index(self.test_docs_dir, qdrant_config)
+        uploaded_s3_keys = await upload_all_test_files_to_s3(self.rag_config)
+        print(f"✅ Uploaded {len(uploaded_s3_keys)} files to S3")
+        index = await self.rag_service.get_query_index_from_s3(self.rag_config.s3_bucket_name, 
+                                                            uploaded_s3_keys, qdrant_config, 
+                                                            add_s3_metadata=False)
+        print(f"✅ Created index from S3 documents")
         
         # End timing for index creation/loading
         index_time = self.perf_monitor.end_timing("Document Indexing/Loading")
@@ -249,6 +331,10 @@ class RAGTestRunner:
         
         self.print_performance_summary(query_times)
         
+        # Cleanup S3 files
+        await cleanup_s3_files(uploaded_s3_keys, self.rag_config.s3_bucket_name)
+        print("✅ S3 cleanup completed")
+        
         # Cleanup Qdrant collection
         await cleanup_qdrant_collection(qdrant_config)
         print("✅ Qdrant cleanup completed")
@@ -270,7 +356,10 @@ def main():
         # "*.png",
         # "*.gif"
         ]
-    config = RAGConfig(
+    
+    # Use robust configuration that handles metadata variations and ensures comprehensive retrieval
+    config = RAGConfig.for_robust_retrieval(
+        s3_bucket_name="test-rag-bucket",
         enable_logging=True,
         exclude_patterns=excluded_patterns if len(excluded_patterns) > 0 else None,
     )
