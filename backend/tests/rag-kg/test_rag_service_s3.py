@@ -1,9 +1,9 @@
+from typing import List
 import os
+import time
+import asyncio
 from dotenv import load_dotenv
 import uuid
-from datetime import datetime
-import asyncio
-from typing import List, Dict, Any
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(os.path.dirname(current_dir))
@@ -12,50 +12,11 @@ import sys
 sys.path.append(backend_dir)
 
 from app.services.knowledge.rag_service import RAGService, QueryWithResult
-from app.services.knowledge.config import RAGConfig, QdrantConfig
-from app.services.storage.storage import S3StorageBackend, get_content_type, generate_file_id, generate_storage_key
+from app.services.knowledge.config import RAGConfig, get_default_qdrant_config, QdrantConfig
 from app.utils.profiler_util import PerformanceMonitor
+from app.services.storage.storage import S3StorageBackend, generate_file_id, generate_storage_key, get_content_type
 
 load_dotenv()
-
-def print_performance_summary(perf_monitor: PerformanceMonitor, query_times: List[float]) -> None:
-    """Print comprehensive performance summary like test_rag_service.py."""
-    print(f"\n🎉 S3 RAG test completed!")
-    
-    print(f"\n📊 PERFORMANCE SUMMARY:")
-    print(f"=" * 60)
-    summary = perf_monitor.get_summary()
-    total_time = summary.get('total_time', 0)
-    print(f"⏱️  Total Execution Time: {total_time:.3f}s")
-    
-    # Timing breakdown
-    print(f"\n⏱️  Detailed Timing Breakdown:")
-    operations_dict = summary.get('operations', {})
-    
-    if operations_dict and total_time > 0:
-        for operation, duration in operations_dict.items():
-            if isinstance(duration, (int, float)) and duration > 0:
-                percentage = (duration / total_time) * 100
-                print(f"   • {operation}: {duration:.3f}s ({percentage:.1f}%)")
-    else:
-        print("   • No detailed timing data available")
-    
-    # Query performance
-    if query_times:
-        total_query_time = sum(query_times)
-        avg_query_time = total_query_time / len(query_times)
-        min_query_time = min(query_times)
-        max_query_time = max(query_times)
-        
-        print(f"\n⚡ Query Performance:")
-        print(f"   • Total Queries: {len(query_times)}")
-        print(f"   • Total Query Time: {total_query_time:.3f}s")
-        print(f"   • Average Query Time: {avg_query_time:.3f}s")
-        print(f"   • Fastest Query: {min_query_time:.3f}s")
-        print(f"   • Slowest Query: {max_query_time:.3f}s")
-        print(f"   • Queries per Second: {1/avg_query_time:.2f}")
-    else:
-        print(f"\n⚡ Query Performance: No queries executed")
 
 async def upload_all_test_files_to_s3(rag_config: RAGConfig) -> List[str]:
     """Upload ALL files from test_docs directory to S3 and return their S3 keys."""
@@ -129,6 +90,7 @@ async def cleanup_s3_files(s3_keys: List[str], bucket_name: str):
             
     print("✅ S3 cleanup completed")
 
+
 async def cleanup_qdrant_collection(qdrant_config: QdrantConfig):
     """Clean up Qdrant collection using existing client."""
     print("🧹 Cleaning up Qdrant collection...")
@@ -143,82 +105,99 @@ async def cleanup_qdrant_collection(qdrant_config: QdrantConfig):
     
     print("✅ Qdrant cleanup completed")
 
-async def test_s3_multiple_files_rag():
-    """Main test function for multiple S3 files RAG using existing codebase components."""
+class RAGTestRunner:
+    """Main class for running RAG performance tests."""
     
-    print("🚀 Starting S3 Multiple Files RAG Test")
-    print("=" * 60)
+    def __init__(self, config: RAGConfig):
+        self.rag_config = config
+        self.rag_service = RAGService(config)
+        self.perf_monitor = PerformanceMonitor()
+        
+        # clear s3 bucket
+        s3_storage_backend = S3StorageBackend(bucket_name=self.rag_config.s3_bucket_name)
+        s3_storage_backend.clear_bucket(self.rag_config.s3_bucket_name)
+        
     
-    # Use existing PerformanceMonitor from profiler_util.py
-    perf_monitor = PerformanceMonitor()
-    perf_monitor.print_system_info()
+    def print_performance_summary(self, query_times: List[float]) -> None:
+        """Print comprehensive performance summary."""
+        print(f"\n🎉 LlamaIndex RAG test completed!")
+        
+        print(f"\n📊 PERFORMANCE SUMMARY:")
+        print(f"=" * 60)
+        summary = self.perf_monitor.get_summary()
+        total_time = summary.get('total_time', 0)
+        print(f"⏱️  Total Execution Time: {total_time:.3f}s")
+        
+        # Timing breakdown
+        print(f"\n⏱️  Detailed Timing Breakdown:")
+        operations_dict = summary.get('operations', {})
+        
+        if operations_dict and total_time > 0:
+            for operation, duration in operations_dict.items():
+                if isinstance(duration, (int, float)) and duration > 0:
+                    percentage = (duration / total_time) * 100
+                    print(f"   • {operation}: {duration:.3f}s ({percentage:.1f}%)")
+        else:
+            print("   • No detailed timing data available")
+        
+        # Query performance
+        if query_times:
+            total_query_time = sum(query_times)
+            avg_query_time = total_query_time / len(query_times)
+            min_query_time = min(query_times)
+            max_query_time = max(query_times)
+            
+            print(f"\n⚡ Query Performance:")
+            print(f"   • Total Queries: {len(query_times)}")
+            print(f"   • Total Query Time: {total_query_time:.3f}s")
+            print(f"   • Average Query Time: {avg_query_time:.3f}s")
+            print(f"   • Fastest Query: {min_query_time:.3f}s")
+            print(f"   • Slowest Query: {max_query_time:.3f}s")
+            print(f"   • Queries per Second: {1/avg_query_time:.2f}")
+        else:
+            print(f"\n⚡ Query Performance: No queries executed")
+        
+        
+        # Model config
+        print(f"\n🧠 Model Configuration:")
+        print(f"   • LLM: {self.rag_config.llm_model}")
+        print(f"   • Embedding Model: {type(self.rag_config.embedding_model).__name__}")
+        print(f"   • Chunk Size: {self.rag_config.chunk_size}")
+        print(f"   • Chunk Overlap: {self.rag_config.chunk_overlap}")
+        
+        # Performance insights
+        print(f"\n💡 Performance Insights:")
+        if operations_dict:
+            indexing_time = operations_dict.get("Document Indexing/Loading", 0)
+            query_time = operations_dict.get("Query Processing", 0)
+            
+            if indexing_time > 0 and query_time > 0:
+                ratio = indexing_time / query_time
+                print(f"   • Index/Query time ratio: {ratio:.1f}:1")
+                if ratio > 10:
+                    print(f"   • 🔍 Index creation dominates - consider caching")
+                elif ratio < 2:
+                    print(f"   • ⚡ Well-balanced performance")
+            
+            if query_times and len(query_times) > 1:
+                query_avg = sum(query_times) / len(query_times)
+                variance = sum((t - query_avg)**2 for t in query_times) / len(query_times)
+                std_dev = variance ** 0.5
+                if std_dev / query_avg > 0.5:
+                    print(f"   • ⚠️  High query time variability (std: {std_dev:.3f}s)")
+                else:
+                    print(f"   • ✅ Consistent query performance")
+        else:
+            print(f"   • No performance data available for analysis")
     
-    # Initialize configurations using existing classes
-    excluded_patterns = [
-        # "*.pdf",
-        # "*.docx",
-        # "*.doc",
-        # "*.txt",
-        # "*.csv",
-        # "*.xls",
-        # "*.xlsx",
-        "*.pptx",
-        "*.ppt",
-        # "*.jpg",
-        # "*.jpeg",
-        # "*.png",
-        # "*.gif"
-        ]
-    rag_config = RAGConfig(
-        s3_bucket_name="test-rag-bucket",
-        exclude_patterns=excluded_patterns if len(excluded_patterns) > 0 else None,
-    )
-    
-    qdrant_config = QdrantConfig(
-        url="http://localhost:6333",
-        collection_name=f"test_multifile_{uuid.uuid4().hex[:8]}"
-    )
-    
-    print(f"📋 Configuration:")
-    print(f"   S3 Bucket: {rag_config.s3_bucket_name}")
-    print(f"   Qdrant Collection: {qdrant_config.collection_name}")
-    print(f"   Chunk Size: {rag_config.chunk_size}")
-    print(f"   Top K: {rag_config.similarity_top_k}")
-    print()
-    
-    # Initialize RAG service - use existing service
-    rag_service = RAGService(rag_config)
-    uploaded_s3_keys = []
-    
-    try:
-        # Phase 1: Upload ALL files to S3
-        perf_monitor.start_timing("S3 Upload")
+    async def run_test_async(self) -> None:
+        """Run the complete test asynchronously."""
+        self.perf_monitor.print_system_info()
         
-        uploaded_s3_keys = await upload_all_test_files_to_s3(rag_config)
-        upload_duration = perf_monitor.end_timing("S3 Upload")
+        # Start timing for index creation/loading
+        self.perf_monitor.start_timing("Document Indexing/Loading")
         
-        if not uploaded_s3_keys:
-            print("❌ No files uploaded. Exiting test.")
-            return
-        
-        # Phase 2: Get index from S3 using existing RAG service method
-        perf_monitor.start_timing("Document Indexing/Loading")
-        
-        print("🔧 Setting up vector store and creating index from S3...")
-        index = await rag_service.get_query_index_from_s3(
-            rag_config.s3_bucket_name, 
-            uploaded_s3_keys, 
-            qdrant_config,
-            add_s3_metadata=False
-        )
-        print(f"✅ Created index from S3 documents")
-        
-        index_duration = perf_monitor.end_timing("Document Indexing/Loading")
-        
-        # Phase 3: Run queries one by one (same as test_rag_service.py)
-        perf_monitor.start_timing("Query Processing")
-        
-        # Use exact same queries as test_rag_llamaindex_with_vectordb.py for consistency
+        # Run queries - organized by document for easy commenting
         queries = []
         
         # === TRYKAA QUERIES ===
@@ -295,18 +274,41 @@ async def test_s3_multiple_files_rag():
         # ]
         # queries = quick_test_queries  # Replace all queries with quick test
         
-        # Run queries one by one like test_rag_service.py
-        print(f"🔍 Running {len(queries)} test queries one by one...")
-        query_times = []
+        # Business-focused queries only (uncomment to focus on business documents)
+        # business_queries = trykaa_queries
+        # queries = business_queries
         
+        # Technical queries only (uncomment to focus on technical documents)
+        # technical_queries = ai_agents_queries + distributed_systems_queries
+        # queries = technical_queries
+        
+        # Single document testing (uncomment and modify as needed)
+        # queries = trykaa_queries[:3]  # Test only first 3 Trykaa queries
+        # queries = ai_agents_queries[:3]  # Test only first 3 AI agent queries
+        
+        # Get the index (this is where most of the time is spent on first run)
+        qdrant_config = get_default_qdrant_config(collection_name=f"test_rag_service_{uuid.uuid4().hex[:8]}")
+        uploaded_s3_keys = await upload_all_test_files_to_s3(self.rag_config)
+        print(f"✅ Uploaded {len(uploaded_s3_keys)} files to S3")
+        index = await self.rag_service.get_query_index_from_s3(self.rag_config.s3_bucket_name, 
+                                                            uploaded_s3_keys, qdrant_config, 
+                                                            add_s3_metadata=False)
+        print(f"✅ Created index from S3 documents")
+        
+        # End timing for index creation/loading
+        index_time = self.perf_monitor.end_timing("Document Indexing/Loading")
+        
+        # Start timing for query processing
+        self.perf_monitor.start_timing("Query Processing")
+        
+        query_times = []
         for i, query in enumerate(queries, 1):
-            import time as time_module
             # Time individual query
-            query_start = time_module.time()
+            query_start = time.time()
             
-            query_results: List[QueryWithResult] = await rag_service.get_query_results_from_index(index, [query])
+            query_results : List[QueryWithResult] = await self.rag_service.get_query_results_from_index(index, [query])
             
-            query_end = time_module.time()
+            query_end = time.time()
             individual_query_time = query_end - query_start
             query_times.append(individual_query_time)
             
@@ -323,73 +325,62 @@ async def test_s3_multiple_files_rag():
             else:
                 print("📚 No sources found")
             print("-" * 60)
+            
+        # End timing for query processing
+        self.perf_monitor.end_timing("Query Processing")
         
-        query_duration = perf_monitor.end_timing("Query Processing")
+        self.print_performance_summary(query_times)
         
-        # Print performance summary using the same format as test_rag_service.py
-        print_performance_summary(perf_monitor, query_times)
+        # Cleanup S3 files
+        await cleanup_s3_files(uploaded_s3_keys, self.rag_config.s3_bucket_name)
+        print("✅ S3 cleanup completed")
         
-    except Exception as e:
-        print(f"\n❌ TEST FAILED: {e}")
-        import traceback
-        print(f"Error traceback:\n{traceback.format_exc()}")
-        
-    finally:
-        # Always cleanup resources using existing cleanup functions
-        print("\n🧹 Starting cleanup...")
-        perf_monitor.start_timing("Cleanup")
-        
-        await cleanup_s3_files(uploaded_s3_keys, rag_config.s3_bucket_name)
+        # Cleanup Qdrant collection
         await cleanup_qdrant_collection(qdrant_config)
-        
-        perf_monitor.end_timing("Cleanup")
-        print("✅ All cleanup completed")
+        print("✅ Qdrant cleanup completed")
 
-def test_s3_files_availability():
-    """Test that test_docs directory exists and has files."""
-    print("🔍 Checking test_docs directory availability...")
+def main():
+    """Main function - runs async test when executed directly."""
+    excluded_patterns = [
+        # "*.pdf",
+        # "*.docx",
+        # "*.doc",
+        # "*.txt",
+        # "*.csv",
+        # "*.xls",
+        # "*.xlsx",
+        "*.pptx",
+        "*.ppt",
+        # "*.jpg",
+        # "*.jpeg",
+        # "*.png",
+        # "*.gif"
+        ]
     
-    test_docs_dir = os.path.join(backend_dir, "test_docs")
+    # Use robust configuration that handles metadata variations and ensures comprehensive retrieval
+    config = RAGConfig.for_robust_retrieval(
+        s3_bucket_name="test-rag-bucket",
+        enable_logging=True,
+        exclude_patterns=excluded_patterns if len(excluded_patterns) > 0 else None,
+    )
     
-    if not os.path.exists(test_docs_dir):
-        print(f"❌ test_docs directory not found: {test_docs_dir}")
-        return False
-        
-    # Get all files from test_docs directory
-    all_files = []
-    for filename in os.listdir(test_docs_dir):
-        file_path = os.path.join(test_docs_dir, filename)
-        if os.path.isfile(file_path):
-            size_mb = os.path.getsize(file_path) / 1024 / 1024
-            all_files.append((filename, size_mb))
-            print(f"   ✅ {filename} ({size_mb:.2f} MB)")
+    print(f"Using Config options: {config}")
     
-    print(f"\n📊 File Availability Summary:")
-    print(f"   📁 Directory: {test_docs_dir}")
-    print(f"   📄 Total Files: {len(all_files)}")
+    runner = RAGTestRunner(config)
     
-    if len(all_files) == 0:
-        print("❌ No files found in test_docs directory")
-        return False
-    
-    return True
+    # Run async test for better performance
+    asyncio.run(runner.run_test_async())
 
 if __name__ == "__main__":
-    async def run_all_tests():
-        print("🚀 Running S3 Multiple Files RAG Tests")
-        print("=" * 60)
-        
-        # Test 1: Check file availability
-        if not test_s3_files_availability():
-            print("❌ No test files available. Exiting.")
-            return
-        
-        print("\n" + "=" * 60)
-        
-        # Test 2: Main RAG test using existing codebase components
-        await test_s3_multiple_files_rag()
-        
-        print("\n" + "=" * 60)
-        print("✅ All tests completed!")
-    
-    asyncio.run(run_all_tests()) 
+    main()
+
+# Additional vector databases LlamaIndex supports:
+print(f"\n📋 LlamaIndex supports these vector databases:")
+print(f"   - Qdrant (production-ready)")
+print(f"   - Chroma (good for prototyping)")
+print(f"   - Pinecone (cloud-based)")
+print(f"   - Weaviate (semantic search)")
+print(f"   - Milvus (scalable)")
+print(f"   - Faiss (Facebook AI)")
+print(f"   - SimpleVectorStore (in-memory)")
+print(f"   - And 20+ more!") 
