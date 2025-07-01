@@ -77,7 +77,7 @@ class RAGService:
         
         return documents
     
-    async def load_s3_files_async(self, s3_bucket_name: str, s3_keys: List[str]) -> List[Document]:
+    async def load_s3_files_async(self, s3_bucket_name: str, s3_keys: List[str], add_s3_metadata: bool = True) -> List[Document]:
         """Load documents from S3 asynchronously with optimized resource management."""
         
         # Create reusable storage backend
@@ -246,10 +246,13 @@ class RAGService:
         logger.info("Index created successfully")
         return index
     
-    async def get_query_index_from_s3(self, s3_bucket_name: str, s3_keys: List[str], qdrant_config: QdrantConfig) -> VectorStoreIndex:
+    async def get_query_index_from_s3(self, s3_bucket_name: str, 
+                                    s3_keys: List[str], 
+                                    qdrant_config: QdrantConfig,
+                                    add_s3_metadata: bool = True) -> VectorStoreIndex:
         """Get the query index asynchronously from S3."""
         logger.info(f"Getting query index for {s3_bucket_name} and {s3_keys}")
-        docs = await self.load_s3_files_async(s3_bucket_name, s3_keys)
+        docs = await self.load_s3_files_async(s3_bucket_name, s3_keys, add_s3_metadata)
         logger.info(f"Loaded {len(docs)} documents")
         
         storage_context = await self.setup_vector_store(qdrant_config)
