@@ -590,12 +590,14 @@ class RAGConfig:
         ".pdf", ".docx", ".doc", ".txt", ".pptx", ".ppt", ".csv", ".xlsx", ".md"
     ])
     
-    # Rate limiting and delays
+    # Rate limiting and delays for custom pptx reader only
     enable_delay: bool = True
     delay_seconds: int = 2
     
+    # llama index rag pipeline progress
     show_progress: bool = True
     
+    # s3 settings
     s3_bucket_name: str = "rag-files"
 
     @classmethod
