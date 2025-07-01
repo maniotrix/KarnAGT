@@ -246,6 +246,19 @@ class RAGService:
         logger.info("Index created successfully")
         return index
     
+    async def get_query_index_from_s3(self, s3_bucket_name: str, s3_keys: List[str], qdrant_config: QdrantConfig) -> VectorStoreIndex:
+        """Get the query index asynchronously from S3."""
+        logger.info(f"Getting query index for {s3_bucket_name} and {s3_keys}")
+        docs = await self.load_s3_files_async(s3_bucket_name, s3_keys)
+        logger.info(f"Loaded {len(docs)} documents")
+        
+        storage_context = await self.setup_vector_store(qdrant_config)
+        logger.info("Vector store setup completed successfully")
+        
+        index = self.create_index(storage_context, docs)
+        logger.info("Index created successfully")
+        return index
+    
     async def get_query_results(self, docs_dir: str, queries: List[str], qdrant_config: QdrantConfig) -> List[QueryWithResult]:
         """Get query results asynchronously."""
         index = await self.get_query_index(docs_dir, qdrant_config)
