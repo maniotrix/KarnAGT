@@ -88,6 +88,42 @@ class RAGService:
         
         logger.info(f"Metadata cleaning test - Removed {len(result['removed_keys'])} sensitive keys")
         return result
+    
+    def analyze_retrieval_results(self, query_results: List[QueryWithResult]) -> None:
+        """
+        Analyze and log detailed information about retrieval results.
+        
+        Args:
+            query_results: List of query results to analyze
+        """
+        for i, query_result in enumerate(query_results, 1):
+            if hasattr(query_result.result, 'source_nodes') and query_result.result.source_nodes:
+                logger.info(f"Query {i} Retrieval Analysis:")
+                
+                # Group sources by document
+                doc_scores = {}
+                for j, node in enumerate(query_result.result.source_nodes):
+                    doc_name = node.metadata.get('file_name', node.metadata.get('s3_original_filename', 'Unknown'))
+                    score = getattr(node, 'score', 0.0)
+                    
+                    if doc_name not in doc_scores:
+                        doc_scores[doc_name] = {'max_score': score, 'count': 0, 'avg_score': 0, 'scores': []}
+                    
+                    doc_scores[doc_name]['count'] += 1
+                    doc_scores[doc_name]['scores'].append(score)
+                    doc_scores[doc_name]['max_score'] = max(doc_scores[doc_name]['max_score'], score)
+                    doc_scores[doc_name]['avg_score'] = sum(doc_scores[doc_name]['scores']) / len(doc_scores[doc_name]['scores'])
+                
+                # Sort by max score (primary source = highest score)
+                sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1]['max_score'], reverse=True)
+                
+                logger.info(f"  📊 Document Relevance Ranking:")
+                for rank, (doc_name, stats) in enumerate(sorted_docs, 1):
+                    status = "🎯 PRIMARY" if rank == 1 else f"📄 SECONDARY-{rank-1}"
+                    logger.info(f"    {status}: {doc_name}")
+                    logger.info(f"      Max Score: {stats['max_score']:.4f}, Avg: {stats['avg_score']:.4f}, Chunks: {stats['count']}")
+            else:
+                logger.info(f"Query {i}: No source nodes found")
         
     def get_file_extractor(self) -> Dict[str, BaseReader]:
         """Get file extractor for the RAG service."""

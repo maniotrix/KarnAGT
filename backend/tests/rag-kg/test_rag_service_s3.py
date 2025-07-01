@@ -318,16 +318,87 @@ class RAGTestRunner:
             
             if hasattr(query_results[0].result, 'source_nodes') and query_results[0].result.source_nodes:
                 print(f"📚 Sources ({len(query_results[0].result.source_nodes)} found):")
-                for j, node in enumerate(query_results[0].result.source_nodes[:3], 1):
-                    source_file = node.metadata.get('file_name', 'Unknown')
-                    source_text = node.text[:100].replace('\n', ' ') + '...'
-                    print(f"   {j}. {source_file}: {source_text}")
+                
+                # Show detailed ranking with scores and metadata
+                for j, node in enumerate(query_results[0].result.source_nodes[:5], 1):  # Show top 5
+                    source_file = node.metadata.get('file_name', node.metadata.get('s3_original_filename', 'Unknown'))
+                    page = node.metadata.get('page_label', 'N/A')
+                    source_text = node.text[:80].replace('\n', ' ') + '...'
+                    
+                    # Show retrieval score (higher = more relevant)
+                    score = getattr(node, 'score', 'N/A')
+                    relevance_emoji = "🎯" if j <= 2 else "📄"  # Top 2 are primary
+                    
+                    # Format score properly
+                    score_str = f"{score:.4f}" if isinstance(score, float) else str(score)
+                    
+                    print(f"   {relevance_emoji} {j}. {source_file} (page {page}) [Score: {score_str}]")
+                    print(f"      📝 {source_text}")
+                    
+                    # Show what metadata was sent to LLM vs stored
+                    llm_metadata_keys = list(node.metadata.keys())
+                    stored_metadata_keys = list(node.extra_info.keys()) if hasattr(node, 'extra_info') and node.extra_info else []
+                    
+                    print(f"      🔒 Sent to LLM: {llm_metadata_keys}")
+                    if stored_metadata_keys:
+                        removed_keys = set(stored_metadata_keys) - set(llm_metadata_keys)
+                        if removed_keys:
+                            print(f"      🗑️  Removed (stored safely): {list(removed_keys)}")
+                    print()
             else:
                 print("📚 No sources found")
             print("-" * 60)
             
         # End timing for query processing
         self.perf_monitor.end_timing("Query Processing")
+        
+        # Analyze retrieval results to show source ranking
+        print("\n🔍 RETRIEVAL ANALYSIS - Source Ranking by Relevance:")
+        print("=" * 60)
+        all_query_results = []
+        
+        # Re-run one sample query to get detailed analysis
+        sample_query = "What are the passenger age and gender details mentioned?"
+        sample_results = await self.rag_service.get_query_results_from_index(index, [sample_query])
+        
+        if sample_results and hasattr(sample_results[0].result, 'source_nodes'):
+            source_nodes = sample_results[0].result.source_nodes
+            
+            # Group by document and show scores
+            doc_analysis = {}
+            for i, node in enumerate(source_nodes):
+                doc_name = node.metadata.get('file_name', node.metadata.get('s3_original_filename', 'Unknown'))
+                score = getattr(node, 'score', 0.0)
+                page = node.metadata.get('page_label', 'N/A')
+                
+                if doc_name not in doc_analysis:
+                    doc_analysis[doc_name] = {'scores': [], 'pages': [], 'chunks': []}
+                
+                doc_analysis[doc_name]['scores'].append(score)
+                doc_analysis[doc_name]['pages'].append(page)
+                doc_analysis[doc_name]['chunks'].append(node.text[:100] + '...')
+            
+            # Sort by highest score
+            sorted_docs = sorted(doc_analysis.items(), 
+                               key=lambda x: max(x[1]['scores']), 
+                               reverse=True)
+            
+            print(f"📊 Document Ranking for: '{sample_query}'")
+            for rank, (doc_name, data) in enumerate(sorted_docs, 1):
+                max_score = max(data['scores'])
+                avg_score = sum(data['scores']) / len(data['scores'])
+                chunk_count = len(data['scores'])
+                
+                status_emoji = "🎯" if rank == 1 else "📄"
+                status_text = "PRIMARY SOURCE" if rank == 1 else f"SECONDARY SOURCE #{rank-1}"
+                
+                print(f"\n{status_emoji} {rank}. {status_text}")
+                print(f"   📚 Document: {doc_name}")
+                print(f"   📊 Max Score: {max_score:.4f} | Avg Score: {avg_score:.4f}")
+                print(f"   📄 Pages: {data['pages'][:3]} | Chunks: {chunk_count}")
+                print(f"   📝 Sample: {data['chunks'][0][:80]}...")
+        
+        print("=" * 60)
         
         self.print_performance_summary(query_times)
         
