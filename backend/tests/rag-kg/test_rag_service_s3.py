@@ -400,6 +400,66 @@ class RAGTestRunner:
         
         print("=" * 60)
         
+        # Test different similarity_top_k values to show the impact
+        print("\n🎛️ SIMILARITY_TOP_K IMPACT ANALYSIS:")
+        print("=" * 60)
+        
+        test_query = "What are the passenger names?"
+        print(f"🔍 Query: {test_query}")
+        test_k_values = [3, 5, 10, 15]
+        
+        for k_value in test_k_values:
+            print(f"\n📊 Testing with similarity_top_k={k_value}:")
+            
+            # Create a temporary query engine with different k value
+            temp_query_engine = index.as_query_engine(
+                similarity_top_k=k_value,
+                response_mode="tree_summarize",
+                node_postprocessors=[self.rag_service.metadata_cleaner]
+            )
+            
+            temp_result = temp_query_engine.query(test_query)
+            
+            if hasattr(temp_result, 'source_nodes') and temp_result.source_nodes:
+                # Analyze source distribution
+                doc_counts = {}
+                score_range = {"min": 1.0, "max": 0.0}
+                
+                for node in temp_result.source_nodes:
+                    doc_name = node.metadata.get('file_name', node.metadata.get('s3_original_filename', 'Unknown'))
+                    score = getattr(node, 'score', 0.0)
+                    
+                    if doc_name not in doc_counts:
+                        doc_counts[doc_name] = 0
+                    doc_counts[doc_name] += 1
+                    
+                    score_range["min"] = min(score_range["min"], score)
+                    score_range["max"] = max(score_range["max"], score)
+                
+                # Show results
+                primary_doc = max(doc_counts.items(), key=lambda x: x[1])
+                total_chunks = len(temp_result.source_nodes)
+                primary_percentage = (primary_doc[1] / total_chunks) * 100
+                
+                print(f"   🔍 Query Result: {temp_result}")
+                
+                print(f"   📚 Total chunks retrieved: {total_chunks}")
+                print(f"   🎯 Primary source: {primary_doc[0]} ({primary_doc[1]} chunks, {primary_percentage:.1f}%)")
+                print(f"   📊 Score range: {score_range['max']:.4f} → {score_range['min']:.4f}")
+                print(f"   🏆 Answer quality: {'🎯 Focused' if k_value <= 5 else '📄 Comprehensive' if k_value <= 10 else '🌐 Broad'}")
+                
+                # Show unique documents
+                unique_docs = len(doc_counts)
+                print(f"   📑 Unique documents: {unique_docs}")
+                
+        print("\n💡 RECOMMENDATIONS:")
+        print("   • similarity_top_k=3-5: Best for focused, specific queries")
+        print("   • similarity_top_k=8-12: Good balance for most use cases") 
+        print("   • similarity_top_k=15+: Comprehensive but may include noise")
+        print("   • Your current setting (15) captures broad context but includes secondary sources")
+        
+        print("=" * 60)
+        
         self.print_performance_summary(query_times)
         
         # Cleanup S3 files
@@ -429,7 +489,7 @@ def main():
         ]
     
     # Use robust configuration that handles metadata variations and ensures comprehensive retrieval
-    config = RAGConfig.for_robust_retrieval(
+    config = RAGConfig.for_chat_application(
         s3_bucket_name="test-rag-bucket",
         enable_logging=True,
         exclude_patterns=excluded_patterns if len(excluded_patterns) > 0 else None,

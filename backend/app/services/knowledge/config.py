@@ -651,7 +651,6 @@ class RAGConfig:
             "max_concurrent_downloads": 12,
             "response_mode": "compact",  # Faster processing
             "max_source_nodes": 5,
-            "enable_delay": False,
         }
         
         defaults.update(kwargs)
@@ -826,8 +825,6 @@ class RAGConfig:
             "similarity_top_k": 8,  # Lower due to API costs
             "response_mode": "tree_summarize",
             "max_source_nodes": 8,
-            "enable_delay": True,  # Respect rate limits
-            "delay_seconds": 1,
         }
         defaults.update(kwargs)
         return cls(**defaults)
@@ -897,6 +894,74 @@ class RAGConfig:
             "chunk_size": chunk_sizes.get(model_name, 400),
             "chunk_overlap": 80,  # 20% of smaller chunk
             "similarity_top_k": 15,  # More chunks since they're smaller
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    # =============================================================================
+    # CHAT APPLICATION SPECIFIC CONFIGURATIONS
+    # =============================================================================
+    
+    @classmethod
+    def for_chat_application(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for ChatGPT-like chat applications where users upload documents 
+        to chat threads and ask questions about them.
+        
+        Key considerations:
+        - Users expect comprehensive answers (like ChatGPT)
+        - Documents are contextually related (user uploaded together)
+        - Missing relevant info is worse than extra context
+        - Balance between coverage and response speed
+        - Cost-conscious but quality-focused
+        """
+        defaults = {
+            "llm_model": "gpt-4o-mini-2024-07-18",  # Best cost/performance for chat
+            "embedding_model": "text-embedding-3-large",  # Best accuracy
+            "chunk_size": 1024,  # Optimal balance
+            "chunk_overlap": 200,  # 20% overlap
+            "similarity_top_k": 8,  # Sweet spot for chat applications
+            "response_mode": "tree_summarize",  # Best for multiple sources
+            "max_source_nodes": 6,  # Focused but comprehensive
+            "num_workers": 4,  # Fast processing
+            "max_concurrent_downloads": 8,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_chat_single_document(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for single document uploads in chat (resumes, reports, etc.).
+        Focus on precision within the document.
+        """
+        defaults = {
+            "llm_model": "gpt-4o-mini-2024-07-18",
+            "embedding_model": "text-embedding-3-large",
+            "chunk_size": 1024,
+            "chunk_overlap": 200,
+            "similarity_top_k": 6,  # Lower for focused single doc
+            "response_mode": "compact",  # Simpler for single source
+            "max_source_nodes": 5,
+        }
+        defaults.update(kwargs)
+        return cls(**defaults)
+    
+    @classmethod
+    def for_chat_comprehensive(cls, **kwargs) -> "RAGConfig":
+        """
+        Optimized for complex multi-document questions in chat where users 
+        need comprehensive coverage (research, analysis, etc.).
+        """
+        defaults = {
+            "llm_model": "gpt-4o-mini-2024-07-18",
+            "embedding_model": "text-embedding-3-large",
+            "chunk_size": 1024,
+            "chunk_overlap": 250,  # Higher overlap for completeness
+            "similarity_top_k": 12,  # Higher for comprehensive coverage
+            "response_mode": "tree_summarize",
+            "max_source_nodes": 10,  # More sources for comprehensive answers
+            
         }
         defaults.update(kwargs)
         return cls(**defaults)
