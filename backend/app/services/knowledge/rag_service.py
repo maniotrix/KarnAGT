@@ -36,6 +36,8 @@ class RAGService:
         # Setup LlamaIndex settings
         logger.info(f"Setting up LLM: {self.config.llm_model}")
         Settings.llm = OpenAI(model=self.config.llm_model)
+        
+        # NOTE: This uses the default openai embedding model, not using config.embedding_model
         Settings.embed_model = OpenAIEmbedding()
         
         
