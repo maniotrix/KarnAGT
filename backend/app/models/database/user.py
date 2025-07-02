@@ -59,22 +59,25 @@ class User(Base):
     memory_preferences = relationship("MemoryPreference", back_populates="user", cascade="all, delete-orphan")
     memories = relationship("UserMemory", back_populates="user", cascade="all, delete-orphan")
     knowledge_files = relationship("KnowledgeFile", back_populates="user", cascade="all, delete-orphan")
+    vector_collections = relationship("VectorCollection", back_populates="user", cascade="all, delete-orphan")
     cost_tracking = relationship("CostTracking", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', subscription='{self.subscription_tier}')>"
     
-    @property
     def is_quota_exceeded(self) -> bool:
         """Check if user has exceeded their monthly quota"""
-        return self.current_usage_usd >= self.monthly_quota_usd
+        current_usage = getattr(self, 'current_usage_usd', 0) or 0
+        monthly_quota = getattr(self, 'monthly_quota_usd', 0) or 0
+        return current_usage >= monthly_quota
     
-    @property
     def quota_usage_percentage(self) -> float:
         """Get quota usage as percentage"""
-        if self.monthly_quota_usd <= 0:
+        current_usage = getattr(self, 'current_usage_usd', 0) or 0
+        monthly_quota = getattr(self, 'monthly_quota_usd', 0) or 0
+        if monthly_quota <= 0:
             return 0.0
-        return min((self.current_usage_usd / self.monthly_quota_usd) * 100, 100.0)
+        return min((current_usage / monthly_quota) * 100, 100.0)
     
     def can_use_feature(self, feature: str) -> bool:
         """Check if user can access a feature based on subscription tier"""

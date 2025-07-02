@@ -181,7 +181,7 @@ class RAGService:
             exclude_patterns=self.config.exclude_patterns,
             num_workers=self.config.num_workers,
             show_progress=self.config.show_progress,
-            add_s3_metadata=True
+            add_s3_metadata=add_s3_metadata
         )
         return documents
     
@@ -231,7 +231,7 @@ class RAGService:
         logger.info("Vector store setup completed successfully")
         return storage_context
     
-    def create_index(self, storage_context: StorageContext, docs: List[Document]) -> VectorStoreIndex:
+    async def create_index(self, storage_context: StorageContext, docs: List[Document]) -> VectorStoreIndex:
         """Create or load vector index."""
         logger.info(f"Creating vector index from {len(docs)} documents")
         logger.info(f"Using chunk_size: {self.config.chunk_size}, chunk_overlap: {self.config.chunk_overlap}")
@@ -330,7 +330,7 @@ class RAGService:
         storage_context = await self.setup_vector_store(qdrant_config)
         
         logger.info("Vector store setup completed successfully")
-        index = self.create_index(storage_context, docs)
+        index = await self.create_index(storage_context, docs)
         logger.info("Index created successfully")
         return index
     
@@ -346,8 +346,34 @@ class RAGService:
         storage_context = await self.setup_vector_store(qdrant_config)
         logger.info("Vector store setup completed successfully")
         
-        index = self.create_index(storage_context, docs)
+        index = await self.create_index(storage_context, docs)
         logger.info("Index created successfully")
+        return index
+    
+    async def update_query_index_from_s3(self, 
+                                    index: VectorStoreIndex,
+                                    s3_bucket_name: str, 
+                                    s3_keys: List[str], 
+                                    qdrant_config: QdrantConfig,
+                                    add_s3_metadata: bool = True) -> VectorStoreIndex:
+        
+        """Update the query index asynchronously from S3."""
+        logger.info(f"Updating query index for {s3_bucket_name} and {s3_keys}")
+        new_docs = await self.load_s3_files_async(s3_bucket_name, s3_keys, add_s3_metadata)
+        logger.info(f"Loaded {len(new_docs)} documents")
+
+        # Convert documents to nodes
+        node_parser = SentenceSplitter(
+            chunk_size=self.config.chunk_size, 
+            chunk_overlap=self.config.chunk_overlap
+        )
+        new_nodes = node_parser.get_nodes_from_documents(new_docs)
+        logger.info(f"Converted {len(new_docs)} documents to {len(new_nodes)} nodes")
+
+        # Insert new nodes into existing index
+        await index.ainsert_nodes(new_nodes)
+        logger.info("New nodes inserted into index successfully")
+        
         return index
     
     async def get_query_results(self, docs_dir: str, queries: List[str], qdrant_config: QdrantConfig) -> List[QueryWithResult]:
