@@ -37,7 +37,7 @@ class KnowledgeFile(Base):
     
     # Metadata and configuration
     processing_config = Column(JSON, nullable=True)  # Chunk size, model used, etc.
-    metadata = Column(JSON, nullable=True)  # Additional file metadata
+    file_metadata = Column(JSON, nullable=True)  # Additional file metadata
     error_message = Column(Text, nullable=True)  # Error details if processing failed
     
     # Hierarchy support
@@ -66,12 +66,16 @@ class KnowledgeFile(Base):
     @property
     def is_processed(self) -> bool:
         """Check if file has been successfully processed."""
-        return self.processing_status == "completed" and self.indexed_in_vector_db
+        status = getattr(self, 'processing_status', None)
+        indexed = getattr(self, 'indexed_in_vector_db', False)
+        return status == "completed" and indexed
 
     @property
     def needs_reprocessing(self) -> bool:
         """Check if file needs reprocessing due to errors or changes."""
-        return self.processing_status in ["failed", "pending"] or not self.indexed_in_vector_db
+        status = getattr(self, 'processing_status', None)
+        indexed = getattr(self, 'indexed_in_vector_db', False)
+        return status in ["failed", "pending"] or not indexed
 
     def to_dict(self):
         """Convert to dictionary for API responses."""
@@ -86,7 +90,7 @@ class KnowledgeFile(Base):
             "embeddings_generated": self.embeddings_generated,
             "node_count": self.node_count,
             "collection_id": self.collection_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "processed_at": self.processed_at.isoformat() if self.processed_at else None,
+            "created_at": getattr(self, 'created_at', None).isoformat() if getattr(self, 'created_at', None) else None,
+            "updated_at": getattr(self, 'updated_at', None).isoformat() if getattr(self, 'updated_at', None) else None,
+            "processed_at": getattr(self, 'processed_at', None).isoformat() if getattr(self, 'processed_at', None) else None,
         } 
