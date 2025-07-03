@@ -666,4 +666,19 @@ class ProductionRAGService:
                 )
             )
             
-            await db.commit() 
+            await db.commit()
+            
+    async def delete_collection(self, collection_name: str):
+        """Delete a collection from Qdrant."""
+        
+        logger.info(f"Deleting collection: {collection_name}")
+        
+        try:
+            from qdrant_client import AsyncQdrantClient
+            aclient = AsyncQdrantClient(url=self.qdrant_config.url)
+            await aclient.delete_collection(collection_name)
+            logger.info(f"   🗑️  Deleted collection: {collection_name}")
+        except Exception as e:
+            logger.error(f"   ⚠️  Qdrant cleanup warning: {e}")
+        
+        logger.info("   ✅ Qdrant cleanup completed")
