@@ -32,7 +32,6 @@ class Conversation(Base):
     memory_enabled = Column(Boolean, default=True)
     context_window_size = Column(Integer, default=10)  # Number of recent messages to include
     auto_title_generation = Column(Boolean, default=True)
-    vector_collection_name = Column(String(200), nullable=True)  # Auto-generated RAG collection name
     
     # Analytics and tracking
     message_count = Column(Integer, default=0)
