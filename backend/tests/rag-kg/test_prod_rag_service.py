@@ -222,9 +222,9 @@ class ProductionRAGTestRunner:
             )
             
             print(f"   ✅ Processing complete:")
-            print(f"      📊 Processed: {result.processed_count}/{result.total_requested}")
+            print(f"      📁 Files: {result.total_requested} requested, {result.file_success_rate:.1f}% success")
+            print(f"      📄 Document Chunks: {result.total_document_chunks} created ({result.document_extraction_rate:.1f} per file)")
             print(f"      ⏱️  Time: {result.processing_time:.2f}s")
-            print(f"      📈 Success Rate: {result.success_rate:.1f}%")
             
             if result.compatibility_result:
                 print(f"      🔍 Compatibility: {'✅ Compatible' if result.compatibility_result.is_compatible else '⚠️ Issues found'}")

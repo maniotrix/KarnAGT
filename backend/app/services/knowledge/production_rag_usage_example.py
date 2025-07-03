@@ -88,7 +88,7 @@ async def demo_production_rag():
             )
             
             print(f"✅ Processing complete!")
-            print(f"   📈 Success rate: {processing_result.success_rate:.1f}%")
+            print(f"   📈 Success rate: {processing_result.file_success_rate:.1f}%")
             print(f"   ⏱️  Processing time: {processing_result.processing_time:.2f}s")
             print(f"   📝 Processed: {processing_result.processed_count}/{processing_result.total_requested}")
             

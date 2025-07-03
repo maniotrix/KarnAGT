@@ -56,11 +56,24 @@ class ProcessingResult:
     compatibility_result: Optional[CompatibilityResult] = None  # Changed to CompatibilityResult
     
     @property
-    def success_rate(self) -> float:
-        """Calculate success rate percentage."""
+    def file_success_rate(self) -> float:
+        """Calculate file processing success rate (0-100%)."""
         if self.total_requested == 0:
             return 100.0
-        return (self.processed_count / self.total_requested) * 100
+        successful_files = self.total_requested - len(self.failed_files)
+        return (successful_files / self.total_requested) * 100
+    
+    @property
+    def document_extraction_rate(self) -> float:
+        """Calculate document chunks extracted per file."""
+        if self.total_requested == 0:
+            return 0.0
+        return self.processed_count / self.total_requested
+    
+    @property
+    def total_document_chunks(self) -> int:
+        """Total number of document chunks created."""
+        return self.processed_count
 
 
 @dataclass
@@ -420,11 +433,15 @@ class ProductionRAGService:
         sources = []
         if hasattr(response, 'source_nodes') and response.source_nodes:
             for node in response.source_nodes:
+                # Clean up text preview by removing extra whitespace and newlines
+                cleaned_text = ' '.join(node.text.split())
+                text_preview = cleaned_text[:200] + "..." if len(cleaned_text) > 200 else cleaned_text
+                
                 sources.append({
                     "file_name": node.metadata.get('file_name', 'Unknown'),
                     "page_label": node.metadata.get('page_label', 'N/A'),
                     "score": getattr(node, 'score', 0.0),
-                    "text_preview": node.text[:200] + "..." if len(node.text) > 200 else node.text
+                    "text_preview": text_preview
                 })
         
         # Update collection query statistics
