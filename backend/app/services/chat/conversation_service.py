@@ -63,13 +63,15 @@ class ConversationService:
         
         try:
             # Create conversation instance
+            conversation_id = str(uuid.uuid4())
             conversation = Conversation(
-                conversation_id=str(uuid.uuid4()),
+                conversation_id=conversation_id,
                 user_id=self.user_id,
                 title=conversation_data.title,
                 model_name=conversation_data.model_name,
                 system_prompt=conversation_data.system_prompt,
-                status="active"
+                status="active",
+                vector_collection_name=f"conv_{conversation_id}_{self.user_id}"
             )
             
             self.db.add(conversation)
