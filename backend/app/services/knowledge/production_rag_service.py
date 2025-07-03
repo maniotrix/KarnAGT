@@ -118,16 +118,16 @@ class ProductionRAGService:
         display_name: Optional[str] = None,
         db: Optional[AsyncSession] = None
     ) -> VectorCollection:
-        """Get existing collection or create new one with proper state tracking."""
+        """Get existing collection from or create new one with proper state tracking as per qdrant config."""
         
         if db is None:
             async for db_session in get_db():
                 db = db_session
                 break
         
-        # Generate collection name if not provided
+        # Use qdrant config collection name if not provided
         if collection_name is None:
-            collection_name = f"user_{user_id}_{uuid.uuid4().hex[:8]}"
+            collection_name = self.qdrant_config.collection_name
         
         # Check if collection exists
         result = await db.execute(
