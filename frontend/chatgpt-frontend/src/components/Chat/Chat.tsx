@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrentUser, useAuthStatus } from '../../app/hooks/auth/useAuth';
 import { useUiStore } from '../../app/stores';
 import { ConversationImagesProvider } from '../../contexts/ConversationImagesContext';
+import { convertUploadFilesToStagingFiles, hasStagingFiles } from '../../app/services';
 
 interface ChatProps {
   conversationId?: string;
@@ -194,11 +195,8 @@ export const Chat: React.FC<ChatProps> = ({
     const successfulFiles = uploadedImages.filter(file => file.status === 'success' && file.file_id && file.s3_key && file.file);
     console.log('🔍 DEBUG: Successful files after filter:', successfulFiles);
     
-    // Prepare staging files for backend
-    const stagingFiles = successfulFiles.map(file => ({
-      file_id: file.file_id!,
-      s3_key: file.s3_key!,
-    }));
+    // Prepare staging files for backend using utility function (NEW FORMAT)
+    const stagingFiles = convertUploadFilesToStagingFiles(successfulFiles);
 
     // Prepare actual image data for frontend display
     const imageData = successfulFiles.map(file => ({
@@ -209,12 +207,12 @@ export const Chat: React.FC<ChatProps> = ({
       s3Key: file.s3_key!
     }));
 
-    console.log('🔍 DEBUG: Final staging files for backend:', stagingFiles);
+    console.log('🔍 DEBUG: Final staging files for backend (NEW FORMAT):', stagingFiles);
     console.log('🔍 DEBUG: Image data for frontend:', imageData);
-    console.log('🔍 DEBUG: Staging files count:', stagingFiles.length);
+    console.log('🔍 DEBUG: Total staging files count:', Object.values(stagingFiles).flat().length);
 
     // If we don't have a conversation, ask parent to create one
-    if (!hasConversation && onCreateConversationForMessage && (input.trim() || stagingFiles.length > 0)) {
+    if (!hasConversation && onCreateConversationForMessage && (input.trim() || hasStagingFiles(stagingFiles))) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
       await onCreateConversationForMessage(input.trim() || "Image analysis request");

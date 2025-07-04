@@ -27,7 +27,7 @@ export interface MessageCreate {
   parent_message_id?: string;
   attachments?: string[];
   metadata?: Record<string, any>;
-  staging_files?: Array<{ file_id: string; s3_key: string }>;
+  staging_files?: Record<string, any>; // New format: {"images": [...], "vectors": [...], "unknown": [...]}
 }
 
 // MessageUpdate interface for editing messages
@@ -101,7 +101,7 @@ export interface StreamMessage {
   stream_mode?: 'text' | 'json' | 'function_call';
   attachments?: string[];
   metadata?: Record<string, any>;
-  staging_files?: Array<{ file_id: string; s3_key: string }>;
+  staging_files?: Record<string, any>; // New format: {"images": [...], "vectors": [...], "unknown": [...]}
 }
 
 // SSE Event types from your backend streaming

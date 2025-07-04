@@ -241,25 +241,38 @@ async def send_message(
     This endpoint processes the message synchronously and returns the complete AI response.
     For real-time streaming responses, use the /stream endpoint instead.
     
-    **Image Support:**
-    - Upload images to staging area first: POST /ai-files/staging/bulk-upload
-    - Include staging_files in request: [{"file_id": "img_abc", "s3_key": "path/file"}]
+    **File Support:**
+    - Upload files to staging area first: POST /ai-files/staging/bulk-upload
+    - Include staging_files in request organized by type: {"images": [...], "vectors": [...]}
     - Images will be committed to permanent storage and sent to OpenAI Vision API
+    - Vector documents will be processed for RAG (future implementation)
     """
     logger.info(f"Sending message to conversation {conversation_id} for user {current_user.user_id}")
     
     try:
+        # Convert staging files from dict to object at API boundary
+        staging_collection = None
+        if message_data.staging_files:
+            from app.models.schemas.staging_schemas import StagingFileCollection
+            staging_collection = StagingFileCollection.from_dict(message_data.staging_files)
+        
         chat_service = ChatService(db, current_user)
         
-        # Send message and get AI response (now with staging files support)
-        # Determine message type based on content
-        message_type = "multimodal" if message_data.staging_files else "text"
+        # Determine message type based on staging files content
+        message_type = "text"
+        if staging_collection and not staging_collection.is_empty:
+            if staging_collection.has_images and staging_collection.has_vectors:
+                message_type = "multimodal_rag"
+            elif staging_collection.has_images:
+                message_type = "multimodal"
+            elif staging_collection.has_vectors:
+                message_type = "rag"
         
         response = await chat_service.send_message(
             conversation_id=conversation_id,
             content=message_data.content,
             message_type=message_type,
-            staging_files=message_data.staging_files
+            staging_files=staging_collection
         )
         
         return response
@@ -302,10 +315,11 @@ async def stream_message(
     This endpoint uses Server-Sent Events (SSE) to stream the AI response token by token.
     Perfect for providing a ChatGPT-like experience with real-time feedback.
     
-    **Image Support:**
-    - Upload images to staging area first: POST /ai-files/staging/bulk-upload
-    - Include staging_files in request: [{"file_id": "img_abc", "s3_key": "path/file"}]
+    **File Support:**
+    - Upload files to staging area first: POST /ai-files/staging/bulk-upload
+    - Include staging_files in request organized by type: {"images": [...], "vectors": [...]}
     - Images will be committed to permanent storage and sent to OpenAI Vision API
+    - Vector documents will be processed for RAG (future implementation)
     
     The response will be a stream of SSE events:
     - `token`: Individual tokens as they're generated
@@ -322,14 +336,27 @@ async def stream_message(
         # Create the streaming generator with client disconnection detection
         async def stream_with_disconnection_detection():
             """Wrapper generator that detects client disconnection"""
-            # Determine message type based on content
-            message_type = "multimodal" if message_data.staging_files else "text"
+            # Convert staging files from dict to object at API boundary
+            staging_collection = None
+            if message_data.staging_files:
+                from app.models.schemas.staging_schemas import StagingFileCollection
+                staging_collection = StagingFileCollection.from_dict(message_data.staging_files)
+            
+            # Determine message type based on staging files content
+            message_type = "text"
+            if staging_collection and not staging_collection.is_empty:
+                if staging_collection.has_images and staging_collection.has_vectors:
+                    message_type = "multimodal_rag"
+                elif staging_collection.has_images:
+                    message_type = "multimodal"
+                elif staging_collection.has_vectors:
+                    message_type = "rag"
             
             stream_generator = streaming_service.stream_message_response(
                 conversation_id=conversation_id,
                 content=message_data.content,
                 message_type=message_type,
-                staging_files=message_data.staging_files
+                staging_files=staging_collection
             )
             
             try:

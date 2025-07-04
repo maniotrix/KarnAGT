@@ -174,10 +174,10 @@ class ComprehensiveImageVisionLLMInferenceTest:
         })
         return headers
     
-    async def upload_scenario_images(self, image_names: List[str], user_id: str) -> List[Dict[str, str]]:
-        """Upload test images to staging area with proper content types"""
+    async def upload_scenario_images(self, image_names: List[str], user_id: str) -> Dict[str, Any]:
+        """Upload test images to staging area and return staging_files dict for chat API"""
         if not image_names:
-            return []
+            return {}
         
         print(f"Uploading {len(image_names)} images to staging for user {user_id}")
         
@@ -204,20 +204,18 @@ class ComprehensiveImageVisionLLMInferenceTest:
             
             if response.status == 201:
                 upload_data = await response.json()
-                staged_files = []
                 
-                for staged_file in upload_data.get("staged_files", []):
-                    file_info = {
-                        "file_id": staged_file["file_id"],
-                        "s3_key": staged_file["s3_key"],
-                        "filename": staged_file["filename"],
-                        "user_id": user_id
-                    }
-                    staged_files.append(file_info)
-                    # Don't accumulate in self.staged_files - we'll clean up immediately after each test
+                # Return the staging_files dict directly - this is what chat API expects now
+                staging_files_dict = upload_data.get("staging_files", {})
                 
-                print(f"Successfully uploaded {len(staged_files)} images to staging")
-                return [{"file_id": sf["file_id"], "s3_key": sf["s3_key"]} for sf in staged_files]
+                # Count uploaded files for logging
+                total_files = 0
+                for category in ["images", "vectors", "unknown"]:
+                    if category in staging_files_dict:
+                        total_files += len(staging_files_dict[category])
+                
+                print(f"Successfully uploaded {total_files} images to staging")
+                return staging_files_dict
             else:
                 error_text = await response.text()
                 raise Exception(f"Failed to upload images to staging: {response.status} - {error_text}")
@@ -283,11 +281,24 @@ class ComprehensiveImageVisionLLMInferenceTest:
         self, 
         conversation_id: str, 
         content: str, 
-        staging_files: List[Dict[str, str]], 
+        staging_files: Dict[str, Any], 
         user_id: str
     ) -> Dict[str, Any]:
         """Stream a message with images - exactly like React frontend does"""
-        print(f"Streaming message with {len(staging_files)} images: {content[:50]}...")
+        # Count total files for logging
+        total_files = 0
+        if staging_files:
+            for category in ["images", "vectors", "unknown"]:
+                if category in staging_files:
+                    total_files += len(staging_files[category])
+        
+        print(f"Streaming message with {total_files} images: {content[:50]}...")
+        
+        # DEBUG: Log the staging files structure being sent
+        print(f"🔍 DEBUG: Staging files structure: {staging_files}")
+        if staging_files and "images" in staging_files:
+            for i, img in enumerate(staging_files["images"]):
+                print(f"🔍 DEBUG: Image {i}: file_id={img.get('file_id')}, s3_key={img.get('s3_key')}")
         
         message_data = {
             "content": content,
@@ -471,16 +482,23 @@ class ComprehensiveImageVisionLLMInferenceTest:
         conversation_id: str,
         message_id: str,
         content: str,
-        staging_files: List[Dict[str, str]],
+        staging_files: Dict[str, Any],
         user_id: str
     ) -> Dict[str, Any]:
         """Stream edit a message with images - exactly like React frontend does"""
-        print(f"Streaming edit message {message_id} with {len(staging_files)} images: {content[:50]}...")
+        # Count total files for logging
+        total_files = 0
+        if staging_files:
+            for category in ["images", "vectors", "unknown"]:
+                if category in staging_files:
+                    total_files += len(staging_files[category])
+        
+        print(f"Streaming edit message {message_id} with {total_files} images: {content[:50]}...")
         
         message_data = {
             "content": content,
             "role": "user",  # Required field for API validation
-            "staging_files": staging_files
+            #"staging_files": staging_files
         }
         
         headers = self.get_streaming_headers(user_id)
@@ -603,7 +621,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 error_text = await response.text()
                 raise Exception(f"Edit streaming failed: {response.status} - {error_text}")
     
-    async def collect_all_resource_ids(self, conversation_id: str, staging_files: List[Dict[str, str]]) -> Dict[str, List[str]]:
+    async def collect_all_resource_ids(self, conversation_id: str, staging_files: Dict[str, Any]) -> Dict[str, List[str]]:
         """Collect all resource IDs before deletion for cleanup verification"""
         print(f"🔍 Collecting all resource IDs for conversation: {conversation_id}")
         
@@ -641,11 +659,16 @@ class ComprehensiveImageVisionLLMInferenceTest:
                                 if 's3_key' in attachment and attachment['s3_key']:
                                     resources['s3_keys'].append(attachment['s3_key'])
             
-            # Add staging file IDs
-            for staging_file in staging_files:
-                resources['staging_file_ids'].append(staging_file['file_id'])
-                if 's3_key' in staging_file:
-                    resources['s3_keys'].append(staging_file['s3_key'])
+            # Extract staging file IDs from new structure
+            if staging_files:
+                for category in ["images", "vectors", "unknown"]:
+                    if category in staging_files and isinstance(staging_files[category], list):
+                        for file_info in staging_files[category]:
+                            if isinstance(file_info, dict):
+                                if 'file_id' in file_info:
+                                    resources['staging_file_ids'].append(file_info['file_id'])
+                                if 's3_key' in file_info:
+                                    resources['s3_keys'].append(file_info['s3_key'])
             
             print(f"📋 Collected resources: {len(resources['message_ids'])} messages, {len(resources['openai_file_ids'])} OpenAI files, {len(resources['s3_keys'])} S3 keys, {len(resources['staging_file_ids'])} staging files")
             return resources
@@ -779,7 +802,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
         
         print(f"✅ Staging files deletion verified")
     
-    async def immediate_cleanup_and_verify(self, conversation_id: str, staging_files: List[Dict[str, str]], user_id: str):
+    async def immediate_cleanup_and_verify(self, conversation_id: str, staging_files: Dict[str, Any], user_id: str):
         """Immediate cleanup and verification after each inference"""
         print(f"\n🧹 Starting immediate cleanup for conversation: {conversation_id}")
         
@@ -853,7 +876,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
             print(f"\n--- Scenario {i}: {scenario['name']} ---")
             
             conversation_id = None
-            staging_files = []
+            staging_files = {}
             
             try:
                 # 1. Create conversation
@@ -897,7 +920,14 @@ class ComprehensiveImageVisionLLMInferenceTest:
                         print(f"✅ Cleaned up conversation: {conversation_id}")
                     
                     # Clean up any staging files with better error handling
-                    for staged_file in staging_files:
+                    # Extract all files from staging_files dict for cleanup
+                    cleanup_files = []
+                    if staging_files:
+                        for category in ["images", "vectors", "unknown"]:
+                            if category in staging_files:
+                                cleanup_files.extend(staging_files[category])
+                    
+                    for staged_file in cleanup_files:
                         try:
                             await staging_service.discard_staged_file(
                                 staged_file["file_id"], 
@@ -952,7 +982,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
             print(f"\n--- Edit Scenario {i}: {scenario['name']} ---")
             
             conversation_id = None
-            original_staging = []
+            original_staging = {}
             
             try:
                 # 1. Create conversation with original message
@@ -1006,7 +1036,13 @@ class ComprehensiveImageVisionLLMInferenceTest:
                         print(f"✅ Cleaned up conversation: {conversation_id}")
                     
                     # Clean up original staging files (no edit staging files since images don't change)
-                    for staged_file in original_staging:
+                    cleanup_files = []
+                    if original_staging:
+                        for category in ["images", "vectors", "unknown"]:
+                            if category in original_staging:
+                                cleanup_files.extend(original_staging[category])
+                    
+                    for staged_file in cleanup_files:
                         try:
                             await staging_service.discard_staged_file(
                                 staged_file["file_id"], 
@@ -1061,7 +1097,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
             print(f"\n--- Multi-turn Scenario {i}: {scenario['name']} ---")
             
             conversation_id = None
-            staging_files = []
+            staging_files = {}
             
             try:
                 # 1. Create conversation
@@ -1090,7 +1126,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 second_response = await self.stream_message_with_images(
                     conversation_id=conversation_id,
                     content=scenario['second_content'],
-                    staging_files=[],  # NO IMAGES - should use context from first message
+                    staging_files={},  # NO IMAGES - should use context from first message
                     user_id=user.user_id
                 )
                 
@@ -1133,14 +1169,21 @@ class ComprehensiveImageVisionLLMInferenceTest:
                     "error": str(e)
                 })
                 
-                # Cleanup on failure
+                                    # Cleanup on failure
                 cleanup_errors = []
                 try:
                     if conversation_id:
                         await self.delete_conversation(conversation_id, user.user_id)
                         print(f"✅ Cleaned up conversation: {conversation_id}")
                     
-                    for staged_file in staging_files:
+                    # Extract all files from staging_files dict for cleanup
+                    cleanup_files = []
+                    if staging_files:
+                        for category in ["images", "vectors", "unknown"]:
+                            if category in staging_files:
+                                cleanup_files.extend(staging_files[category])
+                    
+                    for staged_file in cleanup_files:
                         try:
                             await staging_service.discard_staged_file(
                                 staged_file["file_id"], 
@@ -1220,8 +1263,8 @@ class ComprehensiveImageVisionLLMInferenceTest:
             print(f"\n--- Sequential Scenario {i}: {scenario['name']} ---")
             
             conversation_id = None
-            first_staging = []
-            second_staging = []
+            first_staging = {}
+            second_staging = {}
             
             try:
                 # 1. Create conversation
@@ -1247,7 +1290,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 first_followup_response = await self.stream_message_with_images(
                     conversation_id=conversation_id,
                     content=scenario['first_followup'],
-                    staging_files=[],  # NO NEW IMAGES
+                    staging_files={},  # NO NEW IMAGES
                     user_id=user.user_id
                 )
                 
@@ -1274,7 +1317,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 second_followup_response = await self.stream_message_with_images(
                     conversation_id=conversation_id,
                     content=scenario['second_followup'],
-                    staging_files=[],  # NO NEW IMAGES
+                    staging_files={},  # NO NEW IMAGES
                     user_id=user.user_id
                 )
                 
@@ -1321,7 +1364,14 @@ class ComprehensiveImageVisionLLMInferenceTest:
                 })
                 
                 # 7. IMMEDIATE CLEANUP & VERIFICATION (both staging file sets)
-                all_staging_files = first_staging + second_staging
+                # Merge staging files dicts for cleanup
+                all_staging_files = {"images": [], "vectors": [], "unknown": []}
+                for staging_dict in [first_staging, second_staging]:
+                    if staging_dict:
+                        for category in ["images", "vectors", "unknown"]:
+                            if category in staging_dict:
+                                all_staging_files[category].extend(staging_dict[category])
+                
                 await self.immediate_cleanup_and_verify(conversation_id, all_staging_files, user.user_id)
                 
             except Exception as e:
@@ -1339,9 +1389,15 @@ class ComprehensiveImageVisionLLMInferenceTest:
                         await self.delete_conversation(conversation_id, user.user_id)
                         print(f"✅ Cleaned up conversation: {conversation_id}")
                     
-                    # Clean up both sets of staging files
-                    all_staging_files = first_staging + second_staging
-                    for staged_file in all_staging_files:
+                    # Clean up both sets of staging files  
+                    all_cleanup_files = []
+                    for staging_dict in [first_staging, second_staging]:
+                        if staging_dict:
+                            for category in ["images", "vectors", "unknown"]:
+                                if category in staging_dict:
+                                    all_cleanup_files.extend(staging_dict[category])
+                    
+                    for staged_file in all_cleanup_files:
                         try:
                             await staging_service.discard_staged_file(
                                 staged_file["file_id"], 

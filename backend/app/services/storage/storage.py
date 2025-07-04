@@ -7,10 +7,11 @@ Uses database-driven access control (industry best practice)
 import os
 import uuid
 import boto3
+import mimetypes
 from abc import ABC, abstractmethod
 from botocore.client import Config
 from botocore.exceptions import ClientError
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Union, BinaryIO
 from datetime import datetime, timedelta
 import logging
 import json
@@ -26,12 +27,71 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+def generate_file_id() -> str:
+    """Generate unique file ID - standalone function for easy testing"""
+    return f"file_{uuid.uuid4().hex[:8]}"
+
+def generate_storage_key(file_id: str, filename: str) -> str:
+    """Generate S3 key for file storage - standalone function for easy testing"""
+    date_prefix = datetime.now().strftime("%Y/%m/%d")
+    file_extension = os.path.splitext(filename)[1].lower()
+    return f"files/{date_prefix}/{file_id}{file_extension}"
+
+def get_content_type(file_path: str) -> str:
+    """
+    Get content type of file based on file extension
+    
+    Args:
+        file_path: Path to the file or just filename
+        
+    Returns:
+        MIME type string (e.g., 'application/pdf', 'image/jpeg')
+        Defaults to 'application/octet-stream' if type cannot be determined
+    """
+    content_type, _ = mimetypes.guess_type(file_path)
+    return content_type or 'application/octet-stream'
+
+def get_s3_url_for_document_loading(s3_key: str, url_type: str = "s3_path") -> str:
+    """
+    Standalone function to get S3 URLs for document loading
+    Useful for testing without instantiating the full storage service
+    
+    Args:
+        s3_key: S3 key of the document
+        url_type: Type of URL to return:
+            - "s3_path": s3://bucket/key format (recommended for s3fs)
+            - "direct_minio": Direct MinIO URL
+            - "direct_s3": Direct AWS S3 URL
+            
+    Returns:
+        URL string suitable for document loading
+    """
+    if url_type == "s3_path":
+        return f"s3://{settings.S3_BUCKET_NAME}/{s3_key}"
+    elif url_type == "direct_minio":
+        endpoint = settings.S3_ENDPOINT_URL.rstrip('/')
+        return f"{endpoint}/{settings.S3_BUCKET_NAME}/{s3_key}"
+    elif url_type == "direct_s3":
+        region = settings.S3_REGION
+        bucket = settings.S3_BUCKET_NAME
+        if region and region != "us-east-1":
+            return f"https://{bucket}.s3.{region}.amazonaws.com/{s3_key}"
+        else:
+            return f"https://{bucket}.s3.amazonaws.com/{s3_key}"
+    else:
+        raise ValueError(f"Invalid url_type: {url_type}. Must be 's3_path', 'direct_minio', or 'direct_s3'")
+
 class StorageBackend(ABC):
     """Abstract storage backend for file operations"""
     
     @abstractmethod
     async def upload_file(self, file_data: bytes, key: str, content_type: str) -> str:
         """Upload file and return URL"""
+        pass
+    
+    @abstractmethod
+    async def upload_file_direct(self, file_path_or_obj: Union[str, BinaryIO], key: str, content_type: str) -> str:
+        """Upload file directly from file path or file-like object without loading into memory"""
         pass
     
     @abstractmethod
@@ -43,13 +103,52 @@ class StorageBackend(ABC):
     async def generate_presigned_url(self, key: str, expire_seconds: int = 3600) -> str:
         """Generate presigned URL for secure access"""
         pass
+    
+    @abstractmethod
+    def get_direct_s3_url(self, key: str) -> str:
+        """Get direct S3 URL for document loading"""
+        pass
+    
+    @abstractmethod
+    def get_s3_path(self, key: str) -> str:
+        """Get S3 path format for s3fs and similar libraries"""
+        pass
+    
+    @abstractmethod
+    def clear_bucket(self, bucket_name: str) -> bool:
+        """Clear bucket of all files"""
+        pass
+    
+    @abstractmethod
+    def clear_directory(self, bucket_name: str, directory_prefix: str) -> bool:
+        """Clear all files in a specific directory (prefix)"""
+        pass
+    
+    @abstractmethod
+    async def download_file(self, key: str, local_path: str) -> Optional[str]:
+        """Download a single file from storage to local path. Returns local path if successful, None if failed."""
+        pass
+    
+    @abstractmethod
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> Dict[str, Any]:
+        """Download all files from a directory (prefix) to local directory. 
+        Returns dict with 'directory' (local dir path) and 'files' (list of downloaded file paths)."""
+        pass
+    
+    @abstractmethod
+    async def download_multiple_files(self, keys: List[str], local_dir: str) -> Dict[str, Any]:
+        """Download multiple specific files by S3 keys to local directory. 
+        Returns dict with 'directory' (local dir path), 'files' (list of downloaded file paths), 
+        'failed_keys' (list of keys that failed to download), 'total_requested' (total files requested), 
+        'successful' (number of files successfully downloaded), and 'failed_count' (number of files that failed)."""
+        pass
 
 class S3StorageBackend(StorageBackend):
     """S3-compatible storage backend (MinIO/AWS S3)"""
     
-    def __init__(self):
+    def __init__(self, bucket_name: str = settings.S3_BUCKET_NAME):
         # Use global settings instead of direct os.getenv calls
-        self.bucket_name = settings.S3_BUCKET_NAME
+        self.bucket_name = bucket_name
         self.endpoint_url = settings.S3_ENDPOINT_URL
         self.region = settings.S3_REGION
         
@@ -62,6 +161,300 @@ class S3StorageBackend(StorageBackend):
             config=Config(signature_version='s3v4'),
             region_name=self.region
         )
+        
+    def clear_bucket(self, bucket_name: str) -> bool:
+        """Clear bucket of all files"""
+        try:
+            # List all objects in the bucket
+            response = self.s3_client.list_objects_v2(Bucket=bucket_name)
+            
+            if 'Contents' not in response:
+                logger.info(f"Bucket {bucket_name} is already empty")
+                return True
+            
+            # Delete all objects in batches
+            while True:
+                # Get up to 1000 objects
+                objects_to_delete = []
+                for obj in response.get('Contents', []):
+                    objects_to_delete.append({'Key': obj['Key']})
+                
+                if not objects_to_delete:
+                    break
+                
+                # Delete the batch
+                self.s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': objects_to_delete}
+                )
+                
+                # Check if there are more objects
+                if not response.get('IsTruncated', False):
+                    break
+                
+                # Get next batch
+                response = self.s3_client.list_objects_v2(
+                    Bucket=bucket_name,
+                    ContinuationToken=response['NextContinuationToken']
+                )
+            
+            logger.info(f"Cleared all files from bucket: {bucket_name}")
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to clear bucket {bucket_name}: {e}")
+            return False
+
+    def clear_directory(self, bucket_name: str, directory_prefix: str) -> bool:
+        """Clear all files in a specific directory (prefix)"""
+        try:
+            # Add trailing slash if not present to ensure we're targeting a directory
+            if not directory_prefix.endswith('/'):
+                directory_prefix += '/'
+            
+            # List all objects with this prefix
+            response = self.s3_client.list_objects_v2(
+                Bucket=bucket_name,
+                Prefix=directory_prefix
+            )
+            
+            if 'Contents' not in response:
+                logger.info(f"Directory {directory_prefix} is already empty")
+                return True
+            
+            # Delete objects in batches
+            while True:
+                objects_to_delete = []
+                for obj in response.get('Contents', []):
+                    objects_to_delete.append({'Key': obj['Key']})
+                
+                if not objects_to_delete:
+                    break
+                
+                # Delete the batch (max 1000 objects per request)
+                self.s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': objects_to_delete}
+                )
+                
+                # Check if there are more objects
+                if not response.get('IsTruncated', False):
+                    break
+                
+                # Get next batch
+                response = self.s3_client.list_objects_v2(
+                    Bucket=bucket_name,
+                    Prefix=directory_prefix,
+                    ContinuationToken=response['NextContinuationToken']
+                )
+            
+            logger.info(f"Cleared directory: {directory_prefix}")
+            return True
+            
+        except ClientError as e:
+            logger.error(f"Failed to clear directory {directory_prefix}: {e}")
+            return False
+    
+    async def download_file(self, key: str, local_path: str) -> Optional[str]:
+        """Download a single file from S3/MinIO to local path"""
+        try:
+            # Ensure local directory exists
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            
+            # Download file
+            self.s3_client.download_file(self.bucket_name, key, local_path)
+            logger.info(f"Downloaded file: {key} -> {local_path}")
+            return local_path
+        except ClientError as e:
+            logger.error(f"Failed to download file {key}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to download file {key}: {e}")
+            return None
+    
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> Dict[str, Any]:
+        """Download all files from a directory (prefix) to local directory"""
+        try:
+            # Add trailing slash if not present
+            if not directory_prefix.endswith('/'):
+                directory_prefix += '/'
+            
+            # Ensure local directory exists
+            os.makedirs(local_dir, exist_ok=True)
+            
+            downloaded_files = []
+            
+            # List all objects with this prefix
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix=directory_prefix
+            )
+            
+            if 'Contents' not in response:
+                logger.info(f"No files found in directory: {directory_prefix}")
+                return {"directory": local_dir, "files": downloaded_files}
+            
+            # Download files in batches
+            while True:
+                for obj in response.get('Contents', []):
+                    s3_key = obj['Key']
+                    
+                    # Skip directories (keys ending with /)
+                    if s3_key.endswith('/'):
+                        continue
+                    
+                    # Create relative path for local file
+                    relative_path = s3_key[len(directory_prefix):]  # Remove prefix
+                    
+                    # Validate relative path
+                    if not relative_path or relative_path.startswith('/'):
+                        logger.warning(f"Invalid relative path '{relative_path}' for S3 key '{s3_key}', skipping")
+                        continue
+                    
+                    local_file_path = os.path.join(local_dir, relative_path)
+                    
+                    # Ensure subdirectories exist (only if there are subdirectories)
+                    local_file_dir = os.path.dirname(local_file_path)
+                    if local_file_dir != local_dir:  # Only create if it's a subdirectory
+                        os.makedirs(local_file_dir, exist_ok=True)
+                    
+                    # Download file
+                    try:
+                        self.s3_client.download_file(self.bucket_name, s3_key, local_file_path)
+                        downloaded_files.append(local_file_path)
+                        logger.info(f"Downloaded: {s3_key} -> {local_file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to download file {s3_key}: {e}")
+                        continue
+                
+                # Check if there are more objects
+                if not response.get('IsTruncated', False):
+                    break
+                
+                # Get next batch
+                response = self.s3_client.list_objects_v2(
+                    Bucket=self.bucket_name,
+                    Prefix=directory_prefix,
+                    ContinuationToken=response['NextContinuationToken']
+                )
+            
+            logger.info(f"Downloaded {len(downloaded_files)} files from directory: {directory_prefix}")
+            return {"directory": local_dir, "files": downloaded_files}
+            
+        except ClientError as e:
+            logger.error(f"Failed to download directory {directory_prefix}: {e}")
+            return {"directory": local_dir, "files": []}
+        except Exception as e:
+            logger.error(f"Failed to download directory {directory_prefix}: {e}")
+            return {"directory": local_dir, "files": []}
+    
+    async def download_multiple_files(self, keys: List[str], local_dir: str, max_concurrent: int = 5) -> Dict[str, Any]:
+        """Download multiple specific files by S3 keys to local directory with concurrency control"""
+        try:
+            # Ensure local directory exists
+            os.makedirs(local_dir, exist_ok=True)
+            
+            downloaded_files = []
+            failed_keys = []
+            
+            logger.info(f"Starting concurrent download of {len(keys)} files to {local_dir} (max concurrent: {max_concurrent})")
+            
+            # Use semaphore for concurrency control
+            semaphore = asyncio.Semaphore(max_concurrent)
+            
+            async def download_single_file(s3_key: str) -> Dict[str, Any]:
+                async with semaphore:
+                    try:
+                        # Extract filename from S3 key
+                        filename = os.path.basename(s3_key)
+                        if not filename:  # Handle keys ending with /
+                            filename = f"file_{uuid.uuid4().hex[:8]}"
+                        
+                        # Create local file path
+                        local_file_path = os.path.join(local_dir, filename)
+                        
+                        # Handle duplicate filenames by adding suffix
+                        if os.path.exists(local_file_path):
+                            name, ext = os.path.splitext(filename)
+                            counter = 1
+                            while os.path.exists(local_file_path):
+                                local_file_path = os.path.join(local_dir, f"{name}_{counter}{ext}")
+                                counter += 1
+                        
+                        # Download file (use await to make it async-compatible)
+                        result = await self.download_file(s3_key, local_file_path)
+                        if result:
+                            return {"success": True, "s3_key": s3_key, "local_path": result}
+                        else:
+                            return {"success": False, "s3_key": s3_key, "error": "Download failed"}
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to download {s3_key}: {e}")
+                        return {"success": False, "s3_key": s3_key, "error": str(e)}
+            
+            # Execute downloads concurrently
+            results = await asyncio.gather(*[download_single_file(key) for key in keys])
+            
+            # Process results
+            for result in results:
+                if result["success"]:
+                    downloaded_files.append(result["local_path"])
+                    logger.info(f"Downloaded: {result['s3_key']} -> {result['local_path']}")
+                else:
+                    failed_keys.append(result["s3_key"])
+                    logger.error(f"Failed to download {result['s3_key']}: {result.get('error', 'Unknown error')}")
+            
+            result_dict = {
+                "directory": local_dir,
+                "files": downloaded_files,
+                "failed_keys": failed_keys,
+                "total_requested": len(keys),
+                "successful": len(downloaded_files),
+                "failed_count": len(failed_keys)
+            }
+            
+            logger.info(f"Concurrent download complete: {len(downloaded_files)}/{len(keys)} files successful")
+            return result_dict
+            
+        except Exception as e:
+            logger.error(f"Failed to download multiple files: {e}")
+            return {
+                "directory": local_dir,
+                "files": [],
+                "failed_keys": keys,  # All keys failed
+                "total_requested": len(keys),
+                "successful": 0,
+                "failed_count": len(keys)
+            }
+    
+    async def ensure_bucket_exists(self):
+        """Ensure the bucket exists, create it if it doesn't"""
+        try:
+            # Try to check if bucket exists
+            self.s3_client.head_bucket(Bucket=self.bucket_name)
+            logger.info(f"Bucket '{self.bucket_name}' already exists")
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == '404':
+                # Bucket doesn't exist, create it
+                try:
+                    logger.info(f"Creating bucket '{self.bucket_name}'...")
+                    if self.region and self.region != 'us-east-1':
+                        # For regions other than us-east-1, we need to specify location constraint
+                        self.s3_client.create_bucket(
+                            Bucket=self.bucket_name,
+                            CreateBucketConfiguration={'LocationConstraint': self.region}
+                        )
+                    else:
+                        # For us-east-1 or MinIO, no location constraint needed
+                        self.s3_client.create_bucket(Bucket=self.bucket_name)
+                    
+                    logger.info(f"Successfully created bucket '{self.bucket_name}'")
+                except ClientError as create_error:
+                    logger.error(f"Failed to create bucket '{self.bucket_name}': {create_error}")
+                    # Don't raise here - let the upload fail with a clearer error
+            else:
+                logger.error(f"Error checking bucket '{self.bucket_name}': {e}")
+                # Don't raise here - let the upload fail with a clearer error
     
     async def upload_file(self, file_data: bytes, key: str, content_type: str) -> str:
         """Upload file to S3/MinIO"""
@@ -73,6 +466,49 @@ class S3StorageBackend(StorageBackend):
                 ContentType=content_type
                 # No ACL = private by default, no direct access
             )
+            
+            # File uploaded successfully, return the key for later API access
+            # No direct URLs since files are private
+            return key
+                
+        except ClientError as e:
+            logger.error(f"Failed to upload file {key}: {e}")
+            raise
+    
+    async def upload_file_direct(self, file_path_or_obj: Union[str, BinaryIO], key: str, content_type: str) -> str:
+        """Upload file directly from file path or file-like object without loading into memory"""
+        try:
+            # Ensure bucket exists before upload
+            await self.ensure_bucket_exists()
+            
+            # Prepare metadata for original filename preservation
+            metadata = {}
+            
+            # Handle both file paths and file objects
+            if isinstance(file_path_or_obj, str):
+                # It's a file path, extract original filename and store in metadata
+                original_filename = os.path.basename(file_path_or_obj)
+                metadata['original-filename'] = original_filename
+                
+                # Open the file and upload
+                with open(file_path_or_obj, 'rb') as file_obj:
+                    self.s3_client.put_object(
+                        Bucket=self.bucket_name,
+                        Key=key,
+                        Body=file_obj,
+                        ContentType=content_type,
+                        Metadata=metadata  # Store original filename in S3 metadata
+                        # No ACL = private by default, no direct access
+                    )
+            else:
+                # It's already a file-like object, no original filename available
+                self.s3_client.put_object(
+                    Bucket=self.bucket_name,
+                    Key=key,
+                    Body=file_path_or_obj,
+                    ContentType=content_type
+                    # No ACL = private by default, no direct access
+                )
             
             # File uploaded successfully, return the key for later API access
             # No direct URLs since files are private
@@ -104,6 +540,28 @@ class S3StorageBackend(StorageBackend):
         except ClientError as e:
             logger.error(f"Failed to generate presigned URL for {key}: {e}")
             raise
+    
+    def get_direct_s3_url(self, key: str) -> str:
+        """
+        Get direct S3 URL (for public buckets or when you have proper IAM access)
+        Format: https://bucket.s3.region.amazonaws.com/key or http://minio-endpoint/bucket/key
+        """
+        if self.endpoint_url and "minio" in self.endpoint_url.lower():
+            # MinIO format
+            return f"{self.endpoint_url.rstrip('/')}/{self.bucket_name}/{key}"
+        else:
+            # AWS S3 format
+            if self.region and self.region != "us-east-1":
+                return f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{key}"
+            else:
+                return f"https://{self.bucket_name}.s3.amazonaws.com/{key}"
+    
+    def get_s3_path(self, key: str) -> str:
+        """
+        Get S3 path format for use with s3fs or other S3-compatible libraries
+        Format: s3://bucket/key
+        """
+        return f"s3://{self.bucket_name}/{key}"
 
 class ImageStorageService:
     """Main service for image and file storage operations"""
@@ -323,9 +781,53 @@ class ImageStorageService:
         """Delete image from storage"""
         return await self.storage.delete_file(s3_key)
     
+    def clear_directory(self, directory_prefix: str) -> bool:
+        """Clear all files in a specific directory"""
+        return self.storage.clear_directory(self.storage.bucket_name, directory_prefix)
+    
+    async def download_file(self, s3_key: str, local_path: str) -> Optional[str]:
+        """Download a single file from storage to local path"""
+        return await self.storage.download_file(s3_key, local_path)
+    
+    async def download_directory(self, directory_prefix: str, local_dir: str) -> Dict[str, Any]:
+        """Download all files from a directory to local directory"""
+        return await self.storage.download_directory(directory_prefix, local_dir)
+    
     async def get_presigned_url(self, s3_key: str, expire_seconds: int = 3600) -> str:
         """Get presigned URL for secure access"""
         return await self.storage.generate_presigned_url(s3_key, expire_seconds)
+    
+    def get_direct_s3_url(self, s3_key: str) -> str:
+        """Get direct S3 URL for document loading (use with caution - requires proper access)"""
+        return self.storage.get_direct_s3_url(s3_key)
+    
+    def get_s3_path(self, s3_key: str) -> str:
+        """Get S3 path format for use with s3fs and document loaders"""
+        return self.storage.get_s3_path(s3_key)
+    
+    async def get_document_url_for_loading(self, s3_key: str, url_type: str = "s3_path", expire_seconds: int = 7200) -> str:
+        """
+        Get URL suitable for document loading in RAG systems
+        
+        Args:
+            s3_key: S3 key of the document
+            url_type: Type of URL to return:
+                - "s3_path": s3://bucket/key format (recommended for s3fs)
+                - "direct": Direct S3 URL (requires public access or proper IAM)
+                - "presigned": Presigned URL with expiration (secure but temporary)
+            expire_seconds: Expiration time for presigned URLs (default 2 hours)
+            
+        Returns:
+            URL string suitable for document loading
+        """
+        if url_type == "s3_path":
+            return self.get_s3_path(s3_key)
+        elif url_type == "direct":
+            return self.get_direct_s3_url(s3_key)
+        elif url_type == "presigned":
+            return await self.get_presigned_url(s3_key, expire_seconds)
+        else:
+            raise ValueError(f"Invalid url_type: {url_type}. Must be 's3_path', 'direct', or 'presigned'")
     
     async def validate_file_ownership(self, file_id: str, user_id: str, db: AsyncSession) -> Optional[UploadedImage]:
         """

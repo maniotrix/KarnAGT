@@ -105,6 +105,25 @@ class AIFilesStagingIntegrationTest:
         
         return {"Authorization": f"Bearer {token}"}
     
+    def extract_staged_files_from_response(self, upload_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract all staged files from the new organized API response structure"""
+        staging_files = upload_data.get("staging_files", {})
+        all_staged_files = []
+        
+        # Only extract from file categories, skip summary or other non-file data
+        file_categories = ["images", "vectors", "unknown"]
+        
+        for category, files_in_category in staging_files.items():
+            if category in file_categories and isinstance(files_in_category, list):
+                # Ensure each item is a dictionary (file object)
+                for file_item in files_in_category:
+                    if isinstance(file_item, dict):
+                        all_staged_files.append(file_item)
+                    else:
+                        print(f"      ⚠️  Skipping non-dict item in {category}: {type(file_item)} - {file_item}")
+        
+        return all_staged_files
+    
     async def test_ai_files_service_status(self):
         """Test AI files service status endpoint"""
         print("Testing AI files service status...")
@@ -206,8 +225,24 @@ class AIFilesStagingIntegrationTest:
                         print(f"    Total size: {total_size_bytes} bytes")
                         print(f"    Upload duration: {upload_data.get('upload_duration_seconds', 0):.2f}s")
                         
+                        # NEW: Handle organized staging files structure
+                        staging_files = upload_data.get("staging_files", {})
+                        print(f"    Staging files structure: {list(staging_files.keys())}")
+                        
                         # Track staged files by test type for proper test isolation
-                        for staged_file in upload_data.get("staged_files", []):
+                        # Extract files from all categories (images, vectors, unknown)
+                        all_staged_files = self.extract_staged_files_from_response(upload_data)
+                        
+                        # Print breakdown by category
+                        file_categories = ["images", "vectors", "unknown"]
+                        for category, files_in_category in staging_files.items():
+                            if category in file_categories:
+                                file_count = len(files_in_category) if isinstance(files_in_category, list) else 0
+                                print(f"      {category}: {file_count} files")
+                            else:
+                                print(f"      {category}: {len(files_in_category) if isinstance(files_in_category, list) else 'N/A'} (summary/metadata)")
+                        
+                        for staged_file in all_staged_files:
                             file_id = staged_file.get("file_id")
                             if file_id:
                                 # Verify file_id format (img_ prefix format)
@@ -498,7 +533,10 @@ class AIFilesStagingIntegrationTest:
             edge_case_file_ids = []
             if upload_response.status_code == 201:
                 upload_data = upload_response.json()
-                edge_case_file_ids = [f["file_id"] for f in upload_data.get("staged_files", [])]
+                
+                # NEW: Extract file IDs from organized structure
+                all_staged_files = self.extract_staged_files_from_response(upload_data)
+                edge_case_file_ids = [f["file_id"] for f in all_staged_files]
                 print(f"  Uploaded {len(edge_case_file_ids)} test files for edge cases")
             
             # Edge Case 1: Bulk discard with duplicate file IDs
@@ -614,7 +652,10 @@ class AIFilesStagingIntegrationTest:
             concurrent_file_ids = []
             if upload_response.status_code == 201:
                 upload_data = upload_response.json()
-                concurrent_file_ids = [f["file_id"] for f in upload_data.get("staged_files", [])]
+                
+                # NEW: Extract file IDs from organized structure
+                all_staged_files = self.extract_staged_files_from_response(upload_data)
+                concurrent_file_ids = [f["file_id"] for f in all_staged_files]
                 print(f"  Uploaded {len(concurrent_file_ids)} files for concurrent testing")
             
             if len(concurrent_file_ids) >= 4:
@@ -1030,11 +1071,14 @@ class AIFilesStagingIntegrationTest:
             cleanup_test_file_ids = []
             if upload_response.status_code == 201:
                 upload_data = upload_response.json()
-                cleanup_test_file_ids = [f["file_id"] for f in upload_data.get("staged_files", [])]
+                
+                # NEW: Extract file IDs from organized structure using helper function
+                all_staged_files = self.extract_staged_files_from_response(upload_data)
+                cleanup_test_file_ids = [f["file_id"] for f in all_staged_files]
                 print(f"    Uploaded {len(cleanup_test_file_ids)} files for cleanup testing")
                 
                 # Track these files for cleanup
-                for staged_file in upload_data.get("staged_files", []):
+                for staged_file in all_staged_files:
                     self.staged_files.append({
                         "file_id": staged_file["file_id"],
                         "user_id": enterprise_user.user_id,
@@ -1266,8 +1310,11 @@ class AIFilesStagingIntegrationTest:
             
             if upload_response.status_code == 201:
                 upload_data = upload_response.json()
-                expired_file_ids = [f["file_id"] for f in upload_data.get("staged_files", [])]
-                staged_files_info = upload_data.get("staged_files", [])
+                
+                # NEW: Extract file IDs from organized structure using helper function
+                all_staged_files = self.extract_staged_files_from_response(upload_data)
+                expired_file_ids = [f["file_id"] for f in all_staged_files]
+                staged_files_info = all_staged_files
                 print(f"    Uploaded {len(expired_file_ids)} files for expiration testing")
                 
                 # Track these files for cleanup
@@ -1466,7 +1513,9 @@ class AIFilesStagingIntegrationTest:
             
             if api_upload_response.status_code == 201:
                 api_upload_data = api_upload_response.json()
-                api_staged_files = api_upload_data.get("staged_files", [])
+                
+                # NEW: Extract files from organized structure using helper function
+                api_staged_files = self.extract_staged_files_from_response(api_upload_data)
                 
                 # Artificially expire this file too
                 for staged_file in api_staged_files:

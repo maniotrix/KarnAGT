@@ -11,7 +11,7 @@ import { chatApi } from '../services/chatApi';
 import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
 import { chatKeys } from '../app/hooks/chat';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
-import { imageService } from '../app/services';
+import { imageService, hasStagingFiles } from '../app/services';
 
 export function useChat(options: ChatOptions = {}) {
   // Auth state
@@ -220,7 +220,7 @@ export function useChat(options: ChatOptions = {}) {
   }, [currentStreamId]);
 
   // Send message with SSE streaming
-  const sendMessage = useCallback(async (content: string, conversationId: string, stagingFiles: Array<{ file_id: string; s3_key: string }> = [], imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> = []) => {
+  const sendMessage = useCallback(async (content: string, conversationId: string, stagingFiles: Record<string, any> = {}, imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> = []) => {
     if (!conversationId) {
       console.error('❌ No conversation ID provided');
       return;
@@ -359,21 +359,48 @@ export function useChat(options: ChatOptions = {}) {
                 if (options.onTokenUpdate) {
                   options.onTokenUpdate({ type: 'token', content: token, message_id: assistantMessage.message_id || '' });
                 }
-              } else if (parsed.type === 'completion' || parsed.type === 'end') {
-                console.log('✅ Stream completed with completion/end event');
+              } else if (parsed.type === 'completion' 
+                                    || parsed.type === 'end' 
+                                    || parsed.type === 'cancelled' 
+                                    || parsed.type === 'stream_end'
+                                    || parsed.type === 'stream_cancelled') {
+                console.log(`✅ Stream ended with ${parsed.type} event`);
+                
+                // Handle both nested and direct message data formats for compatibility
+                let finalMessage = null;
                 if (parsed.data?.message) {
-                  // Update with final message data
-                  const finalMessage = parsed.data.message;
-                  if (assistantMessage) {
-                    assistantMessage.message_id = finalMessage.message_id;
-                    
-                    setMessages(prev => prev.map(msg => 
-                      msg.id === assistantMessage!.id
-                        ? { ...assistantMessage! }
-                        : msg
-                    ));
-                  }
+                  // Nested format: parsed.data.message.message_id
+                  finalMessage = parsed.data.message;
+                } else if (parsed.data?.message_id) {
+                  // Direct format: parsed.data.message_id (used in stream_end)
+                  finalMessage = parsed.data;
                 }
+                
+                if (finalMessage && assistantMessage) {
+                  assistantMessage.message_id = finalMessage.message_id;
+                  
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessage!.id
+                      ? { ...assistantMessage! }
+                      : msg
+                  ));
+                }
+                
+                // CRITICAL FIX: Update user message ID from backend (even for cancelled streams)
+                if (parsed.data?.user_message_id) {
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === userMessage.id
+                      ? { ...msg, message_id: parsed.data.user_message_id }
+                      : msg
+                  ));
+                  console.log(`✅ Updated user message ID from ${parsed.type}:`, parsed.data.user_message_id);
+                }
+                
+                // Log if stream was cancelled
+                if (parsed.data?.was_cancelled) {
+                  console.log('⚠️ Stream was cancelled, but message IDs updated for edit functionality');
+                }
+                
                 break;
               }
             } catch (parseError) {
@@ -407,7 +434,7 @@ export function useChat(options: ChatOptions = {}) {
   }, [options, setMessages, setInput, setError, setIsLoading]);
 
   // Handle submit
-  const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Array<{ file_id: string; s3_key: string }>; imageData?: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> })) => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Record<string, any>; imageData?: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> })) => {
     console.log('🔍 DEBUG: handleSubmit called in useChat');
     console.log('🔍 DEBUG: Event object:', e);
     console.log('🔍 DEBUG: Event type:', typeof e);
@@ -426,16 +453,18 @@ export function useChat(options: ChatOptions = {}) {
     }
 
     // Extract staging files and image data from custom event if present
-    const stagingFiles = (e as any)?.stagingFiles || [];
+    const stagingFiles = (e as any)?.stagingFiles || {};
     const imageData = (e as any)?.imageData || [];
     console.log('🔍 DEBUG: Extracted stagingFiles from event:', stagingFiles);
     console.log('🔍 DEBUG: Extracted imageData from event:', imageData);
     console.log('🔍 DEBUG: stagingFiles type:', typeof stagingFiles);
-    console.log('🔍 DEBUG: stagingFiles length:', stagingFiles.length);
+    console.log('🔍 DEBUG: stagingFiles keys:', Object.keys(stagingFiles));
     console.log('🔍 DEBUG: imageData length:', imageData.length);
     
-    // Validate that we have either content or staging files
-    if (!input.trim() && stagingFiles.length === 0) {
+    // Validate that we have either content or staging files using utility function
+    const hasFiles = hasStagingFiles(stagingFiles);
+    
+    if (!input.trim() && !hasFiles) {
       setError(new Error('Message must have content or images'));
       return;
     }

@@ -59,6 +59,7 @@ class Message(Base):
     # Attachments and references
     attachments = Column(JSON, default=list)  # File attachments
     references = Column(JSON, default=list)   # References to knowledge base
+    vector_file_references = Column(JSON, nullable=True)  # References to knowledge files processed for RAG
     
     # Message status
     status = Column(String(50), default="completed")  # pending, streaming, completed, error, cancelled

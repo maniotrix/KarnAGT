@@ -20,21 +20,27 @@ export interface UploadFile {
   };
 }
 
+export interface StagingFileInfo {
+  file_id: string;
+  s3_key: string;
+  filename: string;
+  content_type: string;
+  file_size: number;
+}
+
+export interface StagingFileCollection {
+  images: StagingFileInfo[];
+  vectors: StagingFileInfo[];
+  unknown: StagingFileInfo[];
+}
+
 export interface StagingUploadResponse {
   success: boolean;
   message: string;
   total_requested: number;
   successfully_staged: number;
   failed_uploads: number;
-  staged_files: Array<{
-    file_id: string;
-    s3_key: string;
-    filename: string;
-    size: number;
-    content_type: string;
-    staged_at: string;
-    expires_at: string;
-  }>;
+  staging_files: StagingFileCollection;
   failed_files: Array<{
     filename: string;
     error: string;
