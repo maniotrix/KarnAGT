@@ -244,7 +244,7 @@ class ChatService:
                 parent_message_id=None,
                 attachments=message_attachments,
                 status="completed",
-                staging_files=staging_files
+                staging_files=staging_files.to_dict() if staging_files else None
             )
             
             user_message = await self.message_service.create_message(conversation_id, user_message_data)
@@ -402,7 +402,7 @@ class ChatService:
                 parent_message_id=None,
                 attachments=message_attachments,
                 status="completed",
-                staging_files=staging_files
+                staging_files=staging_files.to_dict() if staging_files else None
             )
             
             user_message = await self.message_service.create_message(conversation_id, user_message_data)

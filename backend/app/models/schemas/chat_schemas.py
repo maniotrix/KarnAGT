@@ -92,9 +92,9 @@ class MessageCreate(BaseSchema):
     status: Optional[str] = Field("completed", description="Message status")
     
     # Staging files as dict (will be converted to object at API boundary)
-    staging_files: Optional[Dict[str, List[Dict[str, str]]]] = Field(
+    staging_files: Optional[Dict[str, Any]] = Field(
         None, 
-        description="Staging files organized by type: {'images': [...], 'vectors': [...], 'unknown': [...]}"
+        description="Staging files organized by type from StagingFileCollection.to_dict()"
     )
     
     @model_validator(mode='after')
