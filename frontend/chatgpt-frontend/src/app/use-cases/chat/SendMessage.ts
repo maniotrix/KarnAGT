@@ -2,12 +2,13 @@
 import { IChatRepository } from '../../../domain/interfaces/IChatRepository';
 import { Message } from '../../../domain/entities/Message';
 import { Conversation } from '../../../domain/entities/Conversation';
+import { hasStagingFiles, countStagingFiles, validateStagingFiles } from '../../services';
 
 export interface SendMessageRequest {
   conversationId: string;
   content: string;
   parentMessageId?: string;
-  stagingFiles?: Array<{ file_id: string; s3_key: string }>;
+  stagingFiles?: Record<string, any>; // New format: {"images": [...], "vectors": [...], "unknown": [...]}
 }
 
 export interface SendMessageResponse {
@@ -21,8 +22,10 @@ export class SendMessage {
 
   async execute(request: SendMessageRequest): Promise<SendMessageResponse> {
     try {
-      // Input validation
-      if (!request.content?.trim() && (!request.stagingFiles || request.stagingFiles.length === 0)) {
+      // Input validation using utility functions
+      const hasFiles = hasStagingFiles(request.stagingFiles);
+
+      if (!request.content?.trim() && !hasFiles) {
         throw new Error('Message must have content or images');
       }
 
@@ -31,16 +34,15 @@ export class SendMessage {
       }
 
       // Validate staging files if present
-      if (request.stagingFiles && request.stagingFiles.length > 0) {
-        if (request.stagingFiles.length > 10) {
-          throw new Error('Cannot attach more than 10 images per message');
+      if (hasFiles) {
+        const validation = validateStagingFiles(request.stagingFiles);
+        if (!validation.valid) {
+          throw new Error(validation.error);
         }
 
-        // Validate each staging file has required fields
-        for (const file of request.stagingFiles) {
-          if (!file.file_id || !file.s3_key) {
-            throw new Error('Invalid staging file data');
-          }
+        const totalFiles = countStagingFiles(request.stagingFiles);
+        if (totalFiles > 10) {
+          throw new Error('Cannot attach more than 10 files per message');
         }
       }
 

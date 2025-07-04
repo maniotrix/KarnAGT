@@ -50,6 +50,15 @@ export const API_ENDPOINTS = {
     ACTIVE_STREAMS: '/api/v1/chat/stream/active',
   },
   
+  // AI Files endpoints from your backend/app/api/v1/endpoints/ai_files.py
+  AI_FILES: {
+    STATUS: '/api/v1/ai-files/status',
+    STAGING_BULK_UPLOAD: '/api/v1/ai-files/staging/bulk-upload',
+    STAGING_DISCARD: (fileId: string) => `/api/v1/ai-files/staging/discard/${fileId}`,
+    STAGING_BULK_DISCARD: '/api/v1/ai-files/staging/bulk-discard',
+    STAGING_ADMIN_CLEANUP: '/api/v1/ai-files/staging/admin/cleanup',
+  },
+  
   // Other endpoints
   MEMORY: '/api/v1/memory',
   FILES: '/api/v1/files',

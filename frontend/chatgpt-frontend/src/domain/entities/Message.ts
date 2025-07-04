@@ -1,5 +1,6 @@
 // Domain Entity: Message - Migrated from existing types/chat.ts
 import { MessageResponse, MessageCreate } from '../../types/chat';
+import { hasStagingFiles } from '../../app/services';
 
 export interface MessageData {
   readonly id: string;
@@ -15,7 +16,7 @@ export interface MessageData {
   readonly modelName?: string;
   readonly attachments?: string[];
   readonly metadata?: Record<string, any>;
-  readonly stagingFiles?: Array<{ file_id: string; s3_key: string }>;
+  readonly stagingFiles?: Record<string, any>; // New format: {"images": [...], "vectors": [...], "unknown": [...]}
 }
 
 export class Message implements MessageData {
@@ -33,7 +34,7 @@ export class Message implements MessageData {
     public readonly modelName?: string,
     public readonly attachments?: string[],
     public readonly metadata?: Record<string, any>,
-    public readonly stagingFiles?: Array<{ file_id: string; s3_key: string }>
+    public readonly stagingFiles?: Record<string, any> // New format: {"images": [...], "vectors": [...], "unknown": [...]}
   ) {}
 
   // Factory method from existing MessageResponse
@@ -64,14 +65,16 @@ export class Message implements MessageData {
     parentMessageId?: string;
     attachments?: string[];
     metadata?: Record<string, any>;
-    stagingFiles?: Array<{ file_id: string; s3_key: string }>; // NEW: For existing upload system
+    stagingFiles?: Record<string, any>; // New format: {"images": [...], "vectors": [...], "unknown": [...]}
   }): Message {
     const id = crypto.randomUUID();
     const messageId = crypto.randomUUID();
     const now = new Date();
     
     // Business rules - updated to allow staging files without content
-    if (!data.content.trim() && (!data.stagingFiles || data.stagingFiles.length === 0)) {
+    const hasFiles = hasStagingFiles(data.stagingFiles);
+    
+    if (!data.content.trim() && !hasFiles) {
       throw new Error('Message must have content or staging files');
     }
 

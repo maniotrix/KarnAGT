@@ -1,12 +1,10 @@
 import { apiClient } from './api';
-import { ENV } from '../config/env';
+import { ENV, API_ENDPOINTS, buildApiUrl } from '../config/env';
 import type { UploadFile, StagingUploadResponse } from '../types/upload';
 
 class SimpleUploadService {
-  private baseUrl: string;
-
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    // URL building now handled by centralized buildApiUrl function
   }
 
   /**
@@ -98,7 +96,7 @@ class SimpleUploadService {
     console.log('🔐 [SimpleUploadService] Auth header:', authHeader ? `${authHeader.substring(0, 30)}...` : 'MISSING');
 
     try {
-      const uploadUrl = `${this.baseUrl}/api/v1/ai-files/staging/bulk-upload`;
+      const uploadUrl = buildApiUrl(API_ENDPOINTS.AI_FILES.STAGING_BULK_UPLOAD);
       console.log('🌐 [SimpleUploadService] Upload URL:', uploadUrl);
       
       // Simple fetch - no progress tracking
@@ -122,9 +120,24 @@ class SimpleUploadService {
       console.log('✅ [SimpleUploadService] Server response:', result);
 
       // Update files with server response - individual status per file
+      // Extract staged files from new backend structure (staging_files.images, staging_files.vectors, etc.)
+      const allStagedFiles: Array<{
+        file_id: string;
+        s3_key: string;
+        filename: string;
+        content_type: string;
+        file_size: number;
+      }> = [];
+      if (result.staging_files) {
+        const stagingFiles = result.staging_files;
+        if (stagingFiles.images) allStagedFiles.push(...stagingFiles.images);
+        if (stagingFiles.vectors) allStagedFiles.push(...stagingFiles.vectors);
+        if (stagingFiles.unknown) allStagedFiles.push(...stagingFiles.unknown);
+      }
+
       const updatedFiles = files.map(uploadFile => {
         // Check if this specific file succeeded  
-        const stagedFile = result.staged_files.find(sf => sf.filename === uploadFile.file.name);
+        const stagedFile = allStagedFiles.find(sf => sf.filename === uploadFile.file.name);
         const failedFile = result.failed_files.find(ff => ff.filename === uploadFile.file.name);
 
         if (stagedFile) {
@@ -193,6 +206,34 @@ class SimpleUploadService {
   }
 
   /**
+   * Get staging files dictionary from successful upload files
+   * Returns the format expected by the chat API
+   */
+  getStagingFilesForChat(uploadFiles: UploadFile[]): Record<string, any> {
+    const successfulFiles = uploadFiles.filter(file => file.status === 'success' && file.file_id && file.s3_key);
+    
+    if (successfulFiles.length === 0) {
+      return {};
+    }
+
+    // Convert to the format expected by chat API
+    const stagingFiles: Record<string, any> = {
+      images: successfulFiles.map(file => ({
+        file_id: file.file_id!,
+        s3_key: file.s3_key!,
+        filename: file.name,
+        content_type: file.type,
+        file_size: file.size
+      })),
+      vectors: [],
+      unknown: []
+    };
+
+    console.log('📋 [SimpleUploadService] Generated staging files for chat:', stagingFiles);
+    return stagingFiles;
+  }
+
+  /**
    * Discard staged files  
    */
   async discardStagedFiles(fileIds: string[]): Promise<void> {
@@ -204,7 +245,7 @@ class SimpleUploadService {
     console.log('🔐 [SimpleUploadService] Discard auth header:', authHeader ? `${authHeader.substring(0, 30)}...` : 'MISSING');
 
     if (fileIds.length === 1) {
-      const url = `${this.baseUrl}/api/v1/ai-files/staging/discard/${fileIds[0]}`;
+      const url = buildApiUrl(API_ENDPOINTS.AI_FILES.STAGING_DISCARD(fileIds[0]));
       console.log('🌐 [SimpleUploadService] Single discard URL:', url);
       
       const response = await fetch(url, {
@@ -223,7 +264,7 @@ class SimpleUploadService {
       
       console.log('✅ [SimpleUploadService] Single file discarded successfully');
     } else {
-      const url = `${this.baseUrl}/api/v1/ai-files/staging/bulk-discard`;
+      const url = buildApiUrl(API_ENDPOINTS.AI_FILES.STAGING_BULK_DISCARD);
       console.log('🌐 [SimpleUploadService] Bulk discard URL:', url);
       
       const response = await fetch(url, {

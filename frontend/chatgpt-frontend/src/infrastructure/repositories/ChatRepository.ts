@@ -311,7 +311,7 @@ export class ChatRepository implements IChatRepository {
         stream_mode: 'text',
         attachments: lastMessage.attachments || [],
         metadata: lastMessage.metadata || {},
-        staging_files: lastMessage.staging_files || [],
+        staging_files: lastMessage.staging_files || {},
       };
 
       // Call backend streaming endpoint
