@@ -13,6 +13,7 @@ from .common_schemas import (
     ModelName,
     SearchParams
 )
+from app.models.schemas.staging_schemas import StagingFileCollection
 
 
 class ConversationCreate(BaseSchema):
@@ -82,7 +83,7 @@ class ConversationDetailResponse(BaseResponse):
 
 class MessageCreate(BaseSchema):
     """Create message request schema"""
-    content: str = Field(..., max_length=32000, description="Message content")  # Remove min_length to allow empty with images
+    content: str = Field(..., max_length=32000, description="Message content")
     role: MessageRole = Field(MessageRole.USER, description="Message role")
     parent_message_id: Optional[int] = Field(None, description="Parent message for threading")
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="File attachments")
@@ -90,23 +91,28 @@ class MessageCreate(BaseSchema):
     # Status field (for internal use)
     status: Optional[str] = Field("completed", description="Message status")
     
-    # Staging files with both file_id and s3_key for direct access (no more guessing!)
-    staging_files: Optional[List[Dict[str, str]]] = Field(
+    # Staging files as dict (will be converted to object at API boundary)
+    staging_files: Optional[Dict[str, List[Dict[str, str]]]] = Field(
         None, 
-        description="List of staging files with file_id and s3_key pairs for direct commit"
+        description="Staging files organized by type: {'images': [...], 'vectors': [...], 'unknown': [...]}"
     )
     
     @model_validator(mode='after')
-    def validate_message_has_content_or_images(self):
-        """Ensure message has either text content or images, but not neither"""
+    def validate_message_and_staging_files(self):
+        """Validate message content and staging files"""
         content = getattr(self, 'content', '')
-        staging_files = getattr(self, 'staging_files', [])
+        staging_files_dict = getattr(self, 'staging_files', None)
         
         has_text = content and content.strip()
-        has_images = staging_files and len(staging_files) > 0
+        has_files = False
         
-        if not has_text and not has_images:
-            raise ValueError('Message must have either text content or images')
+        if staging_files_dict:
+            # Convert to object for validation
+            staging_collection = StagingFileCollection.from_dict(staging_files_dict)
+            has_files = not staging_collection.is_empty
+        
+        if not has_text and not has_files:
+            raise ValueError('Message must have either text content or files')
         
         return self
 

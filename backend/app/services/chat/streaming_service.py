@@ -14,6 +14,7 @@ from app.integrations.openai.streaming_handler import streaming_manager, Streami
 from app.services.chat.chat_service import ChatService
 from app.models.database.user import User
 from app.models.schemas.chat_schemas import MessageStreamResponse, MessageCreate
+from app.models.schemas.staging_schemas import StagingFileCollection
 
 from aicore.logger import get_logger
 
@@ -54,7 +55,7 @@ class StreamingService:
         content: str,
         message_type: str = "text",
         model: Optional[str] = None,
-        staging_files: Optional[List[Dict[str, str]]] = None
+        staging_files: Optional[StagingFileCollection] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream a message response using Server-Sent Events
@@ -133,7 +134,7 @@ class StreamingService:
         content: str,
         message_type: str,
         model: Optional[str],
-        staging_files: Optional[List[Dict[str, str]]] = None
+        staging_files: Optional[StagingFileCollection] = None
     ):
         """
         Process the message with streaming in the background

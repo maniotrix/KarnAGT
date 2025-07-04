@@ -37,6 +37,7 @@ from app.core.exceptions import (
 from app.services.context.conversation_context_builder import get_context_for_conversation
 from app.services.memory.memory_tools_config import get_memory_enabled_override_config
 from aicore.logger import get_logger
+from app.models.schemas.staging_schemas import StagingFileCollection
 
 # Set up logger
 logger = get_logger(__name__)
@@ -188,7 +189,7 @@ class ChatService:
         content: str,
         message_type: str = "text",
         model: Optional[str] = None,
-        staging_files: Optional[List[Dict[str, str]]] = None
+        staging_files: Optional[StagingFileCollection] = None
     ) -> MessageResponse:
         """
         Send a message and get AI response
@@ -225,12 +226,14 @@ class ChatService:
             # Process staging files if provided
             message_attachments = []
             openai_file_ids = []
+            vector_file_references = None
             
             if staging_files:
                 from app.services.chat.attachment_service import AttachmentService
+                
                 attachment_service = AttachmentService()
                 
-                message_attachments, openai_file_ids = await attachment_service.commit_staging_files_direct(
+                message_attachments, openai_file_ids, vector_file_references = await attachment_service.process_staging_files(
                     staging_files, self.user_uuid, self.db
                 )
             
@@ -347,7 +350,7 @@ class ChatService:
         streaming_callback: Callable[[str], None],
         message_type: str = "text",
         model: Optional[str] = None,
-        staging_files: Optional[List[Dict[str, str]]] = None
+        staging_files: Optional[StagingFileCollection] = None
     ) -> MessageResponse:
         """
         Send a message with streaming response
@@ -381,12 +384,14 @@ class ChatService:
             # Process staging files if provided (same as non-streaming)
             message_attachments = []
             openai_file_ids = []
+            vector_file_references = None
             
             if staging_files:
                 from app.services.chat.attachment_service import AttachmentService
+                
                 attachment_service = AttachmentService()
                 
-                message_attachments, openai_file_ids = await attachment_service.commit_staging_files_direct(
+                message_attachments, openai_file_ids, vector_file_references = await attachment_service.process_staging_files(
                     staging_files, self.user_uuid, self.db
                 )
             

@@ -124,27 +124,46 @@ async def bulk_upload_to_staging(
             ))
         
         # Use staging service for bulk upload
-        result = await staging_service.bulk_upload_to_staging(
+        staging_result = await staging_service.bulk_upload_to_staging(
             files_data=files_data,
             user_id=current_user.user_id,
             max_concurrent=max_concurrent_uploads
         )
         
+        # Convert to new staging file structure using StagingFileCollection
+        from app.models.schemas.staging_schemas import StagingFileCollection, StagingFileInfo
+        
+        # Build staging collection from uploaded files
+        staging_collection = StagingFileCollection()
+        
+        for staged_file in staging_result["staged_files"]:
+            # Create StagingFileInfo with proper metadata
+            file_info = StagingFileInfo(
+                file_id=staged_file["file_id"],
+                s3_key=staged_file["s3_key"],
+                filename=staged_file["filename"],
+                content_type=staged_file["content_type"],
+                file_size=staged_file["size"]
+            )
+            
+            staging_collection.add_file(file_info)
+        
         upload_duration = time.time() - start_time
         
+        # Return new format organized by file type (no legacy support)
         response = {
             "success": True,
-            "message": f"Bulk staging completed: {result['successfully_staged']} successful, {result['failed_uploads']} failed",
-            "total_requested": result["total_requested"],
-            "successfully_staged": result["successfully_staged"],
-            "failed_uploads": result["failed_uploads"],
-            "staged_files": result["staged_files"],  # Contains staging_ids client needs
-            "failed_files": result["failed_files"],
-            "total_size_bytes": result["total_size_bytes"],
+            "message": f"Bulk staging completed: {staging_result['successfully_staged']} successful, {staging_result['failed_uploads']} failed",
+            "total_requested": staging_result["total_requested"],
+            "successfully_staged": staging_result["successfully_staged"],
+            "failed_uploads": staging_result["failed_uploads"],
+            "staging_files": staging_collection.to_dict(),  # New organized structure
+            "failed_files": staging_result["failed_files"],
+            "total_size_bytes": staging_result["total_size_bytes"],
             "upload_duration_seconds": upload_duration
         }
         
-        logger.info(f"Bulk staging completed for user {current_user.user_id}: {result['successfully_staged']} successful")
+        logger.info(f"Bulk staging completed for user {current_user.user_id}: {staging_result['successfully_staged']} successful")
         return response
         
     except ValidationException as e:
