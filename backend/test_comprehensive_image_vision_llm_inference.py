@@ -498,7 +498,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
         message_data = {
             "content": content,
             "role": "user",  # Required field for API validation
-            "staging_files": staging_files
+            #"staging_files": staging_files
         }
         
         headers = self.get_streaming_headers(user_id)
