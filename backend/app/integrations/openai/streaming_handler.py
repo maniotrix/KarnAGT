@@ -54,11 +54,25 @@ class StreamingHandler:
         # Store assistant client reference for cancellation
         self.assistant_client = None
         
+        # Store message IDs for completion event
+        self.user_message_id = None
+        self.ai_message_id = None
+        
         logger.info(f"StreamingHandler initialized for user {user_id}, stream {self.stream_id}")
     
     def set_assistant_client(self, assistant_client):
         """Set the assistant client reference for cancellation"""
         self.assistant_client = assistant_client
+    
+    def set_user_message_id(self, user_message_id: str):
+        """Set the user message ID before streaming starts"""
+        self.user_message_id = user_message_id
+        logger.info(f"Set user message ID {user_message_id} for stream {self.stream_id}")
+    
+    def set_ai_message_id(self, ai_message_id: str):
+        """Set the AI message ID when response is complete"""
+        self.ai_message_id = ai_message_id
+        logger.info(f"Set AI message ID {ai_message_id} for stream {self.stream_id}")
     
     def streaming_callback(self, token: str):
         """
@@ -174,10 +188,19 @@ class StreamingHandler:
                     "timestamp": datetime.utcnow().isoformat()
                 })
             else:
-                yield self._format_sse_event("stream_end", {
+                # Include message IDs in stream_end event if available
+                stream_end_data = {
                     "stream_id": self.stream_id,
                     "timestamp": datetime.utcnow().isoformat()
-                })
+                }
+                
+                # Add message IDs if available
+                if self.user_message_id:
+                    stream_end_data["user_message_id"] = self.user_message_id
+                if self.ai_message_id:
+                    stream_end_data["message_id"] = self.ai_message_id
+                
+                yield self._format_sse_event("stream_end", stream_end_data)
             
             logger.info(f"Stream ended for user {self.user_id}, stream {self.stream_id}, cancelled: {self.is_cancelled}")
     

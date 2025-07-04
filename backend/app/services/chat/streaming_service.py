@@ -162,7 +162,8 @@ class StreamingService:
                 streaming_callback=stream_handler.streaming_callback,
                 message_type=message_type,
                 model=model,
-                staging_files=staging_files
+                staging_files=staging_files,
+                stream_handler=stream_handler
             )
             
             logger.info(f"Streaming message processing completed for conversation {conversation_id}")

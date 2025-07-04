@@ -350,7 +350,8 @@ class ChatService:
         streaming_callback: Callable[[str], None],
         message_type: str = "text",
         model: Optional[str] = None,
-        staging_files: Optional[StagingFileCollection] = None
+        staging_files: Optional[StagingFileCollection] = None,
+        stream_handler: Optional[Any] = None
     ) -> MessageResponse:
         """
         Send a message with streaming response
@@ -408,6 +409,10 @@ class ChatService:
             user_message = await self.message_service.create_message(conversation_id, user_message_data)
             # Capture message ID immediately to avoid lazy loading later
             user_message_id = user_message.message_id
+            
+            # Set user_message_id on stream_handler BEFORE streaming starts
+            if stream_handler:
+                stream_handler.set_user_message_id(user_message_id)
             
             # Get conversation context
             conversation_history = await self.message_service.get_conversation_messages(
@@ -487,6 +492,10 @@ class ChatService:
             
             logger.info(f"Streaming message processed successfully for conversation {conversation_id}")
             
+            # Include user_message_id in extra_metadata for frontend access
+            ai_message_extra_metadata_with_user_id = ai_message_extra_metadata.copy() if ai_message_extra_metadata else {}
+            ai_message_extra_metadata_with_user_id['user_message_id'] = user_message_id
+            
             return MessageResponse(
                 id=ai_message_db_id,
                 message_id=ai_message_id,
@@ -497,7 +506,7 @@ class ChatService:
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model or conversation.model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
-                extra_metadata=ai_message_extra_metadata,
+                extra_metadata=ai_message_extra_metadata_with_user_id,
                 created_at=ai_message_created_at
             )
             
