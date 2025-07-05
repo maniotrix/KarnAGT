@@ -55,7 +55,7 @@ from app.api.v1.dependencies.auth import (
     get_current_verified_user,
     check_image_quota
 )
-from app.services.storage.storage import storage_service
+from app.services.storage.storage import image_storage_service
 
 from aicore.logger import get_logger
 
@@ -129,7 +129,7 @@ async def upload_image(
         file_data = await file.read()
         
         # Upload using storage service with database tracking
-        upload_result = await storage_service.upload_image(
+        upload_result = await image_storage_service.upload_image(
             file_data=file_data,
             filename=file.filename,
             content_type=file.content_type or "image/jpeg",
@@ -157,7 +157,7 @@ async def upload_image(
         # Add thumbnail URLs if thumbnails were generated
         if upload_result.get("thumbnail_s3_keys"):
             for size in upload_result["thumbnail_s3_keys"].keys():
-                urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{upload_result['file_id']}/thumbnail?size={size}"
+                urls[f"thumbnail_{size}"] = f"{image_storage_service.image_base_url}/{upload_result['file_id']}/thumbnail?size={size}"
 
         response = ImageUploadResponse(
             success=True,
@@ -259,7 +259,7 @@ async def bulk_upload_images(
             ))
         
         # Perform bulk upload
-        result = await storage_service.bulk_upload_images(
+        result = await image_storage_service.bulk_upload_images(
             files_data=files_data,
             user_id=current_user.user_id,
             db=db,
@@ -294,7 +294,7 @@ async def bulk_upload_images(
             # Add thumbnail URLs if thumbnails were generated
             if upload_result.get("thumbnail_s3_keys"):
                 for size in upload_result["thumbnail_s3_keys"].keys():
-                    urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{upload_result['file_id']}/thumbnail?size={size}"
+                    urls[f"thumbnail_{size}"] = f"{image_storage_service.image_base_url}/{upload_result['file_id']}/thumbnail?size={size}"
 
             uploaded_images_response.append(ImageUploadResponse(
                 success=True,
@@ -376,7 +376,7 @@ async def bulk_delete_images(
     
     try:
         # Perform bulk deletion
-        result = await storage_service.bulk_delete_images(
+        result = await image_storage_service.bulk_delete_images(
             file_ids=request.file_ids,
             user_id=current_user.user_id,
             db=db
@@ -432,7 +432,7 @@ async def bulk_get_metadata(
     
     try:
         # Perform bulk metadata retrieval
-        result = await storage_service.bulk_get_metadata(
+        result = await image_storage_service.bulk_get_metadata(
             file_ids=request.file_ids,
             user_id=current_user.user_id,
             db=db,
@@ -505,7 +505,7 @@ async def search_images(
     
     try:
         # Perform image search
-        result = await storage_service.search_images(
+        result = await image_storage_service.search_images(
             user_id=current_user.user_id,
             db=db,
             query=request.query,
@@ -581,7 +581,7 @@ async def get_image_statistics(
     
     try:
         # Get image statistics
-        result = await storage_service.get_user_image_statistics(
+        result = await image_storage_service.get_user_image_statistics(
             user_id=current_user.user_id,
             db=db
         )
@@ -626,7 +626,7 @@ async def serve_image(
     
     try:
         # SECURITY: Validate file ownership using database lookup
-        presigned_url = await storage_service.serve_image_securely(
+        presigned_url = await image_storage_service.serve_image_securely(
             file_id=file_id, 
             user_id=current_user.user_id,
             db=db
@@ -683,7 +683,7 @@ async def serve_image_thumbnail(
     
     try:
         # SECURITY: Validate file ownership and get thumbnail URL
-        presigned_url = await storage_service.serve_thumbnail_securely(
+        presigned_url = await image_storage_service.serve_thumbnail_securely(
             file_id=file_id,
             size=size,
             user_id=current_user.user_id,
@@ -725,7 +725,7 @@ async def get_image_metadata(
     
     try:
         # Validate ownership and get metadata
-        image_record = await storage_service.validate_file_ownership(
+        image_record = await image_storage_service.validate_file_ownership(
             file_id=file_id,
             user_id=current_user.user_id, 
             db=db
@@ -739,14 +739,14 @@ async def get_image_metadata(
             )
         
         # Build URLs dict with thumbnails
-        urls = {"api": f"{storage_service.image_base_url}/{image_record.file_id}"}
+        urls = {"api": f"{image_storage_service.image_base_url}/{image_record.file_id}"}
 
         # Add thumbnail URLs if available
         if image_record.thumbnail_s3_keys is not None:
             try:
                 thumbnail_keys = json.loads(image_record.thumbnail_s3_keys)
                 for size in thumbnail_keys.keys():
-                    urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{image_record.file_id}/thumbnail?size={size}"
+                    urls[f"thumbnail_{size}"] = f"{image_storage_service.image_base_url}/{image_record.file_id}/thumbnail?size={size}"
             except Exception as e:
                 logger.warning(f"Failed to parse thumbnail keys for {file_id}: {e}")
 
@@ -793,7 +793,7 @@ async def delete_image(
     
     try:
         # SECURITY: Delete with ownership validation
-        deletion_successful = await storage_service.delete_image_securely(
+        deletion_successful = await image_storage_service.delete_image_securely(
             file_id=file_id,
             user_id=current_user.user_id,
             db=db
@@ -834,7 +834,7 @@ async def list_user_images(
     
     try:
         # Get images from database with ownership validation
-        images = await storage_service.get_user_images(
+        images = await image_storage_service.get_user_images(
             user_id=current_user.user_id,
             db=db,
             limit=limit + 1,  # Get one extra to check if there's a next page
@@ -850,14 +850,14 @@ async def list_user_images(
         image_metadata = []
         for img in images:
             # Build URLs dict with thumbnails
-            urls = {"api": f"{storage_service.image_base_url}/{img.file_id}"}
+            urls = {"api": f"{image_storage_service.image_base_url}/{img.file_id}"}
             
             # Add thumbnail URLs if available
             if img.thumbnail_s3_keys is not None:
                 try:
                     thumbnail_keys = json.loads(img.thumbnail_s3_keys)
                     for size in thumbnail_keys.keys():
-                        urls[f"thumbnail_{size}"] = f"{storage_service.image_base_url}/{img.file_id}/thumbnail?size={size}"
+                        urls[f"thumbnail_{size}"] = f"{image_storage_service.image_base_url}/{img.file_id}/thumbnail?size={size}"
                 except Exception as e:
                     logger.warning(f"Failed to parse thumbnail keys for {img.file_id}: {e}")
             
@@ -930,7 +930,7 @@ async def bulk_generate_presigned_urls(
         for file_id in request.file_ids:
             try:
                 # Validate ownership and generate presigned URL
-                presigned_url = await storage_service.serve_image_securely(
+                presigned_url = await image_storage_service.serve_image_securely(
                     file_id=file_id,
                     user_id=current_user.user_id, 
                     db=db

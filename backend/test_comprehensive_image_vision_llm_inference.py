@@ -43,7 +43,7 @@ from app.models.database.message import Message
 from app.models.database.uploaded_image import UploadedImage
 from app.models.database.openai_file import OpenAIFile
 from app.services.storage.staging_storage import staging_service
-from app.services.storage.storage import storage_service
+from app.services.storage.storage import image_storage_service
 from app.services.storage.openai_storage import openai_storage_service
 from app.core.security import security
 from app.core.config import get_settings
@@ -777,7 +777,7 @@ class ComprehensiveImageVisionLLMInferenceTest:
             try:
                 # Fix: Use public method instead of private _get_object_metadata
                 # Try to get presigned URL - if successful, file exists
-                url = await storage_service.get_presigned_url(s3_key, 1)  # 1 second expiry
+                url = await image_storage_service.get_presigned_url(s3_key, 1)  # 1 second expiry
                 print(f"⚠️ S3 file still exists: {s3_key}")
             except Exception:
                 # Expected - file should not exist, so presigned URL generation fails

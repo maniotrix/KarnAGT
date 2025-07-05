@@ -34,7 +34,7 @@ from app.api.v1.dependencies.auth import (
     get_current_verified_user,
     check_image_quota
 )
-from app.services.storage.storage import storage_service
+from app.services.storage.storage import image_storage_service
 from app.services.storage.staging_storage import staging_service
 
 from aicore.logger import get_logger
@@ -78,12 +78,14 @@ async def get_ai_files_status():
 
 @router.post("/staging/bulk-upload", status_code=status.HTTP_201_CREATED)
 async def bulk_upload_to_staging(
-    files: List[UploadFile] = File(..., description="Images to upload to staging area"),
+    files: List[UploadFile] = File(..., description="Images and documents to upload to staging area"),
     max_concurrent_uploads: int = Form(5, ge=1, le=10, description="Max concurrent uploads"),
     current_user: User = Depends(check_image_quota),
 ) -> Dict[str, Any]:
     """
-    Bulk upload images to staging area for later LLM inference
+    Bulk upload images and documents to staging area for later LLM inference
+    
+    Supports both image files (for vision) and document files (for RAG/assistants)
     
     Simple flow:
     1. Upload files to staging

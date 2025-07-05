@@ -16,7 +16,7 @@ sys.path.append('.')
 from app.core.database import AsyncSessionLocal
 from app.models.database.user import User
 from app.models.database.uploaded_image import UploadedImage
-from app.services.storage.storage import storage_service
+from app.services.storage.storage import image_storage_service
 from app.core.security import security
 
 # SQLAlchemy cleanup
@@ -75,7 +75,7 @@ async def test_bulk_upload():
         # Perform bulk upload
         async with AsyncSessionLocal() as db:
             print("🚀 Starting bulk upload...")
-            result = await storage_service.bulk_upload_images(
+            result = await image_storage_service.bulk_upload_images(
                 files_data=files_data,
                 user_id=test_user.user_id,
                 db=db,
@@ -127,14 +127,14 @@ async def test_bulk_upload():
                     for image in images:
                         try:
                             # Delete from storage
-                            await storage_service.storage.delete_file(image.s3_key)
+                            await image_storage_service.storage.delete_file(image.s3_key)
                             
                             # Delete thumbnails
                             if image.thumbnail_s3_keys is not None:
                                 import json
                                 thumbnail_keys = json.loads(image.thumbnail_s3_keys)
                                 for thumb_s3_key in thumbnail_keys.values():
-                                    await storage_service.storage.delete_file(thumb_s3_key)
+                                    await image_storage_service.storage.delete_file(thumb_s3_key)
                                     
                         except Exception as e:
                             print(f"     Warning: Failed to delete storage for {image.file_id}: {e}")
