@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from app.core.config import settings
 from app.core.exceptions import ValidationException
-from app.services.storage.storage import storage_service
+from app.services.storage.storage import image_storage_service, generate_file_id, generate_storage_key
 
 logger = logging.getLogger(__name__)
 
@@ -72,15 +72,60 @@ class StagingStorageService:
     """
     
     def __init__(self):
-        self.storage_backend = storage_service.storage
+        self.storage_backend = image_storage_service.storage
         self.max_staging_age_hours = 24
-        self.max_file_size = settings.MAX_IMAGE_SIZE
+        self.max_file_size = max(settings.MAX_IMAGE_SIZE, settings.MAX_FILE_SIZE)  # Support both images and documents
+    
+    def _generate_file_id_for_type(self, filename: str) -> str:
+        """Generate file ID based on file type"""
+        file_extension = os.path.splitext(filename)[1].lower()
+        allowed_image_types = settings.get_allowed_image_types()
+        
+        if file_extension in allowed_image_types:
+            return image_storage_service.generate_image_file_id()  # img_xxxxxxxx
+        else:
+            return generate_file_id()
+    
+    def _generate_storage_key_for_type(self, file_id: str, filename: str) -> str:
+        """Generate S3 key based on file type"""
+        file_extension = os.path.splitext(filename)[1].lower()
+        allowed_image_types = settings.get_allowed_image_types()
+        
+        if file_extension in allowed_image_types:
+            return image_storage_service.generate_image_storage_key(file_id, filename)  # images/YYYY/MM/DD/img_xxx.ext
+        else:
+            return generate_storage_key(file_id, filename)
     
     def _validate_staging_file(self, filename: str, file_size: int) -> None:
-        """Validate staging file before upload"""
+        """Validate staging file before upload (supports both images and documents)"""
         try:
-            # Use existing validation from storage_service
-            storage_service.validate_image_file(filename, file_size)
+            # Check file size against max limits
+            if file_size > self.max_file_size:
+                raise ValueError(f"File too large. Max size: {self.max_file_size} bytes")
+            
+            # Check file type based on extension
+            file_extension = os.path.splitext(filename)[1].lower()
+            
+            # Get allowed file types from settings
+            allowed_image_types = settings.get_allowed_image_types()
+            allowed_file_types = settings.get_allowed_file_types()
+            
+            # Check if file type is allowed
+            if file_extension in allowed_image_types:
+                # Image file - validate with image-specific limits
+                if file_size > settings.MAX_IMAGE_SIZE:
+                    raise ValueError(f"Image file too large. Max size: {settings.MAX_IMAGE_SIZE} bytes")
+                return
+            elif file_extension in allowed_file_types:
+                # Document file - validate with general file limits
+                if file_size > settings.MAX_FILE_SIZE:
+                    raise ValueError(f"Document file too large. Max size: {settings.MAX_FILE_SIZE} bytes")
+                return
+            else:
+                # File type not allowed
+                all_allowed = set(allowed_image_types + allowed_file_types)
+                raise ValueError(f"Invalid file type '{file_extension}'. Allowed types: {', '.join(sorted(all_allowed))}")
+                
         except ValueError as e:
             # Convert ValueError to ValidationException for consistent error handling
             raise ValidationException(str(e))
@@ -116,7 +161,7 @@ class StagingStorageService:
             logger.debug(f"Failed to get metadata for {s3_key}: {e}")
             return None
     
-    async def _list_staging_files(self, prefix: str = "images/") -> List[Dict[str, Any]]:
+    async def _list_staging_files(self, prefix: str = "") -> List[Dict[str, Any]]:
         """List S3 objects in staging state"""
         try:
             response = self.storage_backend.s3_client.list_objects_v2(
@@ -177,10 +222,10 @@ class StagingStorageService:
         async def stage_single_file(file_data: bytes, filename: str, content_type: str) -> Dict[str, Any]:
             async with semaphore:
                 try:
-                    # Generate file ID using storage.py method
-                    file_id = storage_service.generate_file_id()
+                    # Generate file ID based on file type
+                    file_id = self._generate_file_id_for_type(filename)
                     # Generate S3 key using storage.py method (same final location)
-                    s3_key = storage_service.generate_storage_key(file_id, filename)
+                    s3_key = self._generate_storage_key_for_type(file_id, filename)
                     
                     # Create staging metadata
                     now = datetime.utcnow()
@@ -288,8 +333,8 @@ class StagingStorageService:
                 logger.warning(f"Staged file {file_id} not found or access denied for user {user_id}")
                 raise FileNotFoundError(f"Staged file {file_id} not found or access denied")
             
-            # Use the same S3 key pattern as storage.py
-            s3_key = storage_service.generate_storage_key(file_id, metadata.original_filename)
+            # Use the same S3 key pattern as upload (type-based)
+            s3_key = self._generate_storage_key_for_type(file_id, metadata.original_filename)
             
             # Delete file from S3
             success = await self.storage_backend.delete_file(s3_key)
@@ -361,12 +406,15 @@ class StagingStorageService:
         """
         try:
             # We need to check common extensions since we don't know the exact extension
-            extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+            # Check both image and document extensions
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+            document_extensions = ['.pdf', '.doc', '.docx', '.txt', '.md']
+            all_extensions = image_extensions + document_extensions
             
-            for ext in extensions:
-                # Generate potential S3 key with this extension
+            for ext in all_extensions:
+                # Generate potential S3 key with this extension (type-based)
                 test_filename = f"test{ext}"
-                s3_key = storage_service.generate_storage_key(file_id, test_filename)
+                s3_key = self._generate_storage_key_for_type(file_id, test_filename)
                 
                 try:
                     metadata_dict = await self._get_object_metadata(s3_key)
@@ -398,7 +446,10 @@ class StagingStorageService:
             List of StagingMetadata objects for user's staged files
         """
         try:
-            staging_objects = await self._list_staging_files()
+            # List files from both images and files directories
+            image_objects = await self._list_staging_files("images/")
+            file_objects = await self._list_staging_files("files/")
+            staging_objects = image_objects + file_objects
             user_files = []
             
             for obj in staging_objects:
@@ -433,8 +484,10 @@ class StagingStorageService:
         logger.info(f"Starting staging cleanup (dry_run={dry_run})")
         
         try:
-            # List all files in images directory
-            staging_objects = await self._list_staging_files()
+            # List all files in both images and files directories
+            image_objects = await self._list_staging_files("images/")
+            file_objects = await self._list_staging_files("files/")
+            staging_objects = image_objects + file_objects
             
             expired_files = []
             active_files = []

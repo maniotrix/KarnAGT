@@ -58,7 +58,7 @@ export const Chat: React.FC<ChatProps> = ({
   const [showActions, setShowActions] = useState(false);
   const [shouldShowScrollButton, setShouldShowScrollButton] = useState(false);
   const [scrollToBottomFn, setScrollToBottomFn] = useState<(() => void) | null>(null);
-  const [uploadedImages, setUploadedImages] = useState<UploadFile[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
 
   // Calculate quota using clean architecture user data
   const calculateQuota = () => {
@@ -153,33 +153,27 @@ export const Chat: React.FC<ChatProps> = ({
     }
   }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
 
-  // Handle image upload - store in imageStore
-  const handleImageUpload = useCallback((files: UploadFile[]) => {
-    console.log('🔍 DEBUG: handleImageUpload called with files:', files);
+  // Handle file upload - store files for message submission
+  const handleFileUpload = useCallback((files: UploadFile[]) => {
+    console.log('🔍 DEBUG: handleFileUpload called with files:', files);
     console.log('🔍 DEBUG: Files details:', files.map(f => ({
       name: f.name,
       status: f.status,
       file_id: f.file_id,
       s3_key: f.s3_key,
+      fileCategory: f.fileCategory,
       hasFile: !!f.file
     })));
     
-    // Images are now handled directly in the message data, no need for separate store
-    
-    // Keep existing state for now (for upload UI)
-    const newUploadedImages = [...files];
-    console.log('🔍 DEBUG: Setting uploadedImages state to:', newUploadedImages);
-    setUploadedImages(prev => {
-      const updated = [...prev, ...files];
-      console.log('🔍 DEBUG: Updated uploadedImages state:', updated);
-      return updated;
-    });
+    // REPLACE uploaded files state for message submission (don't append)
+    console.log('🔍 DEBUG: Replacing uploadedFiles state with:', files);
+    setUploadedFiles(files);
   }, []);
 
-  // Handle message submission with quota check and image support
+  // Handle message submission with quota check and universal file support
   const handleMessageSubmit = async (e: React.FormEvent) => {
     console.log('🔍 DEBUG: handleMessageSubmit called');
-    console.log('🔍 DEBUG: Current uploadedImages state:', uploadedImages);
+    console.log('🔍 DEBUG: Current uploadedFiles state:', uploadedFiles);
     console.log('🔍 DEBUG: Input content:', input);
     console.log('🔍 DEBUG: hasConversation:', hasConversation);
     
@@ -188,18 +182,19 @@ export const Chat: React.FC<ChatProps> = ({
       return;
     }
 
-    // Image caching is now handled by TanStack Query automatically
-
     // Get successful uploads
-    console.log('🔍 DEBUG: Filtering uploadedImages for successful uploads...');
-    const successfulFiles = uploadedImages.filter(file => file.status === 'success' && file.file_id && file.s3_key && file.file);
+    console.log('🔍 DEBUG: Filtering uploadedFiles for successful uploads...');
+    const successfulFiles = uploadedFiles.filter(file => file.status === 'success' && file.file_id && file.s3_key && file.file);
     console.log('🔍 DEBUG: Successful files after filter:', successfulFiles);
     
-    // Prepare staging files for backend using utility function (NEW FORMAT)
+    // Prepare staging files for backend using utility function (UNIVERSAL FORMAT)
     const stagingFiles = convertUploadFilesToStagingFiles(successfulFiles);
 
-    // Prepare actual image data for frontend display
-    const imageData = successfulFiles.map(file => ({
+    // Prepare file data for frontend display (support both images and documents)
+    const imageFiles = successfulFiles.filter(f => f.fileCategory === 'image');
+    const documentFiles = successfulFiles.filter(f => f.fileCategory === 'document');
+    
+    const imageData = imageFiles.map(file => ({
       fileId: file.file_id!,
       filename: file.name,
       file: file.file!,
@@ -207,39 +202,52 @@ export const Chat: React.FC<ChatProps> = ({
       s3Key: file.s3_key!
     }));
 
-    console.log('🔍 DEBUG: Final staging files for backend (NEW FORMAT):', stagingFiles);
+    // For documents, we'll store basic info for display
+    const documentData = documentFiles.map(file => ({
+      fileId: file.file_id!,
+      filename: file.name,
+      file: file.file!,
+      fileType: file.type,
+      fileSize: file.size,
+      s3Key: file.s3_key!
+    }));
+
+    console.log('🔍 DEBUG: Final staging files for backend (UNIVERSAL FORMAT):', stagingFiles);
     console.log('🔍 DEBUG: Image data for frontend:', imageData);
+    console.log('🔍 DEBUG: Document data for frontend:', documentData);
     console.log('🔍 DEBUG: Total staging files count:', Object.values(stagingFiles).flat().length);
 
     // If we don't have a conversation, ask parent to create one
     if (!hasConversation && onCreateConversationForMessage && (input.trim() || hasStagingFiles(stagingFiles))) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
-      await onCreateConversationForMessage(input.trim() || "Image analysis request");
+      await onCreateConversationForMessage(input.trim() || "File analysis request");
       return;
     }
 
-    // We have a conversation, submit the message with both staging files and image data
+    // We have a conversation, submit the message with staging files and file data
     if (hasConversation) {
-      console.log('🔍 DEBUG: Creating submitEvent with staging files and image data');
-      // Create custom event with both staging files and image data
+      console.log('🔍 DEBUG: Creating submitEvent with staging files and file data');
+      // Create custom event with staging files and both image and document data
       const submitEvent = {
         ...e,
         preventDefault: e.preventDefault.bind(e),
         stagingFiles, // For backend
-        imageData, // For frontend display
+        imageData, // For frontend display (images)
+        documentData, // For frontend display (documents) 
       };
       
       console.log('🔍 DEBUG: submitEvent created:', submitEvent);
       console.log('🔍 DEBUG: submitEvent.stagingFiles:', submitEvent.stagingFiles);
       console.log('🔍 DEBUG: submitEvent.imageData:', submitEvent.imageData);
+      console.log('🔍 DEBUG: submitEvent.documentData:', submitEvent.documentData);
       console.log('🔍 DEBUG: Calling handleSubmit with submitEvent');
       
       handleSubmit(submitEvent as any);
       
-      // Clear uploaded images after sending
-      console.log('🔍 DEBUG: Clearing uploadedImages state');
-      setUploadedImages([]);
+      // Clear uploaded files after sending
+      console.log('🔍 DEBUG: Clearing uploadedFiles state');
+      setUploadedFiles([]);
       
       // ALWAYS scroll to bottom when user sends message
       setTimeout(() => {
@@ -459,8 +467,8 @@ export const Chat: React.FC<ChatProps> = ({
               ? "Quota exceeded. Please upgrade your plan."
               : "Type your message..."
           }
-          onImageUpload={handleImageUpload}
-          enableImageUpload={!isQuotaExceeded && isAuthenticated}
+          onFileUpload={handleFileUpload}
+          enableFileUpload={!isQuotaExceeded && isAuthenticated}
         />
         {error && (
           <div className="mt-2 text-sm text-red-600 dark:text-red-400">

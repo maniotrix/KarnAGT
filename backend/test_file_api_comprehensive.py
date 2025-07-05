@@ -22,7 +22,7 @@ sys.path.append('.')
 from app.core.database import AsyncSessionLocal, engine
 from app.models.database.user import User
 from app.models.database.uploaded_image import UploadedImage
-from app.services.storage.storage import storage_service
+from app.services.storage.storage import image_storage_service
 from app.core.security import security
 from app.core.config import get_settings
 
@@ -624,16 +624,16 @@ class FileAPIIntegrationTest:
             test_key = f"test/{uuid.uuid4().hex}.txt"
             
             # Upload test file
-            await storage_service.storage.upload_file(test_data, test_key, "text/plain")
+            await image_storage_service.storage.upload_file(test_data, test_key, "text/plain")
             print("  MinIO upload successful")
             
             # Generate presigned URL
-            presigned_url = await storage_service.storage.generate_presigned_url(test_key)
+            presigned_url = await image_storage_service.storage.generate_presigned_url(test_key)
             if presigned_url:
                 print("  MinIO presigned URL generation successful")
             
             # Delete test file
-            await storage_service.storage.delete_file(test_key)
+            await image_storage_service.storage.delete_file(test_key)
             print("  MinIO deletion successful")
             
             return True
@@ -1266,7 +1266,7 @@ class FileAPIIntegrationTest:
                     for image in remaining_images:
                         try:
                             # Delete original image
-                            await storage_service.storage.delete_file(image.s3_key)
+                            await image_storage_service.storage.delete_file(image.s3_key)
                             print(f"  Deleted S3 file: {image.s3_key}")
                             
                             # Delete thumbnails if they exist
@@ -1276,7 +1276,7 @@ class FileAPIIntegrationTest:
                                     thumbnail_keys = json.loads(image.thumbnail_s3_keys)
                                     for size, thumb_s3_key in thumbnail_keys.items():
                                         try:
-                                            await storage_service.storage.delete_file(thumb_s3_key)
+                                            await image_storage_service.storage.delete_file(thumb_s3_key)
                                             print(f"  Deleted thumbnail {size}: {thumb_s3_key}")
                                         except Exception as e:
                                             print(f"  Failed to delete thumbnail {size}: {e}")

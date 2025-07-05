@@ -15,8 +15,10 @@ from pathlib import Path
 import httpx
 import time
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = current_dir
 # Add backend to path
-sys.path.append('.')
+sys.path.append(backend_dir)
 
 from app.core.database import AsyncSessionLocal
 from app.models.database.user import User
@@ -32,6 +34,18 @@ from sqlalchemy import delete
 API_BASE_URL = "http://localhost:8000/api/v1"
 TEST_IMAGE_PATH = "fifa_test_image.png"
 
+test_docs_dir = os.path.join(backend_dir, "test_docs")
+
+TEST_SAMPLE_DOC_FILE = os.path.join(test_docs_dir, "PRY NDLS 20 June.pdf")
+TEST_SAMPLE_DOCX_FILE = os.path.join(test_docs_dir, "Assignment 6_ Distributed Systems (Middleware).pdf")  # Will test as PDF
+
+# Additional test files for comprehensive testing
+TEST_FILES = {
+    "image": TEST_IMAGE_PATH,
+    "pdf": TEST_SAMPLE_DOC_FILE,
+    "pdf2": TEST_SAMPLE_DOCX_FILE
+}
+
 class AIFilesStagingIntegrationTest:
     """Test class for simplified AI files staging integration"""
     
@@ -45,9 +59,15 @@ class AIFilesStagingIntegrationTest:
         """Set up test users and authentication"""
         print("Setting up simplified staging test environment...")
         
-        # Verify test image exists
-        if not os.path.exists(TEST_IMAGE_PATH):
-            raise FileNotFoundError(f"Test image not found: {TEST_IMAGE_PATH}")
+        # Verify test files exist
+        for file_type, file_path in TEST_FILES.items():
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Test {file_type} file not found: {file_path}")
+        
+        print(f"Test files verified:")
+        for file_type, file_path in TEST_FILES.items():
+            size = os.path.getsize(file_path)
+            print(f"  {file_type}: {file_path} ({size} bytes)")
         
         async with AsyncSessionLocal() as db:
             # Create test users with different subscription tiers
@@ -288,6 +308,481 @@ class AIFilesStagingIntegrationTest:
             print(f"  - Mixed operations test files: {len(mixed_files)}")
             
             return staging_upload_results
+    
+    async def test_document_only_staging_upload(self):
+        """Test staging upload with document files only"""
+        print("Testing document-only staging upload...")
+        
+        async with httpx.AsyncClient() as client:
+            document_upload_results = []
+            
+            # Read test PDF files
+            pdf_files = {}
+            for file_type, file_path in TEST_FILES.items():
+                if file_type.startswith("pdf"):
+                    with open(file_path, 'rb') as f:
+                        pdf_files[file_type] = f.read()
+            
+            if not pdf_files:
+                print("  No PDF files available for testing")
+                return document_upload_results
+            
+            print(f"  Testing with {len(pdf_files)} PDF files")
+            
+            for user in self.test_users:
+                print(f"  Testing document upload for user: {user.username} ({user.subscription_tier})")
+                
+                # Get auth headers for this user
+                headers = self.get_auth_headers(user.user_id)
+                
+                # Test document upload scenarios
+                test_scenarios = [
+                    {"file_count": 2, "description": "Document discard test batch", "test_type": "doc_individual"},
+                    {"file_count": 3, "description": "Document bulk discard test batch", "test_type": "doc_bulk"},
+                ]
+                
+                for scenario in test_scenarios:
+                    file_count = scenario["file_count"]
+                    description = scenario["description"]
+                    test_type = scenario["test_type"]
+                    
+                    print(f"    {description}: {file_count} files")
+                    
+                    # Prepare document files for staging
+                    files = []
+                    file_counter = 0
+                    for i in range(file_count):
+                        # Cycle through available PDF files
+                        pdf_key = list(pdf_files.keys())[file_counter % len(pdf_files)]
+                        pdf_data = pdf_files[pdf_key]
+                        
+                        filename = f"staging_doc_{test_type}_{user.subscription_tier}_{i}_{uuid.uuid4().hex[:8]}.pdf"
+                        files.append(("files", (filename, pdf_data, "application/pdf")))
+                        file_counter += 1
+                    
+                    data = {
+                        "max_concurrent_uploads": "3"
+                    }
+                    
+                    start_time = time.time()
+                    
+                    # Make staging upload request
+                    response = await client.post(
+                        f"{API_BASE_URL}/ai-files/staging/bulk-upload",
+                        files=files,
+                        data=data,
+                        headers=headers,
+                        timeout=60.0
+                    )
+                    
+                    upload_duration = time.time() - start_time
+                    print(f"      Document staging upload response: {response.status_code} (took {upload_duration:.2f}s)")
+                    
+                    if response.status_code == 201:
+                        upload_data = response.json()
+                        
+                        successfully_staged = upload_data.get("successfully_staged", 0)
+                        failed_uploads = upload_data.get("failed_uploads", 0)
+                        total_size_bytes = upload_data.get("total_size_bytes", 0)
+                        
+                        print(f"      Successful document staging: {successfully_staged}/{file_count}")
+                        print(f"      Failed document staging: {failed_uploads}")
+                        print(f"      Total size: {total_size_bytes} bytes")
+                        
+                        # NEW: Handle organized staging files structure
+                        staging_files = upload_data.get("staging_files", {})
+                        print(f"      Staging files structure: {list(staging_files.keys())}")
+                        
+                        # Track staged files by test type
+                        all_staged_files = self.extract_staged_files_from_response(upload_data)
+                        
+                        # Print breakdown by category
+                        for category, files_in_category in staging_files.items():
+                            if category in ["images", "vectors", "unknown"]:
+                                file_count_in_cat = len(files_in_category) if isinstance(files_in_category, list) else 0
+                                print(f"        {category}: {file_count_in_cat} files")
+                        
+                        # Verify documents went to vectors category
+                        vector_files = staging_files.get("vectors", [])
+                        if len(vector_files) == file_count:
+                            print(f"      ✓ All {file_count} documents correctly categorized as vectors")
+                        else:
+                            print(f"      ✗ Document categorization issue: {len(vector_files)} in vectors, expected {file_count}")
+                        
+                        # Verify file IDs have file_ prefix (documents use file_ prefix)
+                        for staged_file in all_staged_files:
+                            file_id = staged_file.get("file_id")
+                            if file_id:
+                                if file_id.startswith("file_") and len(file_id) > 5:
+                                    print(f"        ✓ Document file ID format correct: {file_id}")
+                                else:
+                                    print(f"        ✗ Document file ID format unexpected: {file_id}")
+                                
+                                staged_file_info = {
+                                    "file_id": file_id,
+                                    "user_id": user.user_id,
+                                    "filename": staged_file.get("filename", "unknown"),
+                                    "size": staged_file.get("size", 0),
+                                    "content_type": staged_file.get("content_type", "unknown"),
+                                    "test_type": test_type
+                                }
+                                
+                                self.staged_files.append(staged_file_info)
+                        
+                        document_upload_results.append({
+                            "user": user,
+                            "scenario": description,
+                            "test_type": test_type,
+                            "file_count": file_count,
+                            "successfully_staged": successfully_staged,
+                            "failed_uploads": failed_uploads,
+                            "upload_data": upload_data
+                        })
+                        
+                    else:
+                        print(f"      Document staging upload failed: {response.text}")
+            
+            print(f"Document-only staging upload completed. {len(document_upload_results)} successful uploads.")
+            return document_upload_results
+    
+    async def test_mixed_file_staging_upload(self):
+        """Test staging upload with mixed file types (images + documents)"""
+        print("Testing mixed file staging upload...")
+        
+        async with httpx.AsyncClient() as client:
+            mixed_upload_results = []
+            
+            # Read test files
+            with open(TEST_FILES["image"], 'rb') as f:
+                image_data = f.read()
+            
+            with open(TEST_FILES["pdf"], 'rb') as f:
+                pdf_data = f.read()
+            
+            print(f"  Testing with mixed files: image ({len(image_data)} bytes) + PDF ({len(pdf_data)} bytes)")
+            
+            for user in self.test_users:
+                print(f"  Testing mixed upload for user: {user.username} ({user.subscription_tier})")
+                
+                # Get auth headers for this user
+                headers = self.get_auth_headers(user.user_id)
+                
+                # Test mixed upload scenarios
+                test_scenarios = [
+                    {"image_count": 2, "doc_count": 2, "description": "Mixed cleanup test batch", "test_type": "mixed_cleanup"},
+                    {"image_count": 1, "doc_count": 3, "description": "Mixed heavy document batch", "test_type": "mixed_doc_heavy"},
+                    {"image_count": 3, "doc_count": 1, "description": "Mixed heavy image batch", "test_type": "mixed_img_heavy"},
+                ]
+                
+                for scenario in test_scenarios:
+                    image_count = int(scenario["image_count"])
+                    doc_count = int(scenario["doc_count"])
+                    description = scenario["description"]
+                    test_type = scenario["test_type"]
+                    total_files = image_count + doc_count
+                    
+                    print(f"    {description}: {image_count} images + {doc_count} documents")
+                    
+                    # Prepare mixed files for staging
+                    files = []
+                    
+                    # Add images
+                    for i in range(image_count):
+                        filename = f"staging_mixed_{test_type}_{user.subscription_tier}_img_{i}_{uuid.uuid4().hex[:8]}.png"
+                        files.append(("files", (filename, image_data, "image/png")))
+                    
+                    # Add documents
+                    for i in range(doc_count):
+                        filename = f"staging_mixed_{test_type}_{user.subscription_tier}_doc_{i}_{uuid.uuid4().hex[:8]}.pdf"
+                        files.append(("files", (filename, pdf_data, "application/pdf")))
+                    
+                    data = {
+                        "max_concurrent_uploads": "5"
+                    }
+                    
+                    start_time = time.time()
+                    
+                    # Make staging upload request
+                    response = await client.post(
+                        f"{API_BASE_URL}/ai-files/staging/bulk-upload",
+                        files=files,
+                        data=data,
+                        headers=headers,
+                        timeout=60.0
+                    )
+                    
+                    upload_duration = time.time() - start_time
+                    print(f"      Mixed staging upload response: {response.status_code} (took {upload_duration:.2f}s)")
+                    
+                    if response.status_code == 201:
+                        upload_data = response.json()
+                        
+                        successfully_staged = upload_data.get("successfully_staged", 0)
+                        failed_uploads = upload_data.get("failed_uploads", 0)
+                        total_size_bytes = upload_data.get("total_size_bytes", 0)
+                        
+                        print(f"      Successful mixed staging: {successfully_staged}/{total_files}")
+                        print(f"      Failed mixed staging: {failed_uploads}")
+                        print(f"      Total size: {total_size_bytes} bytes")
+                        
+                        # NEW: Handle organized staging files structure
+                        staging_files = upload_data.get("staging_files", {})
+                        print(f"      Staging files structure: {list(staging_files.keys())}")
+                        
+                        # Track staged files by test type
+                        all_staged_files = self.extract_staged_files_from_response(upload_data)
+                        
+                        # Print breakdown by category and verify counts
+                        image_files = staging_files.get("images", [])
+                        vector_files = staging_files.get("vectors", [])
+                        unknown_files = staging_files.get("unknown", [])
+                        
+                        print(f"        images: {len(image_files)} files (expected: {image_count})")
+                        print(f"        vectors: {len(vector_files)} files (expected: {doc_count})")
+                        print(f"        unknown: {len(unknown_files)} files (expected: 0)")
+                        
+                        # Verify categorization
+                        if len(image_files) == image_count and len(vector_files) == doc_count:
+                            print(f"      ✓ Mixed file categorization correct")
+                        else:
+                            print(f"      ✗ Mixed file categorization issue")
+                        
+                        # Verify file ID prefixes
+                        img_id_correct = 0
+                        doc_id_correct = 0
+                        
+                        for staged_file in all_staged_files:
+                            file_id = staged_file.get("file_id")
+                            filename = staged_file.get("filename", "")
+                            
+                            if file_id:
+                                if filename.endswith(".png") and file_id.startswith("img_"):
+                                    img_id_correct += 1
+                                elif filename.endswith(".pdf") and file_id.startswith("file_"):
+                                    doc_id_correct += 1
+                                
+                                staged_file_info = {
+                                    "file_id": file_id,
+                                    "user_id": user.user_id,
+                                    "filename": staged_file.get("filename", "unknown"),
+                                    "size": staged_file.get("size", 0),
+                                    "content_type": staged_file.get("content_type", "unknown"),
+                                    "test_type": test_type
+                                }
+                                
+                                self.staged_files.append(staged_file_info)
+                        
+                        print(f"        ✓ Image file ID format correct: {img_id_correct}/{image_count}")
+                        print(f"        ✓ Document file ID format correct: {doc_id_correct}/{doc_count}")
+                        
+                        mixed_upload_results.append({
+                            "user": user,
+                            "scenario": description,
+                            "test_type": test_type,
+                            "image_count": image_count,
+                            "doc_count": doc_count,
+                            "total_files": total_files,
+                            "successfully_staged": successfully_staged,
+                            "failed_uploads": failed_uploads,
+                            "upload_data": upload_data
+                        })
+                        
+                    else:
+                        print(f"      Mixed staging upload failed: {response.text}")
+            
+            print(f"Mixed file staging upload completed. {len(mixed_upload_results)} successful uploads.")
+            return mixed_upload_results
+    
+    async def test_document_discard_flow(self):
+        """Test document file discard operations"""
+        print("Testing document discard flow...")
+        
+        # Get files specifically uploaded for document discard testing
+        doc_individual_files = [f for f in self.staged_files if f["test_type"] == "doc_individual"]
+        doc_bulk_files = [f for f in self.staged_files if f["test_type"] == "doc_bulk"]
+        
+        if not doc_individual_files and not doc_bulk_files:
+            print("No document files available for discard testing")
+            return []
+        
+        async with httpx.AsyncClient() as client:
+            discard_results = []
+            
+            # Test individual document discard
+            if doc_individual_files:
+                print(f"Testing individual document discard with {len(doc_individual_files)} files")
+                
+                for staged_file in doc_individual_files:
+                    file_id = staged_file["file_id"]
+                    user_id = staged_file["user_id"]
+                    filename = staged_file["filename"]
+                    
+                    print(f"  Discarding document file: {file_id} ({filename})")
+                    
+                    headers = self.get_auth_headers(user_id)
+                    response = await client.delete(
+                        f"{API_BASE_URL}/ai-files/staging/discard/{file_id}",
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        discard_data = response.json()
+                        print(f"    ✓ Document discard successful: {discard_data.get('message', 'No message')}")
+                        discard_results.append({
+                            "file_id": file_id,
+                            "user_id": user_id,
+                            "filename": filename,
+                            "success": True,
+                            "file_type": "document"
+                        })
+                        # Remove from tracking
+                        self.staged_files.remove(staged_file)
+                    else:
+                        print(f"    ✗ Document discard failed: {response.status_code} - {response.text}")
+            
+            # Test bulk document discard
+            if doc_bulk_files:
+                print(f"Testing bulk document discard with {len(doc_bulk_files)} files")
+                
+                # Group by user
+                user_doc_files = {}
+                for staged_file in doc_bulk_files:
+                    user_id = staged_file["user_id"]
+                    if user_id not in user_doc_files:
+                        user_doc_files[user_id] = []
+                    user_doc_files[user_id].append(staged_file)
+                
+                for user_id, staged_files_list in user_doc_files.items():
+                    print(f"  Bulk discarding {len(staged_files_list)} document files for user {user_id}")
+                    
+                    file_ids = [sf["file_id"] for sf in staged_files_list]
+                    headers = self.get_auth_headers(user_id)
+                    
+                    response = await client.request(
+                        "DELETE",
+                        f"{API_BASE_URL}/ai-files/staging/bulk-discard",
+                        json={"file_ids": file_ids},
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        bulk_data = response.json()
+                        successfully_discarded = bulk_data.get("successfully_discarded", 0)
+                        print(f"    ✓ Bulk document discard successful: {successfully_discarded}/{len(file_ids)}")
+                        
+                        # Remove discarded files from tracking
+                        discarded_ids = bulk_data.get("discarded_file_ids", [])
+                        self.staged_files = [sf for sf in self.staged_files if sf["file_id"] not in discarded_ids]
+                        
+                        discard_results.append({
+                            "user_id": user_id,
+                            "file_ids": file_ids,
+                            "successfully_discarded": successfully_discarded,
+                            "file_type": "document",
+                            "operation": "bulk"
+                        })
+                    else:
+                        print(f"    ✗ Bulk document discard failed: {response.status_code} - {response.text}")
+            
+            print(f"Document discard flow completed. {len(discard_results)} operations performed.")
+            return discard_results
+    
+    async def test_mixed_files_cleanup_flow(self):
+        """Test cleanup of mixed file types"""
+        print("Testing mixed files cleanup flow...")
+        
+        # Get files specifically uploaded for mixed cleanup testing
+        mixed_cleanup_files = [f for f in self.staged_files if f["test_type"] == "mixed_cleanup"]
+        
+        if not mixed_cleanup_files:
+            print("No mixed cleanup files available for testing")
+            return []
+        
+        async with httpx.AsyncClient() as client:
+            cleanup_results = []
+            
+            print(f"Testing mixed cleanup with {len(mixed_cleanup_files)} files")
+            
+            # Separate by file type
+            image_files = [f for f in mixed_cleanup_files if f["file_id"].startswith("img_")]
+            doc_files = [f for f in mixed_cleanup_files if f["file_id"].startswith("file_")]
+            
+            print(f"  Mixed cleanup files: {len(image_files)} images, {len(doc_files)} documents")
+            
+            # Group by user
+            user_mixed_files = {}
+            for staged_file in mixed_cleanup_files:
+                user_id = staged_file["user_id"]
+                if user_id not in user_mixed_files:
+                    user_mixed_files[user_id] = []
+                user_mixed_files[user_id].append(staged_file)
+            
+            for user_id, staged_files_list in user_mixed_files.items():
+                print(f"  Testing mixed cleanup for user {user_id} ({len(staged_files_list)} files)")
+                
+                headers = self.get_auth_headers(user_id)
+                
+                # Test 1: Individual cleanup of some files
+                if len(staged_files_list) > 2:
+                    individual_files = staged_files_list[:2]  # First 2 files
+                    
+                    for staged_file in individual_files:
+                        file_id = staged_file["file_id"]
+                        file_type = "image" if file_id.startswith("img_") else "document"
+                        
+                        print(f"    Individual cleanup of {file_type} file: {file_id}")
+                        
+                        response = await client.delete(
+                            f"{API_BASE_URL}/ai-files/staging/discard/{file_id}",
+                            headers=headers
+                        )
+                        
+                        if response.status_code == 200:
+                            print(f"      ✓ Individual {file_type} cleanup successful")
+                            self.staged_files.remove(staged_file)
+                            staged_files_list.remove(staged_file)
+                        else:
+                            print(f"      ✗ Individual {file_type} cleanup failed: {response.status_code}")
+                
+                # Test 2: Bulk cleanup of remaining files
+                if len(staged_files_list) > 0:
+                    remaining_files = staged_files_list
+                    remaining_images = [f for f in remaining_files if f["file_id"].startswith("img_")]
+                    remaining_docs = [f for f in remaining_files if f["file_id"].startswith("file_")]
+                    
+                    print(f"    Bulk cleanup of {len(remaining_images)} images + {len(remaining_docs)} documents")
+                    
+                    file_ids = [sf["file_id"] for sf in remaining_files]
+                    
+                    response = await client.request(
+                        "DELETE",
+                        f"{API_BASE_URL}/ai-files/staging/bulk-discard",
+                        json={"file_ids": file_ids},
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        bulk_data = response.json()
+                        successfully_discarded = bulk_data.get("successfully_discarded", 0)
+                        print(f"      ✓ Bulk mixed cleanup successful: {successfully_discarded}/{len(file_ids)}")
+                        
+                        # Remove discarded files from tracking
+                        discarded_ids = bulk_data.get("discarded_file_ids", [])
+                        self.staged_files = [sf for sf in self.staged_files if sf["file_id"] not in discarded_ids]
+                        
+                        cleanup_results.append({
+                            "user_id": user_id,
+                            "total_files": len(file_ids),
+                            "images": len(remaining_images),
+                            "documents": len(remaining_docs),
+                            "successfully_discarded": successfully_discarded,
+                            "operation": "mixed_bulk_cleanup"
+                        })
+                    else:
+                        print(f"      ✗ Bulk mixed cleanup failed: {response.status_code} - {response.text}")
+            
+            print(f"Mixed files cleanup flow completed. {len(cleanup_results)} operations performed.")
+            return cleanup_results
     
     async def test_individual_staging_discard_flow(self):
         """Test individual staging file discard - ONLY use files marked for individual testing"""
@@ -906,7 +1401,7 @@ class AIFilesStagingIntegrationTest:
             
             # Test invalid file validation
             try:
-                staging_service._validate_staging_file("test.txt", 1024)
+                staging_service._validate_staging_file("test.exe", 1024)
                 print(f"  ✗ File validation for invalid file: FAIL (should have rejected)")
             except Exception:
                 print(f"  ✓ File validation for invalid file: PASS (correctly rejected)")
@@ -932,8 +1427,8 @@ class AIFilesStagingIntegrationTest:
             
             # Test 1: Upload invalid file type to staging
             print("  Testing invalid file type in staging...")
-            text_data = b"This is not an image file"
-            files = [("files", ("test.txt", text_data, "text/plain"))]
+            exe_data = b"This is a fake executable file"
+            files = [("files", ("test.exe", exe_data, "application/octet-stream"))]
             response = await client.post(
                 f"{API_BASE_URL}/ai-files/staging/bulk-upload",
                 files=files,
@@ -1630,8 +2125,16 @@ class AIFilesStagingIntegrationTest:
             status_result = await self.test_ai_files_service_status()
             print()
             
-            # Test 2: Bulk Upload
+            # Test 2: Bulk Upload (Images)
             upload_results = await self.test_bulk_staging_upload_flow()
+            print()
+            
+            # Test 2.1: Document-Only Upload
+            document_results = await self.test_document_only_staging_upload()
+            print()
+            
+            # Test 2.2: Mixed Files Upload
+            mixed_results = await self.test_mixed_file_staging_upload()
             print()
             
             # Test 3: Individual Discard
@@ -1640,6 +2143,14 @@ class AIFilesStagingIntegrationTest:
             
             # Test 4: Bulk Discard
             bulk_discard_results = await self.test_bulk_staging_discard_flow()
+            print()
+            
+            # Test 4.1: Document-Only Discard
+            document_discard_results = await self.test_document_discard_flow()
+            print()
+            
+            # Test 4.2: Mixed Files Cleanup
+            mixed_cleanup_results = await self.test_mixed_files_cleanup_flow()
             print()
             
             # Test 5: Mixed Operations
@@ -1675,9 +2186,13 @@ class AIFilesStagingIntegrationTest:
             print("COMPREHENSIVE STAGING TEST SUMMARY")
             print("=" * 60)
             print(f"✓ Service Status: {'PASS' if status_result else 'FAIL'}")
-            print(f"✓ Upload Tests: {len(upload_results)} scenarios completed")
+            print(f"✓ Image Upload Tests: {len(upload_results)} scenarios completed")
+            print(f"✓ Document Upload Tests: {len(document_results)} scenarios completed")
+            print(f"✓ Mixed Files Upload Tests: {len(mixed_results)} scenarios completed")
             print(f"✓ Individual Discard: {len(individual_discard_results)} files tested")
             print(f"✓ Bulk Discard: {len(bulk_discard_results)} scenarios tested")
+            print(f"✓ Document Discard: {len(document_discard_results)} operations tested")
+            print(f"✓ Mixed Files Cleanup: {len(mixed_cleanup_results)} operations tested")
             print(f"✓ Mixed Operations: {len(mixed_results)} scenarios tested")
             print(f"✓ Advanced Edge Cases: {len(edge_case_results)} tests performed")
             print(f"✓ Concurrent Operations: {len(concurrent_results)} tests performed")
@@ -1686,13 +2201,16 @@ class AIFilesStagingIntegrationTest:
             print(f"✓ Direct Service: {'PASS' if service_direct_result else 'FAIL'}")
             print(f"✓ Error Handling: {len(error_results)} conditions tested")
             print()
-            print("SIMPLIFIED STAGING FLOW VERIFIED:")
-            print("1. Client uploads files → gets file_ids")
-            print("2. Client sends same file_ids to discard → files deleted")
-            print("3. Background cleanup removes expired files automatically")
-            print("4. Admin cleanup endpoint provides manual cleanup control")
-            print("5. Expired file detection and removal works correctly")
-            print("6. User isolation through ownership validation")
+            print("COMPREHENSIVE STAGING FLOW VERIFIED:")
+            print("1. Client uploads files (images & documents) → gets file_ids")
+            print("2. Images get img_* IDs, documents get file_* IDs")
+            print("3. Files categorized as 'images', 'vectors', or 'unknown'")
+            print("4. Client sends same file_ids to discard → files deleted")
+            print("5. Background cleanup removes expired files automatically")
+            print("6. Admin cleanup endpoint provides manual cleanup control")
+            print("7. Expired file detection and removal works correctly")
+            print("8. User isolation through ownership validation")
+            print("9. Mixed file type operations work seamlessly")
             print("=" * 60)
             
             return True

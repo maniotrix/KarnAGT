@@ -580,11 +580,11 @@ class ImageStorageService:
         self.allowed_types = settings.get_allowed_image_types()
         self.image_base_url = settings.IMAGE_BASE_URL
     
-    def generate_file_id(self) -> str:
+    def generate_image_file_id(self) -> str:
         """Generate unique file ID"""
         return f"img_{uuid.uuid4().hex[:8]}"
     
-    def generate_storage_key(self, file_id: str, filename: str) -> str:
+    def generate_image_storage_key(self, file_id: str, filename: str) -> str:
         """Generate S3 key for file storage"""
         date_prefix = datetime.now().strftime("%Y/%m/%d")
         file_extension = os.path.splitext(filename)[1].lower()
@@ -670,8 +670,8 @@ class ImageStorageService:
         self.validate_image_file(filename, len(file_data))
         
         # Generate file ID and storage key
-        file_id = self.generate_file_id()
-        s3_key = self.generate_storage_key(file_id, filename)
+        file_id = self.generate_image_file_id()
+        s3_key = self.generate_image_storage_key(file_id, filename)
         
         # Track uploaded assets for cleanup on failure
         uploaded_assets = {
@@ -1486,4 +1486,4 @@ class ImageStorageService:
         }
 
 # Global storage service instance
-storage_service = ImageStorageService() 
+image_storage_service = ImageStorageService() 

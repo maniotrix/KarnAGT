@@ -1,3 +1,5 @@
+import type { FileCategory, FileTypeInfo } from '../services/universalUploadService';
+
 export interface UploadFile {
   id: string;
   file: File;
@@ -8,6 +10,9 @@ export interface UploadFile {
   status: 'pending' | 'uploading' | 'success' | 'error';
   progress: number;
   error?: string;
+  // File categorization
+  fileCategory?: FileCategory;
+  fileTypeInfo?: FileTypeInfo;
   // From backend response
   file_id?: string;
   s3_key?: string;
