@@ -15,8 +15,8 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { useUiStore } from '../../app/stores/uiStore';
 import { useChatInputFocus } from '../../hooks/useChatInputFocus';
 
-// Image Upload Integration
-import { ImageUpload, type ImageUploadRef } from './ImageUpload';
+// Universal File Upload Integration
+import { UniversalFileUpload, type UniversalFileUploadRef } from './UniversalFileUpload';
 import type { UploadFile } from '../../types/upload';
 
 interface ChatInputProps {
@@ -26,8 +26,8 @@ interface ChatInputProps {
   isLoading: boolean;
   disabled?: boolean;
   placeholder?: string;
-  onImageUpload?: (files: UploadFile[]) => void;
-  enableImageUpload?: boolean;
+  onFileUpload?: (files: UploadFile[]) => void;
+  enableFileUpload?: boolean;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -37,16 +37,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   isLoading,
   disabled = false,
   placeholder = "Type your message...",
-  onImageUpload,
-  enableImageUpload = true,
+  onFileUpload,
+  enableFileUpload = true,
 }) => {
   // Clean Architecture Integration
   const { theme } = useUiStore();
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const imageUploadRef = useRef<ImageUploadRef>(null);
+  const fileUploadRef = useRef<UniversalFileUploadRef>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [imageCount, setImageCount] = useState<number>(0);
+  const [fileCount, setFileCount] = useState<number>(0);
 
   // 🎯 FOCUS MANAGEMENT: Use our custom hook for intelligent focus behavior
   const { focusInput, resetUserIntent } = useChatInputFocus({
@@ -76,21 +76,35 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleFormSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!disabled && !isLoading && input.trim()) {
+    e.stopPropagation(); // Prevent any event bubbling
+    
+    console.log('🚀 [ChatInput] Form submit triggered explicitly');
+    
+    if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
       onSubmit(e);
       // Reset user intent after successful submit so we can auto-focus after AI response
       resetUserIntent();
-      // Clear uploaded images after sending
-      imageUploadRef.current?.clearFiles();
-      setImageCount(0);
+      // Clear uploaded files after sending
+      fileUploadRef.current?.clearFiles();
+      setFileCount(0);
       setUploadError(null);
+    } else {
+      console.log('🚫 [ChatInput] Form submit blocked - conditions not met:', {
+        disabled,
+        isLoading,
+        hasInput: !!input.trim(),
+        hasFiles: fileCount > 0,
+        isOverLimit
+      });
     }
   };
 
   // Keyboard shortcuts
   useHotkeys('mod+enter', (e) => {
     e.preventDefault();
-    if (!disabled && !isLoading && input.trim()) {
+    e.stopPropagation();
+    console.log('⌨️ [ChatInput] Keyboard shortcut Cmd+Enter triggered');
+    if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
       handleFormSubmit(e as any);
     }
   }, { enableOnFormTags: ['textarea'] });
@@ -98,26 +112,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && !isLoading && input.trim()) {
+      e.stopPropagation();
+      console.log('⌨️ [ChatInput] Enter key pressed (without Shift)');
+      if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
         handleFormSubmit(e as any);
       }
     }
   };
 
-  const handleImageUploadComplete = (files: UploadFile[]) => {
-    console.log('📷 [ChatInput] Upload complete callback');
+  const handleFileUploadComplete = (files: UploadFile[]) => {
+    console.log('📁 [ChatInput] Upload complete callback');
     setUploadError(null);
-    if (onImageUpload) {
-      onImageUpload(files);
+    if (onFileUpload) {
+      onFileUpload(files);
     }
   };
 
   const handleFilesChanged = (allFiles: UploadFile[]) => {
-    console.log('📷 [ChatInput] Files changed, updating count to:', allFiles.filter(f => f.status === 'success').length);
-    setImageCount(allFiles.filter(f => f.status === 'success').length);
+    console.log('📁 [ChatInput] Files changed, updating count to:', allFiles.filter(f => f.status === 'success').length);
+    setFileCount(allFiles.filter(f => f.status === 'success').length);
+    
+    // CRITICAL FIX: Also notify parent about file changes (including removals)
+    if (onFileUpload) {
+      console.log('📁 [ChatInput] Notifying parent about file changes:', allFiles);
+      onFileUpload(allFiles);
+    }
   };
 
-  const handleImageUploadError = (error: string) => {
+  const handleFileUploadError = (error: string) => {
     setUploadError(error);
     // Clear error after 5 seconds
     setTimeout(() => setUploadError(null), 5000);
@@ -126,12 +148,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const characterCount = input?.length || 0;
   const isOverLimit = characterCount > 4000;
   const isNearLimit = characterCount > 3500;
-  const hasImages = imageCount > 0;
+  const hasFiles = fileCount > 0;
+
+  // Get file breakdown for display
+  const filesByCategory = fileUploadRef.current?.getFilesByCategory();
+  const imageCount = filesByCategory?.images.length || 0;
+  const documentCount = filesByCategory?.documents.length || 0;
 
   return (
     <div className="w-full">
       <form onSubmit={handleFormSubmit} className="relative">
-        {/* Image Upload Error */}
+        {/* File Upload Error */}
         {uploadError && (
           <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -148,17 +175,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               : 'border-gray-300 dark:border-gray-600 focus-within:border-blue-500 dark:focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/20'
         }`}>
           
-          {/* Image Upload (Compact) - Show before textarea */}
-          {enableImageUpload && (
+          {/* Universal File Upload (Compact) - Show before textarea */}
+          {enableFileUpload && (
             <div className="flex-shrink-0">
-              <ImageUpload
-                ref={imageUploadRef}
+              <UniversalFileUpload
+                ref={fileUploadRef}
                 compact={true}
                 disabled={disabled}
                 maxFiles={5}
-                onUploadComplete={handleImageUploadComplete}
+                acceptedTypes="all"
+                onUploadComplete={handleFileUploadComplete}
                 onFilesSelected={handleFilesChanged}
-                onError={handleImageUploadError}
+                onError={handleFileUploadError}
               />
             </div>
           )}
@@ -170,7 +198,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder={hasImages ? "Describe what you'd like me to analyze in these images..." : placeholder}
+              placeholder={hasFiles ? "Describe what you'd like me to analyze in these files..." : placeholder}
               disabled={disabled}
               className="w-full resize-none border-0 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 text-base leading-6"
               rows={1}
@@ -185,9 +213,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {/* Send Button */}
           <button
             type="submit"
-            disabled={disabled || isLoading || (!input.trim() && !hasImages) || isOverLimit}
+            disabled={disabled || isLoading || (!input.trim() && !hasFiles) || isOverLimit}
+            onClick={(e) => {
+              console.log('🖱️ [ChatInput] Send button clicked explicitly');
+              // Let the form submission handle the rest
+            }}
             className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 ${
-              disabled || isLoading || (!input.trim() && !hasImages) || isOverLimit
+              disabled || isLoading || (!input.trim() && !hasFiles) || isOverLimit
                 ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transform hover:scale-105'
             }`}
@@ -196,12 +228,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ? "Input disabled" 
                 : isLoading 
                   ? "Sending..." 
-                  : (!input.trim() && !hasImages)
-                    ? "Type a message or upload images to send"
+                  : (!input.trim() && !hasFiles)
+                    ? "Type a message or upload files to send"
                     : isOverLimit
                       ? "Message is too long"
-                      : hasImages
-                        ? "Send message with images"
+                      : hasFiles
+                        ? "Send message with files"
                         : "Send message (Enter)"
             }
           >
@@ -221,17 +253,24 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <span className="text-gray-500 dark:text-gray-400">
                 Input disabled
               </span>
-            ) : hasImages ? (
+            ) : hasFiles ? (
               <span className="text-blue-600 dark:text-blue-400">
-              {/* // TODO not properly fixed, need to fix this */}
-                {imageCount} image{imageCount !== 1 ? 's' : ''} ready for analysis
+                {fileCount} file{fileCount !== 1 ? 's' : ''} ready
+                {imageCount > 0 && documentCount > 0 
+                  ? ` (${imageCount} images, ${documentCount} documents)`
+                  : imageCount > 0 
+                    ? ` (${imageCount} image${imageCount !== 1 ? 's' : ''})`
+                    : documentCount > 0
+                      ? ` (${documentCount} document${documentCount !== 1 ? 's' : ''})`
+                      : ''
+                }
               </span>
             ) : (
               <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
                 <CornerDownLeft className="w-4 h-4" />
                 <span>Enter to send, Shift+Enter for new line</span>
-                {enableImageUpload && (
-                  <span className="ml-2 text-gray-400">• Click 📷 to add images</span>
+                {enableFileUpload && (
+                  <span className="ml-2 text-gray-400">• Click 📁 to add files</span>
                 )}
               </div>
             )}

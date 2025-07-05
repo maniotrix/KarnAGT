@@ -1,9 +1,10 @@
 // Staging File Utilities - Convert between frontend and backend formats
 import type { UploadFile } from '../../types/upload';
+import { universalUploadService } from '../../services/universalUploadService';
 
 /**
  * Convert successful upload files to staging files dictionary format
- * Returns the format expected by the chat API
+ * Returns the format expected by the chat API with proper categorization
  */
 export function convertUploadFilesToStagingFiles(uploadFiles: UploadFile[]): Record<string, any> {
   const successfulFiles = uploadFiles.filter(file => 
@@ -14,20 +15,33 @@ export function convertUploadFilesToStagingFiles(uploadFiles: UploadFile[]): Rec
     return {};
   }
 
-  // For now, all uploaded files are treated as images
-  // In the future, we could add logic to categorize files
+  // Properly categorize files based on their original type
   const stagingFiles: Record<string, any> = {
-    images: successfulFiles.map(file => ({
+    images: [],
+    vectors: [],
+    unknown: []
+  };
+
+  successfulFiles.forEach(file => {
+    const category = universalUploadService.categorizeFile(file.file);
+    const fileData = {
       file_id: file.file_id!,
       s3_key: file.s3_key!,
       filename: file.name,
       content_type: file.type,
       file_size: file.size
-    })),
-    vectors: [],
-    unknown: []
-  };
+    };
 
+    if (category === 'image') {
+      stagingFiles.images.push(fileData);
+    } else if (category === 'document') {
+      stagingFiles.vectors.push(fileData);
+    } else {
+      stagingFiles.unknown.push(fileData);
+    }
+  });
+
+  console.log('📋 [stagingFileUtils] Generated staging files:', stagingFiles);
   return stagingFiles;
 }
 
