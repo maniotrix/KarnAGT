@@ -229,7 +229,17 @@ export function useChat(options: ChatOptions = {}) {
     console.log('📤 Sending message with staging files:', stagingFiles);
     console.log('📤 Sending message with image data:', imageData);
     
-    // STEP 1: Create user message with actual image data for immediate display
+    // Extract document data from staging files for immediate display
+    const documentData = stagingFiles.vectors ? stagingFiles.vectors.map((doc: any) => ({
+      fileId: doc.file_id,
+      filename: doc.filename,
+      file: null, // Not available in staging files
+      s3Key: doc.s3_key,
+    })) : [];
+    
+    console.log('📤 Extracted document data:', documentData);
+    
+    // STEP 1: Create user message with actual image and document data for immediate display
     const userMessage: Message = {
       id: `temp_${Date.now()}`,
       message_id: `temp_${Date.now()}`,
@@ -238,6 +248,8 @@ export function useChat(options: ChatOptions = {}) {
       createdAt: new Date(),
       // Store actual image data for immediate display
       localImages: imageData.length > 0 ? imageData : undefined,
+      // Store actual document data for immediate display
+      localDocuments: documentData.length > 0 ? documentData : undefined,
     };
 
     // STEP 2: Add to UI immediately with actual image data
