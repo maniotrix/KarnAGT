@@ -77,6 +77,7 @@ class MessageService:
             
             # Get attachments from message_data
             attachments = getattr(message_data, 'attachments', []) or []
+            vector_file_references = getattr(message_data, 'vector_file_references', None)
             
             # Create message instance
             message = Message(
@@ -87,6 +88,7 @@ class MessageService:
                 message_type=getattr(message_data, 'message_type', 'text'),
                 status=getattr(message_data, 'status', 'completed'),
                 attachments=attachments,  # Use the dedicated attachments column
+                vector_file_references=vector_file_references,  # RAG document references
                 extra_metadata=getattr(message_data, 'metadata', {})
             )
             

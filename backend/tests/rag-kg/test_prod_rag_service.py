@@ -139,10 +139,10 @@ class ProductionRAGTestRunner:
             await db.commit()
             await db.refresh(test_user)
             
-            self.test_user_id = test_user.id
+            self.test_user_id = test_user.user_id  # Use UUID string instead of integer id
             print(f"   ✅ Created test user: ID={self.test_user_id}, Email={test_user.email}")
             
-            return test_user.id
+            return test_user.user_id  # Return UUID string instead of integer id
         
         # This should never be reached due to the async generator, but add for type safety
         raise Exception("Failed to create test user - no database session")
@@ -306,7 +306,7 @@ class ProductionRAGTestRunner:
                 
                 # Delete test user
                 await db.execute(
-                    delete(User).where(User.id == self.test_user_id)
+                    delete(User).where(User.user_id == self.test_user_id)  # Use user_id field instead of id field
                 )
                 print("   🗑️  Deleted test user")
                 

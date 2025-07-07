@@ -234,7 +234,7 @@ class ChatService:
                 attachment_service = AttachmentService()
                 
                 message_attachments, openai_file_ids, vector_file_references = await attachment_service.process_staging_files(
-                    staging_files, self.user_uuid, self.db
+                    staging_files, self.user_uuid, conversation_id, self.db
                 )
             
             # Save user message
@@ -243,6 +243,7 @@ class ChatService:
                 role="user",
                 parent_message_id=None,
                 attachments=message_attachments,
+                vector_file_references=vector_file_references,
                 status="completed",
                 staging_files=staging_files.to_dict() if staging_files else None
             )
@@ -393,7 +394,7 @@ class ChatService:
                 attachment_service = AttachmentService()
                 
                 message_attachments, openai_file_ids, vector_file_references = await attachment_service.process_staging_files(
-                    staging_files, self.user_uuid, self.db
+                    staging_files, self.user_uuid, conversation_id, self.db
                 )
             
             # Save user message
@@ -402,6 +403,7 @@ class ChatService:
                 role="user",
                 parent_message_id=None,
                 attachments=message_attachments,
+                vector_file_references=vector_file_references,
                 status="completed",
                 staging_files=staging_files.to_dict() if staging_files else None
             )

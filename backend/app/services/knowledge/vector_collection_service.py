@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VectorCollectionFilter:
     """Filter criteria for searching vector collections."""
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
     scope: Optional[VectorCollectionScope] = None
     scope_id: Optional[str] = None
     status: Optional[str] = None
@@ -67,7 +67,7 @@ class VectorCollectionService:
 
     async def get_or_create_for_scope(
         self,
-        user_id: int,
+        user_id: str,
         scope: VectorCollectionScope,
         scope_id: str,
         display_name: Optional[str] = None,
@@ -119,7 +119,7 @@ class VectorCollectionService:
 
     async def create_for_scope(
         self,
-        user_id: int,
+        user_id: str,
         scope: VectorCollectionScope,
         scope_id: str,
         display_name: Optional[str] = None,
@@ -201,7 +201,7 @@ class VectorCollectionService:
 
     async def get_by_scope(
         self,
-        user_id: int,
+        user_id: str,
         scope: VectorCollectionScope,
         scope_id: str,
         db: Optional[AsyncSession] = None
@@ -225,7 +225,7 @@ class VectorCollectionService:
 
     async def get_collections_for_user(
         self,
-        user_id: int,
+        user_id: str,
         scope_filter: Optional[VectorCollectionScope] = None,
         include_inactive: bool = False,
         db: Optional[AsyncSession] = None
@@ -308,23 +308,23 @@ class VectorCollectionService:
 
     # Scope-specific convenience methods
 
-    async def get_user_collections(self, user_id: int, db: Optional[AsyncSession] = None) -> List[VectorCollection]:
+    async def get_user_collections(self, user_id: str, db: Optional[AsyncSession] = None) -> List[VectorCollection]:
         """Get all user-scope collections for a user."""
         return await self.get_collections_for_user(user_id, VectorCollectionScope.USER, db=db)
 
     async def get_conversation_collection(
         self,
-        user_id: int,
-        conversation_id: int,
+        user_id: str,
+        conversation_id: str,
         db: Optional[AsyncSession] = None
     ) -> Optional[VectorCollection]:
         """Get conversation-scope collection."""
-        return await self.get_by_scope(user_id, VectorCollectionScope.CONVERSATION, str(conversation_id), db)
+        return await self.get_by_scope(user_id, VectorCollectionScope.CONVERSATION, conversation_id, db)
 
     async def get_or_create_conversation_collection(
         self,
-        user_id: int,
-        conversation_id: int,
+        user_id: str,
+        conversation_id: str,
         conversation_title: Optional[str] = None,
         db: Optional[AsyncSession] = None
     ) -> VectorCollection:
@@ -334,13 +334,13 @@ class VectorCollectionService:
         return await self.get_or_create_for_scope(
             user_id=user_id,
             scope=VectorCollectionScope.CONVERSATION,
-            scope_id=str(conversation_id),
+            scope_id=conversation_id,
             display_name=display_name,
             description=f"Documents uploaded in conversation {conversation_id}",
             db=db
         )
 
-    async def get_project_collections(self, user_id: int, project_id: str, db: Optional[AsyncSession] = None) -> List[VectorCollection]:
+    async def get_project_collections(self, user_id: str, project_id: str, db: Optional[AsyncSession] = None) -> List[VectorCollection]:
         """Get all collections for a project."""
         return await self.get_collections_for_user(user_id, VectorCollectionScope.PROJECT, db=db)
 
@@ -446,7 +446,7 @@ class VectorCollectionService:
 
     # Analytics and statistics
 
-    async def get_user_collection_stats(self, user_id: int, db: Optional[AsyncSession] = None) -> VectorCollectionStats:
+    async def get_user_collection_stats(self, user_id: str, db: Optional[AsyncSession] = None) -> VectorCollectionStats:
         """Get comprehensive statistics for user's collections."""
         if db is None:
             async for db_session in get_db():
@@ -508,12 +508,14 @@ class VectorCollectionService:
 
         # Check if scope entity exists
         if collection.is_conversation_scope():
-            # Validate conversation exists
+            # Validate conversation exists - need to join User table for UUID matching
             result = await db.execute(
-                select(Conversation).where(
+                select(Conversation)
+                .join(User, Conversation.user_id == User.id)
+                .where(
                     and_(
-                        Conversation.id == int(collection.scope_id),
-                        Conversation.user_id == collection.user_id
+                        Conversation.conversation_id == collection.scope_id,  # Match UUID strings
+                        User.user_id == collection.user_id  # Match user UUID strings
                     )
                 )
             )

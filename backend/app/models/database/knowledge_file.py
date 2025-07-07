@@ -15,7 +15,7 @@ class KnowledgeFile(Base):
 
     # Primary identification
     id = Column(String(50), primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False, index=True)
     
     # File information
     file_id = Column(String(100), unique=True, index=True, nullable=False)  # Generated unique ID

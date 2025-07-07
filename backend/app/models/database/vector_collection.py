@@ -56,7 +56,7 @@ class VectorCollection(Base):
 
     # Primary identification
     id = Column(String(50), primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # Owner for permissions
+    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False, index=True)  # Owner for permissions (UUID)
     
     # Scope configuration - flexible for any future use cases
     scope = Column(String(50), nullable=False, index=True)  # Store as string, use enum in app

@@ -130,11 +130,11 @@ class ProductionRAGService:
 
     async def get_or_create_collection(
         self, 
-        user_id: int, 
+        user_id: str, 
         scope: VectorCollectionScope,
+        db: AsyncSession,
         scope_id: Optional[str] = None,
-        display_name: Optional[str] = None,
-        db: Optional[AsyncSession] = None
+        display_name: Optional[str] = None
     ) -> VectorCollection:
         """
         Get existing collection or create new one with scope awareness.
@@ -144,19 +144,14 @@ class ProductionRAGService:
             scope: Collection scope (user, conversation, project, etc.)
             scope_id: ID of the scope entity (conversation_id, project_id, etc.)
             display_name: Human-readable name (optional)
-            db: Database session (optional)
+            db: Database session (required)
             
         Returns:
             VectorCollection record
         """
-        if db is None:
-            async for db_session in get_db():
-                db = db_session
-                break
-        
         # For user scope, use user_id as scope_id if not provided
         if scope == VectorCollectionScope.USER and scope_id is None:
-            scope_id = str(user_id)
+            scope_id = user_id
         
         # Validate scope_id is provided for non-user scopes
         if scope != VectorCollectionScope.USER and scope_id is None:
@@ -182,32 +177,32 @@ class ProductionRAGService:
 
     async def get_or_create_conversation_collection(
         self,
-        user_id: int,
-        conversation_id: int,
-        conversation_title: Optional[str] = None,
-        db: Optional[AsyncSession] = None
+        user_id: str,
+        conversation_id: str,
+        db: AsyncSession,
+        conversation_title: Optional[str] = None
     ) -> VectorCollection:
         """Convenience method for conversation collections."""
         return await self.get_or_create_collection(
             user_id=user_id,
             scope=VectorCollectionScope.CONVERSATION,
-            scope_id=str(conversation_id),
+            scope_id=conversation_id,
             display_name=f"Conversation: {conversation_title}" if conversation_title else None,
             db=db
         )
 
     async def get_or_create_user_collection(
         self,
-        user_id: int,
+        user_id: str,
+        db: AsyncSession,
         collection_name: Optional[str] = None,
-        display_name: Optional[str] = None,
-        db: Optional[AsyncSession] = None
+        display_name: Optional[str] = None
     ) -> VectorCollection:
         """Convenience method for user collections (backward compatibility)."""
         return await self.get_or_create_collection(
             user_id=user_id,
             scope=VectorCollectionScope.USER,
-            scope_id=str(user_id),
+            scope_id=user_id,
             display_name=display_name,
             db=db
         )
@@ -296,9 +291,9 @@ class ProductionRAGService:
         self,
         collection_id: str,
         s3_keys: List[str],
-        user_id: int,
-        force_reprocess: bool = False,
-        db: Optional[AsyncSession] = None
+        user_id: str,
+        db: AsyncSession,
+        force_reprocess: bool = False
     ) -> ProcessingResult:
         """
         Process S3 documents using IngestionPipeline's smart deduplication.
@@ -307,17 +302,12 @@ class ProductionRAGService:
             collection_id: Vector collection ID
             s3_keys: List of S3 keys to process
             user_id: User ID for ownership
+            db: Database session (required)
             force_reprocess: Force reprocessing even if documents exist
-            db: Database session
             
         Returns:
             ProcessingResult with detailed metrics including compatibility analysis
         """
-        
-        if db is None:
-            async for db_session in get_db():
-                db = db_session
-                break
         
         start_time = time.time()
         logger.info(f"Processing {len(s3_keys)} documents for collection {collection_id}")
@@ -395,12 +385,12 @@ class ProductionRAGService:
 
     async def process_conversation_documents(
         self,
-        user_id: int,
-        conversation_id: int,
+        user_id: str,
+        conversation_id: str,
         s3_keys: List[str],
+        db: AsyncSession,
         conversation_title: Optional[str] = None,
-        force_reprocess: bool = False,
-        db: Optional[AsyncSession] = None
+        force_reprocess: bool = False
     ) -> Tuple[VectorCollection, ProcessingResult]:
         """
         Convenience method to process documents for a conversation.
@@ -414,17 +404,13 @@ class ProductionRAGService:
             user_id: Owner user ID
             conversation_id: Conversation ID
             s3_keys: List of S3 keys to process
+            db: Database session (required)
             conversation_title: Optional conversation title for display
             force_reprocess: Force reprocessing even if documents exist
-            db: Database session
             
         Returns:
             Tuple of (VectorCollection, ProcessingResult)
         """
-        if db is None:
-            async for db_session in get_db():
-                db = db_session
-                break
 
         logger.info(f"Processing {len(s3_keys)} documents for conversation {conversation_id}")
 
@@ -432,8 +418,8 @@ class ProductionRAGService:
         collection = await self.get_or_create_conversation_collection(
             user_id=user_id,
             conversation_id=conversation_id,
-            conversation_title=conversation_title,
-            db=db
+            db=db,
+            conversation_title=conversation_title
         )
 
         # Process documents
@@ -441,8 +427,8 @@ class ProductionRAGService:
             collection_id=collection.id,
             s3_keys=s3_keys,
             user_id=user_id,
-            force_reprocess=force_reprocess,
-            db=db
+            db=db,
+            force_reprocess=force_reprocess
         )
 
         logger.info(f"Conversation {conversation_id} processing complete: {result.processed_count} documents processed")
@@ -450,10 +436,10 @@ class ProductionRAGService:
 
     async def query_conversation(
         self,
-        user_id: int,
-        conversation_id: int,
+        user_id: str,
+        conversation_id: str,
         query: str,
-        db: Optional[AsyncSession] = None
+        db: AsyncSession
     ) -> Optional[QueryResult]:
         """
         Convenience method to query a conversation's documents.
@@ -462,15 +448,11 @@ class ProductionRAGService:
             user_id: User ID
             conversation_id: Conversation ID
             query: Query string
-            db: Database session
+            db: Database session (required)
             
         Returns:
             QueryResult if collection exists, None otherwise
         """
-        if db is None:
-            async for db_session in get_db():
-                db = db_session
-                break
 
         # Get conversation collection
         collection = await self.collection_service.get_conversation_collection(
@@ -491,13 +473,8 @@ class ProductionRAGService:
             db=db
         )
 
-    async def create_query_engine(self, collection_id: str, db: Optional[AsyncSession] = None):
+    async def create_query_engine(self, collection_id: str, db: AsyncSession):
         """Create query engine that connects to existing vectors (no reprocessing!)."""
-        
-        if db is None:
-            async for db_session in get_db():
-                db = db_session
-                break
         
         # Get collection using service
         collection = await self.collection_service.get_by_id(collection_id, db)
@@ -538,15 +515,10 @@ class ProductionRAGService:
         self,
         collection_id: str,
         query: str,
-        user_id: int,
-        db: Optional[AsyncSession] = None
+        user_id: str,
+        db: AsyncSession
     ) -> QueryResult:
         """Query a collection and return results with proper tracking."""
-        
-        if db is None:
-            async for db_session in get_db():
-                db = db_session
-                break
         
         start_time = time.time()
         logger.info(f"Querying collection {collection_id}: {query}")
@@ -664,7 +636,7 @@ class ProductionRAGService:
         documents: List[Document],
         processed_nodes: List[BaseNode],
         collection: VectorCollection,
-        user_id: int,
+        user_id: str,
         db: AsyncSession
     ) -> bool:
         """Update database state to reflect processing results."""
