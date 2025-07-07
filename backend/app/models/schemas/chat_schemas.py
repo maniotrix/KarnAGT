@@ -137,6 +137,7 @@ class MessageResponse(BaseSchema):
     parent_message_id: Optional[int] = None
     has_children: bool = False
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="Message attachments")
+    vector_file_references: Optional[Dict[str, Any]] = Field(None, description="References to knowledge files processed for RAG")
     extra_metadata: Dict[str, Any] = {}  # Changed from metadata to match database field
     created_at: datetime
     
