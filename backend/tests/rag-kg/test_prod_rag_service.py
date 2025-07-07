@@ -82,7 +82,7 @@ setup_logging(log_level)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from app.core.database import get_db
-from app.models.database import User, VectorCollection, KnowledgeFile
+from app.models.database import User, VectorCollection, VectorCollectionScope, KnowledgeFile
 from app.services.knowledge.production_rag_service import ProductionRAGService
 from app.services.knowledge.config import RAGConfig, get_default_qdrant_config
 from app.services.storage.storage import S3StorageBackend, generate_file_id, generate_storage_key, get_content_type
@@ -186,22 +186,18 @@ class ProductionRAGTestRunner:
         
         return s3_key
     
-    async def process_documents_and_create_collection(self, s3_keys: List[str], collection_name: Optional[str] = None):
+    async def process_documents_and_create_collection(self, s3_keys: List[str], scope: VectorCollectionScope = VectorCollectionScope.USER):
         """Process S3 documents and create/update vector collection using production service."""
         
         print(f"🔄 Processing {len(s3_keys)} documents...")
-        
-        # If no collection_name provided, service will use qdrant_config.collection_name
-        if collection_name is None:
-            print(f"   🔄 Using qdrant config collection: {self.qdrant_config.collection_name}")
-        else:
-            print(f"   🔄 Using explicit collection: {collection_name}")
+        print(f"   🔄 Using scope: {scope.value}")
         
         async for db in get_db():
-            # Get or create collection
+            # Get or create collection using explicit scope
             collection = await self.prod_rag_service.get_or_create_collection(
                 user_id=self.test_user_id,
-                collection_name=collection_name,
+                scope=scope,
+                scope_id=str(self.test_user_id),  # Use user_id as scope_id for user collections
                 display_name=f"Test Collection {uuid.uuid4().hex[:8]}",
                 db=db
             )
@@ -360,41 +356,40 @@ class ProductionRAGTestRunner:
         print("\n🔍 DEMONSTRATING MULTIPLE COLLECTIONS:")
         print("-" * 60)
         
-        test_collections = [
-            "user_docs_collection",
-            "business_docs_collection",
-        ]
+        test_collections = []
         
         async for db in get_db():
-            # Create first collection with explicit name
+            # Create first collection with USER scope
             collection_1 = await self.prod_rag_service.get_or_create_collection(
                 user_id=self.test_user_id,
-                collection_name=test_collections[0], 
+                scope=VectorCollectionScope.USER,
+                scope_id=str(self.test_user_id),
                 display_name="User Documents",
                 db=db
             )
-            
-            # Create second collection with explicit name
+            test_collections.append(collection_1.collection_name)
+            # Create second collection with PROJECT scope (demonstrating different scopes)
             collection_2 = await self.prod_rag_service.get_or_create_collection(
                 user_id=self.test_user_id,
-                collection_name=test_collections[1],
+                scope=VectorCollectionScope.PROJECT,
+                scope_id="test_project_001",
                 display_name="Business Documents", 
                 db=db
             )
+            test_collections.append(collection_2.collection_name)
+            print(f"📂 Collection 1: {collection_1.collection_name} (ID: {collection_1.id}, Scope: {collection_1.scope})")
+            print(f"📂 Collection 2: {collection_2.collection_name} (ID: {collection_2.id}, Scope: {collection_2.scope})")
             
-            print(f"📂 Collection 1: {collection_1.collection_name} (ID: {collection_1.id})")
-            print(f"📂 Collection 2: {collection_2.collection_name} (ID: {collection_2.id})")
-            
-            # To add documents to specific collection, use the collection_name:
+            # To add documents to specific collection, use the collection_id:
             # await self.prod_rag_service.process_s3_documents(collection_id=collection_1.id, ...)
             # await self.prod_rag_service.process_s3_documents(collection_id=collection_2.id, ...)
             
             print("💡 Key insights:")
-            print("   • Each user can have multiple collections")
-            print("   • Collections are identified by user_id + collection_name")
-            print("   • Use explicit collection_name to target specific collections")
-            print("   • Use collection_name=None to create new random-named collections")
-            print("   • Store collection_name to reuse/update existing collections")
+            print("   • Each user can have multiple collections with different scopes")
+            print("   • Collections are identified by user_id + scope + scope_id")
+            print("   • Use explicit scope and scope_id to target specific collections")
+            print("   • Different scopes: USER, CONVERSATION, PROJECT, ORGANIZATION, etc.")
+            print("   • Store collection_id to reuse/update existing collections")
             
             break
         
@@ -430,22 +425,25 @@ class ProductionRAGTestRunner:
         service_3 = ProductionRAGService(self.rag_config, self.qdrant_config)
         
         async for db in get_db():
-            # All three instances should see the same collection (using qdrant config collection name)
+            # All three instances should see the same collection using USER scope
             collection_1 = await service_1.get_or_create_collection(
                 user_id=self.test_user_id,
-                collection_name=None,  # Will use qdrant config collection name
+                scope=VectorCollectionScope.USER,
+                scope_id=str(self.test_user_id),
                 db=db
             )
             
             collection_2 = await service_2.get_or_create_collection(
                 user_id=self.test_user_id,
-                collection_name=None,  # Will use qdrant config collection name
+                scope=VectorCollectionScope.USER,
+                scope_id=str(self.test_user_id),
                 db=db
             )
             
             collection_3 = await service_3.get_or_create_collection(
                 user_id=self.test_user_id,
-                collection_name=None,  # Will use qdrant config collection name
+                scope=VectorCollectionScope.USER,
+                scope_id=str(self.test_user_id),
                 db=db
             )
             

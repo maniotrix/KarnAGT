@@ -30,12 +30,13 @@ from qdrant_client import QdrantClient, AsyncQdrantClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func, and_
 from app.core.database import get_db
-from app.models.database import KnowledgeFile, VectorCollection, User
+from app.models.database import KnowledgeFile, VectorCollection, VectorCollectionScope, User
 
 # Existing infrastructure
 from app.services.knowledge.config import QdrantConfig, RAGConfig, get_default_qdrant_config
 from app.services.knowledge.metadata_util import MetadataCleanerPostprocessor
 from app.services.knowledge.collection_compatibility import CollectionCompatibilityChecker, CompatibilityResult
+from app.services.knowledge.vector_collection_service import VectorCollectionService
 from app.services.storage.storage import S3StorageBackend
 from app.services.knowledge.s3_directory_reader import S3DirectoryReader
 
@@ -107,6 +108,9 @@ class ProductionRAGService:
         # Use provided qdrant config or get default
         self.qdrant_config = qdrant_config or get_default_qdrant_config()
         
+        # Initialize collection service for database operations
+        self.collection_service = VectorCollectionService(self.qdrant_config)
+        
         # Setup LlamaIndex global settings
         Settings.llm = OpenAI(model=self.config.llm_model)
         Settings.embed_model = OpenAIEmbedding(model=self.config.embedding_model)
@@ -127,63 +131,86 @@ class ProductionRAGService:
     async def get_or_create_collection(
         self, 
         user_id: int, 
-        collection_name: Optional[str] = None,
+        scope: VectorCollectionScope,
+        scope_id: Optional[str] = None,
         display_name: Optional[str] = None,
         db: Optional[AsyncSession] = None
     ) -> VectorCollection:
-        """Get existing collection from or create new one with proper state tracking as per qdrant config."""
+        """
+        Get existing collection or create new one with scope awareness.
         
+        Args:
+            user_id: Owner user ID
+            scope: Collection scope (user, conversation, project, etc.)
+            scope_id: ID of the scope entity (conversation_id, project_id, etc.)
+            display_name: Human-readable name (optional)
+            db: Database session (optional)
+            
+        Returns:
+            VectorCollection record
+        """
         if db is None:
             async for db_session in get_db():
                 db = db_session
                 break
         
-        # Use qdrant config collection name if not provided
-        if collection_name is None:
-            collection_name = self.qdrant_config.collection_name
+        # For user scope, use user_id as scope_id if not provided
+        if scope == VectorCollectionScope.USER and scope_id is None:
+            scope_id = str(user_id)
         
-        # Check if collection exists
-        result = await db.execute(
-            select(VectorCollection).where(
-                and_(
-                    VectorCollection.user_id == user_id,
-                    VectorCollection.collection_name == collection_name
-                )
-            )
-        )
-        collection = result.scalar_one_or_none()
+        # Validate scope_id is provided for non-user scopes
+        if scope != VectorCollectionScope.USER and scope_id is None:
+            raise ValueError(f"scope_id is required for {scope.value} scope")
         
-        if collection:
-            logger.info(f"Found existing collection: {collection_name}")
-            return collection
-        
-        # Create new collection using config
-        logger.info(f"Creating new collection: {collection_name}")
-        
-        # Get vector size from config
-        vector_size = QdrantConfig.get_vector_size_for_model(self.config.embedding_model)
-        
-        collection = VectorCollection(
-            id=f"col_{uuid.uuid4().hex[:12]}",
+        # Use collection service for scope-aware operations
+        collection = await self.collection_service.get_or_create_for_scope(
             user_id=user_id,
-            collection_name=collection_name,
-            display_name=display_name or f"Collection {collection_name}",
-            qdrant_url=self.qdrant_config.url,
-            vector_size=vector_size,
-            distance_metric=self.qdrant_config.vectors_config["distance"],
+            scope=scope,  # Pass enum to service - service handles conversion
+            scope_id=scope_id,
+            display_name=display_name,
+            db=db,
+            # Pass RAG-specific configuration
             embedding_model=self.config.embedding_model,
             chunk_size=self.config.chunk_size,
             chunk_overlap=self.config.chunk_overlap,
-            status="active",
-            health_status="healthy"
+            qdrant_url=self.qdrant_config.url,
+            distance_metric=self.qdrant_config.vectors_config["distance"]
         )
         
-        db.add(collection)
-        await db.commit()
-        await db.refresh(collection)
-        
-        logger.info(f"Created collection: {collection.id}")
+        logger.info(f"Using collection: {collection.id} for {scope.value}:{scope_id}")
         return collection
+
+    async def get_or_create_conversation_collection(
+        self,
+        user_id: int,
+        conversation_id: int,
+        conversation_title: Optional[str] = None,
+        db: Optional[AsyncSession] = None
+    ) -> VectorCollection:
+        """Convenience method for conversation collections."""
+        return await self.get_or_create_collection(
+            user_id=user_id,
+            scope=VectorCollectionScope.CONVERSATION,
+            scope_id=str(conversation_id),
+            display_name=f"Conversation: {conversation_title}" if conversation_title else None,
+            db=db
+        )
+
+    async def get_or_create_user_collection(
+        self,
+        user_id: int,
+        collection_name: Optional[str] = None,
+        display_name: Optional[str] = None,
+        db: Optional[AsyncSession] = None
+    ) -> VectorCollection:
+        """Convenience method for user collections (backward compatibility)."""
+        return await self.get_or_create_collection(
+            user_id=user_id,
+            scope=VectorCollectionScope.USER,
+            scope_id=str(user_id),
+            display_name=display_name,
+            db=db
+        )
 
     async def validate_collection_compatibility(
         self, 
@@ -295,9 +322,8 @@ class ProductionRAGService:
         start_time = time.time()
         logger.info(f"Processing {len(s3_keys)} documents for collection {collection_id}")
         
-        # Get collection
-        result = await db.execute(select(VectorCollection).where(VectorCollection.id == collection_id))
-        collection = result.scalar_one_or_none()
+        # Get collection using service
+        collection = await self.collection_service.get_by_id(collection_id, db)
         if not collection:
             raise ValueError(f"Collection {collection_id} not found")
         
@@ -344,8 +370,14 @@ class ProductionRAGService:
             documents, processed_nodes, collection, user_id, db
         )
         
-        # Update collection statistics
-        await self._update_collection_stats(collection, db)
+        # Update collection statistics using service
+        await self.collection_service.update_collection_stats(
+            collection_id=collection.id,
+            total_documents=len([d for d in documents if d.id_ in [n.ref_doc_id for n in processed_nodes]]),
+            total_nodes=len(processed_nodes),
+            total_vectors=len(processed_nodes),
+            db=db
+        )
         
         logger.info(f"Processing completed in {processing_time:.2f}s - {len(processed_nodes)} nodes created")
         
@@ -361,6 +393,104 @@ class ProductionRAGService:
             compatibility_result=compatibility_result
         )
 
+    async def process_conversation_documents(
+        self,
+        user_id: int,
+        conversation_id: int,
+        s3_keys: List[str],
+        conversation_title: Optional[str] = None,
+        force_reprocess: bool = False,
+        db: Optional[AsyncSession] = None
+    ) -> Tuple[VectorCollection, ProcessingResult]:
+        """
+        Convenience method to process documents for a conversation.
+        
+        This method:
+        1. Gets or creates the conversation collection
+        2. Processes the S3 documents
+        3. Returns both the collection and processing result
+        
+        Args:
+            user_id: Owner user ID
+            conversation_id: Conversation ID
+            s3_keys: List of S3 keys to process
+            conversation_title: Optional conversation title for display
+            force_reprocess: Force reprocessing even if documents exist
+            db: Database session
+            
+        Returns:
+            Tuple of (VectorCollection, ProcessingResult)
+        """
+        if db is None:
+            async for db_session in get_db():
+                db = db_session
+                break
+
+        logger.info(f"Processing {len(s3_keys)} documents for conversation {conversation_id}")
+
+        # Get or create conversation collection
+        collection = await self.get_or_create_conversation_collection(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            conversation_title=conversation_title,
+            db=db
+        )
+
+        # Process documents
+        result = await self.process_s3_documents(
+            collection_id=collection.id,
+            s3_keys=s3_keys,
+            user_id=user_id,
+            force_reprocess=force_reprocess,
+            db=db
+        )
+
+        logger.info(f"Conversation {conversation_id} processing complete: {result.processed_count} documents processed")
+        return collection, result
+
+    async def query_conversation(
+        self,
+        user_id: int,
+        conversation_id: int,
+        query: str,
+        db: Optional[AsyncSession] = None
+    ) -> Optional[QueryResult]:
+        """
+        Convenience method to query a conversation's documents.
+        
+        Args:
+            user_id: User ID
+            conversation_id: Conversation ID
+            query: Query string
+            db: Database session
+            
+        Returns:
+            QueryResult if collection exists, None otherwise
+        """
+        if db is None:
+            async for db_session in get_db():
+                db = db_session
+                break
+
+        # Get conversation collection
+        collection = await self.collection_service.get_conversation_collection(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            db=db
+        )
+
+        if not collection:
+            logger.warning(f"No collection found for conversation {conversation_id}")
+            return None
+
+        # Query the collection
+        return await self.query_collection(
+            collection_id=collection.id,
+            query=query,
+            user_id=user_id,
+            db=db
+        )
+
     async def create_query_engine(self, collection_id: str, db: Optional[AsyncSession] = None):
         """Create query engine that connects to existing vectors (no reprocessing!)."""
         
@@ -369,9 +499,8 @@ class ProductionRAGService:
                 db = db_session
                 break
         
-        # Get collection
-        result = await db.execute(select(VectorCollection).where(VectorCollection.id == collection_id))
-        collection = result.scalar_one_or_none()
+        # Get collection using service
+        collection = await self.collection_service.get_by_id(collection_id, db)
         if not collection:
             raise ValueError(f"Collection {collection_id} not found")
         
@@ -444,8 +573,15 @@ class ProductionRAGService:
                     "text_preview": text_preview
                 })
         
-        # Update collection query statistics
-        await self._update_query_stats(collection_id, query_time, db)
+        # Update collection query statistics using service
+        await self.collection_service.update_collection(
+            collection_id=collection_id,
+            updates={
+                'total_queries': func.coalesce(VectorCollection.total_queries, 0) + 1,
+                'last_query_time': datetime.now(timezone.utc)
+            },
+            db=db
+        )
         
         logger.info(f"Query completed in {query_time:.3f}s with {len(sources)} sources")
         

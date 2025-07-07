@@ -1,6 +1,6 @@
 """Conversation model for chat sessions"""
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, JSON, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, JSON, ForeignKey, and_, cast
+from sqlalchemy.orm import relationship, foreign
 from sqlalchemy.sql import func
 import uuid
 
@@ -61,6 +61,9 @@ class Conversation(Base):
     # Relationships
     user = relationship("User", back_populates="conversations")
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
+    vector_collection = relationship("VectorCollection", 
+                                   primaryjoin="and_(foreign(VectorCollection.scope) == 'conversation', foreign(VectorCollection.scope_id) == cast(Conversation.id, String))",
+                                   viewonly=True, uselist=False)
     
     def __repr__(self):
         return f"<Conversation(id={self.id}, title='{self.title}', messages={self.message_count})>"
