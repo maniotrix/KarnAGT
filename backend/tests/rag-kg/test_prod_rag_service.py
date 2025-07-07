@@ -81,6 +81,7 @@ setup_logging(log_level)
 # Import all necessary modules after logging setup
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.database import User, VectorCollection, VectorCollectionScope, KnowledgeFile
 from app.services.knowledge.production_rag_service import ProductionRAGService
@@ -496,6 +497,101 @@ class ProductionRAGTestRunner:
             print("   • No in-memory caching - all data from persistent storage")
             
             break
+
+    async def validate_collection_id_consistency(self):
+        """Validate that Collection ID consistency fix is working correctly."""
+        
+        print("\n🔍 COLLECTION ID CONSISTENCY VALIDATION:")
+        print("-" * 60)
+        
+        async for db in get_db():
+            # Get all KnowledgeFile records for this user first
+            knowledge_files_result = await db.execute(
+                select(KnowledgeFile).where(KnowledgeFile.user_id == self.test_user_id)
+            )
+            knowledge_files = knowledge_files_result.scalars().all()
+            
+            print(f"📁 Found {len(knowledge_files)} knowledge files")
+            
+            if not knowledge_files:
+                print("❌ No knowledge files found - skipping consistency validation")
+                return
+            
+            # Get all unique collection IDs from knowledge files
+            unique_collection_ids = set(kf.collection_id for kf in knowledge_files)
+            print(f"📊 Knowledge files reference {len(unique_collection_ids)} unique collection(s)")
+            
+            # Validate each collection that has knowledge files
+            for collection_id in unique_collection_ids:
+                # Get the collection by ID with eager loading of knowledge_files relationship
+                collection_result = await db.execute(
+                    select(VectorCollection)
+                    .options(selectinload(VectorCollection.knowledge_files))
+                    .where(VectorCollection.id == collection_id)
+                )
+                collection = collection_result.scalar_one_or_none()
+                
+                if collection is None:
+                    print(f"❌ Collection {collection_id} not found in database!")
+                    raise Exception(f"Collection {collection_id} referenced by knowledge files but not found!")
+                
+                print(f"🔍 Testing collection: {collection.collection_name} (ID: {collection.id})")
+                
+                # Get knowledge files for this specific collection
+                collection_files = [kf for kf in knowledge_files if str(kf.collection_id) == str(collection_id)]
+                print(f"📁 Collection has {len(collection_files)} knowledge files")
+                
+                # Validate that all KnowledgeFile records use collection.id (not collection.collection_name)
+                consistency_errors = []
+                
+                for kf in collection_files:
+                    # After migration, collection_id should match collection.id
+                    # Convert to strings to avoid SQLAlchemy expression comparison
+                    kf_collection_id = str(kf.collection_id)
+                    collection_id_str = str(collection.id)
+                    
+                    if kf_collection_id != collection_id_str:
+                        consistency_errors.append(f"KnowledgeFile {kf.id} has collection_id='{kf_collection_id}' but collection.id='{collection_id_str}'")
+                    
+                if consistency_errors:
+                    print("❌ COLLECTION ID INCONSISTENCY DETECTED:")
+                    for error in consistency_errors:
+                        print(f"   • {error}")
+                    raise Exception("Collection ID consistency validation failed!")
+                else:
+                    print(f"✅ All KnowledgeFile records correctly use collection.id for {collection.collection_name}")
+                    
+                # Validate that the relationship works correctly
+                try:
+                    # Test the SQLAlchemy relationship (now properly eager-loaded)
+                    related_files = collection.knowledge_files  # ✅ Already loaded, no async issues
+                    print(f"✅ Collection relationship returns {len(related_files)} knowledge files")
+                    
+                    # Test querying via collection.id for comparison
+                    files_via_relationship = await db.execute(
+                        select(KnowledgeFile).where(KnowledgeFile.collection_id == collection.id)
+                    )
+                    files_count = len(files_via_relationship.scalars().all())
+                    print(f"✅ Direct query using collection.id returns {files_count} knowledge files")
+                    
+                    # Validate that both methods return the same count
+                    if len(related_files) != files_count:
+                        raise Exception(f"Relationship mismatch: relationship returned {len(related_files)}, query returned {files_count}")
+                        
+                    # Validate that count matches what we expect from our filtering
+                    if files_count != len(collection_files):
+                        raise Exception(f"Count mismatch: expected {len(collection_files)} files, got {files_count}")
+                        
+                except Exception as e:
+                    print(f"❌ Relationship validation failed: {e}")
+                    raise
+                    
+            print("🎯 COLLECTION ID CONSISTENCY VALIDATION PASSED!")
+            print("   • All KnowledgeFile records use collection.id")
+            print("   • SQLAlchemy relationships work correctly")
+            print("   • Database queries use consistent collection identifiers")
+            
+            break
     
     async def run_comprehensive_test(self):
         """Run the comprehensive production RAG service test."""
@@ -590,6 +686,9 @@ class ProductionRAGTestRunner:
             
             # Validate persistence explicitly
             await self.validate_persistence_explicitly()
+            
+            # Validate collection ID consistency (post-migration)
+            await self.validate_collection_id_consistency()
             
         except Exception as e:
             print(f"\n❌ Test failed with error: {e}")

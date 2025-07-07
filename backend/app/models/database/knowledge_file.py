@@ -28,7 +28,7 @@ class KnowledgeFile(Base):
     ref_doc_id = Column(String(255), unique=True, index=True, nullable=True)  # LlamaIndex document ID
     document_hash = Column(String(100), nullable=True)  # For change detection
     node_count = Column(Integer, default=0)  # Number of chunks/nodes created
-    collection_id = Column(String(100), nullable=True, index=True)  # Qdrant collection
+    collection_id = Column(String(50), ForeignKey("vector_collections.id"), nullable=True, index=True)  # Vector collection foreign key
     
     # Processing status
     processing_status = Column(String(50), default="pending")  # pending, processing, completed, failed
@@ -51,6 +51,7 @@ class KnowledgeFile(Base):
 
     # Relationships
     user = relationship("User", back_populates="knowledge_files")
+    vector_collection = relationship("VectorCollection", back_populates="knowledge_files")
     children = relationship("KnowledgeFile", backref="parent", remote_side=[id])
 
     # Database optimizations

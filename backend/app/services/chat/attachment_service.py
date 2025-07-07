@@ -148,7 +148,7 @@ class AttachmentService:
             
             knowledge_files_result = await db.execute(
                 select(KnowledgeFile).where(
-                    KnowledgeFile.collection_id == collection.collection_name,
+                    KnowledgeFile.collection_id == collection.id,
                     KnowledgeFile.file_path.in_(s3_keys)
                 )
             )

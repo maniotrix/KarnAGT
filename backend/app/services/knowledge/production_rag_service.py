@@ -679,7 +679,7 @@ class ProductionRAGService:
                             indexed_in_vector_db=True,
                             embeddings_generated=True,
                             node_count=len(doc_nodes),
-                            collection_id=collection.collection_name,
+                            collection_id=collection.id,
                             ref_doc_id=document.id_,
                             document_hash=document.hash,
                             processed_at=datetime.now(timezone.utc)
@@ -698,7 +698,7 @@ class ProductionRAGService:
                         ref_doc_id=document.id_,
                         document_hash=document.hash,
                         node_count=len(doc_nodes),
-                        collection_id=collection.collection_name,
+                        collection_id=collection.id,
                         processing_status="completed",
                         indexed_in_vector_db=True,
                         embeddings_generated=True,
@@ -716,7 +716,7 @@ class ProductionRAGService:
         result = await db.execute(
             select(func.count(KnowledgeFile.id)).where(
                 and_(
-                    KnowledgeFile.collection_id == collection.collection_name,
+                    KnowledgeFile.collection_id == collection.id,
                     KnowledgeFile.indexed_in_vector_db == True
                 )
             )
@@ -727,7 +727,7 @@ class ProductionRAGService:
         result = await db.execute(
             select(func.sum(KnowledgeFile.node_count)).where(
                 and_(
-                    KnowledgeFile.collection_id == collection.collection_name,
+                    KnowledgeFile.collection_id == collection.id,
                     KnowledgeFile.indexed_in_vector_db == True
                 )
             )

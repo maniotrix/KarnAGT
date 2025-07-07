@@ -110,9 +110,7 @@ class VectorCollection(Base):
 
     # Relationships
     user = relationship("User", back_populates="vector_collections")
-    knowledge_files = relationship("KnowledgeFile", 
-                                 primaryjoin="VectorCollection.collection_name == foreign(KnowledgeFile.collection_id)",
-                                 viewonly=True)
+    knowledge_files = relationship("KnowledgeFile", back_populates="vector_collection")
 
     # Database optimizations
     __table_args__ = (

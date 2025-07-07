@@ -526,7 +526,7 @@ class VectorCollectionService:
         # Check knowledge files count consistency
         result = await db.execute(
             select(func.count(KnowledgeFile.id)).where(
-                KnowledgeFile.collection_id == collection.collection_name
+                KnowledgeFile.collection_id == collection.id
             )
         )
         actual_files = result.scalar() or 0
