@@ -52,7 +52,7 @@ class AttachmentService:
             message_attachments.extend(image_attachments)
             openai_file_ids.extend(image_openai_ids)
         
-        # Process vector files (placeholder for now)
+        # Process vector files
         if staging_collection.has_vectors:
             vector_file_references = await self._process_vector_files(
                 staging_collection.vectors, user_id, conversation_id, db
