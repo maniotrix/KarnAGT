@@ -1000,10 +1000,14 @@ class ProductionRAGService:
                 # MetadataCleanerPostprocessor now preserves doc_id field
                 node_ref_doc_id = node.metadata.get('doc_id')
                 
-                node_relationship_ref_doc_id = getattr(node, 'ref_doc_id', None)
+                # parent_node = node.node.parent_node
+                # if parent_node:
+                #     node_relationship_ref_doc_id = parent_node.node_id
+                # else:
+                #     node_relationship_ref_doc_id = None
                 
                 # DEBUG: Log what we found
-                logger.info(f"Filtered node debug - ref_doc_id: {node_ref_doc_id}, node_relationship_ref_doc_id: {node_relationship_ref_doc_id}, metadata keys: {list(node.metadata.keys())}")
+                logger.info(f"Filtered node debug - ref_doc_id: {node_ref_doc_id}, metadata keys: {list(node.metadata.keys())}")
                 
                 sources.append({
                     "file_name": node.metadata.get('file_name', 'Unknown'),
