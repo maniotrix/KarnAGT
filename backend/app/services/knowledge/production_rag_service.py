@@ -24,6 +24,12 @@ from llama_index.core.schema import BaseNode
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.qdrant import QdrantVectorStore
+from llama_index.core.vector_stores import (
+    MetadataFilter,
+    MetadataFilters,
+    FilterOperator,
+    FilterCondition
+)
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 # Database and existing services
@@ -538,11 +544,19 @@ class ProductionRAGService:
                 cleaned_text = ' '.join(node.text.split())
                 text_preview = cleaned_text[:200] + "..." if len(cleaned_text) > 200 else cleaned_text
                 
+                # Extract ref_doc_id from metadata where LlamaIndex stores it
+                # MetadataCleanerPostprocessor now preserves doc_id field
+                node_ref_doc_id = node.metadata.get('doc_id')
+                
+                # DEBUG: Log what we found
+                logger.info(f"Node debug - ref_doc_id: {node_ref_doc_id}, metadata keys: {list(node.metadata.keys())}")
+                
                 sources.append({
                     "file_name": node.metadata.get('file_name', 'Unknown'),
                     "page_label": node.metadata.get('page_label', 'N/A'),
                     "score": getattr(node, 'score', 0.0),
-                    "text_preview": text_preview
+                    "text_preview": text_preview,
+                    "ref_doc_id": node_ref_doc_id
                 })
         
         # Update collection query statistics using service
@@ -639,74 +653,128 @@ class ProductionRAGService:
         user_id: str,
         db: AsyncSession
     ) -> bool:
-        """Update database state to reflect processing results."""
+        """
+        Update database state to reflect processing results.
         
-        # Create mapping of doc_id to nodes
-        node_map = {}
+        NEW: Creates ONE KnowledgeFile record per uploaded file (S3 key)
+        with all ref_doc_ids stored as JSON array.
+        """
+        
+        # FIXED: Create mapping from original document ID to nodes
+        # According to LlamaIndex docs, node.ref_doc_id should equal the original document.id_
+        # So we can directly map from document.id_ to the nodes that were created from it
+        document_to_nodes = {}
         for node in processed_nodes:
             ref_doc_id = getattr(node, 'ref_doc_id', None)
             if ref_doc_id:
-                if ref_doc_id not in node_map:
-                    node_map[ref_doc_id] = []
-                node_map[ref_doc_id].append(node)
+                if ref_doc_id not in document_to_nodes:
+                    document_to_nodes[ref_doc_id] = []
+                document_to_nodes[ref_doc_id].append(node)
         
-        # Update or create KnowledgeFile records
+        # DEBUG: Log the mapping to verify it's correct
+        logger.info(f"Document to nodes mapping: {len(document_to_nodes)} documents mapped to {len(processed_nodes)} nodes")
+        for doc_id, nodes in document_to_nodes.items():
+            logger.info(f"  Document {doc_id}: {len(nodes)} nodes")
+        
+        # Group documents by S3 key (file_path) - NEW APPROACH
+        file_groups = {}
         for document in documents:
             s3_key = document.metadata.get('s3_key', document.id_)
             
-            # Check if document was processed
-            doc_nodes = node_map.get(document.id_, [])
+            if s3_key not in file_groups:
+                file_groups[s3_key] = {
+                    'documents': [],
+                    'ref_doc_ids': [],
+                    'total_nodes': 0,
+                    'metadata': {}
+                }
             
-            if doc_nodes:  # Document was processed
-                # Check if KnowledgeFile exists
-                result = await db.execute(
-                    select(KnowledgeFile).where(
-                        and_(
-                            KnowledgeFile.user_id == user_id,
-                            KnowledgeFile.file_path == s3_key
-                        )
+            # DEBUG: Log document processing
+            logger.info(f"Processing document: {document.id_} for s3_key: {s3_key}")
+            
+            # Check if document was actually processed
+            if document.id_ in document_to_nodes:
+                file_groups[s3_key]['documents'].append(document)
+                
+                # Store ref_doc_id values (these become "doc_id" in vector store)
+                for node in document_to_nodes[document.id_]:
+                    node_ref_doc_id = getattr(node, 'ref_doc_id', None)
+                    if node_ref_doc_id and node_ref_doc_id not in file_groups[s3_key]['ref_doc_ids']:
+                        file_groups[s3_key]['ref_doc_ids'].append(node_ref_doc_id)
+                
+                file_groups[s3_key]['total_nodes'] += len(document_to_nodes[document.id_])
+                
+                # Capture metadata from first document
+                if not file_groups[s3_key]['metadata']:
+                    file_groups[s3_key]['metadata'] = document.metadata
+                    
+                logger.info(f"  ✅ Document {document.id_} processed with {len(document_to_nodes[document.id_])} nodes")
+            else:
+                logger.warning(f"  ❌ Document {document.id_} not found in document_to_nodes mapping")
+        
+        # Create or update ONE KnowledgeFile record per file
+        for s3_key, file_group in file_groups.items():
+            if not file_group['ref_doc_ids']:  # Skip if no documents were processed
+                continue
+                
+            # Check if KnowledgeFile exists for this S3 key
+            result = await db.execute(
+                select(KnowledgeFile).where(
+                    and_(
+                        KnowledgeFile.user_id == user_id,
+                        KnowledgeFile.file_path == s3_key
                     )
                 )
-                knowledge_file = result.scalar_one_or_none()
+            )
+            knowledge_file = result.scalar_one_or_none()
+            
+            if knowledge_file:
+                # Update existing record with new ref_doc_ids
+                existing_ref_doc_ids = knowledge_file.get_ref_doc_ids()
                 
-                if knowledge_file:
-                    # Update existing using proper SQLAlchemy update
-                    await db.execute(
-                        update(KnowledgeFile)
-                        .where(KnowledgeFile.id == knowledge_file.id)
-                        .values(
-                            processing_status="completed",
-                            indexed_in_vector_db=True,
-                            embeddings_generated=True,
-                            node_count=len(doc_nodes),
-                            collection_id=collection.id,
-                            ref_doc_id=document.id_,
-                            document_hash=document.hash,
-                            processed_at=datetime.now(timezone.utc)
-                        )
-                    )
-                else:
-                    # Create new
-                    knowledge_file = KnowledgeFile(
-                        id=f"kf_{uuid.uuid4().hex[:12]}",
-                        user_id=user_id,
-                        file_id=f"file_{uuid.uuid4().hex[:8]}",
-                        file_path=s3_key,
-                        file_name=document.metadata.get('file_name', 'Unknown'),
-                        file_size=document.metadata.get('file_size', 0),
-                        content_type=document.metadata.get('content_type', 'application/octet-stream'),
-                        ref_doc_id=document.id_,
-                        document_hash=document.hash,
-                        node_count=len(doc_nodes),
-                        collection_id=collection.id,
+                # Merge ref_doc_ids (avoid duplicates)
+                all_ref_doc_ids = list(set(existing_ref_doc_ids + file_group['ref_doc_ids']))
+                
+                await db.execute(
+                    update(KnowledgeFile)
+                    .where(KnowledgeFile.id == knowledge_file.id)
+                    .values(
                         processing_status="completed",
                         indexed_in_vector_db=True,
                         embeddings_generated=True,
+                        node_count=file_group['total_nodes'],
+                        collection_id=collection.id,
+                        ref_doc_ids=all_ref_doc_ids,  # Store as JSON array
+                        document_hash=file_group['documents'][0].hash if file_group['documents'] else None,
                         processed_at=datetime.now(timezone.utc)
                     )
-                    db.add(knowledge_file)
+                )
+                logger.info(f"Updated KnowledgeFile {knowledge_file.id} with {len(all_ref_doc_ids)} ref_doc_ids")
+            else:
+                # Create new record with all ref_doc_ids
+                metadata = file_group['metadata']
+                knowledge_file = KnowledgeFile(
+                    id=f"kf_{uuid.uuid4().hex[:12]}",
+                    user_id=user_id,
+                    file_id=f"file_{uuid.uuid4().hex[:8]}",
+                    file_path=s3_key,
+                    file_name=metadata.get('file_name', 'Unknown'),
+                    file_size=metadata.get('file_size', 0),
+                    content_type=metadata.get('content_type', 'application/octet-stream'),
+                    ref_doc_ids=file_group['ref_doc_ids'],  # Store as JSON array
+                    document_hash=file_group['documents'][0].hash if file_group['documents'] else None,
+                    node_count=file_group['total_nodes'],
+                    collection_id=collection.id,
+                    processing_status="completed",
+                    indexed_in_vector_db=True,
+                    embeddings_generated=True,
+                    processed_at=datetime.now(timezone.utc)
+                )
+                db.add(knowledge_file)
+                logger.info(f"Created KnowledgeFile {knowledge_file.id} with {len(file_group['ref_doc_ids'])} ref_doc_ids")
         
         await db.commit()
+        logger.info(f"Database state updated: {len(file_groups)} files processed")
         return True
 
     async def _update_collection_stats(self, collection: VectorCollection, db: AsyncSession):
@@ -790,3 +858,279 @@ class ProductionRAGService:
             logger.error(f"   ⚠️  Qdrant cleanup warning: {e}")
         
         logger.info("   ✅ Qdrant cleanup completed")
+
+    # NEW FUNCTIONS FOR DOCUMENT-SPECIFIC FILTERING
+
+    def _build_document_filters(
+        self, 
+        document_ids: List[str],
+        additional_filters: Optional[MetadataFilters] = None
+    ) -> MetadataFilters:
+        """Build metadata filters for document-specific queries."""
+        
+        if not document_ids:
+            raise ValueError("document_ids cannot be empty")
+        
+        # Build document ID filters - use "doc_id" (LlamaIndex standard)
+        if len(document_ids) == 1:
+            # Single document filter
+            doc_filter = MetadataFilter(
+                key="doc_id",  # ✅ FIXED: Use "doc_id" not "ref_doc_id"
+                operator=FilterOperator.EQ,
+                value=document_ids[0]
+            )
+            filters = [doc_filter]
+        else:
+            # Multiple document filter using OR condition
+            doc_filters = [
+                MetadataFilter(
+                    key="doc_id",  # ✅ FIXED: Use "doc_id" not "ref_doc_id"
+                    operator=FilterOperator.EQ,
+                    value=doc_id
+                ) for doc_id in document_ids
+            ]
+            # Group document filters with OR
+            doc_filter_group = MetadataFilters(
+                filters=doc_filters,
+                condition=FilterCondition.OR
+            )
+            filters = [doc_filter_group]
+        
+        # Add additional filters if provided
+        if additional_filters:
+            filters.append(additional_filters)
+        
+        # Return combined filters
+        if len(filters) == 1:
+            return filters[0] if isinstance(filters[0], MetadataFilters) else MetadataFilters(filters=[filters[0]])
+        else:
+            return MetadataFilters(
+                filters=filters,
+                condition=FilterCondition.AND
+            )
+
+    async def create_filtered_query_engine(
+        self, 
+        collection_id: str, 
+        document_ids: List[str],
+        db: AsyncSession,
+        additional_filters: Optional[MetadataFilters] = None
+    ):
+        """Create query engine with document-specific filtering."""
+        
+        # Get collection using service
+        collection = await self.collection_service.get_by_id(collection_id, db)
+        if not collection:
+            raise ValueError(f"Collection {collection_id} not found")
+        
+        logger.info(f"Creating filtered query engine for collection: {collection.collection_name}")
+        logger.info(f"Filtering by document IDs: {document_ids}")
+        
+        # Setup storage context to connect to existing vectors
+        qdrant_config = QdrantConfig(
+            url=getattr(collection, 'qdrant_url', None) or self.qdrant_config.url,
+            api_key=self.qdrant_config.api_key,
+            collection_name=collection.collection_name,
+            vectors_config={
+                "size": getattr(collection, 'vector_size', None) or self.qdrant_config.vectors_config["size"],
+                "distance": getattr(collection, 'distance_metric', None) or self.qdrant_config.vectors_config["distance"]
+            }
+        )
+        storage_context = await self._setup_storage_context(qdrant_config)
+        
+        # Create index that connects to existing vectors
+        index = VectorStoreIndex(
+            nodes=[],  # Empty - we're connecting to existing
+            storage_context=storage_context
+        )
+        
+        # Build metadata filters for document filtering
+        metadata_filters = self._build_document_filters(document_ids, additional_filters)
+        
+        # Create query engine with document filtering
+        query_engine = index.as_query_engine(
+            similarity_top_k=self.config.similarity_top_k,
+            response_mode=self.config.response_mode,
+            node_postprocessors=[self.metadata_cleaner],
+            filters=metadata_filters
+        )
+        
+        logger.info(f"Filtered query engine created with filters: {metadata_filters}")
+        return query_engine
+
+    async def query_collection_with_documents(
+        self,
+        collection_id: str,
+        query: str,
+        document_ids: List[str],
+        user_id: str,
+        db: AsyncSession,
+        additional_filters: Optional[MetadataFilters] = None
+    ) -> QueryResult:
+        """Query a collection with document-specific filtering."""
+        
+        if not document_ids:
+            raise ValueError("document_ids cannot be empty")
+        
+        start_time = time.time()
+        logger.info(f"Querying collection {collection_id} with document filter: {document_ids}")
+        logger.info(f"Query: {query}")
+        
+        # Create filtered query engine
+        query_engine = await self.create_filtered_query_engine(
+            collection_id=collection_id,
+            document_ids=document_ids,
+            db=db,
+            additional_filters=additional_filters
+        )
+        
+        # Execute query
+        response = await query_engine.aquery(query)
+        query_time = time.time() - start_time
+        
+        # Extract sources with document ID verification
+        sources = []
+        if hasattr(response, 'source_nodes') and response.source_nodes:
+            for node in response.source_nodes:
+                # Clean up text preview
+                cleaned_text = ' '.join(node.text.split())
+                text_preview = cleaned_text[:200] + "..." if len(cleaned_text) > 200 else cleaned_text
+                
+                # Extract ref_doc_id from metadata where LlamaIndex stores it
+                # MetadataCleanerPostprocessor now preserves doc_id field
+                node_ref_doc_id = node.metadata.get('doc_id')
+                
+                node_relationship_ref_doc_id = getattr(node, 'ref_doc_id', None)
+                
+                # DEBUG: Log what we found
+                logger.info(f"Filtered node debug - ref_doc_id: {node_ref_doc_id}, node_relationship_ref_doc_id: {node_relationship_ref_doc_id}, metadata keys: {list(node.metadata.keys())}")
+                
+                sources.append({
+                    "file_name": node.metadata.get('file_name', 'Unknown'),
+                    "page_label": node.metadata.get('page_label', 'N/A'),
+                    "score": getattr(node, 'score', 0.0),
+                    "text_preview": text_preview,
+                    "ref_doc_id": node_ref_doc_id,
+                    "document_filtered": node_ref_doc_id in document_ids  # Verification flag
+                })
+        
+        # Update collection query statistics
+        await self.collection_service.update_collection(
+            collection_id=collection_id,
+            updates={
+                'total_queries': func.coalesce(VectorCollection.total_queries, 0) + 1,
+                'last_query_time': datetime.now(timezone.utc)
+            },
+            db=db
+        )
+        
+        logger.info(f"Filtered query completed in {query_time:.3f}s with {len(sources)} sources")
+        
+        return QueryResult(
+            query=query,
+            response=str(response),
+            sources=sources,
+            query_time=query_time,
+            collection_id=collection_id,
+            total_nodes_retrieved=len(sources)
+        )
+
+    async def query_conversation_with_documents(
+        self,
+        user_id: str,
+        conversation_id: str,
+        query: str,
+        document_ids: List[str],
+        db: AsyncSession,
+        additional_filters: Optional[MetadataFilters] = None
+    ) -> Optional[QueryResult]:
+        """Query a conversation's documents with document-specific filtering."""
+
+        if not document_ids:
+            raise ValueError("document_ids cannot be empty")
+
+        # Get conversation collection
+        collection = await self.collection_service.get_conversation_collection(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            db=db
+        )
+
+        if not collection:
+            logger.warning(f"No collection found for conversation {conversation_id}")
+            return None
+
+        logger.info(f"Querying conversation {conversation_id} with document filter: {document_ids}")
+
+        # Query the collection with document filtering
+        return await self.query_collection_with_documents(
+            collection_id=collection.id,
+            query=query,
+            document_ids=document_ids,
+            user_id=user_id,
+            db=db,
+            additional_filters=additional_filters
+        )
+
+    async def get_available_documents_in_collection(
+        self,
+        collection_id: str,
+        db: AsyncSession
+    ) -> List[Dict[str, Any]]:
+        """Get list of available document IDs and metadata in a collection."""
+        
+        from sqlalchemy import select
+        from app.models.database.knowledge_file import KnowledgeFile
+        
+        # Query database for documents in this collection
+        result = await db.execute(
+            select(KnowledgeFile).where(
+                KnowledgeFile.collection_id == collection_id,
+                KnowledgeFile.indexed_in_vector_db == True
+            )
+        )
+        knowledge_files = result.scalars().all()
+        
+        documents = []
+        for kf in knowledge_files:
+            # With new schema: each KnowledgeFile can have multiple ref_doc_ids
+            ref_doc_ids = kf.get_ref_doc_ids()
+            documents.append({
+                "ref_doc_ids": ref_doc_ids,  # Array of ref_doc_ids for this file
+                "ref_doc_id": ref_doc_ids[0] if ref_doc_ids else None,  # Backward compatibility
+                "file_name": kf.file_name,
+                "file_path": kf.file_path,
+                "knowledge_file_id": kf.id,
+                "node_count": kf.node_count,
+                "processed_at": kf.processed_at,
+                "file_size": kf.file_size,
+                "content_type": kf.content_type,
+                "document_count": len(ref_doc_ids)  # Number of LlamaIndex documents from this file
+            })
+        
+        logger.info(f"Found {len(documents)} documents in collection {collection_id}")
+        return documents
+
+    async def get_available_documents_in_conversation(
+        self,
+        user_id: str,
+        conversation_id: str,
+        db: AsyncSession
+    ) -> List[Dict[str, Any]]:
+        """Get list of available document IDs and metadata in a conversation."""
+        
+        # Get conversation collection
+        collection = await self.collection_service.get_conversation_collection(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            db=db
+        )
+
+        if not collection:
+            logger.warning(f"No collection found for conversation {conversation_id}")
+            return []
+
+        return await self.get_available_documents_in_collection(
+            collection_id=collection.id,
+            db=db
+        )

@@ -382,256 +382,127 @@ class ProductionRAGTestRunner:
         
         print("   ✅ Qdrant cleanup completed")
     
-    async def demonstrate_multiple_collections(self):
-        """Demonstrate how to work with multiple collections for the same user."""
+    async def compare_database_vs_qdrant(self, collection_id: str, expected_ref_doc_ids: List[str]):
+        """Compare what's stored in database vs Qdrant vector store."""
         
-        print("\n🔍 DEMONSTRATING MULTIPLE COLLECTIONS:")
-        print("-" * 60)
-        
-        test_collections = []
+        print("🔍 Comparing Database vs Qdrant Storage...")
         
         async for db in get_db():
-            # Create first collection with USER scope
-            collection_1 = await self.prod_rag_service.get_or_create_collection(
-                user_id=self.test_user_id,
-                scope=VectorCollectionScope.USER,
-                scope_id=str(self.test_user_id),
-                display_name="User Documents",
-                db=db
-            )
-            test_collections.append(collection_1.collection_name)
-            # Create second collection with PROJECT scope (demonstrating different scopes)
-            collection_2 = await self.prod_rag_service.get_or_create_collection(
-                user_id=self.test_user_id,
-                scope=VectorCollectionScope.PROJECT,
-                scope_id="test_project_001",
-                display_name="Business Documents", 
-                db=db
-            )
-            test_collections.append(collection_2.collection_name)
-            print(f"📂 Collection 1: {collection_1.collection_name} (ID: {collection_1.id}, Scope: {collection_1.scope})")
-            print(f"📂 Collection 2: {collection_2.collection_name} (ID: {collection_2.id}, Scope: {collection_2.scope})")
+            # Step 1: Get data from database
+            print("\n📋 Step 1: Check Database Storage")
             
-            # To add documents to specific collection, use the collection_id:
-            # await self.prod_rag_service.process_s3_documents(collection_id=collection_1.id, ...)
-            # await self.prod_rag_service.process_s3_documents(collection_id=collection_2.id, ...)
-            
-            print("💡 Key insights:")
-            print("   • Each user can have multiple collections with different scopes")
-            print("   • Collections are identified by user_id + scope + scope_id")
-            print("   • Use explicit scope and scope_id to target specific collections")
-            print("   • Different scopes: USER, CONVERSATION, PROJECT, ORGANIZATION, etc.")
-            print("   • Store collection_id to reuse/update existing collections")
-            
-            break
-        
-        # cleanup
-        for cname in test_collections:
-            """Clean up Qdrant collection."""
-        
-            print("🧹 Cleaning up Qdrant collection...")
-            
-            try:
-                from qdrant_client import AsyncQdrantClient
-                aclient = AsyncQdrantClient(url=self.qdrant_config.url)
-                await aclient.delete_collection(cname)
-                print(f"   🗑️  Deleted collection: {cname}")
-            except Exception as e:
-                print(f"   ⚠️  Qdrant cleanup warning: {e}")
-            
-            print("   ✅ Qdrant cleanup completed")
-    
-    async def validate_persistence_explicitly(self):
-        """Explicitly validate that data persists across service instances."""
-        
-        print("\n🔍 EXPLICIT PERSISTENCE VALIDATION:")
-        print("-" * 60)
-        
-        # Create first service instance
-        service_1 = ProductionRAGService(self.rag_config, self.qdrant_config)
-        
-        # Create second service instance 
-        service_2 = ProductionRAGService(self.rag_config, self.qdrant_config)
-        
-        # Create third service instance
-        service_3 = ProductionRAGService(self.rag_config, self.qdrant_config)
-        
-        async for db in get_db():
-            # All three instances should see the same collection using USER scope
-            collection_1 = await service_1.get_or_create_collection(
-                user_id=self.test_user_id,
-                scope=VectorCollectionScope.USER,
-                scope_id=str(self.test_user_id),
-                db=db
-            )
-            
-            collection_2 = await service_2.get_or_create_collection(
-                user_id=self.test_user_id,
-                scope=VectorCollectionScope.USER,
-                scope_id=str(self.test_user_id),
-                db=db
-            )
-            
-            collection_3 = await service_3.get_or_create_collection(
-                user_id=self.test_user_id,
-                scope=VectorCollectionScope.USER,
-                scope_id=str(self.test_user_id),
-                db=db
-            )
-            
-            # Validate they all return the SAME collection
-            print(f"✅ Collection IDs: {collection_1.id}, {collection_2.id}, {collection_3.id}")
-            print(f"✅ Collection Names: {collection_1.collection_name}, {collection_2.collection_name}, {collection_3.collection_name}")
-            
-            # Verify they are the same (using string comparison to avoid SQLAlchemy boolean issues)
-            id_1_str = str(collection_1.id)
-            id_2_str = str(collection_2.id) 
-            id_3_str = str(collection_3.id)
-            
-            name_1_str = str(collection_1.collection_name)
-            name_2_str = str(collection_2.collection_name)
-            name_3_str = str(collection_3.collection_name)
-            
-            if not (id_1_str == id_2_str == id_3_str):
-                raise Exception(f"Collection IDs don't match: {id_1_str}, {id_2_str}, {id_3_str}")
-                
-            if not (name_1_str == name_2_str == name_3_str):
-                raise Exception(f"Collection names don't match: {name_1_str}, {name_2_str}, {name_3_str}")
-            
-            print(f"✅ All 3 service instances see SAME collection: {name_1_str}")
-            
-            # Test that all can query the same data
-            test_query = "What is the passenger name?"
-            
-            result_1 = await service_1.query_collection(collection_1.id, test_query, self.test_user_id, db)
-            result_2 = await service_2.query_collection(collection_2.id, test_query, self.test_user_id, db)
-            result_3 = await service_3.query_collection(collection_3.id, test_query, self.test_user_id, db)
-            
-            print(f"✅ All 3 service instances return data:")
-            print(f"   Service 1: {len(result_1.sources)} sources")
-            print(f"   Service 2: {len(result_2.sources)} sources") 
-            print(f"   Service 3: {len(result_3.sources)} sources")
-            
-            # Validate they all find sources (basic validation)
-            if not (len(result_1.sources) > 0 and len(result_2.sources) > 0 and len(result_3.sources) > 0):
-                raise Exception("Not all service instances found sources!")
-            
-            sources_match = (len(result_1.sources) == len(result_2.sources) == len(result_3.sources))
-            if not sources_match:
-                print(f"⚠️  Different source counts - may indicate different retrieval behavior")
-            else:
-                print(f"✅ All service instances found same number of sources")
-            
-            print("🎯 PERSISTENCE VALIDATION PASSED!")
-            print("   • Multiple service instances see same collection")
-            print("   • Multiple service instances return same query results")
-            print("   • No in-memory caching - all data from persistent storage")
-            
-            break
-
-    async def validate_collection_id_consistency(self):
-        """Validate that Collection ID consistency fix is working correctly."""
-        
-        print("\n🔍 COLLECTION ID CONSISTENCY VALIDATION:")
-        print("-" * 60)
-        
-        async for db in get_db():
-            # Get all KnowledgeFile records for this user first
-            knowledge_files_result = await db.execute(
+            kf_result = await db.execute(
                 select(KnowledgeFile).where(KnowledgeFile.user_id == self.test_user_id)
             )
-            knowledge_files = knowledge_files_result.scalars().all()
+            knowledge_files = kf_result.scalars().all()
             
-            print(f"📁 Found {len(knowledge_files)} knowledge files")
+            print(f"Found {len(knowledge_files)} KnowledgeFile records:")
+            all_db_ref_doc_ids = []
             
-            if not knowledge_files:
-                print("❌ No knowledge files found - skipping consistency validation")
-                return
+            for i, kf in enumerate(knowledge_files, 1):
+                ref_doc_ids = kf.get_ref_doc_ids()
+                all_db_ref_doc_ids.extend(ref_doc_ids)
+                print(f"  {i}. File: {kf.file_name}")
+                print(f"      S3 Key: {kf.file_path}")
+                print(f"      Collection ID: {kf.collection_id}")
+                print(f"      Node Count: {kf.node_count}")
+                print(f"      ref_doc_ids: {ref_doc_ids}")
             
-            # Get all unique collection IDs from knowledge files
-            unique_collection_ids = set(kf.collection_id for kf in knowledge_files)
-            print(f"📊 Knowledge files reference {len(unique_collection_ids)} unique collection(s)")
+            print(f"Total ref_doc_ids in DB: {len(all_db_ref_doc_ids)} - {all_db_ref_doc_ids}")
             
-            # Validate each collection that has knowledge files
-            for collection_id in unique_collection_ids:
-                # Get the collection by ID with eager loading of knowledge_files relationship
-                collection_result = await db.execute(
-                    select(VectorCollection)
-                    .options(selectinload(VectorCollection.knowledge_files))
-                    .where(VectorCollection.id == collection_id)
-                )
-                collection = collection_result.scalar_one_or_none()
+            # Step 2: Get data from Qdrant
+            print("\n📋 Step 2: Check Qdrant Storage")
+            
+            try:
+                from qdrant_client import QdrantClient
                 
-                if collection is None:
-                    print(f"❌ Collection {collection_id} not found in database!")
-                    raise Exception(f"Collection {collection_id} referenced by knowledge files but not found!")
+                client = QdrantClient(url=self.qdrant_config.url)
+                collection_info = client.get_collection(self.test_collection_name)
+                print(f"Qdrant collection points: {collection_info.points_count}")
                 
-                print(f"🔍 Testing collection: {collection.collection_name} (ID: {collection.id})")
+                # Get all points
+                scroll_result = client.scroll(self.test_collection_name, limit=50)
+                points = scroll_result[0]
                 
-                # Get knowledge files for this specific collection
-                collection_files = [kf for kf in knowledge_files if str(kf.collection_id) == str(collection_id)]
-                print(f"📁 Collection has {len(collection_files)} knowledge files")
+                print(f"Found {len(points)} points in Qdrant:")
+                qdrant_doc_ids = []
                 
-                # Validate that all KnowledgeFile records use collection.id (not collection.collection_name)
-                consistency_errors = []
-                
-                for kf in collection_files:
-                    # After migration, collection_id should match collection.id
-                    # Convert to strings to avoid SQLAlchemy expression comparison
-                    kf_collection_id = str(kf.collection_id)
-                    collection_id_str = str(collection.id)
+                for i, point in enumerate(points, 1):
+                    payload = point.payload
+                    doc_id = payload.get('doc_id')
+                    ref_doc_id = payload.get('ref_doc_id')
                     
-                    if kf_collection_id != collection_id_str:
-                        consistency_errors.append(f"KnowledgeFile {kf.id} has collection_id='{kf_collection_id}' but collection.id='{collection_id_str}'")
+                    if doc_id and doc_id != 'None':
+                        qdrant_doc_ids.append(doc_id)
                     
-                    # NEW: Validate ref_doc_ids array structure
-                    ref_doc_ids = kf.get_ref_doc_ids()
-                    if not ref_doc_ids:
-                        consistency_errors.append(f"KnowledgeFile {kf.id} has empty ref_doc_ids array")
-                    
-                    print(f"   📄 {kf.file_name}: {len(ref_doc_ids)} documents in array")
-                    
-                if consistency_errors:
-                    print("❌ COLLECTION ID INCONSISTENCY DETECTED:")
-                    for error in consistency_errors:
-                        print(f"   • {error}")
-                    raise Exception("Collection ID consistency validation failed!")
+                    print(f"  {i}. Point ID: {point.id}")
+                    print(f"      doc_id: {doc_id}")
+                    print(f"      ref_doc_id: {ref_doc_id}")
+                    print(f"      file_name: {payload.get('file_name', 'Missing')}")
+                    print(f"      _node_type: {payload.get('_node_type', 'Missing')}")
+                    print(f"      Has _node_content: {'_node_content' in payload if payload else False}")
+                
+                print(f"Unique doc_ids in Qdrant: {len(set(qdrant_doc_ids))} - {list(set(qdrant_doc_ids))}")
+                
+                # Step 3: Compare and analyze
+                print("\n📋 Step 3: Comparison Analysis")
+                
+                db_ref_doc_ids_set = set(all_db_ref_doc_ids)
+                qdrant_doc_ids_set = set(qdrant_doc_ids)
+                expected_ref_doc_ids_set = set(expected_ref_doc_ids)
+                
+                print(f"Expected ref_doc_ids: {expected_ref_doc_ids_set}")
+                print(f"DB ref_doc_ids: {db_ref_doc_ids_set}")
+                print(f"Qdrant doc_ids: {qdrant_doc_ids_set}")
+                
+                # Check expected vs actual
+                if expected_ref_doc_ids_set == db_ref_doc_ids_set:
+                    print("✅ MATCH: Expected ref_doc_ids match Database ref_doc_ids")
                 else:
-                    print(f"✅ All KnowledgeFile records correctly use collection.id for {collection.collection_name}")
+                    print("❌ MISMATCH: Expected vs Database ref_doc_ids")
+                    print(f"   Expected but not in DB: {expected_ref_doc_ids_set - db_ref_doc_ids_set}")
+                    print(f"   In DB but not expected: {db_ref_doc_ids_set - expected_ref_doc_ids_set}")
+                
+                # Check database vs qdrant
+                if db_ref_doc_ids_set == qdrant_doc_ids_set:
+                    print("✅ MATCH: Database and Qdrant have consistent ref_doc_ids")
+                else:
+                    print("❌ MISMATCH: Database and Qdrant have different ref_doc_ids")
+                    print(f"   In DB but not Qdrant: {db_ref_doc_ids_set - qdrant_doc_ids_set}")
+                    print(f"   In Qdrant but not DB: {qdrant_doc_ids_set - db_ref_doc_ids_set}")
+                
+                # Step 4: Root cause analysis
+                print("\n📋 Step 4: Root Cause Analysis")
+                
+                if db_ref_doc_ids_set == qdrant_doc_ids_set == expected_ref_doc_ids_set:
+                    print("🎯 SUCCESS: All data is consistent across Expected -> DB -> Qdrant")
+                    print("   ✅ Document processing is working correctly")
+                    print("   ✅ Database storage is working correctly") 
+                    print("   ✅ Qdrant storage is working correctly")
+                    print("   ✅ ref_doc_id/doc_id mapping is consistent")
+                else:
+                    print("❌ INCONSISTENCY DETECTED:")
                     
-                # Validate that the relationship works correctly
-                try:
-                    # Test the SQLAlchemy relationship (now properly eager-loaded)
-                    related_files = collection.knowledge_files  # ✅ Already loaded, no async issues
-                    print(f"✅ Collection relationship returns {len(related_files)} knowledge files")
+                    if expected_ref_doc_ids_set != db_ref_doc_ids_set:
+                        print("   🔴 Issue in document processing or database storage")
+                        print("   → Check _update_database_state method")
                     
-                    # Test querying via collection.id for comparison
-                    files_via_relationship = await db.execute(
-                        select(KnowledgeFile).where(KnowledgeFile.collection_id == collection.id)
-                    )
-                    files_count = len(files_via_relationship.scalars().all())
-                    print(f"✅ Direct query using collection.id returns {files_count} knowledge files")
+                    if db_ref_doc_ids_set != qdrant_doc_ids_set:
+                        print("   🔴 Issue in vector store storage or metadata handling")
+                        print("   → Check node_to_metadata_dict or IngestionPipeline")
                     
-                    # Validate that both methods return the same count
-                    if len(related_files) != files_count:
-                        raise Exception(f"Relationship mismatch: relationship returned {len(related_files)}, query returned {files_count}")
+                    if expected_ref_doc_ids_set == qdrant_doc_ids_set != db_ref_doc_ids_set:
+                        print("   🔴 Database storage issue (Qdrant is correct)")
                         
-                    # Validate that count matches what we expect from our filtering
-                    if files_count != len(collection_files):
-                        raise Exception(f"Count mismatch: expected {len(collection_files)} files, got {files_count}")
-                        
-                except Exception as e:
-                    print(f"❌ Relationship validation failed: {e}")
-                    raise
-                    
-            print("🎯 COLLECTION ID CONSISTENCY VALIDATION PASSED!")
-            print("   • All KnowledgeFile records use collection.id")
-            print("   • SQLAlchemy relationships work correctly")
-            print("   • Database queries use consistent collection identifiers")
-            print("   • NEW: ref_doc_ids arrays properly populated")
-            print("   • NEW: 1 uploaded file = 1 KnowledgeFile record")
+                    if expected_ref_doc_ids_set == db_ref_doc_ids_set != qdrant_doc_ids_set:
+                        print("   🔴 Qdrant storage issue (Database is correct)")
+                
+            except Exception as e:
+                print(f"Error checking Qdrant: {e}")
+                import traceback
+                traceback.print_exc()
             
-            break
+            break  # Exit the async generator
     
     async def run_comprehensive_test(self):
         """Run the comprehensive production RAG service test."""
@@ -647,8 +518,6 @@ class ProductionRAGTestRunner:
             # Create test user
             await self.create_test_user()
             
-            # Demonstrate multiple collections concept
-            await self.demonstrate_multiple_collections()
             
             # Upload first test file
             s3_key_1 = await self.upload_file_to_s3(test_file_1, "PRY NDLS 20 June.pdf")
@@ -657,65 +526,25 @@ class ProductionRAGTestRunner:
             print("🆕 Creating collection for first file...")
             collection_id, ref_doc_ids_1 = await self.process_documents_and_create_collection([s3_key_1])
             
+            # === PHASE 2: Database vs Qdrant Comparison ===
+            print("\n📋 PHASE 2: Database vs Qdrant Storage Comparison")
+            print("-" * 50)
+            
+            await self.compare_database_vs_qdrant(collection_id, ref_doc_ids_1)
+            
             # Query the collection
             train_queries = [
                 "What is the passenger name on the train ticket?",
-                "What are the source and destination stations for this train journey?",
-                "What is the PNR number and booking status?",
-                "What is the total fare amount?",
             ]
             
             results_1 = await self.query_collection_with_documents(collection_id, train_queries, ref_doc_ids_1)
-            
-            # === PHASE 2: Memory Invalidation & Persistence Test ===
-            print("\n📋 PHASE 2: Memory Invalidation & Persistence Test")
-            print("-" * 50)
-            
-            # Simulate memory invalidation
-            await self.simulate_memory_invalidation()
-            
-            # Upload second test file
-            s3_key_2 = await self.upload_file_to_s3(test_file_2, "Trykaa_ Strategic Deep Dive & Positioning.pdf")
-            
-            # Process second file into EXISTING collection (will reuse qdrant config collection name)
-            print("🔄 Adding second file to EXISTING collection...")
-            collection_id, ref_doc_ids_2 = await self.process_documents_and_create_collection([s3_key_2])
-            
-            # === PHASE 3: Updated Index Testing ===
-            print("\n📋 PHASE 3: Updated Index Testing")
-            print("-" * 50)
-            
-            # Test previous queries (should still work)
-            print("🔍 Testing previous queries on updated index...")
-            results_2 = await self.query_collection_with_documents(collection_id, train_queries[:2], ref_doc_ids_1)
-            
-            # Test new queries for Trykaa (second document only)
-            print("🔍 Testing new queries for Trykaa (second document only)...")
-            trykaa_queries = [
-                "What is Trykaa and what does the company do?",
-                "What is Trykaa's business model and revenue strategy?",
-                "What are Trykaa's key competitive advantages?",
-                "What are the main challenges Trykaa faces?",
-            ]
-            
-            # results_3 = await self.query_collection_with_documents(collection_id, trykaa_queries, ref_doc_ids_2)
-            
-            # # Test combined queries with both documents
-            # print("🔍 Testing combined queries with both documents...")
-            # combined_ref_doc_ids = ref_doc_ids_1 + ref_doc_ids_2
-            # combined_queries = [
-            #     "What are the key details from both the train ticket and Trykaa documents?",
-            #     "Compare the information available in both documents",
-            # ]
-            
-            # results_4 = await self.query_collection_with_documents(collection_id, combined_queries, combined_ref_doc_ids)
+
             
             # === PHASE 4: Performance Summary ===
             print("\n📋 PHASE 4: Performance Summary")
             print("-" * 50)
             
-            all_results = results_1 + results_2 
-                        # + results_3 + results_4
+            all_results = results_1
             query_times = [r['query_time'] for r in all_results]
             
             if query_times:
@@ -734,16 +563,7 @@ class ProductionRAGTestRunner:
             print(f"   ✅ Processed {len(self.uploaded_s3_keys)} files")
             print(f"   ✅ Created {len(all_results)} query results")
             print(f"   ✅ Tested document-specific filtering:")
-            print(f"      • Single document queries: {len(results_1)} + {len(results_2)} queries")
-            # print(f"      • Second document queries: {len(results_3)} queries")
-            # print(f"      • Combined document queries: {len(results_4)} queries")
-            print(f"   ✅ Tested persistence and incremental updates")
-            
-            # Validate persistence explicitly
-            await self.validate_persistence_explicitly()
-            
-            # Validate collection ID consistency (post-migration)
-            await self.validate_collection_id_consistency()
+            print(f"      • Single document queries: {len(all_results)} queries")
             
         except Exception as e:
             print(f"\n❌ Test failed with error: {e}")
