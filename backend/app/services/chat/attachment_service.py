@@ -159,15 +159,18 @@ class AttachmentService:
             for vector_file in vector_files:
                 kf = knowledge_files.get(vector_file.s3_key)
                 if kf:
+                    # NEW: Get all ref_doc_ids for this file
+                    ref_doc_ids = kf.get_ref_doc_ids()
                     processed_files.append({
                         "file_id": vector_file.file_id,
                         "knowledge_file_id": kf.id,  # Link to KnowledgeFile
-                        "ref_doc_id": kf.ref_doc_id,  # For file-specific queries
+                        "ref_doc_ids": ref_doc_ids,  # All ref_doc_ids for file-specific queries
                         "s3_key": vector_file.s3_key,
                         "filename": vector_file.filename,
                         "content_type": vector_file.content_type,
                         "file_size": vector_file.file_size,
                         "node_count": kf.node_count,
+                        "document_count": len(ref_doc_ids),  # Number of LlamaIndex documents
                         "processing_status": "completed"
                     })
                 else:
