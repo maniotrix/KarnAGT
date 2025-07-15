@@ -20,7 +20,7 @@ from llama_index.core import Settings, Document, VectorStoreIndex
 from llama_index.core.ingestion import IngestionPipeline, DocstoreStrategy
 from llama_index.core.storage import StorageContext
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.schema import BaseNode
+from llama_index.core.schema import BaseNode, NodeWithScore
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.qdrant import QdrantVectorStore
@@ -544,12 +544,12 @@ class ProductionRAGService:
                 cleaned_text = ' '.join(node.text.split())
                 text_preview = cleaned_text[:200] + "..." if len(cleaned_text) > 200 else cleaned_text
                 
-                # Extract ref_doc_id from metadata where LlamaIndex stores it
-                # MetadataCleanerPostprocessor now preserves doc_id field
-                node_ref_doc_id = node.metadata.get('doc_id')
+                # Extract ref_doc_id using LlamaIndex's built-in property
+                node_ref_doc_id = self._extract_ref_doc_id(node)
                 
                 # DEBUG: Log what we found
                 logger.info(f"Node debug - ref_doc_id: {node_ref_doc_id}, metadata keys: {list(node.metadata.keys())}")
+                logger.info(f"Extracted ref_doc_id from node: {node_ref_doc_id}")
                 
                 sources.append({
                     "file_name": node.metadata.get('file_name', 'Unknown'),
@@ -988,26 +988,26 @@ class ProductionRAGService:
         response = await query_engine.aquery(query)
         query_time = time.time() - start_time
         
+        # # Inspect the query engine's index
+        # ref_doc_info = self.inspect_query_engine_index(query_engine)
+        # logger.info(f"Ref doc info: {ref_doc_info}")
+        
         # Extract sources with document ID verification
         sources = []
         if hasattr(response, 'source_nodes') and response.source_nodes:
             for node in response.source_nodes:
+                
+                # print(f"Node: {node.__dict__}")
                 # Clean up text preview
                 cleaned_text = ' '.join(node.text.split())
                 text_preview = cleaned_text[:200] + "..." if len(cleaned_text) > 200 else cleaned_text
                 
-                # Extract ref_doc_id from metadata where LlamaIndex stores it
-                # MetadataCleanerPostprocessor now preserves doc_id field
-                node_ref_doc_id = node.metadata.get('doc_id')
-                
-                # parent_node = node.node.parent_node
-                # if parent_node:
-                #     node_relationship_ref_doc_id = parent_node.node_id
-                # else:
-                #     node_relationship_ref_doc_id = None
+                # Extract ref_doc_id using LlamaIndex's built-in property
+                node_ref_doc_id = self._extract_ref_doc_id(node)
                 
                 # DEBUG: Log what we found
                 logger.info(f"Filtered node debug - ref_doc_id: {node_ref_doc_id}, metadata keys: {list(node.metadata.keys())}")
+                logger.info(f"Extracted ref_doc_id from node: {node_ref_doc_id}")
                 
                 sources.append({
                     "file_name": node.metadata.get('file_name', 'Unknown'),
@@ -1038,6 +1038,34 @@ class ProductionRAGService:
             collection_id=collection_id,
             total_nodes_retrieved=len(sources)
         )
+        
+    # Access the index through the query engine
+    def inspect_query_engine_index(self, query_engine):
+        """Inspect what's available in the query engine's index."""
+        
+        retriever = query_engine.retriever
+        index = retriever._index
+        
+        print(f"Index: {index}")
+        print(f"Index dict: {index.__dict__}")
+        print(f"Vector store: {retriever._vector_store}")
+        print(f"Vector store dict: {retriever._vector_store.__dict__}")
+        print(f"Docstore: {retriever._docstore}")
+        print(f"Docstore dict: {retriever._docstore.__dict__}")
+        print(f"Index type: {type(index).__name__}")
+        print(f"Index struct nodes: {len(index.index_struct.nodes_dict)}")
+        print(f"Index struct dict: {index.index_struct.__dict__}")
+        print(f"Vector store type: {type(index.vector_store).__name__}")
+        print(f"Has docstore: {hasattr(index, 'docstore')}")
+        
+        # Check if ref_doc_info works
+        try:
+            ref_doc_info = index.ref_doc_info
+            print(f"Available ref_doc_info: {len(ref_doc_info)}")
+            return ref_doc_info
+        except Exception as e:
+            print(f"ref_doc_info error: {e}")
+            return None
 
     async def query_conversation_with_documents(
         self,
@@ -1138,3 +1166,39 @@ class ProductionRAGService:
             collection_id=collection.id,
             db=db
         )
+
+    def _extract_ref_doc_id(self, node_with_score: NodeWithScore) -> Optional[str]:
+        """
+        Extract ref_doc_id from NodeWithScore using LlamaIndex's proper source_node property.
+        
+        This uses the BaseNode.source_node property which is the current, non-deprecated way:
+        1. Extracts the SOURCE relationship from node.relationships
+        2. Returns the RelatedNodeInfo object
+        3. We then get the node_id from the RelatedNodeInfo
+        4. Handles None cases gracefully
+        
+        From LlamaIndex schema.py:
+        @property
+        def source_node(self) -> Optional[RelatedNodeInfo]:
+            if NodeRelationship.SOURCE not in self.relationships:
+                return None
+            relation = self.relationships[NodeRelationship.SOURCE]
+            if isinstance(relation, list):
+                raise ValueError("Source object must be a single RelatedNodeInfo object")
+            return relation
+        
+        Args:
+            node_with_score: NodeWithScore object from query response
+            
+        Returns:
+            Optional[str]: The ref_doc_id if available, None otherwise
+        """
+        try:
+            # Use LlamaIndex's proper source_node property (non-deprecated)
+            if hasattr(node_with_score.node, 'source_node'):
+                source_node = node_with_score.node.source_node
+                if source_node is not None:
+                    return source_node.node_id
+        except Exception as e:
+            logger.warning(f"Error extracting ref_doc_id from node source_node: {e}")
+        return None
