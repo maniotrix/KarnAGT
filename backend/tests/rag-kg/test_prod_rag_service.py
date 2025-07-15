@@ -36,7 +36,7 @@ def setup_logging(log_level=logging.DEBUG):
     
     # Set specific logger levels for our modules
     loggers_to_configure = [
-        ('app.services.knowledge.production_rag_service', logging.DEBUG),  # Enable DEBUG for our service
+        ('app.services.knowledge.production_rag_service', logging.WARNING),  # Enable DEBUG for our service
         ('app.services.knowledge.metadata_util', logging.WARNING), 
         ('app.services.knowledge.config', logging.WARNING),
         ('llama_index.core', logging.WARNING),  # Reduce LlamaIndex noise
@@ -698,24 +698,23 @@ class ProductionRAGTestRunner:
                 "What are the main challenges Trykaa faces?",
             ]
             
-            # results_3 = await self.query_collection_with_documents(collection_id, trykaa_queries, ref_doc_ids_2)
+            results_3 = await self.query_collection_with_documents(collection_id, trykaa_queries, ref_doc_ids_2)
             
-            # # Test combined queries with both documents
-            # print("🔍 Testing combined queries with both documents...")
-            # combined_ref_doc_ids = ref_doc_ids_1 + ref_doc_ids_2
-            # combined_queries = [
-            #     "What are the key details from both the train ticket and Trykaa documents?",
-            #     "Compare the information available in both documents",
-            # ]
+            # Test combined queries with both documents
+            print("🔍 Testing combined queries with both documents...")
+            combined_ref_doc_ids = ref_doc_ids_1 + ref_doc_ids_2
+            combined_queries = [
+                "What are the key details from both the train ticket and Trykaa documents?",
+                "Compare the information available in both documents",
+            ]
             
-            # results_4 = await self.query_collection_with_documents(collection_id, combined_queries, combined_ref_doc_ids)
+            results_4 = await self.query_collection_with_documents(collection_id, combined_queries, combined_ref_doc_ids)
             
             # === PHASE 4: Performance Summary ===
             print("\n📋 PHASE 4: Performance Summary")
             print("-" * 50)
             
-            all_results = results_1 + results_2 
-                        # + results_3 + results_4
+            all_results = results_1 + results_2 + results_3 + results_4
             query_times = [r['query_time'] for r in all_results]
             
             if query_times:
@@ -735,8 +734,8 @@ class ProductionRAGTestRunner:
             print(f"   ✅ Created {len(all_results)} query results")
             print(f"   ✅ Tested document-specific filtering:")
             print(f"      • Single document queries: {len(results_1)} + {len(results_2)} queries")
-            # print(f"      • Second document queries: {len(results_3)} queries")
-            # print(f"      • Combined document queries: {len(results_4)} queries")
+            print(f"      • Second document queries: {len(results_3)} queries")
+            print(f"      • Combined document queries: {len(results_4)} queries")
             print(f"   ✅ Tested persistence and incremental updates")
             
             # Validate persistence explicitly
