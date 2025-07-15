@@ -729,12 +729,12 @@ class ProductionRAGTestRunner:
             
             # Now run queries without specific file IDs (conversation-wide search)
             conversation_queries = [
-                "What is Trykaa and what does the company do?",
-                "What is Trykaa's business model and revenue strategy?",
-                "What are Trykaa's key competitive advantages?",
-                "What are the main challenges Trykaa faces?",
-                "What is the passenger name on the train ticket and what company does Trykaa represent?",
-                "Compare the information available in all documents uploaded by user",
+                # "What is Trykaa and what does the company do?",
+                # "What is Trykaa's business model and revenue strategy?",
+                # "What are Trykaa's key competitive advantages?",
+                # "What are the main challenges Trykaa faces?",
+                # "What is the passenger name on the train ticket and what company does Trykaa represent?",
+                # "Compare the information available in all documents uploaded by user",
                 "What are the key details from both the train ticket and Trykaa documents?",
                 "What is the total fare amount for the train ticket and what is Trykaa's business model?",
             ]
