@@ -53,9 +53,24 @@ def create_knowledge_search_tool(
     """
     
     @function_tool(
-        name_override="search_knowledge_files",
+        name_override="search_user_uploaded_documents",
         description_override="""
-        Search uploaded files and documents to answer questions about their content.
+        Search uploaded files and documents by user to answer questions about their content.
+        
+        **CRITICAL: ALWAYS CHECK UPLOADED DOCUMENTS FIRST**
+        Before providing any answer, check if the user has uploaded files that might contain the answer.
+        Users expect answers from their uploaded documents, not generic knowledge.
+    
+        **KNOWLEDGE SEARCH INSTRUCTIONS:**
+        1. **Always search uploaded documents first** before giving generic answers
+        2. Use search_user_uploaded_documents with search_all_files=true for most queries
+        3. Only use specific file IDs if you have them from message attachments
+        4. If no relevant information found in documents, then proceed with other tools
+        5. Examples of when to search documents:
+            - "What is [company/person/topic]?" → Search documents first
+            - "What are the key points?" → Search documents first
+            - "Compare/analyze/summarize" → Search documents first
+            - For any query, when uncertain → Search documents first
         
         TWO SEARCH MODES:
         1. SPECIFIC FILES: Search only specific uploaded files by their IDs
@@ -67,11 +82,13 @@ def create_knowledge_search_tool(
         - You want to focus search on particular documents
         - User uploaded files in current message and asks about them
         
-        WHEN TO USE ALL FILES MODE:
-        - User asks general questions: "What are the key points from all files?"
-        - You want to search across all uploaded files in conversation
-        - You don't have specific file IDs
-        - User asks about "all documents" or "everything uploaded"
+        WHEN TO USE ALL FILES MODE (DEFAULT - USE THIS MOST OF THE TIME):
+        - User asks ANY question that could be answered by uploaded files
+        - User asks "What is X?" where X might be mentioned in documents
+        - User asks for analysis, comparison, or summary of any kind
+        - When unsure - ALWAYS search all files first
+        - Better to search and find nothing than miss important information
+        - In short, use this mode when you have no context regarding a query or has very vague context
         
         PARAMETERS:
         - query: Your question about the files
@@ -236,9 +253,9 @@ def create_knowledge_discovery_tool(
     """
     
     @function_tool(
-        name_override="list_knowledge_files",
+        name_override="list_user_uploaded_documents",
         description_override="""
-        List all available knowledge files in this conversation.
+        List all available user uploaded files in this conversation.
         
         Use this tool to:
         - See what files are available for searching

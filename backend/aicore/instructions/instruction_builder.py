@@ -129,9 +129,25 @@ class InstructionBuilder:
         # This is the EXACT template from prompt_utils.py
         INSTRUCTIONS_TEMPLATE = """    
     Additional capabilities include:
+    - Searching uploaded documents and files for information
     - Executing Python code
     - Executing system commands for environment setup
     - Searching the web for information
+    
+    **CRITICAL: ALWAYS CHECK UPLOADED DOCUMENTS FIRST**
+    Before providing any answer, check if the user has uploaded files that might contain the answer.
+    Users expect answers from their uploaded documents, not generic knowledge.
+
+    **KNOWLEDGE SEARCH INSTRUCTIONS:**
+    1. **Always search uploaded documents first** before giving generic answers
+    2. Use search_user_uploaded_documents with search_all_files=true for most queries
+    3. Only use specific file IDs if you have them from message attachments
+    4. If no relevant information found in documents, then proceed with other tools
+    5. Examples of when to search documents:
+        - "What is [company/person/topic]?" → Search documents first
+        - "What are the key points?" → Search documents first
+        - "Compare/analyze/summarize" → Search documents first
+        - For any query, when uncertain → Search documents first
 
     You have access to two tools (running on a '{os_type}' host):
     1. A tool that executes Python scripts.
