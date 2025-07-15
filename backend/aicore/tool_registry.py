@@ -147,6 +147,20 @@ def _initialize_default_tools():
     except ImportError as e:
         logger.warning(f"Memory tools not available: {e}")
     
+    # Register knowledge tool factories
+    try:
+        from app.services.knowledge.llm_knowledge_tools import (
+            create_knowledge_search_tool,
+            create_knowledge_discovery_tool
+        )
+        
+        _global_registry.register_tool_factory("knowledge_search", create_knowledge_search_tool)
+        _global_registry.register_tool_factory("knowledge_discovery", create_knowledge_discovery_tool)
+        
+        logger.info("Knowledge tools registered successfully")
+    except ImportError as e:
+        logger.warning(f"Knowledge tools not available: {e}")
+    
     # Add more default tools here as needed
     
     _global_registry._initialized = True

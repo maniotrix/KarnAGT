@@ -35,7 +35,7 @@ from app.core.exceptions import (
     QuotaExceededException
 )
 from app.services.context.conversation_context_builder import get_context_for_conversation
-from app.services.memory.memory_tools_config import get_memory_enabled_override_config
+from app.services.knowledge.knowledge_tools_config import get_unified_tools_override_config
 from aicore.logger import get_logger
 from app.models.schemas.staging_schemas import StagingFileCollection
 
@@ -94,9 +94,9 @@ class ChatService:
         client_key = f"{self.user_uuid}_{conversation_id}_default_default"
         
         if client_key not in assistant_manager.clients:
-            # Client doesn't exist yet, create with memory configuration
-            memory_config_override = get_memory_enabled_override_config(
-                user_id=self.user_id,
+            # Client doesn't exist yet, create with unified tools configuration
+            unified_config_override = get_unified_tools_override_config(
+                user_id=self.user_uuid,
                 conversation_id=conversation_id,
                 db_session=self.db
             )
@@ -104,7 +104,7 @@ class ChatService:
             return assistant_manager.get_client(
                 user_id=self.user_uuid,
                 conversation_id=conversation_id,
-                config_overrides=memory_config_override
+                config_overrides=unified_config_override
             )
         else:
             # Client already exists, just get it (memory config already applied)
