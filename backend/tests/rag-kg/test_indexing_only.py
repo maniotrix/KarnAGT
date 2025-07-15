@@ -89,20 +89,13 @@ from app.services.knowledge.config import RAGConfig, get_default_qdrant_config
 from app.services.storage.storage import S3StorageBackend, generate_file_id, generate_storage_key, get_content_type
 from app.utils.profiler_util import PerformanceMonitor
 
-# AI Agent imports for LLM integration
-from aicore.config import config_manager
-from aicore.core.configurable_assistant_client import ConfigurableAssistantClient
-from aicore.logger import get_logger
-
 test_docs_dir = os.path.join(backend_dir, "test_docs")
 test_file_1 = os.path.join(test_docs_dir, "PRY NDLS 20 June.pdf")
 test_file_2 = os.path.join(test_docs_dir, "Trykaa_ Strategic Deep Dive & Positioning.pdf")
 
-logger = get_logger(__name__)
-
 
 class ProductionRAGTestRunner:
-    """Comprehensive test runner for ProductionRAGService with LLM agent integration."""
+    """Comprehensive test runner for ProductionRAGService with real database integration."""
     
     def __init__(self, rag_config: RAGConfig):
         self.rag_config = rag_config
@@ -120,14 +113,10 @@ class ProductionRAGTestRunner:
         # S3 setup
         self.s3_storage = S3StorageBackend(bucket_name=self.rag_config.s3_bucket_name)
         
-        # LLM agent setup
-        self.assistant_client = None
-        
         print(f"🚀 ProductionRAGTestRunner initialized")
         print(f"   📊 RAG Config: {self.rag_config.llm_model}")
         print(f"   🗄️  Qdrant Collection: {self.qdrant_config.collection_name}")
         print(f"   📦 S3 Bucket: {self.rag_config.s3_bucket_name}")
-        print(f"   🤖 LLM Agent: Ready for knowledge tool integration")
     
     async def create_test_user(self):
         """Create a unique test user in the database using real production patterns."""
@@ -198,7 +187,7 @@ class ProductionRAGTestRunner:
         
         return s3_key
     
-    async def process_documents_and_create_collection(self, s3_keys: List[str], scope: VectorCollectionScope = VectorCollectionScope.USER, scope_id: Optional[str] = None):
+    async def process_documents_and_create_collection(self, s3_keys: List[str], scope: VectorCollectionScope = VectorCollectionScope.USER):
         """Process S3 documents and create/update vector collection using production service."""
         
         print(f"🔄 Processing {len(s3_keys)} documents...")
@@ -206,13 +195,10 @@ class ProductionRAGTestRunner:
         
         async for db in get_db():
             # Get or create collection using explicit scope
-            # Use provided scope_id or default to user_id for user collections
-            actual_scope_id = scope_id or str(self.test_user_id)
-            
             collection = await self.prod_rag_service.get_or_create_collection(
                 user_id=self.test_user_id,
                 scope=scope,
-                scope_id=actual_scope_id,
+                scope_id=str(self.test_user_id),  # Use user_id as scope_id for user collections
                 display_name=f"Test Collection {uuid.uuid4().hex[:8]}",
                 db=db
             )
@@ -240,7 +226,10 @@ class ProductionRAGTestRunner:
             if result.compatibility_result:
                 print(f"      🔍 Compatibility: {'✅ Compatible' if result.compatibility_result.is_compatible else '⚠️ Issues found'}")
             
-            # Get knowledge_file_ids from KnowledgeFile records using new schema
+            # Get ref_doc_ids from KnowledgeFile records using new schema
+            from sqlalchemy import select
+            from app.models.database.knowledge_file import KnowledgeFile
+            
             knowledge_files_result = await db.execute(
                 select(KnowledgeFile).where(
                     KnowledgeFile.collection_id == collection.id,
@@ -249,133 +238,63 @@ class ProductionRAGTestRunner:
             )
             knowledge_files = knowledge_files_result.scalars().all()
             
-            # Extract knowledge_file_ids (the actual database IDs)
-            knowledge_file_ids = [kf.id for kf in knowledge_files]
-            
-            # Also get ref_doc_ids for comparison
+            # NEW: Extract all ref_doc_ids from all files (flattened list)
             ref_doc_ids = []
             for kf in knowledge_files:
                 file_ref_doc_ids = kf.get_ref_doc_ids()
                 ref_doc_ids.extend(file_ref_doc_ids)
-                print(f"      📄 KnowledgeFile {kf.id} ({kf.file_name}): {len(file_ref_doc_ids)} documents")
+                print(f"      📄 File {kf.file_name}: {len(file_ref_doc_ids)} documents")
             
-            print(f"      🆔 Knowledge File IDs: {knowledge_file_ids}")
             print(f"      🆔 Total ref_doc_ids: {len(ref_doc_ids)} - {ref_doc_ids}")
             print(f"      📁 Files processed: {len(knowledge_files)} (1 file = 1 record)")
             
-            return collection.id, knowledge_file_ids, ref_doc_ids
+            return collection.id, ref_doc_ids
         
         # This should never be reached due to the async generator, but add for type safety
         raise Exception("Failed to process documents - no database session")
-
-    async def setup_llm_agent_with_knowledge_tools(self, conversation_id: str = None):
-        """Set up the LLM agent with knowledge tools using configuration"""
-        if conversation_id is None:
-            conversation_id = f"test_conv_{uuid.uuid4().hex[:8]}"
-            
-        print(f"🤖 Setting up LLM agent with knowledge tools...")
-        print(f"   👤 User ID: {self.test_user_id}")
-        print(f"   💬 Conversation ID: {conversation_id}")
+    
+    async def query_collection_with_documents(self, collection_id: str, queries: List[str], ref_doc_ids: List[str]) -> List[Dict[str, Any]]:
+        """Query collection with document ID filtering."""
         
-        try:
-            # Create knowledge tools configuration and assistant client
-            async for db in get_db():
-                from app.services.knowledge.knowledge_tools_config import get_knowledge_enabled_override_config
-                
-                knowledge_config_override = get_knowledge_enabled_override_config(
-                    user_id=self.test_user_id,
-                    conversation_id=conversation_id,
-                    db_session=db,
-                    rag_config_type="chat_application"
-                )
-                
-                print(f"   🔧 Knowledge tools config created")
-                print(f"   🛠️  Tools: {[tool['name'] for tool in knowledge_config_override['agent']['custom_tools']]}")
-                
-                # Create assistant client with knowledge tools
-                self.assistant_client = ConfigurableAssistantClient(
-                    user_id=str(self.test_user_id),
-                    conversation_id=conversation_id,
-                    environment="test",
-                    config_name="default",
-                    config_overrides=knowledge_config_override
-                )
-                
-                print(f"   ✅ LLM Agent configured with knowledge tools")
-                break
-            
-            return conversation_id
-            
-        except Exception as e:
-            print(f"   ❌ Failed to setup LLM agent: {e}")
-            raise
-
-    async def query_via_llm_agent(self, queries: List[str], knowledge_file_ids: List[str]) -> List[Dict[str, Any]]:
-        """Query knowledge files through LLM agent using knowledge_search tool."""
-        
-        print(f"🤖 Running {len(queries)} queries through LLM agent...")
-        print(f"🎯 Using knowledge_file_ids: {knowledge_file_ids}")
-        
-        if not self.assistant_client:
-            raise Exception("LLM agent not configured. Call setup_llm_agent_with_knowledge_tools first.")
+        print(f"🔍 Running {len(queries)} filtered queries with {len(ref_doc_ids)} documents...")
+        print(f"🎯 Using ref_doc_ids: {ref_doc_ids}")
         
         results = []
         
-        for i, query in enumerate(queries, 1):
-            print(f"\n📋 LLM Agent Query {i}: {query}")
-            
-            # Format message with query and available file IDs (structured like conversation context)
-            user_message = {
-                "role": "user",
-                "content": f"Query: {query}\n\nUser has uploaded files with IDs: {knowledge_file_ids}",
-            }
-            
-            print(f"   📤 Sending structured user message to LLM agent...")
-            print(f"   📝 Message: {user_message}")
-            
-            start_time = time.time()
-            
-            try:
-                # Process message through LLM agent
-                response = await self.assistant_client.send_message(
-                    message=[user_message],
-                    message_type="text"
+        async for db in get_db():
+            for i, query in enumerate(queries, 1):
+                print(f"\n📋 Filtered Query {i}: {query}")
+                
+                start_time = time.time()
+                
+                # Use document-filtered query
+                query_result = await self.prod_rag_service.query_collection_with_documents(
+                    collection_id=collection_id,
+                    query=query,
+                    document_ids=ref_doc_ids,
+                    user_id=self.test_user_id,
+                    db=db
                 )
                 
                 query_time = time.time() - start_time
                 
-                print(f"   ✅ LLM Response received in {query_time:.3f}s")
-                print(f"   📝 Response length: {len(response.get('content', ''))} characters")
-                print(f"   📊 Response preview: {response.get('content', '')}...")
+                print(f"💬 Response: {query_result.response}")
+                print(f"⏱️  Query Time: {query_time:.3f}s")
+                print(f"📚 Sources: {len(query_result.sources)}")
                 
-                # Check if response was successful
-                if response.get('was_cancelled', False):
-                    print(f"   ⚠️  Response was cancelled")
-                
-                # Extract tool usage information if available
-                metadata = response.get('metadata', {})
-                if metadata:
-                    print(f"   🔧 Metadata: {metadata}")
+                # Show top sources with document verification
+                for j, source in enumerate(query_result.sources[:3], 1):
+                    filtered_flag = "✅" if source.get('document_filtered', False) else "❌"
+                    print(f"   {j}. {source.get('file_name', 'Unknown')} (Score: {source.get('score', 'N/A')}) {filtered_flag}")
+                    print(f"      📝 {source.get('text_preview', 'No preview')}")
+                    print(f"      🆔 ref_doc_id: {source.get('ref_doc_id', 'Unknown')}")
                 
                 results.append({
                     'query': query,
-                    'response': response.get('content', ''),
+                    'response': query_result.response,
+                    'sources': query_result.sources,
                     'query_time': query_time,
-                    'knowledge_file_ids': knowledge_file_ids,
-                    'was_cancelled': response.get('was_cancelled', False),
-                    'metadata': metadata
-                })
-                
-            except Exception as e:
-                print(f"   ❌ Query failed: {e}")
-                results.append({
-                    'query': query,
-                    'response': f"Error: {str(e)}",
-                    'query_time': time.time() - start_time,
-                    'knowledge_file_ids': knowledge_file_ids,
-                    'was_cancelled': False,
-                    'metadata': {},
-                    'error': str(e)
+                    'filtered_docs': ref_doc_ids
                 })
         
         return results
@@ -586,9 +505,9 @@ class ProductionRAGTestRunner:
             break  # Exit the async generator
     
     async def run_comprehensive_test(self):
-        """Run the comprehensive production RAG service test with LLM agent."""
+        """Run the comprehensive production RAG service test."""
         
-        print("🚀 Starting Comprehensive Production RAG Service Test with LLM Agent")
+        print("🚀 Starting Comprehensive Production RAG Service Test")
         print("=" * 80)
         
         try:
@@ -599,87 +518,60 @@ class ProductionRAGTestRunner:
             # Create test user
             await self.create_test_user()
             
+            
             # Upload first test file
             s3_key_1 = await self.upload_file_to_s3(test_file_1, "PRY NDLS 20 June.pdf")
             
-            # Process and create collection - now returns knowledge_file_ids
+            # Process and create collection using qdrant config collection name
             print("🆕 Creating collection for first file...")
+            collection_id, ref_doc_ids_1 = await self.process_documents_and_create_collection([s3_key_1])
             
-            # Create conversation ID for knowledge tools
-            conversation_id = f"test_conv_{uuid.uuid4().hex[:8]}"
-            
-            collection_id, knowledge_file_ids, ref_doc_ids = await self.process_documents_and_create_collection(
-                [s3_key_1], 
-                scope=VectorCollectionScope.CONVERSATION,
-                scope_id=conversation_id
-            )
-            
-            # === PHASE 2: LLM Agent Setup ===
-            print("\n📋 PHASE 2: LLM Agent Setup")
+            # === PHASE 2: Database vs Qdrant Comparison ===
+            print("\n📋 PHASE 2: Database vs Qdrant Storage Comparison")
             print("-" * 50)
             
-            await self.setup_llm_agent_with_knowledge_tools(conversation_id)
+            await self.compare_database_vs_qdrant(collection_id, ref_doc_ids_1)
             
-            # === PHASE 3: Database vs Qdrant Comparison ===
-            print("\n📋 PHASE 3: Database vs Qdrant Storage Comparison")
-            print("-" * 50)
-            
-            await self.compare_database_vs_qdrant(collection_id, ref_doc_ids)
-            
-            # === PHASE 4: LLM Agent Queries ===
-            print("\n📋 PHASE 4: LLM Agent Knowledge Search")
-            print("-" * 50)
-            
-            # Query through LLM agent instead of direct RAG service
+            # Query the collection
             train_queries = [
-                "",
                 "What is the passenger name on the train ticket?",
             ]
             
-            results = await self.query_via_llm_agent(train_queries, knowledge_file_ids)
+            results_1 = await self.query_collection_with_documents(collection_id, train_queries, ref_doc_ids_1)
+
             
-            # === PHASE 5: Performance Summary ===
-            print("\n📋 PHASE 5: Performance Summary")
+            # === PHASE 4: Performance Summary ===
+            print("\n📋 PHASE 4: Performance Summary")
             print("-" * 50)
             
-            query_times = [r['query_time'] for r in results if 'error' not in r]
-            successful_queries = [r for r in results if 'error' not in r and not r['was_cancelled']]
+            all_results = results_1
+            query_times = [r['query_time'] for r in all_results]
             
             if query_times:
                 avg_time = sum(query_times) / len(query_times)
                 min_time = min(query_times)
                 max_time = max(query_times)
                 
-                print(f"📊 LLM Agent Query Performance Summary:")
-                print(f"   • Total Queries: {len(results)}")
-                print(f"   • Successful Queries: {len(successful_queries)}")
+                print(f"📊 Query Performance Summary:")
+                print(f"   • Total Queries: {len(query_times)}")
                 print(f"   • Average Time: {avg_time:.3f}s")
                 print(f"   • Fastest Query: {min_time:.3f}s")
                 print(f"   • Slowest Query: {max_time:.3f}s")
-                print(f"   • Success Rate: {len(successful_queries)}/{len(results)} ({len(successful_queries)/len(results)*100:.1f}%)")
+                print(f"   • Queries per Second: {1/avg_time:.2f}")
             
-            # Show sample results
-            print(f"\n📝 Sample Query Results:")
-            for i, result in enumerate(successful_queries[:2], 1):
-                print(f"   {i}. Query: {result['query']}")
-                print(f"      Response: {result['response'][:150]}...")
-                print(f"      Time: {result['query_time']:.3f}s")
-            
-            print(f"\n🎉 LLM Agent Test completed successfully!")
+            print(f"\n🎉 Test completed successfully!")
             print(f"   ✅ Processed {len(self.uploaded_s3_keys)} files")
-            print(f"   ✅ Created {len(results)} LLM agent queries")
-            print(f"   ✅ Tested knowledge_search tool with specific file IDs")
-            print(f"   ✅ Knowledge File IDs: {knowledge_file_ids}")
+            print(f"   ✅ Created {len(all_results)} query results")
+            print(f"   ✅ Tested document-specific filtering:")
+            print(f"      • Single document queries: {len(all_results)} queries")
             
         except Exception as e:
             print(f"\n❌ Test failed with error: {e}")
-            import traceback
-            traceback.print_exc()
             raise
             
         finally:
-            # === PHASE 6: Complete Cleanup ===
-            print("\n📋 PHASE 6: Complete Cleanup")
+            # === PHASE 5: Complete Cleanup ===
+            print("\n📋 PHASE 5: Complete Cleanup")
             print("-" * 50)
             
             await self.cleanup_database()
