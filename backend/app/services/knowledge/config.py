@@ -598,7 +598,7 @@ class RAGConfig:
     show_progress: bool = True
     
     # s3 settings
-    s3_bucket_name: str = "rag-files"
+    s3_bucket_name: str = settings.S3_BUCKET_NAME # same as staging service s3 backend service
 
     @classmethod
     def for_robust_retrieval(cls, **kwargs) -> "RAGConfig":
