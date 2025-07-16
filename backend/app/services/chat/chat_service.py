@@ -96,7 +96,8 @@ class ChatService:
         if client_key not in assistant_manager.clients:
             # Client doesn't exist yet, create with unified tools configuration
             unified_config_override = get_unified_tools_override_config(
-                user_id=self.user_uuid,
+                user_id=self.user_id,
+                user_uuid=self.user_uuid,
                 conversation_id=conversation_id,
                 db_session=self.db
             )
@@ -273,7 +274,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with AI
             ai_response_data = await assistant_client.send_message(
@@ -437,7 +439,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with streaming
             ai_response_data = await assistant_client.send_message_streaming(
@@ -679,7 +682,8 @@ class ChatService:
         content: str,
         message_type: str = "text",
         model: Optional[str] = None,
-        openai_file_ids: Optional[List[str]] = None
+        openai_file_ids: Optional[List[str]] = None,
+        vector_file_references: Optional[Dict[str, Any]] = None
     ) -> MessageResponse:
         """
         Generate an AI response only (for message editing scenarios)
@@ -738,7 +742,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with AI (using the edited content)
             ai_response_data = await assistant_client.send_message(
@@ -817,7 +822,8 @@ class ChatService:
         streaming_callback: Callable[[str], None],
         message_type: str = "text",
         model: Optional[str] = None,
-        openai_file_ids: Optional[List[str]] = None
+        openai_file_ids: Optional[List[str]] = None,
+        vector_file_references: Optional[Dict[str, Any]] = None
     ) -> MessageResponse:
         """
         Generate an AI response only with streaming (for message editing scenarios with streaming)
@@ -876,7 +882,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with AI using streaming (using the edited content)
             ai_response_data = await assistant_client.send_message_streaming(

@@ -542,23 +542,28 @@ class StreamingService:
             deleted_count = await message_service.delete_messages_after(message_id)
             logger.info(f"Deleted {deleted_count} subsequent messages")
             
-            # Step 3: Extract existing OpenAI file IDs from the edited message
+            # Step 3: Extract existing OpenAI file IDs and vector_file_references from the edited message
             openai_file_ids = []
-            if updated_message.attachments:
-                for attachment in updated_message.attachments:
+            attachments = getattr(updated_message, 'attachments', None)
+            if attachments:
+                for attachment in attachments:
                     if isinstance(attachment, dict) and 'openai_file_id' in attachment:
                         openai_file_ids.append(attachment['openai_file_id'])
-                    
-            logger.info(f"Extracted {len(openai_file_ids)} existing OpenAI file IDs for message editing")
             
-            # Step 4: Generate new AI response with streaming (passing existing file IDs)
+            # Extract vector_file_references from the edited message
+            vector_file_references = getattr(updated_message, 'vector_file_references', None)
+                    
+            logger.info(f"Extracted {len(openai_file_ids)} existing OpenAI file IDs and vector_file_references for message editing")
+            
+            # Step 4: Generate new AI response with streaming (passing existing file IDs + vector_file_references)
             response = await self.chat_service.generate_ai_response_only_streaming(
                 conversation_id=conversation_id,
                 content=content,
                 streaming_callback=stream_handler.streaming_callback,
                 message_type=message_type,
                 model=model,
-                openai_file_ids=openai_file_ids  # Pass existing file IDs
+                openai_file_ids=openai_file_ids,  # Pass existing file IDs
+                vector_file_references=vector_file_references  # Pass existing vector_file_references
             )
             
             logger.info(f"Streaming edit message processing completed for conversation {conversation_id}")

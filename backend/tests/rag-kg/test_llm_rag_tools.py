@@ -111,7 +111,7 @@ class ProductionRAGTestRunner:
         self.perf_monitor = PerformanceMonitor()
         
         # Test tracking for cleanup
-        self.test_user_id = None
+        self.test_user_uuid = None
         self.test_collection_id = None
         self.test_collection_name = None  # Store collection name for reuse
         self.uploaded_s3_keys: List[str] = []
@@ -151,8 +151,8 @@ class ProductionRAGTestRunner:
             await db.commit()
             await db.refresh(test_user)
             
-            self.test_user_id = test_user.user_id  # Use UUID string instead of integer id
-            print(f"   ✅ Created test user: ID={self.test_user_id}, Email={test_user.email}")
+            self.test_user_uuid = test_user.user_id  # Use UUID string instead of integer id
+            print(f"   ✅ Created test user: ID={self.test_user_uuid}, Email={test_user.email}")
             
             return test_user.user_id  # Return UUID string instead of integer id
         
@@ -207,10 +207,10 @@ class ProductionRAGTestRunner:
         async for db in get_db():
             # Get or create collection using explicit scope
             # Use provided scope_id or default to user_id for user collections
-            actual_scope_id = scope_id or str(self.test_user_id)
+            actual_scope_id = scope_id or str(self.test_user_uuid)
             
             collection = await self.prod_rag_service.get_or_create_collection(
-                user_id=self.test_user_id,
+                user_id=self.test_user_uuid,
                 scope=scope,
                 scope_id=actual_scope_id,
                 display_name=f"Test Collection {uuid.uuid4().hex[:8]}",
@@ -227,7 +227,7 @@ class ProductionRAGTestRunner:
             result = await self.prod_rag_service.process_s3_documents(
                 collection_id=collection.id,
                 s3_keys=s3_keys,
-                user_id=self.test_user_id,
+                user_id=self.test_user_uuid,
                 force_reprocess=False,
                 db=db
             )
@@ -274,7 +274,7 @@ class ProductionRAGTestRunner:
             conversation_id = f"test_conv_{uuid.uuid4().hex[:8]}"
             
         print(f"🤖 Setting up LLM agent with knowledge tools...")
-        print(f"   👤 User ID: {self.test_user_id}")
+        print(f"   👤 User ID: {self.test_user_uuid}")
         print(f"   💬 Conversation ID: {conversation_id}")
         
         try:
@@ -283,7 +283,7 @@ class ProductionRAGTestRunner:
                 from app.services.knowledge.knowledge_tools_config import get_knowledge_enabled_override_config
                 
                 knowledge_config_override = get_knowledge_enabled_override_config(
-                    user_id=self.test_user_id,
+                    user_uuid=self.test_user_uuid,
                     conversation_id=conversation_id,
                     db_session=db,
                     rag_config_type="chat_application"
@@ -294,7 +294,7 @@ class ProductionRAGTestRunner:
                 
                 # Create assistant client with knowledge tools
                 self.assistant_client = ConfigurableAssistantClient(
-                    user_id=str(self.test_user_id),
+                    user_id=str(self.test_user_uuid),
                     conversation_id=conversation_id,
                     environment="test",
                     config_name="default",
@@ -475,7 +475,7 @@ class ProductionRAGTestRunner:
     async def cleanup_database(self):
         """Clean up all database records created during the test."""
         
-        if self.test_user_id is None:
+        if self.test_user_uuid is None:
             print("⚠️  No test user to cleanup")
             return
         
@@ -485,19 +485,19 @@ class ProductionRAGTestRunner:
             try:
                 # Delete knowledge files
                 await db.execute(
-                    delete(KnowledgeFile).where(KnowledgeFile.user_id == self.test_user_id)
+                    delete(KnowledgeFile).where(KnowledgeFile.user_id == self.test_user_uuid)
                 )
                 print("   🗑️  Deleted knowledge files")
                 
                 # Delete vector collections
                 await db.execute(
-                    delete(VectorCollection).where(VectorCollection.user_id == self.test_user_id)
+                    delete(VectorCollection).where(VectorCollection.user_id == self.test_user_uuid)
                 )
                 print("   🗑️  Deleted vector collections")
                 
                 # Delete test user
                 await db.execute(
-                    delete(User).where(User.user_id == self.test_user_id)  # Use user_id field instead of id field
+                    delete(User).where(User.user_id == self.test_user_uuid)  # Use user_id field instead of id field
                 )
                 print("   🗑️  Deleted test user")
                 
@@ -555,7 +555,7 @@ class ProductionRAGTestRunner:
             print("\n📋 Step 1: Check Database Storage")
             
             kf_result = await db.execute(
-                select(KnowledgeFile).where(KnowledgeFile.user_id == self.test_user_id)
+                select(KnowledgeFile).where(KnowledgeFile.user_id == self.test_user_uuid)
             )
             knowledge_files = kf_result.scalars().all()
             

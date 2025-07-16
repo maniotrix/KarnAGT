@@ -39,13 +39,14 @@ class ConversationContextBuilder:
         self.summarizer = ConversationSummarizerAgent()
         
 
-    async def build_context(self, latest_user_message: str, openai_file_ids: Optional[List[str]] = None, last_user_message_saved_in_db: bool = True) -> List[Dict[str, Any]]:
+    async def build_context(self, latest_user_message: str, openai_file_ids: Optional[List[str]] = None, vector_file_references: Optional[Dict[str, Any]] = None, last_user_message_saved_in_db: bool = True) -> List[Dict[str, Any]]:
         """
         Build conversation context with intelligent summarization when needed.
         
         Args:
             latest_user_message: The user message to include in context
             openai_file_ids: Optional list of OpenAI file IDs for images
+            vector_file_references: Optional vector file references for knowledge files
             last_user_message_saved_in_db: If True, the latest_user_message is already in DB and should be excluded from history
         
         Returns a list of messages formatted for LLM consumption:
@@ -57,13 +58,24 @@ class ConversationContextBuilder:
         """
         logger.info(f"Building context for conversation {self.conversation_id}, last_user_message_saved_in_db={last_user_message_saved_in_db}")
         
+        # Extract knowledge file IDs from vector_file_references if provided
+        latest_message_knowledge_file_ids = []
+        if vector_file_references:
+            latest_message_knowledge_file_ids = self._extract_knowledge_file_ids_from_vector_references(vector_file_references)
+            if latest_message_knowledge_file_ids:
+                logger.info(f"Extracted {len(latest_message_knowledge_file_ids)} knowledge file IDs from latest message")
+        
         # Step 1: Get all previous messages from database
         previous_messages = await self._get_conversation_history(exclude_latest_if_user=last_user_message_saved_in_db)
         
         if not previous_messages:
             logger.info("No previous messages found, returning only latest user message")
-            # Build final user message with images if provided
-            final_message = self._build_user_message_with_images(latest_user_message, openai_file_ids or [])
+            # Build final user message with images and knowledge files if provided
+            final_message = self._build_user_message_with_images_and_knowledge(
+                latest_user_message, 
+                openai_file_ids or [], 
+                latest_message_knowledge_file_ids
+            )
             logger.info(f"Final context built: {len(final_message)} messages, {count_tokens(final_message['content'])} total tokens \n {final_message}")
             return [final_message]
         
@@ -79,14 +91,18 @@ class ConversationContextBuilder:
                 # Extract OpenAI file IDs from message attachments
                 message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if message_file_ids:
-                    # Build multimodal message with images
-                    message_dict = self._build_message_with_attachments(
+                # Extract knowledge file IDs from message vector_file_references
+                message_knowledge_file_ids = self._extract_knowledge_file_ids_from_message(message)
+                
+                if message_file_ids or message_knowledge_file_ids:
+                    # Build multimodal message with images and/or knowledge files
+                    message_dict = self._build_message_with_attachments_and_knowledge(
                         message.role, 
                         message.content, 
-                        message_file_ids
+                        message_file_ids,
+                        message_knowledge_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to context")
+                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images and {len(message_knowledge_file_ids)} knowledge files to context")
                 else:
                     # Text-only message
                     message_dict = {
@@ -129,14 +145,18 @@ class ConversationContextBuilder:
                 # Extract OpenAI file IDs from message attachments
                 message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if message_file_ids:
-                    # Build multimodal message with images
-                    message_dict = self._build_message_with_attachments(
+                # Extract knowledge file IDs from message vector_file_references
+                message_knowledge_file_ids = self._extract_knowledge_file_ids_from_message(message)
+                
+                if message_file_ids or message_knowledge_file_ids:
+                    # Build multimodal message with images and/or knowledge files
+                    message_dict = self._build_message_with_attachments_and_knowledge(
                         message.role, 
                         message.content, 
-                        message_file_ids
+                        message_file_ids,
+                        message_knowledge_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to context")
+                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images and {len(message_knowledge_file_ids)} knowledge files to context")
                 else:
                     # Text-only message
                     message_dict = {
@@ -146,51 +166,38 @@ class ConversationContextBuilder:
                 
                 context_messages.append(message_dict)
         
-        # Step 3: Add the latest user message with images
-        final_message = self._build_user_message_with_images(latest_user_message, openai_file_ids or [])
+        # Step 3: Add the latest user message with images and knowledge files
+        final_message = self._build_user_message_with_images_and_knowledge(
+            latest_user_message, 
+            openai_file_ids or [], 
+            latest_message_knowledge_file_ids
+        )
         context_messages.append(final_message)
         
         # Log final context statistics
         total_context_tokens = sum(count_tokens(msg["content"] if isinstance(msg["content"], str) else latest_user_message) for msg in context_messages)
-        logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens \n {context_messages}")
+        
+        # Safely log the context to avoid Unicode encoding issues
+        try:
+            import json
+            context_str = ""
+            # context_str = json.dumps(context_messages, ensure_ascii=False, indent=2)
+            logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens\n{context_str}")
+        except Exception as e:
+            logger.warning(f"Final context logging issue: {e}")
         
         return context_messages
-    
-    def _build_user_message_with_images(self, text_content: str, openai_file_ids: List[str]) -> Dict[str, Any]:
-        """Build user message with optional image attachments"""
-        if not openai_file_ids:
-            # Text-only message
-            return {
-                "role": "user",
-                "content": text_content
-            }
-        
-        # Multimodal message with images
-        content_parts = []
-        
-        # Add text content only if it's not empty
-        if text_content and text_content.strip():
-            content_parts.append({"type": "input_text", "text": text_content})
-        
-        # Add images
-        for file_id in openai_file_ids:
-            content_parts.append({
-                "type": "input_image", 
-                "file_id": file_id
-            })
-        
-        logger.info(f"Built multimodal message with {len(openai_file_ids)} images and {'text' if text_content.strip() else 'no text'}")
-        return {
-            "role": "user",
-            "content": content_parts
-        }
 
-    async def build_context_dict(self, latest_user_message: str, last_user_message_saved_in_db: bool = True) -> Dict[str, Any]:
+
+    async def build_context_dict(self, latest_user_message: str, openai_file_ids: Optional[List[str]] = None, vector_file_references: Optional[Dict[str, Any]] = None, last_user_message_saved_in_db: bool = True) -> Dict[str, Any]:
         """
         Build conversation context as a structured dictionary with separate components.
         
         Args:
             latest_user_message: The latest user message to include in context
+            openai_file_ids: Optional list of OpenAI file IDs for images
+            vector_file_references: Optional vector file references for knowledge files
+            last_user_message_saved_in_db: If True, the latest_user_message is already saved in DB
             
         Returns:
             Dictionary with structured context components:
@@ -207,11 +214,23 @@ class ConversationContextBuilder:
         # For build_context_dict, we assume the message is already saved since this is used for structured output
         previous_messages = await self._get_conversation_history(exclude_latest_if_user=last_user_message_saved_in_db)
         
+        # Step 2: Process latest user message with images and knowledge files
+        knowledge_file_ids = []
+        if vector_file_references:
+            knowledge_file_ids = self._extract_knowledge_file_ids_from_vector_references(vector_file_references)
+        
+        # Build latest user message with attachments
+        user_input = self._build_user_message_with_images_and_knowledge(
+            latest_user_message, 
+            openai_file_ids, 
+            knowledge_file_ids
+        )
+        
         # Initialize context structure with proper typing
         context_dict: Dict[str, Any] = {
             "summary_old_messages": None,
             "recent_conversation_history": [],
-            "user_input": latest_user_message,
+            "user_input": user_input,
             "overflow": False
         }
         
@@ -231,14 +250,23 @@ class ConversationContextBuilder:
                 # Extract OpenAI file IDs from message attachments
                 message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if message_file_ids:
-                    # Build multimodal message with images
-                    message_dict = self._build_message_with_attachments(
+                # Extract knowledge file IDs from message vector_file_references
+                message_knowledge_file_ids = self._extract_knowledge_file_ids_from_message(message)
+                
+                if message_file_ids or message_knowledge_file_ids:
+                    # Build multimodal message with images and knowledge files
+                    message_dict = self._build_message_with_attachments_and_knowledge(
                         message.role, 
                         message.content, 
-                        message_file_ids
+                        message_file_ids,
+                        message_knowledge_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to conversation history")
+                    attachments_info = []
+                    if message_file_ids:
+                        attachments_info.append(f"{len(message_file_ids)} images")
+                    if message_knowledge_file_ids:
+                        attachments_info.append(f"{len(message_knowledge_file_ids)} knowledge files")
+                    logger.info(f"Added {message.role} message with {', '.join(attachments_info)} to conversation history")
                 else:
                     # Text-only message
                     message_dict = {
@@ -279,14 +307,23 @@ class ConversationContextBuilder:
                 # Extract OpenAI file IDs from message attachments
                 message_file_ids = self._extract_openai_file_ids_from_message(message)
                 
-                if message_file_ids:
-                    # Build multimodal message with images
-                    message_dict = self._build_message_with_attachments(
+                # Extract knowledge file IDs from message vector_file_references
+                message_knowledge_file_ids = self._extract_knowledge_file_ids_from_message(message)
+                
+                if message_file_ids or message_knowledge_file_ids:
+                    # Build multimodal message with images and knowledge files
+                    message_dict = self._build_message_with_attachments_and_knowledge(
                         message.role, 
                         message.content, 
-                        message_file_ids
+                        message_file_ids,
+                        message_knowledge_file_ids
                     )
-                    logger.info(f"Added {message.role} message with {len(message_file_ids)} images to conversation history")
+                    attachments_info = []
+                    if message_file_ids:
+                        attachments_info.append(f"{len(message_file_ids)} images")
+                    if message_knowledge_file_ids:
+                        attachments_info.append(f"{len(message_knowledge_file_ids)} knowledge files")
+                    logger.info(f"Added {message.role} message with {', '.join(attachments_info)} to conversation history")
                 else:
                     # Text-only message
                     message_dict = {
@@ -322,21 +359,51 @@ class ConversationContextBuilder:
         
         return openai_file_ids
 
-    def _build_message_with_attachments(self, role: str, content: str, openai_file_ids: List[str]) -> Dict[str, Any]:
-        """Build message with optional image attachments for conversation history"""
+    def _extract_knowledge_file_ids_from_vector_references(self, vector_file_references: Dict[str, Any]) -> List[str]:
+        """Extract knowledge file IDs from a vector_file_references dictionary."""
+        if not vector_file_references or not isinstance(vector_file_references, dict):
+            return []
+        
+        knowledge_file_ids = []
+        processed_files = vector_file_references.get('processed_files', [])
+        
+        for file_info in processed_files:
+            if isinstance(file_info, dict) and 'knowledge_file_id' in file_info:
+                knowledge_file_ids.append(file_info['knowledge_file_id'])
+        
+        return knowledge_file_ids
+
+    def _extract_knowledge_file_ids_from_message(self, message: 'Message') -> List[str]:
+        """Extract knowledge file IDs from a message's vector_file_references."""
+        vector_file_references = message.vector_file_references
+        if vector_file_references is None:
+            return []
+        
+        # Reuse the existing function
+        return self._extract_knowledge_file_ids_from_vector_references(vector_file_references)
+
+
+
+    def _build_message_with_attachments_and_knowledge(self, role: str, content: str, openai_file_ids: List[str], knowledge_file_ids: List[str]) -> Dict[str, Any]:
+        """Build message with optional image and knowledge file attachments for conversation history."""
+        # Enhance content with knowledge file IDs if present
+        enhanced_content = content
+        if knowledge_file_ids and role == "user":
+            enhanced_content = f"Query: {content}\n\nUser has uploaded files with IDs: {knowledge_file_ids}"
+        
         if not openai_file_ids:
-            # Text-only message
+            # Text-only message (possibly with knowledge file context)
             return {
                 "role": role,
-                "content": content
+                "content": enhanced_content
             }
         
         # Multimodal message with images
         content_parts = []
         
         # Add text content only if it's not empty
-        if content and content.strip():
-            content_parts.append({"type": "input_text", "text": content})
+        if enhanced_content and enhanced_content.strip():
+            content_parts.append({"type": "input_text", "text": enhanced_content})
         
         # Add images
         for file_id in openai_file_ids:
@@ -345,9 +412,43 @@ class ConversationContextBuilder:
                 "file_id": file_id
             })
         
-        logger.info(f"Built multimodal {role} message with {len(openai_file_ids)} images and {'text' if content.strip() else 'no text'}")
+        logger.info(f"Built multimodal {role} message with {len(openai_file_ids)} images and {len(knowledge_file_ids)} knowledge files and {'text' if enhanced_content.strip() else 'no text'}")
         return {
             "role": role,
+            "content": content_parts
+        }
+
+    def _build_user_message_with_images_and_knowledge(self, text_content: str, openai_file_ids: List[str], knowledge_file_ids: List[str]) -> Dict[str, Any]:
+        """Build user message with optional image and knowledge file attachments."""
+        # Enhance content with knowledge file IDs if present
+        enhanced_content = text_content
+        if knowledge_file_ids:
+            enhanced_content = f"Query: {text_content}\n\nUser has uploaded files with IDs: {knowledge_file_ids}"
+        
+        if not openai_file_ids:
+            # Text-only message (possibly with knowledge file context)
+            return {
+                "role": "user",
+                "content": enhanced_content
+            }
+        
+        # Multimodal message with images
+        content_parts = []
+        
+        # Add text content only if it's not empty
+        if enhanced_content and enhanced_content.strip():
+            content_parts.append({"type": "input_text", "text": enhanced_content})
+        
+        # Add images
+        for file_id in openai_file_ids:
+            content_parts.append({
+                "type": "input_image", 
+                "file_id": file_id
+            })
+        
+        logger.info(f"Built multimodal user message with {len(openai_file_ids)} images and {len(knowledge_file_ids)} knowledge files and {'text' if enhanced_content.strip() else 'no text'}")
+        return {
+            "role": "user",
             "content": content_parts
         }
 
@@ -445,7 +546,7 @@ class ConversationContextBuilder:
         return summary
         
 
-async def get_context_dict_for_conversation(conversation_id: str, db_session: AsyncSession, latest_user_message: str, last_user_message_saved_in_db: bool = True) -> Dict[str, Any]:
+async def get_context_dict_for_conversation(conversation_id: str, db_session: AsyncSession, latest_user_message: str, openai_file_ids: Optional[List[str]] = None, vector_file_references: Optional[Dict[str, Any]] = None, last_user_message_saved_in_db: bool = True) -> Dict[str, Any]:
     """
     Get the structured context dictionary for a conversation.
     
@@ -459,7 +560,7 @@ async def get_context_dict_for_conversation(conversation_id: str, db_session: As
         }
     """
     context_builder = ConversationContextBuilder(get_default_conversation_context_config(), db_session, conversation_id)
-    context_dict = await context_builder.build_context_dict(latest_user_message, last_user_message_saved_in_db)
+    context_dict = await context_builder.build_context_dict(latest_user_message, openai_file_ids, vector_file_references, last_user_message_saved_in_db)
     return context_dict
 
 
@@ -468,6 +569,7 @@ async def get_context_for_conversation(
     db_session: AsyncSession, 
     latest_user_message: str,
     openai_file_ids: Optional[List[str]] = None,
+    vector_file_references: Optional[Dict[str, Any]] = None,
     last_user_message_saved_in_db: bool = True
 ) -> List[Dict[str, Any]]:
     """
@@ -478,6 +580,7 @@ async def get_context_for_conversation(
         db_session: Database session
         latest_user_message: The user message to include in context
         openai_file_ids: Optional list of OpenAI file IDs for images
+        vector_file_references: Optional vector file references for knowledge files
         last_user_message_saved_in_db: If True, the latest_user_message is already in DB and should be excluded from history
     """
     builder = ConversationContextBuilder(
@@ -486,4 +589,4 @@ async def get_context_for_conversation(
         conversation_id
     )
     
-    return await builder.build_context(latest_user_message, openai_file_ids, last_user_message_saved_in_db)
+    return await builder.build_context(latest_user_message, openai_file_ids, vector_file_references, last_user_message_saved_in_db)

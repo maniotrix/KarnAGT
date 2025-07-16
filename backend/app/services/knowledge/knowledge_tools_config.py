@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 def create_knowledge_tools_config(
-    user_id: str, 
+    user_uuid: str, 
     conversation_id: str,
     db_session: AsyncSession,
     rag_config_type: str = "chat_application"
@@ -50,7 +50,7 @@ def create_knowledge_tools_config(
         "name": "knowledge_search",
         "params": {
             "knowledge_service": knowledge_service,
-            "user_id": user_id,
+            "user_id": user_uuid,
             "conversation_id": conversation_id
         }
     }
@@ -60,18 +60,18 @@ def create_knowledge_tools_config(
         "name": "knowledge_discovery",
         "params": {
             "knowledge_service": knowledge_service,
-            "user_id": user_id,
+            "user_id": user_uuid,
             "conversation_id": conversation_id
         }
     }
     
-    logger.info(f"Created knowledge tools config for user {user_id}, conversation {conversation_id} with {rag_config_type} configuration")
+    logger.info(f"Created knowledge tools config for user {user_uuid}, conversation {conversation_id} with {rag_config_type} configuration")
     
     return [knowledge_search_config, knowledge_discovery_config]
 
 
 def create_knowledge_tools_config_with_service(
-    user_id: str,
+    user_uuid: str,
     conversation_id: str,
     knowledge_service: KnowledgeService
 ) -> List[Dict[str, Any]]:
@@ -95,7 +95,7 @@ def create_knowledge_tools_config_with_service(
         "name": "knowledge_search",
         "params": {
             "knowledge_service": knowledge_service,
-            "user_id": user_id,
+            "user_id": user_uuid,
             "conversation_id": conversation_id
         }
     }
@@ -105,20 +105,20 @@ def create_knowledge_tools_config_with_service(
         "name": "knowledge_discovery",
         "params": {
             "knowledge_service": knowledge_service,
-            "user_id": user_id,
+            "user_id": user_uuid,
             "conversation_id": conversation_id
         }
     }
     
-    logger.info(f"Created knowledge tools config with existing service for user {user_id}, conversation {conversation_id}")
+    logger.info(f"Created knowledge tools config with existing service for user {user_uuid}, conversation {conversation_id}")
     
     return [knowledge_search_config, knowledge_discovery_config]
 
 
 async def get_knowledge_enhanced_agent_config(
     base_config: Dict[str, Any],
-    user_id: str,
-    conversation_id: str,
+    user_uuid: str,
+    conversation_id: str,   
     db_session: AsyncSession,
     rag_config_type: str = "chat_application"
 ) -> Dict[str, Any]:
@@ -141,7 +141,7 @@ async def get_knowledge_enhanced_agent_config(
     
     # Get knowledge tools configuration
     knowledge_tools = create_knowledge_tools_config(
-        user_id, conversation_id, db_session, rag_config_type
+        user_uuid, conversation_id, db_session, rag_config_type
     )
     
     # Add to custom_tools in agent section
@@ -160,7 +160,7 @@ async def get_knowledge_enhanced_agent_config(
 
 
 def get_knowledge_enabled_override_config(
-    user_id: str,
+    user_uuid: str,
     conversation_id: str, 
     db_session: AsyncSession,
     rag_config_type: str = "chat_application"
@@ -182,7 +182,7 @@ def get_knowledge_enabled_override_config(
     """
     
     knowledge_tools = create_knowledge_tools_config(
-        user_id, conversation_id, db_session, rag_config_type
+        user_uuid, conversation_id, db_session, rag_config_type
     )
     
     return {
@@ -193,7 +193,8 @@ def get_knowledge_enabled_override_config(
 
 
 def get_unified_tools_override_config(
-    user_id: str,
+    user_id: int,
+    user_uuid: str,
     conversation_id: str,
     db_session: AsyncSession,
     rag_config_type: str = "chat_application"
@@ -218,9 +219,9 @@ def get_unified_tools_override_config(
     from app.services.memory.memory_tools_config import create_memory_tools_config
     
     # Get both tool configurations
-    memory_tools = create_memory_tools_config(int(user_id), conversation_id, db_session)
+    memory_tools = create_memory_tools_config(user_id, conversation_id, db_session)
     knowledge_tools = create_knowledge_tools_config(
-        user_id, conversation_id, db_session, rag_config_type
+        user_uuid, conversation_id, db_session, rag_config_type
     )
     
     # Combine all tools
@@ -240,7 +241,7 @@ def get_unified_tools_override_config(
 # =============================================================================
 
 def create_specialized_knowledge_tools_config(
-    user_id: str,
+    user_uuid: str,
     conversation_id: str,
     db_session: AsyncSession,
     optimization_target: str = "balanced"
@@ -272,7 +273,7 @@ def create_specialized_knowledge_tools_config(
     logger.info(f"Creating specialized knowledge tools config optimized for: {optimization_target}")
     
     return create_knowledge_tools_config(
-        user_id, conversation_id, db_session, rag_config_type
+        user_uuid, conversation_id, db_session, rag_config_type
     )
 
 
