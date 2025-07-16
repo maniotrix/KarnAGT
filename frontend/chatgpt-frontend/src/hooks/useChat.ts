@@ -62,6 +62,7 @@ export function useChat(options: ChatOptions = {}) {
     cost_usd: msg.cost_usd,
     model_name: msg.model_name,
     attachments: msg.attachments,
+    vector_file_references: msg.vector_file_references,  // Add vector_file_references mapping
     metadata: msg.metadata,
   }), []);
 

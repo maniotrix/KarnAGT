@@ -48,6 +48,7 @@ export interface MessageResponse {
   cost_usd?: number;
   model_name?: string;
   attachments?: string[] | ImageAttachment[]; // Can be either string IDs or full attachment objects
+  vector_file_references?: Record<string, any>; // References to knowledge files processed for RAG
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
