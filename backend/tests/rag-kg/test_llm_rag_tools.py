@@ -325,9 +325,13 @@ class ProductionRAGTestRunner:
             print(f"\n📋 LLM Agent Query {i}: {query}")
             
             # Format message with query and available file IDs (structured like conversation context)
+            query_content = f"Query: {query}\n\nUser has uploaded files with IDs: {knowledge_file_ids}"
             user_message = {
                 "role": "user",
-                "content": f"Query: {query}\n\nUser has uploaded files with IDs: {knowledge_file_ids}",
+                "content": [{
+                    "type": "input_text", 
+                    "text": query_content
+                }]
             }
             
             print(f"   📤 Sending structured user message to LLM agent...")
@@ -398,9 +402,13 @@ class ProductionRAGTestRunner:
             
             # Format message for conversation-wide search (no specific file IDs)
             # This will trigger knowledge_discovery and search_all_files behavior
+            
             user_message = [{
                 "role": "user",
-                "content": query,
+                "content": [{
+                    "type": "input_text",
+                    "text": query
+                }]
             }]
             print(f"   📤 Sending message to LLM agent...")
             
@@ -736,7 +744,9 @@ class ProductionRAGTestRunner:
                 # "What is the passenger name on the train ticket and what company does Trykaa represent?",
                 # "Compare the information available in all documents uploaded by user",
                 "What are the key details from both the train ticket and Trykaa documents?",
+                #"Create a visualisation of weather in last 7 days in Gurgaon",
                 "What is the total fare amount for the train ticket and what is Trykaa's business model?",
+                #"What is latest news about google gemini and deepmind?",
             ]
             
             print("🔍 Running conversation-wide queries (no specific file IDs)...")
