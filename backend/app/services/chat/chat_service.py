@@ -560,6 +560,7 @@ class ChatService:
                     model_name=msg.model_name,
                     finish_reason=None,  # Not stored in database
                     attachments=msg.attachments or [],
+                    vector_file_references=msg.vector_file_references,  # Include vector file references
                     extra_metadata=msg.extra_metadata or {},
                     created_at=msg.created_at
                 )
