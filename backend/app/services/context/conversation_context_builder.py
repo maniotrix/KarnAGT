@@ -181,7 +181,7 @@ class ConversationContextBuilder:
         try:
             import json
             context_str = ""
-            # context_str = json.dumps(context_messages, ensure_ascii=False, indent=2)
+            context_str = json.dumps(context_messages, ensure_ascii=False, indent=2)
             logger.info(f"Final context built: {len(context_messages)} messages, {total_context_tokens} total tokens\n{context_str}")
         except Exception as e:
             logger.warning(f"Final context logging issue: {e}")
