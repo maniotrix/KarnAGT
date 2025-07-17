@@ -5,6 +5,7 @@ import shutil
 import logging
 import uuid
 import time
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, List, AsyncGenerator
 from app.services.storage.storage import S3StorageBackend
@@ -186,6 +187,10 @@ class S3DirectoryReader:
                         # Fallback if mapping not found
                         doc.metadata['source_type'] = 's3'
                         doc.metadata['s3_bucket'] = self.storage_backend.bucket_name
+                    
+                    # Add status metadata for document lifecycle management
+                    doc.metadata['status'] = 'active'
+                    doc.metadata['created_at'] = datetime.now(timezone.utc).isoformat()
             
             logger.info(f"Successfully processed {len(documents)} documents from S3 with restored filenames")
             return documents

@@ -517,20 +517,88 @@ class ProductionRAGService:
         logger.info("Query engine created successfully")
         return query_engine
 
+    async def create_query_engine_with_status_filter(
+        self, 
+        collection_id: str, 
+        db: AsyncSession,
+        include_inactive: bool = False
+    ):
+        """Create query engine with status filtering for document lifecycle management."""
+        
+        # Get collection using service
+        collection = await self.collection_service.get_by_id(collection_id, db)
+        if not collection:
+            raise ValueError(f"Collection {collection_id} not found")
+        
+        logger.info(f"Creating query engine with status filter for collection: {collection.collection_name}")
+        
+        # Setup storage context to connect to existing vectors using config
+        qdrant_config = QdrantConfig(
+            url=getattr(collection, 'qdrant_url', None) or self.qdrant_config.url,
+            api_key=self.qdrant_config.api_key,
+            collection_name=collection.collection_name,
+            vectors_config={
+                "size": getattr(collection, 'vector_size', None) or self.qdrant_config.vectors_config["size"],
+                "distance": getattr(collection, 'distance_metric', None) or self.qdrant_config.vectors_config["distance"]
+            }
+        )
+        storage_context = await self._setup_storage_context(qdrant_config)
+        
+        # Create index that connects to existing vectors (no reprocessing!)
+        index = VectorStoreIndex(
+            nodes=[],  # Empty - we're connecting to existing
+            storage_context=storage_context
+        )
+        
+        # Build status filter - only active documents by default
+        filters = None
+        if not include_inactive:
+            from llama_index.core.vector_stores import (
+                MetadataFilter,
+                MetadataFilters,
+                FilterOperator,
+            )
+            
+            filters = MetadataFilters(
+                filters=[
+                    MetadataFilter(
+                        key="status",
+                        operator=FilterOperator.EQ,
+                        value="active"
+                    )
+                ]
+            )
+        
+        # Create query engine with status filtering
+        query_engine = index.as_query_engine(
+            similarity_top_k=self.config.similarity_top_k,
+            response_mode=self.config.response_mode,
+            node_postprocessors=[self.metadata_cleaner],
+            filters=filters
+        )
+        
+        logger.info(f"Query engine created with status filter: {filters}")
+        return query_engine
+
     async def query_collection(
         self,
         collection_id: str,
         query: str,
         user_id: str,
-        db: AsyncSession
+        db: AsyncSession,
+        include_inactive: bool = False
     ) -> QueryResult:
         """Query a collection and return results with proper tracking."""
         
         start_time = time.time()
         logger.info(f"Querying collection {collection_id}: {query}")
         
-        # Create query engine
-        query_engine = await self.create_query_engine(collection_id, db)
+        # Create query engine with status filtering
+        query_engine = await self.create_query_engine_with_status_filter(
+            collection_id, 
+            db, 
+            include_inactive=include_inactive
+        )
         
         # Execute query
         response = await query_engine.aquery(query)
@@ -1202,3 +1270,69 @@ class ProductionRAGService:
         except Exception as e:
             logger.warning(f"Error extracting ref_doc_id from node source_node: {e}")
         return None
+
+    async def mark_documents_inactive(
+        self,
+        collection_id: str,
+        doc_ids: List[str],
+        db: AsyncSession
+    ) -> int:
+        """Mark documents as inactive by updating Qdrant metadata directly."""
+        
+        if not doc_ids:
+            logger.warning("No document IDs provided for marking inactive")
+            return 0
+        
+        logger.info(f"Marking {len(doc_ids)} documents as inactive in collection {collection_id}")
+        
+        try:
+            # Get collection
+            collection = await self.collection_service.get_by_id(collection_id, db)
+            if not collection:
+                raise ValueError(f"Collection {collection_id} not found")
+            
+            # Connect to Qdrant directly to update metadata
+            from qdrant_client import AsyncQdrantClient
+            from qdrant_client.models import FieldCondition, Filter, MatchValue, UpdateStatus
+            
+            aclient = AsyncQdrantClient(url=self.qdrant_config.url)
+            
+            updated_count = 0
+            
+            # Update each document's metadata in Qdrant
+            for doc_id in doc_ids:
+                try:
+                    # Update the document's metadata to mark it as inactive
+                    update_result = await aclient.set_payload(
+                        collection_name=collection.collection_name,
+                        payload={
+                            "status": "inactive",
+                            "deactivated_at": datetime.now(timezone.utc).isoformat()
+                        },
+                        points=Filter(
+                            must=[
+                                FieldCondition(
+                                    key="doc_id",
+                                    match=MatchValue(value=doc_id)
+                                )
+                            ]
+                        )
+                    )
+                    
+                    if update_result.status == UpdateStatus.COMPLETED:
+                        updated_count += 1
+                        logger.info(f"Successfully marked document {doc_id} as inactive")
+                    else:
+                        logger.warning(f"Failed to update document {doc_id}: {update_result.status}")
+                        
+                except Exception as e:
+                    logger.warning(f"Error updating document {doc_id} in Qdrant: {e}")
+            
+            logger.info(f"Successfully marked {updated_count}/{len(doc_ids)} documents as inactive in Qdrant")
+            
+            return updated_count
+            
+        except Exception as e:
+            logger.error(f"Error marking documents inactive: {e}")
+            raise
+
