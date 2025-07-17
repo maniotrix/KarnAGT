@@ -409,9 +409,16 @@ class MessageService:
             doc_ids_to_deactivate = []
             for message in messages_to_delete:
                 if message.vector_file_references is not None:
-                    for file_ref in message.vector_file_references:
-                        if isinstance(file_ref, dict) and 'ref_doc_ids' in file_ref:
-                            doc_ids_to_deactivate.extend(file_ref['ref_doc_ids'])
+                    logger.debug(f"Processing message {message.message_id} with vector_file_references: {type(message.vector_file_references)}")
+                    # Current format: dict with processed_files array
+                    if isinstance(message.vector_file_references, dict):
+                        processed_files = message.vector_file_references.get('processed_files', [])
+                        logger.debug(f"Found {len(processed_files)} processed files in message {message.message_id}")
+                        for file_info in processed_files:
+                            if isinstance(file_info, dict) and 'ref_doc_ids' in file_info:
+                                ref_doc_ids = file_info['ref_doc_ids']
+                                logger.debug(f"Extracting {len(ref_doc_ids)} ref_doc_ids from file {file_info.get('filename', 'unknown')}")
+                                doc_ids_to_deactivate.extend(ref_doc_ids)
             
             # Delete messages in the same conversation created after this message
             query = delete(Message).where(
@@ -425,12 +432,18 @@ class MessageService:
             deleted_count = result.rowcount
             logger.info(f"Deleted {deleted_count} messages after message {message_id}")
             
+            # Log extracted document IDs
+            if doc_ids_to_deactivate:
+                logger.info(f"Extracted {len(doc_ids_to_deactivate)} document IDs to deactivate: {doc_ids_to_deactivate}")
+            
             # Mark documents as inactive using LlamaIndex
             if doc_ids_to_deactivate:
                 await self._mark_documents_inactive_for_conversation(
                     target_message.conversation_id, 
                     doc_ids_to_deactivate
                 )
+            else:
+                logger.info(f"No document IDs to deactivate for message {message_id}")
             
             return deleted_count
             
