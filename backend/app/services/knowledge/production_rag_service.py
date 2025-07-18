@@ -445,7 +445,8 @@ class ProductionRAGService:
         user_id: str,
         conversation_id: str,
         query: str,
-        db: AsyncSession
+        db: AsyncSession,
+        include_inactive: bool = False
     ) -> Optional[QueryResult]:
         """
         Convenience method to query a conversation's documents.
@@ -455,6 +456,7 @@ class ProductionRAGService:
             conversation_id: Conversation ID
             query: Query string
             db: Database session (required)
+            include_inactive: Whether to include inactive documents (default: False)
             
         Returns:
             QueryResult if collection exists, None otherwise
@@ -476,7 +478,8 @@ class ProductionRAGService:
             collection_id=collection.id,
             query=query,
             user_id=user_id,
-            db=db
+            db=db,
+            include_inactive=include_inactive
         )
 
     async def create_query_engine(self, collection_id: str, db: AsyncSession):
@@ -932,48 +935,61 @@ class ProductionRAGService:
     def _build_document_filters(
         self, 
         document_ids: List[str],
-        additional_filters: Optional[MetadataFilters] = None
+        additional_filters: Optional[MetadataFilters] = None,
+        include_inactive: bool = False
     ) -> MetadataFilters:
-        """Build metadata filters for document-specific queries."""
+        """Build metadata filters for document-specific queries with proper logical conditions."""
         
         if not document_ids:
             raise ValueError("document_ids cannot be empty")
         
-        # Build document ID filters - use "doc_id" (LlamaIndex standard)
+        # Build document ID condition - always wrap in MetadataFilters for consistency
         if len(document_ids) == 1:
             # Single document filter
-            doc_filter = MetadataFilter(
-                key="doc_id",  # ✅ FIXED: Use "doc_id" not "ref_doc_id"
-                operator=FilterOperator.EQ,
-                value=document_ids[0]
-            )
-            filters = [doc_filter]
+            doc_condition = MetadataFilters(filters=[
+                MetadataFilter(
+                    key="doc_id",
+                    operator=FilterOperator.EQ,
+                    value=document_ids[0]
+                )
+            ])
         else:
             # Multiple document filter using OR condition
             doc_filters = [
                 MetadataFilter(
-                    key="doc_id",  # ✅ FIXED: Use "doc_id" not "ref_doc_id"
+                    key="doc_id",
                     operator=FilterOperator.EQ,
                     value=doc_id
                 ) for doc_id in document_ids
             ]
-            # Group document filters with OR
-            doc_filter_group = MetadataFilters(
+            doc_condition = MetadataFilters(
                 filters=doc_filters,
                 condition=FilterCondition.OR
             )
-            filters = [doc_filter_group]
+        
+        # Build status filter if needed
+        filters_to_combine = [doc_condition]
+        
+        if not include_inactive:
+            status_condition = MetadataFilters(filters=[
+                MetadataFilter(
+                    key="status",
+                    operator=FilterOperator.EQ,
+                    value="active"
+                )
+            ])
+            filters_to_combine.append(status_condition)
         
         # Add additional filters if provided
         if additional_filters:
-            filters.append(additional_filters)
+            filters_to_combine.append(additional_filters)
         
-        # Return combined filters
-        if len(filters) == 1:
-            return filters[0] if isinstance(filters[0], MetadataFilters) else MetadataFilters(filters=[filters[0]])
+        # Combine all filters with AND condition
+        if len(filters_to_combine) == 1:
+            return filters_to_combine[0]
         else:
             return MetadataFilters(
-                filters=filters,
+                filters=filters_to_combine,
                 condition=FilterCondition.AND
             )
 
@@ -982,7 +998,8 @@ class ProductionRAGService:
         collection_id: str, 
         document_ids: List[str],
         db: AsyncSession,
-        additional_filters: Optional[MetadataFilters] = None
+        additional_filters: Optional[MetadataFilters] = None,
+        include_inactive: bool = False
     ):
         """Create query engine with document-specific filtering."""
         
@@ -1013,7 +1030,7 @@ class ProductionRAGService:
         )
         
         # Build metadata filters for document filtering
-        metadata_filters = self._build_document_filters(document_ids, additional_filters)
+        metadata_filters = self._build_document_filters(document_ids, additional_filters, include_inactive)
         
         # Create query engine with document filtering
         query_engine = index.as_query_engine(
@@ -1033,7 +1050,8 @@ class ProductionRAGService:
         document_ids: List[str],
         user_id: str,
         db: AsyncSession,
-        additional_filters: Optional[MetadataFilters] = None
+        additional_filters: Optional[MetadataFilters] = None,
+        include_inactive: bool = False
     ) -> QueryResult:
         """Query a collection with document-specific filtering."""
         
@@ -1049,7 +1067,8 @@ class ProductionRAGService:
             collection_id=collection_id,
             document_ids=document_ids,
             db=db,
-            additional_filters=additional_filters
+            additional_filters=additional_filters,
+            include_inactive=include_inactive
         )
         
         # Execute query
@@ -1142,7 +1161,8 @@ class ProductionRAGService:
         query: str,
         document_ids: List[str],
         db: AsyncSession,
-        additional_filters: Optional[MetadataFilters] = None
+        additional_filters: Optional[MetadataFilters] = None,
+        include_inactive: bool = False
     ) -> Optional[QueryResult]:
         """Query a conversation's documents with document-specific filtering."""
 
@@ -1169,7 +1189,8 @@ class ProductionRAGService:
             document_ids=document_ids,
             user_id=user_id,
             db=db,
-            additional_filters=additional_filters
+            additional_filters=additional_filters,
+            include_inactive=include_inactive
         )
 
     async def get_available_documents_in_collection(

@@ -13,7 +13,8 @@ async def query_specific_vector_documents(
     conversation_id: str,
     query: str,
     ref_doc_ids: List[str], # vector collection ref_doc_ids
-    db: AsyncSession
+    db: AsyncSession,
+    include_inactive: bool = False
 ) -> Optional[Dict[str, Any]]:
     """
     Query specific vector documents by their ref_doc_ids.
@@ -42,7 +43,8 @@ async def query_specific_vector_documents(
             conversation_id=conversation_id,
             query=query,
             document_ids=ref_doc_ids,  # Use ref_doc_ids directly
-            db=db
+            db=db,
+            include_inactive=include_inactive
         )
         
         if result:
@@ -119,7 +121,8 @@ async def query_documents_by_filename(
     conversation_id: str,
     query: str,
     file_names: List[str],
-    db: AsyncSession
+    db: AsyncSession,
+    include_inactive: bool = False
 ) -> Optional[Dict[str, Any]]:
     """
     Query documents by their file names - finds ref_doc_ids and queries those.
@@ -170,7 +173,8 @@ async def query_documents_by_filename(
             conversation_id=conversation_id,
             query=query,
             ref_doc_ids=ref_doc_ids,
-            db=db
+            db=db,
+            include_inactive=include_inactive
         )
         
     except Exception as e:

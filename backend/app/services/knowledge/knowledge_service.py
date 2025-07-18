@@ -56,7 +56,8 @@ class KnowledgeService:
         self, 
         user_id: str, 
         conversation_id: str, 
-        query: str
+        query: str,
+        include_inactive: bool = False
     ) -> Optional[QueryResult]:
         """
         Search all files in a conversation.
@@ -65,6 +66,7 @@ class KnowledgeService:
             user_id: User ID for access validation
             conversation_id: Conversation ID to search within
             query: Search query
+            include_inactive: Whether to include inactive documents (default: False)
             
         Returns:
             QueryResult if successful, None if no collection found
@@ -76,7 +78,8 @@ class KnowledgeService:
                 user_id=user_id,
                 conversation_id=conversation_id,
                 query=query,
-                db=self.db
+                db=self.db,
+                include_inactive=include_inactive
             )
             
             if result:
@@ -95,7 +98,8 @@ class KnowledgeService:
         user_id: str,
         conversation_id: str,
         query: str,
-        knowledge_file_ids: List[str]
+        knowledge_file_ids: List[str],
+        include_inactive: bool = False
     ) -> Optional[QueryResult]:
         """
         Search specific knowledge files by their IDs.
@@ -105,6 +109,7 @@ class KnowledgeService:
             conversation_id: Conversation ID for context
             query: Search query
             knowledge_file_ids: List of knowledge file IDs to search
+            include_inactive: Whether to include inactive documents (default: False)
             
         Returns:
             QueryResult if successful, None if no files found
@@ -147,7 +152,8 @@ class KnowledgeService:
                 conversation_id=conversation_id,
                 query=query,
                 document_ids=all_ref_doc_ids,
-                db=self.db
+                db=self.db,
+                include_inactive=include_inactive
             )
             
             if result:
