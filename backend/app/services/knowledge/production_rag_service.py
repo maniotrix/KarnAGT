@@ -1298,7 +1298,24 @@ class ProductionRAGService:
         doc_ids: List[str],
         db: AsyncSession
     ) -> int:
-        """Mark documents as inactive by updating Qdrant metadata directly."""
+        """
+        Mark documents as inactive by updating their status metadata in Qdrant.
+        
+        IMPORTANT NOTES:
+        - ✅ FILTERING WORKS CORRECTLY: Documents marked as inactive will be properly 
+          filtered out when using MetadataFilters with status='active'
+        - ⚠️  METADATA DISPLAY ISSUE: Retrieved nodes may still show status='active' 
+          in their metadata due to LlamaIndex's dual storage architecture:
+          * Top-level Qdrant payload (used for filtering): Gets updated correctly
+          * _node_content JSON field (used for display): Contains cached metadata
+        
+        This is a known limitation where LlamaIndex stores metadata in two places:
+        1. Top-level Qdrant payload - updated by this function (used for filtering)
+        2. Embedded _node_content JSON - contains original metadata (used for display)
+        
+        WARNING: Do not rely on node.metadata['status'] for business logic. 
+        Use MetadataFilters for proper status-based filtering instead.
+        """
         
         if not doc_ids:
             logger.warning("No document IDs provided for marking inactive")
