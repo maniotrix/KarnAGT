@@ -12,7 +12,7 @@ import time
 import logging
 
 # Add the project root directory to the Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, project_root)
 
 from aicore.code_executor.code_executor import execute_code_string, DEFAULT_TIMEOUT
