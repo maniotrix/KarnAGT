@@ -34,6 +34,7 @@ from aicore.code_executor.logger import get_logger, set_log_level
 from aicore.code_executor.new_code_agent import HTTPCodeExecutorAgent  # Updated to use new HTTP agent
 from aicore.path_config import PLOTS_DIR
 from aicore.code_executor.utils import execution_cleanup
+from typing import Dict, Any
 
 # Get logger with test-specific name
 logger = get_logger("test_new_code_tool")
@@ -171,46 +172,65 @@ def save_downloaded_file_locally(filename: str, content: bytes, plots_dir: str) 
         return ""
 
 def display_message_plots(agent: HTTPCodeExecutorAgent, message_id=None):
-    """Display plots for a specific message or all messages using downloaded files"""
+    """Display plots for a specific message or all messages using the new structured file tracking"""
     import matplotlib.pyplot as plt
     
     if message_id:
-        files = agent.get_downloaded_files_for_message(message_id)
-        plot_files = [(name, content) for name, content in files.items() 
-                     if name.lower().endswith(('.png', '.jpg', '.jpeg', '.svg', '.pdf'))]
+        # Use new structured approach
+        message_files = agent.file_tracker.get_message_files(message_id)
+        if not message_files:
+            print(f"No files found for message {message_id}")
+            return
+            
+        plot_files = message_files.get_plot_files()
         print(f"Displaying {len(plot_files)} plots for message {message_id}")
         
-        for filename, content in plot_files:
-            # Save file locally for display
-            local_path = save_downloaded_file_locally(filename, content, PLOTS_DIR)
-            if local_path and filename.lower().endswith('.png'):
-                plt.figure(figsize=(10, 6))
-                img = plt.imread(local_path)
-                plt.imshow(img)
-                plt.axis('off')
-                plt.title(f"Message ID: {message_id} - {filename}")
-                plt.show()
-    else:
-        all_files = agent.get_all_downloaded_files()
-        total_plots = 0
-        
-        for msg_id, files in all_files.items():
-            plot_files = [(name, content) for name, content in files.items() 
-                         if name.lower().endswith(('.png', '.jpg', '.jpeg', '.svg', '.pdf'))]
-            total_plots += len(plot_files)
+        for filename, file_metadata in plot_files.items():
+            print(f"  📊 {filename}")
+            print(f"      🔗 URL: {file_metadata.download_url}")
+            print(f"      📏 Size: {file_metadata.size} bytes")
+            print(f"      🏷️  Type: {file_metadata.mime_type}")
             
-            for filename, content in plot_files:
-                # Save file locally for display
-                local_path = save_downloaded_file_locally(filename, content, PLOTS_DIR)
-                if local_path and filename.lower().endswith('.png'):
+            # Only display if we have content
+            if file_metadata.has_content() and filename.lower().endswith('.png'):
+                local_path = save_downloaded_file_locally(filename, file_metadata.content, PLOTS_DIR)
+                if local_path:
                     plt.figure(figsize=(10, 6))
                     img = plt.imread(local_path)
                     plt.imshow(img)
                     plt.axis('off')
-                    plt.title(f"Message ID: {msg_id} - {filename}")
+                    plt.title(f"Message ID: {message_id} - {filename}")
                     plt.show()
+            elif not file_metadata.has_content():
+                print(f"      ⚠️  No content (URL-only mode)")
+    else:
+        # Display all messages
+        total_plots = 0
+        total_with_content = 0
         
-        print(f"Displayed {total_plots} plots from {len(all_files)} messages")
+        for msg_id, message_files in agent.file_tracker.messages.items():
+            plot_files = message_files.get_plot_files()
+            total_plots += len(plot_files)
+            
+            print(f"\n📂 Message {msg_id}:")
+            stats = message_files.get_stats()
+            print(f"   📊 {stats['plots']} plots, {stats['with_content']} with content, {stats['url_only']} URL-only")
+            
+            for filename, file_metadata in plot_files.items():
+                print(f"   📄 {filename} ({file_metadata.size} bytes)")
+                
+                if file_metadata.has_content() and filename.lower().endswith('.png'):
+                    total_with_content += 1
+                    local_path = save_downloaded_file_locally(filename, file_metadata.content, PLOTS_DIR)
+                    if local_path:
+                        plt.figure(figsize=(10, 6))
+                        img = plt.imread(local_path)
+                        plt.imshow(img)
+                        plt.axis('off')
+                        plt.title(f"Message ID: {msg_id} - {filename}")
+                        plt.show()
+        
+        print(f"\n📈 Summary: {total_plots} total plots, {total_with_content} displayed with content")
 
 async def test_with_prompt(prompt, agent: HTTPCodeExecutorAgent):
     """Run a test with the given prompt and return the result."""
@@ -230,81 +250,155 @@ async def test_with_prompt(prompt, agent: HTTPCodeExecutorAgent):
         print(result.final_output)
         print("-"*100)
         
-        # Extract downloaded files from the agent's tools if any were generated
-        # Note: We need to check the actual execution results for downloaded files
-        # The agent's tools should handle this automatically, but we can verify
+        # Use new structured approach to get file information
+        message_files = agent.file_tracker.get_message_files(message_id)
+        if message_files:
+            stats = message_files.get_stats()
+            print(f"📊 Generated Files: {stats['total_files']} total, {stats['plots']} plots")
+            print(f"   💾 With content: {stats['with_content']}, 🔗 URL-only: {stats['url_only']}")
+            
+            # Show file details
+            for filename, file_metadata in message_files.files.items():
+                print(f"   📄 {filename}: {file_metadata.size} bytes ({file_metadata.mime_type})")
+                if file_metadata.has_content():
+                    print(f"      ✅ Content downloaded")
+                else:
+                    print(f"      🔗 URL available: {file_metadata.download_url}")
         
-        # Return result with the message ID we generated
+        # Return result with structured file information
         return {
             'message_id': message_id,
             'response': result.final_output,
-            'downloaded_files': agent.get_downloaded_files_for_message(message_id)
+            'message_files': message_files,
+            'file_stats': message_files.get_stats() if message_files else {}
         }
 
-async def main(run_advanced_tests=True):
+async def main(run_advanced_tests=True) -> Dict[str, Any]:
     """
     Run tests with the HTTP-based code execution agent.
     
     This test uses the new HTTP-based code execution through FastAPI server.
     The server provides secure, isolated code execution with automatic file handling.
+    Demonstrates both download modes and structured file tracking.
     
     Args:
         run_advanced_tests: If True, runs the advanced data analysis and computational prompts
+    
+    Returns:
+        Dictionary containing test results and agent statistics
     """
     
     import matplotlib
     matplotlib.use('Agg')
     
-    # # Start the FastAPI server for HTTP-based code execution
-    # logger.info("Starting FastAPI code execution server...")
-    # if not start_fastapi_server():
-    #     logger.error("Failed to start FastAPI server. Cannot run tests.")
-    #     return []
-    
     # Verify server is healthy
     if not check_server_health():
         logger.error("FastAPI server is not healthy. Cannot run tests.")
-        return []
+        return {'message_results': [], 'url_only_stats': {}, 'download_stats': {}, 'agents': {}}
         
     logger.info("FastAPI server is running and healthy - ready for HTTP-based code execution")
     
-    # Create HTTP-based agent instance (no root_plots_dir needed)
-    agent = HTTPCodeExecutorAgent(
-        name="HTTP Code Executor Agent"
+    # Test both download modes
+    print("🔄 Testing URL-only mode (lightweight)...")
+    url_only_agent = HTTPCodeExecutorAgent(
+        name="URL-Only Agent",
+        should_download_files=False
     )
     
-    # Run advanced tests if requested
-    message_results = []
-    filtered_prompts = ADVANCED_TEST_PROMPTS[16:17]
+    print("🔄 Testing full download mode...")
+    download_agent = HTTPCodeExecutorAgent(
+        name="Download Agent", 
+        should_download_files=True
+    )
     
+    # Run tests with both agents
+    message_results = []
+    filtered_prompts = ADVANCED_TEST_PROMPTS[16:17]  # File operations test
+    
+    print("\n" + "="*80)
+    print("TESTING URL-ONLY MODE (should_download_files=False)")
+    print("="*80)
     for i, prompt in enumerate(filtered_prompts):
-        print("#"*100)
-        print(f"Running advanced test {i+1} of {len(filtered_prompts)}")
-        print("#"*100)
-        result = await test_with_prompt(prompt, agent)
+        print(f"Running URL-only test {i+1}")
+        result = await test_with_prompt(prompt, url_only_agent)
+        result['agent_mode'] = 'url_only'
         message_results.append(result)
     
-    # Get all plots from the agent with message ids
-    plots_info = agent.get_all_plots_with_message_id()
-    print(f"--- All plots (via HTTP file downloads)---:\n {plots_info}")
+    print("\n" + "="*80)
+    print("TESTING FULL DOWNLOAD MODE (should_download_files=True)")
+    print("="*80)
+    for i, prompt in enumerate(filtered_prompts):
+        print(f"Running download test {i+1}")
+        result = await test_with_prompt(prompt, download_agent)
+        result['agent_mode'] = 'full_download'
+        message_results.append(result)
     
-    # Display agent statistics
-    stats = agent.get_stats()
-    print(f"--- Agent Statistics ---:")
-    print(f"Total messages: {stats['total_messages']}")
-    print(f"Total files: {stats['total_files']}")
-    print(f"Total size: {stats['total_size_bytes']} bytes")
-    print(f"Messages with plots: {stats['messages_with_plots']}")
+    # Demonstrate structured file access
+    print("\n" + "="*80)
+    print("STRUCTURED FILE TRACKING DEMONSTRATION")
+    print("="*80)
     
-    # Display information about HTTP-based execution
-    logger.info("Tests completed using HTTP-based code execution with automatic file downloading")
-    logger.info(f"FastAPI server: {FASTAPI_SERVER_URL}")
+    # URL-only agent stats
+    url_stats = url_only_agent.file_tracker.get_overall_stats()
+    file_counts = url_only_agent.file_tracker.get_file_counts()
+    plots_by_msg = url_only_agent.file_tracker.get_plots_by_message()
     
-    # Uncomment to display plots
+    print("📊 URL-Only Agent Statistics:")
+    print(f"   📁 Total files: {url_stats['total_files']}")
+    print(f"   💾 With content: {file_counts['with_content']}")
+    print(f"   🔗 URL-only: {file_counts['url_only']}")
+    print(f"   📈 Plot messages: {len(plots_by_msg)}")
+    
+    # Download agent stats  
+    download_stats = download_agent.file_tracker.get_overall_stats()
+    download_counts = download_agent.file_tracker.get_file_counts()
+    download_plots = download_agent.file_tracker.get_plots_by_message()
+    
+    print("\n📊 Download Agent Statistics:")
+    print(f"   📁 Total files: {download_stats['total_files']}")
+    print(f"   💾 With content: {download_counts['with_content']}")
+    print(f"   🔗 URL-only: {download_counts['url_only']}")
+    print(f"   📈 Plot messages: {len(download_plots)}")
+    print(f"   💽 Total size: {download_stats['total_size_bytes']} bytes")
+    
+    # Demonstrate structured access
+    print("\n🔍 Detailed File Analysis:")
+    for agent_name, agent in [("URL-Only", url_only_agent), ("Download", download_agent)]:
+        print(f"\n--- {agent_name} Agent Files ---")
+        for message_id, message_files in agent.file_tracker.messages.items():
+            print(f"📂 Message {message_id}:")
+            
+            # File type breakdown
+            all_files = message_files.files
+            images = {name: f for name, f in all_files.items() if f.is_image()}
+            plots = message_files.get_plot_files()
+            content_files = message_files.get_files_with_content()
+            
+            print(f"   📄 All files: {len(all_files)}")
+            print(f"   🖼️  Images: {len(images)}")
+            print(f"   📊 Plots: {len(plots)}")
+            print(f"   💾 With content: {len(content_files)}")
+            
+            # Show individual file details
+            for filename, file_metadata in all_files.items():
+                content_indicator = "💾" if file_metadata.has_content() else "🔗"
+                print(f"   {content_indicator} {filename} ({file_metadata.size} bytes)")
+    
+    # Display plots from download agent only (since it has content)
+    print("\n📈 Displaying plots from Download Agent...")
     matplotlib.use('TkAgg')  # Switch to interactive backend for display
-    display_message_plots(agent)
+    display_message_plots(download_agent)
     
-    return message_results
+    # Return comprehensive results
+    return {
+        'message_results': message_results,
+        'url_only_stats': url_stats,
+        'download_stats': download_stats,
+        'agents': {
+            'url_only': url_only_agent,
+            'download': download_agent
+        }
+    }
 
 if __name__ == "__main__":
     # Run the test with HTTP-based code execution
@@ -321,6 +415,12 @@ if __name__ == "__main__":
     print("="*80)
     print("This test uses FastAPI server for secure, isolated code execution")
     print("with automatic per-execution workspaces and file downloading.")
+    print("="*80)
+    print(f"🔄 Testing Features:")
+    print(f"  • should_download_files=True (downloads content + URLs)")
+    print(f"  • should_download_files=False (tracks URLs only)")
+    print(f"  • Structured file tracking with FileMetadata classes")
+    print(f"  • Automatic file type detection and categorization")
     print("="*80)
     
     # Clean up the plots directory at the start of the run
@@ -339,9 +439,10 @@ if __name__ == "__main__":
         logger.warning(f"Error during plots directory cleanup: {e}")
     
     # Run tests
-    message_results = asyncio.run(main())
+    results = asyncio.run(main())
     
-    if message_results:
+    if results and isinstance(results, dict) and 'message_results' in results:
+        message_results = results['message_results']
         print("\n" + "="*80)
         print("HTTP-BASED CODE EXECUTION TESTS COMPLETED")
         print("="*80)
@@ -350,7 +451,18 @@ if __name__ == "__main__":
         print("📁 All files automatically downloaded via HTTP")
         print("\nTest Message IDs:")
         for result in message_results:
-            print(f"  - {result['message_id']}")
-            if result['downloaded_files']:
-                print(f"    Files: {list(result['downloaded_files'].keys())}")
+            if isinstance(result, dict):
+                print(f"  - {result.get('message_id', 'unknown')} ({result.get('agent_mode', 'unknown')})")
+                message_files = result.get('message_files')
+                if message_files and hasattr(message_files, 'files'):
+                    print(f"    Files: {list(message_files.files.keys())}")
+        
+        # Show comparison between modes
+        url_stats = results.get('url_only_stats', {})
+        download_stats = results.get('download_stats', {})
+        print(f"\n📊 Mode Comparison:")
+        print(f"   URL-Only: {url_stats.get('total_files', 0)} files, {url_stats.get('total_size_bytes', 0)} bytes")
+        print(f"   Download: {download_stats.get('total_files', 0)} files, {download_stats.get('total_size_bytes', 0)} bytes")
         print("="*80)
+    else:
+        print("❌ No test results to display")
