@@ -273,7 +273,7 @@ def main():
         logger.info("API keys validated successfully")
         
         # Create configurable client
-        client = create_configurable_client(model_name=args.model)
+        client = create_configurable_client(model_name="gpt-4o-2024-08-06")
         
         # If --config flag is set, just show config and exit
         if args.config:
