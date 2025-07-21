@@ -382,7 +382,7 @@ print(f"Processed {len(df)} rows")
     logger.info(f"execute_code called from {caller_info}")
     logger.info(f"Files to upload: {len(files) if files else 0}")
     logger.info(f"Code length: {len(code)} characters")
-    logger.debug(f"Full code:\n```python\n{code}\n```")
+    logger.info(f"Full code:\n```python\n{code}\n```")
     
     try:
         # Health check first

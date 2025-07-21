@@ -22,7 +22,7 @@ from aicore.ai_config import validate_api_keys
 from aicore.logger import get_logger, set_log_level
 
 # Set up logger with INFO level as default
-logger = get_logger(__name__, logging.INFO)
+logger = get_logger(__name__, logging.DEBUG)
 
 # ANSI color codes for terminal output
 COLORS = {
