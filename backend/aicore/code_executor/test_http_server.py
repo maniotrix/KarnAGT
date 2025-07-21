@@ -2,725 +2,740 @@
 # -*- coding: utf-8 -*-
 
 """
-HTTP-based tests for the FastAPI Code Executor Service.
-Tests all endpoints, file handling, session management, and error cases.
+Test suite for the FastAPI code execution server with per-execution workspaces.
+Tests HTTP-based code execution, file handling, and download functionality.
 """
 
 import os
 import sys
 import time
-import threading
 import requests
-from typing import Dict, Optional
-import uvicorn
+import tempfile
+from pathlib import Path
+import json
+import io
 
-# Add the project root directory to the Python path
+# Add project root to path for imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, project_root)
+sys.path.insert(0, str(project_root))
 
 from aicore.code_executor.logger import get_logger
 
-# Configure logger
-logger = get_logger()
+# Configure matplotlib for headless operation
+import matplotlib
+matplotlib.use('Agg')
 
 # Test configuration
-SERVER_HOST = "127.0.0.1"
-SERVER_PORT = 8081
-BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
-SERVER_START_TIMEOUT = 10  # seconds to wait for server startup
+SERVER_URL = "http://localhost:8080"
+SERVER_TIMEOUT = 60  # seconds
+TEST_TIMEOUT = 30   # seconds per HTTP request
 
-class CodeExecutorHTTPTests:
-    """HTTP-based test suite for the FastAPI code executor service."""
+logger = get_logger()
+
+def check_server_health():
+    """Check if the FastAPI server is running and healthy."""
+    logger.info("🏥 Checking if FastAPI server is running...")
     
-    def __init__(self):
-        self.base_url = BASE_URL
-        self.session = requests.Session()
-        self.test_session_id: Optional[str] = None
-        self.server_process = None
-        
-    def start_server(self) -> bool:
-        """Start the FastAPI server in a separate thread."""
-        try:
-            # Import here to avoid circular imports
-            from fastapi_server import app
-            
-            def run_server():
-                uvicorn.run(
-                    app,
-                    host=SERVER_HOST,
-                    port=SERVER_PORT,
-                    log_level="info",
-                    access_log=False
-                )
-            
-            # Start server in daemon thread
-            server_thread = threading.Thread(target=run_server, daemon=True)
-            server_thread.start()
-            
-            # Wait for server to be ready
-            for _ in range(SERVER_START_TIMEOUT):
-                try:
-                    response = self.session.get(f"{self.base_url}/health", timeout=1)
-                    if response.status_code == 200:
-                        logger.info(f"Server started successfully on {self.base_url}")
-                        return True
-                except requests.exceptions.RequestException:
-                    time.sleep(1)
-                    
-            logger.error("Server failed to start within timeout")
+    try:
+        response = requests.get(f"{SERVER_URL}/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            logger.info("✅ Server is healthy and ready for testing!")
+            logger.info(f"   Status: {data['status']}")
+            logger.info(f"   Version: {data['version']}")
+            logger.info(f"   Active workspaces: {data['active_workspaces']}")
+            return True
+        else:
+            logger.error(f"❌ Server health check failed: {response.status_code}")
             return False
-            
-        except Exception as e:
-            logger.error(f"Error starting server: {e}")
-            return False
+    except requests.exceptions.ConnectionError:
+        logger.error("❌ Cannot connect to server. Is it running?")
+        logger.error(f"   Expected server at: {SERVER_URL}")
+        logger.error("   Start the server with: python fastapi_server.py")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Server health check error: {e}")
+        return False
+
+def test_health_check():
+    """Test the health check endpoint."""
+    logger.info("🧪 Testing health check endpoint...")
     
-    def test_health_check(self) -> bool:
-        """Test the health check endpoint."""
-        logger.info("Testing health check endpoint...")
+    try:
+        response = requests.get(f"{SERVER_URL}/health", timeout=TEST_TIMEOUT)
+        logger.info(f"Health check status: {response.status_code}")
         
-        try:
-            response = self.session.get(f"{self.base_url}/health")
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "status" in data
-                assert "version" in data  
-                assert "timestamp" in data
-                assert data["status"] == "healthy"
-                logger.info("✓ Health check passed")
-                return True
-            else:
-                logger.error(f"Health check failed with status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Health check error: {e}")
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Service status: {data['status']}")
+            logger.info(f"Version: {data['version']}")
+            logger.info(f"Active workspaces: {data['active_workspaces']}")
+            logger.info("✓ Health check successful")
+            return True
+        else:
+            logger.error(f"❌ Health check failed with status {response.status_code}")
             return False
+            
+    except Exception as e:
+        logger.error(f"❌ Health check error: {e}")
+        return False
+
+def test_simple_code_execution():
+    """Test basic Python code execution."""
+    logger.info("🧪 Testing simple code execution...")
     
-    def test_create_session(self) -> bool:
-        """Test session creation."""
-        logger.info("Testing session creation...")
-        
-        try:
-            response = self.session.post(f"{self.base_url}/session")
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "session_id" in data
-                assert "created_at" in data
-                assert "workspace_path" in data
-                
-                self.test_session_id = data["session_id"]
-                logger.info(f"✓ Session created: {self.test_session_id}")
-                return True
-            else:
-                logger.error(f"Session creation failed with status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Session creation error: {e}")
-            return False
-    
-    def test_get_session_info(self) -> bool:
-        """Test getting session information."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing get session info...")
-        
-        try:
-            response = self.session.get(f"{self.base_url}/session/{self.test_session_id}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert data["session_id"] == self.test_session_id
-                assert "created_at" in data
-                assert "workspace_path" in data
-                assert "input_files" in data
-                assert "output_files" in data
-                logger.info("✓ Session info retrieved successfully")
-                return True
-            else:
-                logger.error(f"Get session info failed with status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Get session info error: {e}")
-            return False
-    
-    def test_file_upload(self) -> bool:
-        """Test file upload functionality."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing file upload...")
-        
-        try:
-            # Create test CSV data
-            test_data = "name,age,city\nAlice,30,New York\nBob,25,San Francisco\nCharlie,35,Chicago"
-            
-            # Create test files
-            files = {
-                'files': ('test_data.csv', test_data, 'text/csv'),
-                'files': ('readme.txt', 'This is a test file for upload', 'text/plain')
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/session/{self.test_session_id}/upload",
-                files=[
-                    ('files', ('test_data.csv', test_data, 'text/csv')),
-                    ('files', ('readme.txt', 'This is a test file for upload', 'text/plain'))
-                ]
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "uploaded_files" in data
-                assert len(data["uploaded_files"]) == 2
-                assert data["session_id"] == self.test_session_id
-                logger.info(f"✓ Files uploaded successfully: {len(data['uploaded_files'])} files")
-                return True
-            else:
-                logger.error(f"File upload failed with status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"File upload error: {e}")
-            return False
-    
-    def test_list_files(self) -> bool:
-        """Test listing session files."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing file listing...")
-        
-        try:
-            response = self.session.get(f"{self.base_url}/session/{self.test_session_id}/files")
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "session_id" in data
-                assert "input_files" in data
-                assert "output_files" in data
-                assert len(data["input_files"]) >= 1  # Should have uploaded files
-                logger.info(f"✓ Files listed: {len(data['input_files'])} input files, {len(data['output_files'])} output files")
-                return True
-            else:
-                logger.error(f"File listing failed with status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"File listing error: {e}")
-            return False
-    
-    def test_simple_code_execution(self) -> bool:
-        """Test simple Python code execution."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing simple code execution...")
-        
-        try:
-            code = """
-# Simple calculation
+    try:
+        # Simple Python code
+        code = """
+print("Hello, World!")
 result = 2 + 2
 print(f"2 + 2 = {result}")
-print("Hello from code executor!")
 """
-            
-            payload = {
-                "code": code,
-                "session_id": self.test_session_id
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/execute",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "execution_id" in data
-                assert "session_id" in data
-                assert data["status"] == "success"
-                assert "2 + 2 = 4" in data["stdout"]
-                assert "Hello from code executor!" in data["stdout"]
-                logger.info(f"✓ Simple code executed successfully: {data['execution_time']:.3f}s")
-                return True
-            else:
-                logger.error(f"Code execution failed with status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Code execution error: {e}")
-            return False
-    
-    def test_file_processing_code(self) -> bool:
-        """Test code execution with file processing."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing code execution with file processing...")
         
-        try:
-            code = """
+        # Execute code
+        response = requests.post(
+            f"{SERVER_URL}/execute",
+            data={"code": code},
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Execution status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Stdout: {data['stdout']}")
+            logger.info(f"Execution time: {data['execution_time']:.3f}s")
+            logger.info(f"Workspace ID: {data['workspace_id']}")
+            
+            assert data["status"] == "success"
+            assert "Hello, World!" in data["stdout"]
+            assert "2 + 2 = 4" in data["stdout"]
+            
+            logger.info("✓ Simple code execution successful")
+            return True
+        else:
+            logger.error(f"❌ Code execution failed with status {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Simple code execution error: {e}")
+        return False
+
+def test_code_with_output_file():
+    """Test code execution that creates output files."""
+    logger.info("🧪 Testing code execution with output file creation...")
+    
+    try:
+        # Code that creates an output file
+        code = """
+import os
+
+# Create outputs directory if it doesn't exist
+os.makedirs('outputs', exist_ok=True)
+
+# Write to output file
+with open('outputs/test_result.txt', 'w') as f:
+    f.write('This is a test output file\\n')
+    f.write('Created from Python code\\n')
+    f.write('File size should be small\\n')
+
+print("Output file created successfully")
+"""
+        
+        response = requests.post(
+            f"{SERVER_URL}/execute",
+            data={"code": code},
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Execution status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Output files count: {len(data['output_files'])}")
+            
+            assert data["status"] == "success"
+            assert "Output file created successfully" in data["stdout"]
+            assert len(data["output_files"]) == 1
+            
+            # Check output file details
+            output_file = data["output_files"][0]
+            assert output_file["name"] == "test_result.txt"
+            assert output_file["relative_path"] == "test_result.txt"
+            assert "download_url" in output_file
+            assert output_file["size"] > 0
+            
+            # Test downloading the file
+            download_url = f"{SERVER_URL}{output_file['download_url'].replace('/download/', '/download/')}"
+            download_response = requests.get(download_url, timeout=TEST_TIMEOUT)
+            
+            if download_response.status_code == 200:
+                file_content = download_response.text
+                assert "This is a test output file" in file_content
+                logger.info("✓ File download successful")
+            else:
+                logger.error(f"❌ File download failed: {download_response.status_code}")
+                return False
+            
+            logger.info("✓ Code execution with output file successful")
+            return True
+        else:
+            logger.error(f"❌ Code execution failed with status {response.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Code execution with output file error: {e}")
+        return False
+
+def test_file_upload_and_processing():
+    """Test uploading files and processing them in code."""
+    logger.info("🧪 Testing file upload and processing...")
+    
+    try:
+        # Create a test CSV file
+        csv_content = """name,age,city
+Alice,25,New York
+Bob,30,San Francisco
+Charlie,35,Chicago
+Diana,28,Boston
+"""
+        
+        # Code that processes the uploaded file
+        code = """
 import pandas as pd
 import os
 
 # Read the uploaded CSV file
 df = pd.read_csv('inputs/test_data.csv')
-print(f"Loaded dataset with {len(df)} rows and {len(df.columns)} columns")
-print("Columns:", df.columns.tolist())
-print("First few rows:")
+print(f"Loaded CSV with {len(df)} rows")
+print("Data preview:")
 print(df.head())
 
 # Process the data
-df['age_group'] = df['age'].apply(lambda x: 'young' if x < 30 else 'older')
-summary = df.groupby('age_group').size()
-print("\\nAge group summary:")
-print(summary)
+avg_age = df['age'].mean()
+print(f"Average age: {avg_age:.1f}")
+
+# Create output files
+os.makedirs('outputs', exist_ok=True)
 
 # Save processed data
-df.to_csv('outputs/processed_data.csv', index=False)
-summary.to_csv('outputs/age_summary.csv')
+df_processed = df.copy()
+df_processed['age_category'] = df['age'].apply(lambda x: 'Young' if x < 30 else 'Mature')
 
-print("\\nFiles saved to outputs directory")
+df_processed.to_csv('outputs/processed_data.csv', index=False)
+print("Processed data saved to outputs/processed_data.csv")
 
-result = {
-    'total_rows': len(df),
-    'columns': df.columns.tolist(),
-    'age_groups': summary.to_dict()
-}
+# Save summary
+with open('outputs/summary.txt', 'w') as f:
+    f.write(f"Data Summary\\n")
+    f.write(f"Total records: {len(df)}\\n")
+    f.write(f"Average age: {avg_age:.1f}\\n")
+    f.write(f"Cities: {', '.join(df['city'].unique())}\\n")
+
+print("Summary saved to outputs/summary.txt")
 """
-            
-            payload = {
-                "code": code,
-                "session_id": self.test_session_id
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/execute",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "success"
-                assert "Loaded dataset with" in data["stdout"]
-                assert len(data["output_files"]) >= 2  # Should have created 2 CSV files
-                logger.info(f"✓ File processing code executed: {len(data['output_files'])} output files created")
-                return True
-            else:
-                logger.error(f"File processing failed with status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"File processing error: {e}")
-            return False
-    
-    def test_plot_generation(self) -> bool:
-        """Test code execution with plot generation."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing plot generation...")
         
-        try:
-            code = """
-import matplotlib
-matplotlib.use('Agg')  # Ensure non-interactive backend
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
+        # Prepare multipart form data
+        files = {
+            'files': ('test_data.csv', csv_content, 'text/csv')
+        }
+        data = {
+            'code': code
+        }
+        
+        response = requests.post(
+            f"{SERVER_URL}/execute",
+            data=data,
+            files=files,
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Execution status: {response.status_code}")
+        
+        if response.status_code == 200:
+            result_data = response.json()
+            logger.info(f"Result status: {result_data['status']}")
+            logger.info(f"Output files count: {len(result_data['output_files'])}")
+            
+            assert result_data["status"] == "success"
+            assert "Loaded CSV with 4 rows" in result_data["stdout"]
+            assert "Average age: 29.5" in result_data["stdout"]
+            assert len(result_data["output_files"]) == 2
+            
+            # Check that we have both output files
+            output_filenames = [f["name"] for f in result_data["output_files"]]
+            assert "processed_data.csv" in output_filenames
+            assert "summary.txt" in output_filenames
+            
+            logger.info("✓ File upload and processing successful")
+            return True
+        else:
+            logger.error(f"❌ File upload and processing failed: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ File upload and processing error: {e}")
+        return False
 
-# Create sample data
+def test_plot_generation():
+    """Test matplotlib plot generation."""
+    logger.info("🧪 Testing plot generation...")
+    
+    try:
+        # Code that generates matplotlib plots
+        code = """
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+# Create outputs directory
+os.makedirs('outputs', exist_ok=True)
+
+# Generate sample data
 x = np.linspace(0, 10, 100)
 y1 = np.sin(x)
 y2 = np.cos(x)
 
-# Create plots
-plt.figure(figsize=(12, 8))
-
-# Subplot 1
-plt.subplot(2, 2, 1)
-plt.plot(x, y1, 'b-', label='sin(x)')
-plt.plot(x, y2, 'r-', label='cos(x)')
+# Create first plot
+plt.figure(figsize=(10, 6))
+plt.plot(x, y1, label='sin(x)', color='blue')
+plt.plot(x, y2, label='cos(x)', color='red')
+plt.xlabel('X values')
+plt.ylabel('Y values')
 plt.title('Trigonometric Functions')
 plt.legend()
 plt.grid(True)
-
-# Subplot 2 - Bar chart
-plt.subplot(2, 2, 2)
-categories = ['A', 'B', 'C', 'D']
-values = [23, 45, 56, 78]
-plt.bar(categories, values, color=['red', 'green', 'blue', 'orange'])
-plt.title('Sample Bar Chart')
-
-# Subplot 3 - Scatter plot
-plt.subplot(2, 2, 3)
-x_scatter = np.random.randn(50)
-y_scatter = np.random.randn(50)
-plt.scatter(x_scatter, y_scatter, alpha=0.6)
-plt.title('Random Scatter Plot')
-
-# Subplot 4 - Histogram
-plt.subplot(2, 2, 4)
-data = np.random.normal(0, 1, 1000)
-plt.hist(data, bins=30, alpha=0.7)
-plt.title('Normal Distribution Histogram')
-
-plt.tight_layout()
-plt.savefig('outputs/comprehensive_plots.png', dpi=150, bbox_inches='tight')
+plt.savefig('outputs/trig_plot.png', dpi=100, bbox_inches='tight')
 plt.close()
 
-# Individual plot
+# Create second plot  
 plt.figure(figsize=(8, 6))
-plt.plot(x, y1 * y2, 'g-', linewidth=2)
-plt.title('sin(x) * cos(x)')
-plt.xlabel('x')
-plt.ylabel('sin(x) * cos(x)')
-plt.grid(True)
-plt.savefig('outputs/product_plot.png', dpi=150)
+categories = ['A', 'B', 'C', 'D', 'E']
+values = [23, 45, 56, 78, 32]
+plt.bar(categories, values, color=['red', 'green', 'blue', 'orange', 'purple'])
+plt.title('Sample Bar Chart')
+plt.xlabel('Categories')
+plt.ylabel('Values')
+plt.savefig('outputs/bar_chart.png', dpi=100, bbox_inches='tight')
 plt.close()
 
-print("Generated comprehensive_plots.png and product_plot.png")
-result = "Plots generated successfully"
+print("Generated trig_plot.png and bar_chart.png")
 """
-            
-            payload = {
-                "code": code,
-                "session_id": self.test_session_id
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/execute",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                logger.info(f"Response status: {data['status']}")
-                logger.info(f"Stdout contains success message: {'Plots generated successfully' in data['stdout']}")
-                logger.info(f"Total output files: {len(data['output_files'])}")
-                
-                for i, file in enumerate(data['output_files']):
-                    logger.info(f"  File {i+1}: {file['name']} ({file.get('size', 'unknown')} bytes)")
-                
-                assert data["status"] == "success"
-                assert "Generated comprehensive_plots.png and product_plot.png" in data["stdout"]
-                
-                # Check for PNG files in output
-                png_files = [f for f in data["output_files"] if f["name"].endswith('.png')]
-                
-                logger.info(f"PNG files found: {len(png_files)}")
-                logger.info(f"PNG file names: {[f['name'] for f in png_files]}")
-                
-                if len(png_files) < 2:
-                    logger.error(f"Expected 2+ PNG files, but found {len(png_files)}: {[f['name'] for f in png_files]}")
-                    logger.error("This suggests scan_output_files() is not finding all the files that were created")
-                    return False
-                    
-                logger.info(f"✓ Plot generation successful: {len(png_files)} PNG files created")
-                return True
-            else:
-                logger.error(f"Plot generation failed with status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Plot generation error: {e}")
-            return False
-    
-    def test_file_download(self) -> bool:
-        """Test downloading output files."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing file download...")
         
-        try:
-            # First, get list of output files
-            files_response = self.session.get(f"{self.base_url}/session/{self.test_session_id}/files")
-            if files_response.status_code != 200:
-                logger.error("Could not get file list for download test")
-                return False
-                
-            files_data = files_response.json()
-            output_files = files_data.get("output_files", [])
-            
-            if not output_files:
-                logger.error("No output files available for download test")
-                return False
-            
-            # Download first output file
-            test_file = output_files[0]
-            filename = test_file["name"]
-            
-            download_response = self.session.get(
-                f"{self.base_url}/session/{self.test_session_id}/download/outputs/{filename}"
-            )
-            
-            if download_response.status_code == 200:
-                # Check that we got some content
-                content = download_response.content
-                assert len(content) > 0
-                logger.info(f"✓ File download successful: {filename} ({len(content)} bytes)")
-                return True
-            else:
-                logger.error(f"File download failed with status {download_response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"File download error: {e}")
-            return False
-    
-    def test_system_command(self) -> bool:
-        """Test system command execution."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing system command execution...")
+        response = requests.post(
+            f"{SERVER_URL}/execute",
+            data={"code": code},
+            timeout=TEST_TIMEOUT
+        )
         
-        try:
-            payload = {
-                "command": "python -c \"print('System command test'); print('Current directory:', __import__('os').getcwd())\"",
-                "session_id": self.test_session_id
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/system-command",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "execution_id" in data
-                assert data["status"] == "success"
-                assert "System command test" in data["stdout"]
-                logger.info("✓ System command executed successfully")
-                return True
-            else:
-                logger.error(f"System command failed with status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"System command error: {e}")
-            return False
-    
-    def test_error_handling(self) -> bool:
-        """Test error handling with invalid code."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
-            
-        logger.info("Testing error handling...")
+        logger.info(f"Execution status: {response.status_code}")
         
-        try:
-            # Test with invalid Python code
-            code = """
-# This code has intentional errors
-import non_existent_module
-undefined_variable = some_undefined_var
-result = 1 / 0  # Division by zero
-"""
+        if response.status_code == 200:
+            data = response.json()
             
-            payload = {
-                "code": code,
-                "session_id": self.test_session_id
-            }
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Stdout: {data['stdout']}")
+            logger.info(f"Total output files: {len(data['output_files'])}")
             
-            response = self.session.post(
-                f"{self.base_url}/execute",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
+            # Log details of each output file
+            for file_info in data["output_files"]:
+                logger.info(f"File: {file_info['name']} ({file_info['size']} bytes) - {file_info['mime_type']}")
             
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "error"
-                assert data["error"] is not None
-                assert len(data["stderr"]) > 0
-                logger.info("✓ Error handling working correctly")
-                return True
-            else:
-                logger.error(f"Error handling test failed with status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error handling test error: {e}")
-            return False
-    
-    def test_invalid_session(self) -> bool:
-        """Test behavior with invalid session ID."""
-        logger.info("Testing invalid session handling...")
-        
-        try:
-            fake_session_id = "invalid-session-id-123"
+            assert data["status"] == "success"
+            assert "Generated trig_plot.png and bar_chart.png" in data["stdout"]
             
-            response = self.session.get(f"{self.base_url}/session/{fake_session_id}")
+            # Check for PNG files
+            png_files = [f for f in data["output_files"] if f["name"].endswith('.png')]
+            logger.info(f"PNG files found: {len(png_files)}")
             
-            if response.status_code == 404:
-                logger.info("✓ Invalid session correctly returns 404")
-                return True
-            else:
-                logger.error(f"Invalid session test failed: expected 404, got {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Invalid session test error: {e}")
-            return False
-    
-    def test_list_active_sessions(self) -> bool:
-        """Test listing active sessions."""
-        logger.info("Testing active sessions listing...")
-        
-        try:
-            response = self.session.get(f"{self.base_url}/sessions")
+            assert len(png_files) == 2, f"Expected 2 PNG files, got {len(png_files)}"
             
-            if response.status_code == 200:
-                data = response.json()
-                assert "active_sessions" in data
-                assert "sessions" in data
-                assert data["active_sessions"] >= 1  # Should have at least our test session
-                logger.info(f"✓ Active sessions listed: {data['active_sessions']} sessions")
-                return True
-            else:
-                logger.error(f"Sessions listing failed with status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Sessions listing error: {e}")
-            return False
-    
-    def test_cleanup_session(self) -> bool:
-        """Test session deletion/cleanup."""
-        if not self.test_session_id:
-            logger.error("No test session ID available")
-            return False
+            # Verify file names
+            png_names = [f["name"] for f in png_files]
+            assert "trig_plot.png" in png_names
+            assert "bar_chart.png" in png_names
             
-        logger.info("Testing session cleanup...")
-        
-        try:
-            response = self.session.delete(f"{self.base_url}/session/{self.test_session_id}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "message" in data
-                logger.info("✓ Session deleted successfully")
-                
-                # Verify session is gone
-                verify_response = self.session.get(f"{self.base_url}/session/{self.test_session_id}")
-                if verify_response.status_code == 404:
-                    logger.info("✓ Session deletion verified")
-                    return True
-                else:
-                    logger.error("Session still exists after deletion")
-                    return False
-            else:
-                logger.error(f"Session deletion failed with status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Session cleanup error: {e}")
-            return False
-    
-    def run_all_tests(self) -> Dict[str, bool]:
-        """Run all HTTP tests and return results."""
-        print("="*80)
-        print("STARTING HTTP TESTS FOR FASTAPI CODE EXECUTOR SERVICE")
-        print("="*80)
-        
-        # Start the server
-        if not self.start_server():
-            logger.error("Failed to start server, cannot run tests")
-            return {"server_startup": False}
-        
-        # Define test methods in execution order
-        tests = [
-            ("Health Check", self.test_health_check),
-            ("Create Session", self.test_create_session),
-            ("Get Session Info", self.test_get_session_info),
-            ("File Upload", self.test_file_upload),
-            ("List Files", self.test_list_files),
-            ("Simple Code Execution", self.test_simple_code_execution),
-            ("File Processing Code", self.test_file_processing_code),
-            ("Plot Generation", self.test_plot_generation),
-            ("File Download", self.test_file_download),
-            ("System Command", self.test_system_command),
-            ("Error Handling", self.test_error_handling),
-            ("Invalid Session", self.test_invalid_session),
-            ("List Active Sessions", self.test_list_active_sessions),
-            ("Cleanup Session", self.test_cleanup_session)
-        ]
-        
-        results = {}
-        passed = 0
-        total = len(tests)
-        
-        for test_name, test_method in tests:
-            print(f"\n[{passed+1}/{total}] {test_name}")
-            print("-" * 40)
-            
-            try:
-                result = test_method()
-                results[test_name] = result
-                if result:
-                    passed += 1
-                    print(f"✅ PASSED: {test_name}")
-                else:
-                    print(f"❌ FAILED: {test_name}")
-            except Exception as e:
-                results[test_name] = False
-                print(f"❌ ERROR: {test_name} - {e}")
-                logger.error(f"Test '{test_name}' raised exception: {e}")
-        
-        # Print summary
-        print("\n" + "="*80)
-        print("TEST SUMMARY")
-        print("="*80)
-        print(f"Passed: {passed}/{total} tests")
-        print(f"Success Rate: {(passed/total)*100:.1f}%")
-        
-        if passed == total:
-            print("🎉 ALL TESTS PASSED!")
+            logger.info("✓ Plot generation successful")
+            return True
         else:
-            print("❌ Some tests failed. See details above.")
+            logger.error(f"❌ Plot generation failed with status {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
             
-        print("\nDetailed Results:")
-        for test_name, result in results.items():
-            status = "✅ PASS" if result else "❌ FAIL" 
-            print(f"  {status} - {test_name}")
-        
-        return results
+    except Exception as e:
+        logger.error(f"❌ Plot generation error: {e}")
+        return False
 
-def main():
-    """Main test runner."""
-    # Ensure matplotlib uses non-interactive backend
-    import matplotlib
-    matplotlib.use('Agg')
+def test_error_handling():
+    """Test error handling for invalid code."""
+    logger.info("🧪 Testing error handling...")
     
-    # Create and run tests
-    tester = CodeExecutorHTTPTests()
-    results = tester.run_all_tests()
+    try:
+        # Code with syntax error
+        code = """
+print("This will work")
+print("But this has a syntax error:
+invalid_syntax_here
+"""
+        
+        response = requests.post(
+            f"{SERVER_URL}/execute",
+            data={"code": code},
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Execution status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Error: {data.get('error', 'No error message')}")
+            
+            assert data["status"] == "error"
+            assert data["error"] is not None
+            assert len(data["output_files"]) == 0  # No files should be created
+            
+            logger.info("✓ Error handling successful")
+            return True
+        else:
+            logger.error(f"❌ Error handling test failed: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Error handling test error: {e}")
+        return False
+
+def test_workspace_isolation():
+    """Test that workspaces are properly isolated."""
+    logger.info("🧪 Testing workspace isolation...")
     
-    # Return exit code based on results
-    all_passed = all(results.values())
-    return 0 if all_passed else 1
+    try:
+        # First execution creates a file
+        code1 = """
+import os
+os.makedirs('outputs', exist_ok=True)
+with open('outputs/workspace1.txt', 'w') as f:
+    f.write('This is from workspace 1')
+print("Created workspace1.txt")
+"""
+        
+        response1 = requests.post(
+            f"{SERVER_URL}/execute",
+            data={"code": code1},
+            timeout=TEST_TIMEOUT
+        )
+        
+        # Second execution tries to read the file from first execution
+        code2 = """
+import os
+if os.path.exists('outputs/workspace1.txt'):
+    print("ERROR: Found file from previous workspace!")
+    with open('outputs/workspace1.txt', 'r') as f:
+        print(f"Content: {f.read()}")
+else:
+    print("Good: Previous workspace file not found")
+    os.makedirs('outputs', exist_ok=True)
+    with open('outputs/workspace2.txt', 'w') as f:
+        f.write('This is from workspace 2')
+    print("Created workspace2.txt")
+"""
+        
+        response2 = requests.post(
+            f"{SERVER_URL}/execute",
+            data={"code": code2},
+            timeout=TEST_TIMEOUT
+        )
+        
+        if response1.status_code == 200 and response2.status_code == 200:
+            data1 = response1.json()
+            data2 = response2.json()
+            
+            logger.info(f"Workspace 1 ID: {data1['workspace_id']}")
+            logger.info(f"Workspace 2 ID: {data2['workspace_id']}")
+            
+            # Workspaces should be different
+            assert data1["workspace_id"] != data2["workspace_id"]
+            
+            # Both should succeed
+            assert data1["status"] == "success"
+            assert data2["status"] == "success"
+            
+            # Second execution should not see first execution's files
+            assert "Good: Previous workspace file not found" in data2["stdout"]
+            assert "ERROR: Found file from previous workspace!" not in data2["stdout"]
+            
+            # Each should have their own output file
+            assert len(data1["output_files"]) == 1
+            assert len(data2["output_files"]) == 1
+            assert data1["output_files"][0]["name"] == "workspace1.txt"
+            assert data2["output_files"][0]["name"] == "workspace2.txt"
+            
+            logger.info("✓ Workspace isolation successful")
+            return True
+        else:
+            logger.error("❌ Workspace isolation test failed")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Workspace isolation test error: {e}")
+        return False
+
+def test_list_workspaces():
+    """Test listing active workspaces."""
+    logger.info("🧪 Testing workspace listing...")
+    
+    try:
+        # Create a workspace by executing code
+        code = """
+import os
+os.makedirs('outputs', exist_ok=True)
+with open('outputs/test.txt', 'w') as f:
+    f.write('test')
+print("Workspace created")
+"""
+        
+        exec_response = requests.post(
+            f"{SERVER_URL}/execute",
+            data={"code": code},
+            timeout=TEST_TIMEOUT
+        )
+        
+        if exec_response.status_code != 200:
+            logger.error("Failed to create workspace")
+            return False
+        
+        # List workspaces
+        list_response = requests.get(f"{SERVER_URL}/workspaces", timeout=TEST_TIMEOUT)
+        
+        if list_response.status_code == 200:
+            data = list_response.json()
+            logger.info(f"Active workspaces: {data['active_workspaces']}")
+            
+            assert data["active_workspaces"] >= 1
+            assert len(data["workspaces"]) >= 1
+            
+            # Check workspace details
+            workspace_info = data["workspaces"][0]
+            assert "workspace_id" in workspace_info
+            assert "created_at" in workspace_info
+            assert "expires_at" in workspace_info
+            
+            logger.info("✓ Workspace listing successful")
+            return True
+        else:
+            logger.error(f"❌ Workspace listing failed: {list_response.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Workspace listing test error: {e}")
+        return False
+
+def test_system_command():
+    """Test system command execution with security filtering."""
+    logger.info("🧪 Testing system command execution...")
+    
+    try:
+        # Test 1: Valid command (should succeed)
+        logger.info("Testing valid command: python --version")
+        
+        valid_command_payload = {
+            "command": "python --version",
+            "allowed_prefixes": ["python ", "pip ", "python -m "]
+        }
+        
+        response = requests.post(
+            f"{SERVER_URL}/system-command",
+            json=valid_command_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Valid command status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Exit code: {data['exit_code']}")
+            logger.info(f"Stdout: {data['stdout'][:100]}...")  # First 100 chars
+            logger.info(f"Workspace ID: {data['workspace_id']}")
+            logger.info(f"Execution time: {data['execution_time']:.3f}s")
+            
+            assert data["status"] == "success"
+            assert data["exit_code"] == 0
+            assert data["command"] == "python --version"
+            assert "Python" in data["stdout"] or "Python" in data["stderr"]  # Version info
+            assert "workspace_id" in data
+            assert "execution_id" in data
+            
+            logger.info("✓ Valid command execution successful")
+        else:
+            logger.error(f"❌ Valid command failed: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
+        
+        # Test 2: Invalid command (should be blocked)
+        logger.info("Testing invalid command: rm -rf /")
+        
+        invalid_command_payload = {
+            "command": "rm -rf /",  # This should be blocked
+            "allowed_prefixes": ["python ", "pip ", "python -m "]
+        }
+        
+        response = requests.post(
+            f"{SERVER_URL}/system-command",
+            json=invalid_command_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Invalid command status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Exit code: {data['exit_code']}")
+            logger.info(f"Stderr: {data['stderr']}")
+            
+            assert data["status"] == "error"
+            assert data["exit_code"] == 1
+            assert "Command not allowed" in data["stderr"]
+            
+            logger.info("✓ Invalid command properly blocked")
+        else:
+            logger.error(f"❌ Invalid command test failed: {response.status_code}")
+            return False
+        
+        # Test 3: Pip list command (should work)
+        logger.info("Testing pip command: pip list")
+        
+        pip_command_payload = {
+            "command": "pip list",
+            "allowed_prefixes": ["python ", "pip ", "python -m "]
+        }
+        
+        response = requests.post(
+            f"{SERVER_URL}/system-command",
+            json=pip_command_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Pip command status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Exit code: {data['exit_code']}")
+            logger.info(f"Stdout length: {len(data['stdout'])} chars")
+            
+            # pip list should succeed and return package list
+            assert data["status"] == "success"
+            assert data["exit_code"] == 0
+            assert len(data["stdout"]) > 0  # Should have some output
+            
+            logger.info("✓ Pip command execution successful")
+        else:
+            logger.error(f"❌ Pip command failed: {response.status_code}")
+            return False
+        
+        # Test 4: Command with default allowed prefixes (no explicit prefixes)
+        logger.info("Testing command with default allowed prefixes")
+        
+        default_command_payload = {
+            "command": "python -c \"print('Hello from system command!')\""
+            # No allowed_prefixes - should use defaults
+        }
+        
+        response = requests.post(
+            f"{SERVER_URL}/system-command",
+            json=default_command_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=TEST_TIMEOUT
+        )
+        
+        logger.info(f"Default prefixes command status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Result status: {data['status']}")
+            logger.info(f"Stdout: {data['stdout']}")
+            
+            assert data["status"] == "success"
+            assert data["exit_code"] == 0
+            assert "Hello from system command!" in data["stdout"]
+            
+            logger.info("✓ Default allowed prefixes working")
+        else:
+            logger.error(f"❌ Default prefixes command failed: {response.status_code}")
+            return False
+        
+        logger.info("✓ System command execution tests successful")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ System command execution test error: {e}")
+        return False
+
+def run_all_tests():
+    """Run all tests against the running FastAPI server."""
+    logger.info("🚀 Starting FastAPI Code Executor Tests")
+    logger.info("=" * 60)
+    
+    # Check server health first
+    if not check_server_health():
+        logger.error("❌ Server is not running or not healthy. Please start it first:")
+        logger.error("   cd backend/aicore/code_executor")
+        logger.error("   python fastapi_server.py")
+        return False
+    
+    # Define all tests
+    tests = [
+        ("Health Check", test_health_check),
+        ("Simple Code Execution", test_simple_code_execution),
+        ("Code with Output File", test_code_with_output_file),
+        ("File Upload and Processing", test_file_upload_and_processing),
+        ("Plot Generation", test_plot_generation),
+        ("Error Handling", test_error_handling),
+        ("Workspace Isolation", test_workspace_isolation),
+        ("System Command Execution", test_system_command),
+        ("List Workspaces", test_list_workspaces),
+    ]
+    
+    # Run tests
+    passed = 0
+    total = len(tests)
+    
+    for test_name, test_func in tests:
+        logger.info("-" * 40)
+        try:
+            if test_func():
+                passed += 1
+                logger.info(f"✅ {test_name}: PASSED")
+            else:
+                logger.error(f"❌ {test_name}: FAILED")
+        except Exception as e:
+            logger.error(f"❌ {test_name}: ERROR - {e}")
+        
+        # Brief pause between tests
+        time.sleep(0.5)
+    
+    # Summary
+    logger.info("=" * 60)
+    logger.info(f"📊 TEST SUMMARY: {passed}/{total} tests passed")
+    
+    if passed == total:
+        logger.info("🎉 ALL TESTS PASSED! FastAPI server is working perfectly.")
+        return True
+    else:
+        logger.error(f"❌ {total - passed} tests failed. Check logs for details.")
+        return False
 
 if __name__ == "__main__":
-    import sys
-    exit_code = main()
-    sys.exit(exit_code) 
+    success = run_all_tests()
+    sys.exit(0 if success else 1) 

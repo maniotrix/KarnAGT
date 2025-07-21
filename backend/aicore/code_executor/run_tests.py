@@ -48,8 +48,8 @@ def main():
     
     try:
         # Import and run tests
-        from test_http_server import main as run_tests
-        return run_tests()
+        from test_http_server import run_all_tests
+        return run_all_tests()
         
     except ImportError as e:
         print(f"Error importing test module: {e}")

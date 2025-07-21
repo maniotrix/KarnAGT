@@ -20,7 +20,7 @@ logger = get_logger()
 
 # Server configuration
 SERVER_HOST = "127.0.0.1"
-SERVER_PORT = 8081
+SERVER_PORT = 8080
 
 def start_server():
     """Start the FastAPI server directly."""

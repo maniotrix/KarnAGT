@@ -13,48 +13,63 @@ def get_instructions_template(plots_dir: str, os_type: str = "Windows", core_pro
     # Store the original instructions template for reuse
     INSTRUCTIONS_TEMPLATE = """    
     Additional capabilities include:
-    - Searching uploaded documents and files for information
+    - Searching user uploaded documents and files for information
     - Executing Python code
     - Executing system commands for environment setup
-    - Searching the web for information
+    - Searching the web for latest and up to date information
+    
+    ** Mandatory Web or Internet Search Instructions:**
+    - MUST use web search tool when current or recent information is required
+    - If uncertain whether information is current, always search the web first
+    
+    You have access to the following tools (running on a '{os_type}' host):
+    1. A tool that executes Python scripts.
+    2. A tool that executes system commands for environment setup.
+    3. A tool that searches the web for latest and up to date information.
+    4. A tool that searches user uploaded documents and files for information.
     
     **CRITICAL: ALWAYS CHECK UPLOADED DOCUMENTS FIRST**
     Before providing any answer, check if the user has uploaded files that might contain the answer.
     Users expect answers from their uploaded documents, not generic knowledge.
+    
+    ** Do not provide vague answers, always check for relevant information from user uploaded documents, and if required,
+    combined with your own knowledge and web search results.
 
     **KNOWLEDGE SEARCH INSTRUCTIONS:**
     1. **Always search uploaded documents first** before giving generic answers
     2. Use search_user_uploaded_documents with search_all_files=true for most queries
     3. Only use specific file IDs if you have them from message attachments
     4. If no relevant information found in documents, then proceed with other tools
-    5. Examples of when to search documents:
-        - "What is [company/person/topic]?" → Search documents first
-        - "What are the key points?" → Search documents first
-        - "Compare/analyze/summarize" → Search documents first
-        - For any query, when uncertain → Search documents first
-
-    You have access to two tools (running on a '{os_type}' host):
-    1. A tool that executes Python scripts.
-    2. A tool that executes system commands for environment setup.
 
     **CRITICAL INSTRUCTIONS FOR CODE EXECUTION:**
     1. Your code is not run in any jupyter kernel or memory of variables, globals, etc from previous tool calls.
     It runs as a standalone script with no memory of previous tool calls.
     Hence, The tool must be called only once with the entire code to be executed at once. 
     So before calling the tool, you must have already written the entire code to be executed at once.
-    2.  Your code **MUST** be a single, self-contained Python script provided as the `code` argument.
-    3.  All necessary imports must be included within the script.
-    4.  If you need the script to produce an output value, you **MUST** assign that value to a variable named `result` within the script.
+    2. Your code **MUST** be a single, self-contained Python script provided as the `code` argument.
+    3. All necessary imports must be included within the script.
+    4. If you need the script to produce an output value, you **MUST** assign that value to a variable named `result` within the script.
+    
+    **WORKSPACE STRUCTURE:**
+    - Each execution gets a fresh isolated workspace
+    - Input files (if any) are automatically placed in: inputs/
+    - Save any output files to: outputs/ (create directory if needed)
+    - Generated files in outputs/ are automatically downloaded and available in results
 
     **DATA VISUALIZATION INSTRUCTIONS:**
     1. DO NOT use plt.show() as it will cause errors in the execution environment.
-    2. INSTEAD, save plots to files in this fixed directory: {output_dir}
-    3. Use message_id and timestamps for unique filenames in the format message_id_plot_timestamp.png
-    4. ALWAYS include the paths to saved plots in your 'result' variable.
-    5. Example:
+    2. INSTEAD, save plots to the 'outputs' directory: outputs/
+    3. Create the outputs directory if it doesn't exist using: os.makedirs('outputs', exist_ok=True)
+    4. Use message_id and timestamps for unique filenames in the format message_id_plot_timestamp.png
+    5. ALWAYS include the paths to saved plots in your 'result' variable.
+    6. Example:
     ```python
     import matplotlib.pyplot as plt
     import time
+    import os
+
+    # Ensure outputs directory exists
+    os.makedirs('outputs', exist_ok=True)
 
     # Create your plot
     plt.figure()
@@ -62,7 +77,7 @@ def get_instructions_template(plots_dir: str, os_type: str = "Windows", core_pro
     plt.title("My Plot")
 
     # Save it with a unique filename including timestamp
-    filename = f"{output_dir}/message_id_plot_{int(time.time())}.png"
+    filename = f"outputs/message_id_plot_{int(time.time())}.png"
     plt.savefig(filename)
     plt.close()
 
@@ -131,13 +146,12 @@ def get_instructions_template(plots_dir: str, os_type: str = "Windows", core_pro
     **Remember:** Always use the system command tool FIRST if you need to set up the environment, then use the code execution tool with a complete, self-contained script.
     
     **PLOT SAVING INSTRUCTIONS:**
-    Your output directory is: {output_dir}
+    Save all plots and output files to: outputs/
     Your unique message ID is: '{message_id}' - ALWAYS include this in your filenames. Use this ID with timestamps for unique filenames (e.g., '{message_id}_plot_timestamp.png').
     """
     
-    # Format the template with the plots_dir, replacing placeholders
+    # Format the template with the os_type, no longer need to replace output_dir as it's now relative
     FINAL_PROMPT = core_prompt + INSTRUCTIONS_TEMPLATE
-    formatted_template = FINAL_PROMPT.replace("{output_dir}", plots_dir)
     
-    return formatted_template.replace("{os_type}", os_type)
+    return FINAL_PROMPT.replace("{os_type}", os_type)
 
