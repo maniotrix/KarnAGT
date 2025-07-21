@@ -56,6 +56,11 @@ MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", "100")) * 1024 * 1024  # 100MB de
 MAX_FILES_PER_EXECUTION = int(os.getenv("MAX_FILES_PER_EXECUTION", "20"))
 MAX_WORKSPACE_SIZE = int(os.getenv("MAX_WORKSPACE_SIZE", "200")) * 1024 * 1024  # 200MB
 
+# Server configuration for full URL generation
+SERVER_HOST = os.getenv("SERVER_HOST", "localhost")
+SERVER_PORT = int(os.getenv("SERVER_PORT", "8080"))
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", f"http://{SERVER_HOST}:{SERVER_PORT}")
+
 # Ensure workspace directory exists
 Path(WORKSPACE_BASE).mkdir(parents=True, exist_ok=True)
 
@@ -73,7 +78,6 @@ class SystemCommandRequest(BaseModel):
 
 class OutputFileInfo(BaseModel):
     name: str = Field(..., description="Filename")
-    relative_path: str = Field(..., description="Path relative to outputs directory")
     download_url: str = Field(..., description="URL to download the file")
     size: int = Field(..., description="File size in bytes")
     mime_type: str = Field(..., description="MIME type of the file")
@@ -170,8 +174,7 @@ def scan_output_files(workspace_id: str, outputs_dir: Path) -> List[OutputFileIn
                     
                     output_files.append(OutputFileInfo(
                         name=file_path.name,
-                        relative_path=str(relative_path),
-                        download_url=f"/download/{workspace_id}/{relative_path}",
+                        download_url=f"{SERVER_BASE_URL}/download/{workspace_id}/{relative_path}",
                         size=stat.st_size,
                         mime_type=mime_type or "application/octet-stream",
                         created_at=datetime.fromtimestamp(stat.st_ctime).isoformat()

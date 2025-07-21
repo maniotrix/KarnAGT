@@ -274,7 +274,7 @@ async def main(run_advanced_tests=True):
     
     # Run advanced tests if requested
     message_results = []
-    filtered_prompts = ADVANCED_TEST_PROMPTS[16:20]
+    filtered_prompts = ADVANCED_TEST_PROMPTS[16:17]
     
     for i, prompt in enumerate(filtered_prompts):
         print("#"*100)

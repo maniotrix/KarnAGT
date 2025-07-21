@@ -174,23 +174,29 @@ class CodeExecutorHTTPClient:
                 workspace_expires_at=""
             )
             
-    async def download_file(self, workspace_id: str, filename: str) -> bytes:
-        """Download a file from workspace outputs directory"""
+    async def download_file(self, workspace_id: str = None, filename: str = None, full_url: str = None) -> bytes:
+        """Download a file from workspace outputs directory or from full URL"""
+        file_identifier = "unknown"  # Initialize for error logging
         try:
-            url = f"{self.base_url}/download/{workspace_id}/{filename}"
+            if full_url:
+                url = full_url
+                file_identifier = full_url.split('/')[-1]  # Get filename from URL for logging
+            else:
+                url = f"{self.base_url}/download/{workspace_id}/{filename}"
+                file_identifier = filename or "unknown"
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     if response.status == 200:
                         content = await response.read()
-                        logger.info(f"Downloaded file {filename} from workspace {workspace_id}")
+                        logger.info(f"Downloaded file {file_identifier}: {len(content)} bytes")
                         return content
                     else:
                         error_text = await response.text()
                         raise RuntimeError(f"File download failed: HTTP {response.status}: {error_text}")
                         
         except Exception as e:
-            logger.error(f"Failed to download file {filename}: {e}")
+            logger.error(f"Failed to download file {file_identifier}: {e}")
             raise RuntimeError(f"File download failed: {e}")
 
 # Global HTTP client instance
@@ -232,7 +238,7 @@ async def execute_code(
         - stderr: Standard error from code execution  
         - status: "success" or "error"
         - error: Error message (if status is "error")
-        - output_files: List of file metadata for generated files
+        - output_files: List of file metadata with full download URLs for generated files
         - downloaded_files: Dict mapping filename -> file content (bytes) for all generated files
         - execution_time: Execution duration in seconds
         - workspace_expires_at: When workspace will be cleaned up
@@ -315,13 +321,14 @@ print(f"Processed {len(df)} rows")
             downloaded_files = {}
             
             for file_info in result.output_files:
-                filename = file_info["relative_path"]  # Use relative path for nested files
+                file_name = file_info["name"]
+                download_url = file_info["download_url"]
                 try:
-                    file_content = await _http_client.download_file(result.workspace_id, filename)
-                    downloaded_files[filename] = file_content
-                    logger.info(f"Downloaded {filename}: {len(file_content)} bytes")
+                    file_content = await _http_client.download_file(full_url=download_url)
+                    downloaded_files[file_name] = file_content
+                    logger.info(f"Downloaded {file_name}: {len(file_content)} bytes")
                 except Exception as e:
-                    logger.error(f"Failed to download {filename}: {e}")
+                    logger.error(f"Failed to download {file_name}: {e}")
                     # Continue with other files even if one fails
             
             # Add downloaded files to result
