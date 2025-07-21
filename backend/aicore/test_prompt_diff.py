@@ -73,7 +73,6 @@ def generate_new_prompt():
     # Create equivalent context
     context = InstructionContext(
         message_id="msg456",  # Same as original
-        plots_directory="/test/plots/test123",  # Same as original
         os_type="Windows",
         user_id=None,
         session_id=None
@@ -194,7 +193,7 @@ def main():
             "DATA VISUALIZATION",
             "plt.savefig",
             "message_id",
-            "plots_directory",
+            "outputs/",
             "WebSearchTool"
         ]
         

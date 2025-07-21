@@ -103,6 +103,8 @@ class AgentConfig:
     version: str = "1.0"
     created_by: str = "system"
     
+    should_download_files: bool = False
+    
     def __post_init__(self):
         """Validate configuration after initialization"""
         if self.tool_use_strategy == ToolUseStrategy.CUSTOM_HANDLER and not self.custom_tool_handler:

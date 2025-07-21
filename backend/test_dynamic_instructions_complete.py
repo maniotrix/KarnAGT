@@ -7,8 +7,6 @@ Tests what the complete instructions look like after build_instructions returns 
 import asyncio
 import sys
 import os
-import tempfile
-import shutil
 import uuid
 from typing import Dict, Any, List
 from datetime import datetime
@@ -44,7 +42,6 @@ class CompleteInstructionsTest:
         self.test_user = None
         self.test_conversation = None
         self.test_memories = []
-        self.temp_plots_dir = None
         
     async def setup_test_user_with_memory(self):
         """Set up a test user with actual memory data"""
@@ -181,9 +178,6 @@ class CompleteInstructionsTest:
         """Test complete instructions without memory context"""
         logger.info("Testing complete instructions WITHOUT memory context...")
         
-        # Create temp plots directory
-        self.temp_plots_dir = tempfile.mkdtemp(prefix="instructions_test_plots_")
-        
         # Create agent config without user_id (no memory)
         config = config_manager.load_config("default", environment="test")
         config.agent.user_id = None  # No user_id = no memory context
@@ -191,7 +185,6 @@ class CompleteInstructionsTest:
         agent = ConfigurableCodeExecutorAgent(
             agent_config=config.agent,
             model_config=config.model,
-            root_plots_dir=self.temp_plots_dir,
             name="NoMemoryInstructionsAgent"
         )
         
@@ -215,7 +208,7 @@ class CompleteInstructionsTest:
         
         # Verify key components
         assert test_message_id in instructions, "Message ID should be in instructions"
-        assert agent.unique_plots_dir in instructions, "Plots directory should be in instructions"
+        assert "outputs/" in instructions, "Outputs directory should be in instructions"
         assert "execute_code" in instructions, "Code execution tool should be mentioned"
         assert "CRITICAL INSTRUCTIONS FOR CODE EXECUTION" in instructions, "Critical instructions should be present"
         
@@ -232,7 +225,6 @@ class CompleteInstructionsTest:
         agent = ConfigurableCodeExecutorAgent(
             agent_config=config.agent,
             model_config=config.model,
-            root_plots_dir=self.temp_plots_dir,
             name="WithMemoryInstructionsAgent"
         )
         
@@ -256,7 +248,7 @@ class CompleteInstructionsTest:
         
         # Verify key components
         assert test_message_id in instructions, "Message ID should be in instructions"
-        assert agent.unique_plots_dir in instructions, "Plots directory should be in instructions"
+        assert "outputs/" in instructions, "Outputs directory should be in instructions"
         
         # Check for memory content (should contain user info from memories)
         memory_indicators = [
@@ -294,7 +286,6 @@ class CompleteInstructionsTest:
         agent = ConfigurableCodeExecutorAgent(
             agent_config=config.agent,
             model_config=config.model,
-            root_plots_dir=self.temp_plots_dir,
             name="StructureAnalysisAgent"
         )
         
@@ -432,10 +423,8 @@ class CompleteInstructionsTest:
                 await db.commit()
                 logger.info("Database cleanup complete")
             
-            # Remove temp directory
-            if self.temp_plots_dir and os.path.exists(self.temp_plots_dir):
-                shutil.rmtree(self.temp_plots_dir)
-                logger.info("Temporary directory cleanup complete")
+            # Note: No temp directory cleanup needed since we use HTTP-based execution
+            logger.info("HTTP-based execution - no local directories to clean")
                 
         except Exception as e:
             logger.error(f"Cleanup failed: {e}")

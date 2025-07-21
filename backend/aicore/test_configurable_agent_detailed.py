@@ -98,8 +98,8 @@ def inspect_agent_detailed(agent: ConfigurableCodeExecutorAgent, stage_name: str
         "Agent Class": type(agent).__name__,
         "Agent ID": hex(id(agent)),
         "Current Message ID": agent.current_message_id,
-        "Unique Plots Directory": agent.unique_plots_dir,
-        "Plots Directory Exists": os.path.exists(agent.unique_plots_dir),
+        "HTTP Execution Mode": True,
+        "File Download Enabled": agent.should_download_files,
     }
     pp.pprint(basic_info)
     
@@ -165,11 +165,9 @@ def test_instruction_generation(agent: ConfigurableCodeExecutorAgent):
     # Create test context
     test_context = InstructionContext(
         message_id=agent.current_message_id,
-        plots_directory=agent.unique_plots_dir,
         os_type="Windows",
         user_id="test_user_12345",
-        session_id="test_session_67890",
-        metadata={"test_key": "test_value", "environment": "testing"}
+        session_id="test_session_67890"
     )
     
     print_header("Test Context", 2)
@@ -196,7 +194,7 @@ def test_instruction_generation(agent: ConfigurableCodeExecutorAgent):
             "lines_count": len(instructions.split('\n')),
             "contains_core_prompt": "AI assistant" in instructions,
             "contains_code_execution": "execute_code" in instructions,
-            "contains_plots_directory": agent.unique_plots_dir in instructions,
+            "contains_outputs_directory": "outputs/" in instructions,
             "contains_message_id": agent.current_message_id in instructions,
             "contains_system_commands": "execute_system_command" in instructions,
         }
@@ -237,7 +235,7 @@ def create_initial_configs():
             supports_vision=False,
             supports_streaming=True,
             supports_json_mode=True,
-            max_context_tokens=128000,
+            context_window=128000,
             max_output_tokens=4000
         ),
         costs=CostSettings(
@@ -327,7 +325,7 @@ def create_updated_configs():
             supports_vision=True,  # Vision support
             supports_streaming=True,
             supports_json_mode=True,
-            max_context_tokens=128000,
+            context_window=128000,
             max_output_tokens=8000
         ),
         costs=CostSettings(
@@ -408,7 +406,6 @@ def main():
         agent = ConfigurableCodeExecutorAgent(
             agent_config=initial_agent_config,
             model_config=initial_model_config,
-            root_plots_dir=PLOTS_DIR,
             name="Custom Test Agent Name"  # Testing name override
         )
         
@@ -449,15 +446,15 @@ def main():
         # Step 8: Test instruction generation with updated config
         test_instruction_generation(agent)
         
-        # Step 9: Test plots functionality
-        print_header("STEP 4: Plots Directory Testing", 1)
-        plots_info = {
-            "plots_directory": agent.unique_plots_dir,
-            "directory_exists": os.path.exists(agent.unique_plots_dir),
-            "directory_contents": os.listdir(agent.unique_plots_dir) if os.path.exists(agent.unique_plots_dir) else [],
+        # Step 9: Test HTTP file tracking functionality
+        print_header("STEP 4: HTTP File Tracking Testing", 1)
+        file_tracking_info = {
+            "execution_mode": "HTTP-based",
+            "file_download_enabled": agent.should_download_files,
+            "file_tracking_stats": agent.get_stats(),
             "plots_with_message_id": agent.get_all_plots_with_message_id()
         }
-        pp.pprint(plots_info)
+        pp.pprint(file_tracking_info)
         
         # Step 10: Final summary
         print_header("FINAL SUMMARY", 1)
@@ -469,7 +466,7 @@ def main():
             "model_name": agent.model,
             "tools_count": len(agent.tools),
             "configuration_version": agent.agent_config.version,
-            "plots_directory": agent.unique_plots_dir,
+            "execution_mode": "HTTP-based",
             "total_test_steps": 4
         }
         pp.pprint(final_summary)

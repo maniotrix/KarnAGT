@@ -128,7 +128,7 @@ def create_configurable_client(model_name: str = None) -> ConfigurableAssistantC
         raise
 
 
-def display_configuration(client: ConfigurableAssistantClient):
+def display_configuration(client: ConfigurableAssistantClient, conversation_history=None):
     """Display current configuration"""
     print(f"\n{COLORS['cyan']}Current Configuration:{COLORS['reset']}")
     summary = client.get_configuration_summary()
@@ -140,12 +140,29 @@ def display_configuration(client: ConfigurableAssistantClient):
     print(f"  Max Turns: {COLORS['green']}{summary.get('max_turns', 0)}{COLORS['reset']}")
     print(f"  Tools: {COLORS['green']}{', '.join(summary.get('tools_enabled', []))}{COLORS['reset']}")
     print(f"  Environment: {COLORS['green']}{summary.get('environment', 'Unknown')}{COLORS['reset']}")
+    
+    # Show conversation context info
+    if conversation_history is not None:
+        print(f"  Conversation Messages: {COLORS['green']}{len(conversation_history)}{COLORS['reset']}")
+        if conversation_history:
+            last_role = conversation_history[-1].get("role", "unknown")
+            print(f"  Last Message From: {COLORS['green']}{last_role}{COLORS['reset']}")
+    
     print()
 
 
 async def chat_loop(client: ConfigurableAssistantClient):
-    """Main chat loop for the CLI application"""
+    """
+    Main chat loop for the CLI application.
+    
+    Maintains conversation history locally and passes full context to each API call,
+    ensuring the LLM has access to previous exchanges for proper conversational flow.
+    """
     try:
+        # Initialize conversation history - maintains full conversation context
+        # including both user messages and assistant responses
+        conversation_history = []
+        
         while True:
             # Get user input
             print(f"{COLORS['bold']}{COLORS['green']}You:{COLORS['reset']} ", end="")
@@ -157,25 +174,33 @@ async def chat_loop(client: ConfigurableAssistantClient):
                 break
             elif user_input.lower() == "clear":
                 client.clear_conversation_memory()
+                conversation_history.clear()  # Clear local history too
                 clear_screen()
                 display_welcome_message()
                 continue
             elif user_input.lower() == "config":
-                display_configuration(client)
+                display_configuration(client, conversation_history)
                 continue
             elif not user_input:
                 continue
+            
+            # Add user message to conversation history
+            conversation_history.append({
+                "role": "user", 
+                "content": user_input
+            })
             
             # Display assistant prompt
             print(f"{COLORS['bold']}{COLORS['blue']}Assistant:{COLORS['reset']} ", end="")
             
             try:
-                # Process message with streaming
+                # Process message with streaming - pass full conversation context
+                logger.debug(f"Sending conversation context with {len(conversation_history)} messages")
                 import matplotlib
                 matplotlib.use('Agg')  # Set non-interactive backend
                 
                 response = await client.send_message_streaming(
-                    message=user_input,
+                    message=conversation_history,  # ✅ Pass full conversation context
                     callback=stream_callback
                 )
                 
@@ -183,6 +208,14 @@ async def chat_loop(client: ConfigurableAssistantClient):
                 
                 # Add a newline after the streaming response completes
                 print("\n")
+                
+                # Add assistant response to conversation history
+                assistant_response = response.get("content", "")
+                if assistant_response:
+                    conversation_history.append({
+                        "role": "assistant",
+                        "content": assistant_response
+                    })
                 
                 # Display any plots that were generated
                 plots = response.get("plots", [])
@@ -251,7 +284,7 @@ def main():
         display_welcome_message()
         
         # Show current configuration
-        display_configuration(client)
+        display_configuration(client, [])
         
         # Start async chat loop
         import asyncio

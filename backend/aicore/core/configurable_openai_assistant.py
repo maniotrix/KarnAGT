@@ -88,7 +88,6 @@ class ConfigurableOpenAIAssistant:
         self.agent = ConfigurableCodeExecutorAgent(
             agent_config=config.agent,
             model_config=config.model,
-            root_plots_dir=PLOTS_DIR,
             name=config.agent.name
         )
         
