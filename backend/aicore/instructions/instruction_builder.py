@@ -167,31 +167,6 @@ class InstructionBuilder:
     - Each execution gets a fresh isolated workspace
     - Input files (if any) are automatically placed in: inputs/
     - Save any output files to: outputs/ (create directory if needed)
-    - Generated files in outputs/ are automatically downloaded and available in results
-
-    **ACCESSING PREVIOUSLY GENERATED FILES:**
-    - If you need to modify files from previous executions, download them first using Python requests
-    - Previous files are available via HTTP URLs from earlier code executions
-    - Example of downloading a previous file:
-    ```python
-    import requests
-    import os
-    
-    # Download previous file using its URL
-    url = "ACTUAL_URL_FROM_CONVERSATION_HISTORY"  # Use the real download URL from previous messages
-    response = requests.get(url)
-    
-    if response.status_code == 200:
-        # Save to current workspace
-        os.makedirs('outputs', exist_ok=True)
-        with open('outputs/downloaded_file.png', 'wb') as f:
-            f.write(response.content)
-        print("File downloaded successfully")
-    else:
-        print("Failed to download file")
-    ```
-    - When users refer to "the file above", "previous image", "generated file", etc., 
-      look for download URLs in the conversation history and download the relevant files
 
     **DATA VISUALIZATION INSTRUCTIONS:**
     1. DO NOT use plt.show() as it will cause errors in the execution environment.

@@ -54,7 +54,6 @@ def get_instructions_template(plots_dir: str, os_type: str = "Windows", core_pro
     - Each execution gets a fresh isolated workspace
     - Input files (if any) are automatically placed in: inputs/
     - Save any output files to: outputs/ (create directory if needed)
-    - Generated files in outputs/ are automatically downloaded and available in results
 
     **DATA VISUALIZATION INSTRUCTIONS:**
     1. DO NOT use plt.show() as it will cause errors in the execution environment.
