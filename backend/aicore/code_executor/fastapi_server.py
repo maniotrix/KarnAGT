@@ -28,8 +28,8 @@ from code_executor import execute_code_string, CodeExecutionResult
 from logger import get_logger
 from serialization import SerializableResponse
 
-# Configure logger
-logger = get_logger()
+# Configure logger with server-specific name
+logger = get_logger("fastapi_server")
 
 # FastAPI app configuration
 app = FastAPI(

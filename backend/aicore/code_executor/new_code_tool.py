@@ -17,8 +17,8 @@ from pydantic import BaseModel
 from agents import function_tool
 from aicore.code_executor.logger import get_logger
 
-# Get logger
-logger = get_logger()
+# Get logger with module-specific name
+logger = get_logger("new_code_tool")
 
 # Configuration
 FASTAPI_SERVER_URL = os.getenv("FASTAPI_CODE_EXECUTOR_URL", "http://localhost:8080")
@@ -35,7 +35,7 @@ class CodeExecutionResult(BaseModel):
     status: str
     error: Optional[str]
     output_files: List[Dict[str, Any]] = []
-    downloaded_files: Dict[str, bytes] = {}  # filename -> file content
+    downloaded_files: Dict[str, Dict[str, Any]] = {}  # filename -> {content: bytes, metadata...}
     execution_time: float
     workspace_expires_at: str
 
@@ -207,9 +207,10 @@ async def execute_code(
     code: str, 
     files: Optional[List[tuple]] = None, 
     timeout: int = DEFAULT_TIMEOUT, 
+    download_files: bool = False,
     *args: Any, 
     **kwargs: Any
-) -> CodeExecutionResult:
+) -> CodeExecutionResult:   
     """
     Execute Python code via secure HTTP FastAPI server with automatic file handling.
     
@@ -218,7 +219,7 @@ async def execute_code(
     - Fresh workspace creation for each execution
     - File uploads (if files provided)
     - Code execution in isolated environment
-    - Automatic download of any generated output files (plots, CSVs, etc.)
+    - Optional download of any generated output files (plots, CSVs, etc.)
     
     Args:
         code: Python code to execute. Use relative paths:
@@ -226,11 +227,12 @@ async def execute_code(
               - Save output files to: 'outputs/filename.ext'
         files: Optional list of (filename, content) tuples to upload before execution
         timeout: Execution timeout in seconds (default: 60)
+        download_files: Whether to automatically download generated output files (default: True)
         *args: Additional args (for compatibility)
         **kwargs: Additional kwargs (for compatibility)
         
     Returns:
-        CodeExecutionResult with execution results and automatically downloaded files:
+        CodeExecutionResult with execution results and optionally downloaded files:
         - execution_id: Unique execution identifier
         - workspace_id: Workspace used for this execution
         - result: Execution result (if any)
@@ -239,12 +241,12 @@ async def execute_code(
         - status: "success" or "error"
         - error: Error message (if status is "error")
         - output_files: List of file metadata with full download URLs for generated files
-        - downloaded_files: Dict mapping filename -> file content (bytes) for all generated files
+        - downloaded_files: Dict mapping filename -> {content: bytes, download_url: str, size: int, mime_type: str, created_at: str} for downloaded files
         - execution_time: Execution duration in seconds
         - workspace_expires_at: When workspace will be cleaned up
         
     Example:
-        # Execute code that generates a plot
+        # Execute code that generates a plot (with automatic download)
         result = await execute_code('''
 import matplotlib
 matplotlib.use('Agg')  # For headless environments
@@ -259,8 +261,10 @@ print("Plot created!")
         
         # Access the generated plot automatically
         if "my_plot.png" in result.downloaded_files:
-            plot_data = result.downloaded_files["my_plot.png"]
-            # plot_data is the PNG file content as bytes
+            file_info = result.downloaded_files["my_plot.png"]
+            plot_data = file_info["content"]  # PNG file content as bytes
+            download_url = file_info["download_url"]  # Full HTTP download URL
+            print(f"Downloaded: {download_url}")
             
     Example with file upload:
         # Process uploaded CSV file
@@ -280,7 +284,96 @@ print(f"Processed {len(df)} rows")
         
         # Access processed file
         if "processed.csv" in result.downloaded_files:
-            csv_content = result.downloaded_files["processed.csv"].decode('utf-8')
+            file_info = result.downloaded_files["processed.csv"]
+            csv_content = file_info["content"].decode('utf-8')
+            download_url = file_info["download_url"]
+    """
+    return await execute_code_func(code, files, timeout, download_files, *args, **kwargs)
+
+async def execute_code_func(
+    code: str, 
+    files: Optional[List[tuple]] = None, 
+    timeout: int = DEFAULT_TIMEOUT, 
+    download_files: bool = False,
+    *args: Any, 
+    **kwargs: Any
+) -> CodeExecutionResult:
+    """
+    Execute Python code via secure HTTP FastAPI server with automatic file handling.
+    
+    Each execution gets a fresh isolated workspace with inputs/ and outputs/ directories.
+    This tool automatically handles:
+    - Fresh workspace creation for each execution
+    - File uploads (if files provided)
+    - Code execution in isolated environment
+    - Optional download of any generated output files (plots, CSVs, etc.)
+    
+    Args:
+        code: Python code to execute. Use relative paths:
+              - Read input files from: 'inputs/filename.ext'
+              - Save output files to: 'outputs/filename.ext'
+        files: Optional list of (filename, content) tuples to upload before execution
+        timeout: Execution timeout in seconds (default: 60)
+        download_files: Whether to automatically download generated output files (default: True)
+        *args: Additional args (for compatibility)
+        **kwargs: Additional kwargs (for compatibility)
+        
+    Returns:
+        CodeExecutionResult with execution results and optionally downloaded files:
+        - execution_id: Unique execution identifier
+        - workspace_id: Workspace used for this execution
+        - result: Execution result (if any)
+        - stdout: Standard output from code execution
+        - stderr: Standard error from code execution  
+        - status: "success" or "error"
+        - error: Error message (if status is "error")
+        - output_files: List of file metadata with full download URLs for generated files
+        - downloaded_files: Dict mapping filename -> {content: bytes, download_url: str, size: int, mime_type: str, created_at: str} for downloaded files
+        - execution_time: Execution duration in seconds
+        - workspace_expires_at: When workspace will be cleaned up
+        
+    Example:
+        # Execute code that generates a plot (with automatic download)
+        result = await execute_code_func('''
+import matplotlib
+matplotlib.use('Agg')  # For headless environments
+import matplotlib.pyplot as plt
+import os
+
+os.makedirs('outputs', exist_ok=True)
+plt.plot([1,2,3,4], [1,4,2,3])
+plt.savefig('outputs/my_plot.png')
+print("Plot created!")
+        ''')
+        
+        # Access the generated plot automatically
+        if "my_plot.png" in result.downloaded_files:
+            file_info = result.downloaded_files["my_plot.png"]
+            plot_data = file_info["content"]  # PNG file content as bytes
+            download_url = file_info["download_url"]  # Full HTTP download URL
+            print(f"Downloaded: {download_url}")
+            
+    Example with file upload:
+        # Process uploaded CSV file
+        csv_data = "name,value\\nAlice,10\\nBob,20"
+        result = await execute_code('''
+import pandas as pd
+import os
+
+df = pd.read_csv('inputs/data.csv')
+processed = df.copy()
+processed['doubled'] = df['value'] * 2
+
+os.makedirs('outputs', exist_ok=True)
+processed.to_csv('outputs/processed.csv', index=False)
+print(f"Processed {len(df)} rows")
+        ''', files=[("data.csv", csv_data)])
+        
+        # Access processed file
+        if "processed.csv" in result.downloaded_files:
+            file_info = result.downloaded_files["processed.csv"]
+            csv_content = file_info["content"].decode('utf-8')
+            download_url = file_info["download_url"]
     """
     # Get caller information for debugging
     caller_frame = inspect.currentframe().f_back if inspect.currentframe() else None
@@ -315,8 +408,8 @@ print(f"Processed {len(df)} rows")
         logger.info(f"Code execution completed: status={result.status}, time={result.execution_time:.3f}s")
         logger.info(f"Workspace ID: {result.workspace_id}")
         
-        # Automatically download any generated output files
-        if result.output_files:
+        # Optionally download generated output files
+        if result.output_files and download_files:
             logger.info(f"Generated {len(result.output_files)} output files - downloading automatically...")
             downloaded_files = {}
             
@@ -325,15 +418,24 @@ print(f"Processed {len(df)} rows")
                 download_url = file_info["download_url"]
                 try:
                     file_content = await _http_client.download_file(full_url=download_url)
-                    downloaded_files[file_name] = file_content
-                    logger.info(f"Downloaded {file_name}: {len(file_content)} bytes")
+                    # Store file with full metadata
+                    downloaded_files[file_name] = {
+                        "content": file_content,
+                        "download_url": download_url,
+                        "size": file_info.get("size", len(file_content)),
+                        "mime_type": file_info.get("mime_type", "application/octet-stream"),
+                        "created_at": file_info.get("created_at", "")
+                    }
+                    logger.info(f"Downloaded {file_name}: {len(file_content)} bytes from {download_url}")
                 except Exception as e:
                     logger.error(f"Failed to download {file_name}: {e}")
                     # Continue with other files even if one fails
             
             # Add downloaded files to result
             result.downloaded_files = downloaded_files
-            logger.info(f"Successfully downloaded {len(downloaded_files)} files automatically")
+            logger.info(f"Successfully downloaded {len(downloaded_files)} files with metadata")
+        elif result.output_files and not download_files:
+            logger.info(f"Generated {len(result.output_files)} output files - download_files=False, skipping download")
         else:
             logger.info("No output files generated")
             
@@ -354,9 +456,49 @@ print(f"Processed {len(df)} rows")
             execution_time=0.0,
             workspace_expires_at=""
         )
+        
+        
 
 @function_tool(strict_mode=False)
 async def execute_system_command(command: str, allowed_prefixes: Optional[List[str]] = None) -> SystemCommandResult:
+    """
+    Execute system command via secure HTTP FastAPI server for environment setup.
+    
+    Each command gets a fresh isolated workspace for execution.
+    This tool automatically handles:
+    - Fresh workspace creation for each command
+    - Command execution with security filtering
+    
+    Primary use cases: package installation, environment setup, simple commands.
+    For code that generates files, use execute_code instead.
+    
+    Args:
+        command: System command to execute
+        allowed_prefixes: List of allowed command prefixes for security (default: ["python ", "pip ", "python -m "])
+        
+    Returns:
+        SystemCommandResult with command execution results:
+        - execution_id: Unique execution identifier
+        - workspace_id: Workspace used for execution
+        - command: The command that was executed
+        - stdout: Command standard output
+        - stderr: Command standard error
+        - status: "success" or "error"
+        - exit_code: Command exit code
+        - execution_time: Execution duration in seconds
+        - workspace_expires_at: When workspace will be cleaned up
+        
+    Example:
+        # Install a package
+        result = await execute_system_command("pip install matplotlib")
+        
+        # Check installation success
+        if result.status == "success":
+            print(f"Package installed: {result.stdout}")
+    """
+    return await execute_system_command_func(command, allowed_prefixes)
+
+async def execute_system_command_func(command: str, allowed_prefixes: Optional[List[str]] = None) -> SystemCommandResult:
     """
     Execute system command via secure HTTP FastAPI server for environment setup.
     

@@ -35,8 +35,8 @@ from aicore.code_executor.new_code_agent import HTTPCodeExecutorAgent  # Updated
 from aicore.path_config import PLOTS_DIR
 from aicore.code_executor.utils import execution_cleanup
 
-# Get logger
-logger = get_logger()
+# Get logger with test-specific name
+logger = get_logger("test_new_code_tool")
 
 # Define a fixed directory for plot outputs (for display purposes)
 os.makedirs(PLOTS_DIR, exist_ok=True)
@@ -228,6 +228,7 @@ async def test_with_prompt(prompt, agent: HTTPCodeExecutorAgent):
         print("-"*100)
         print("\033[1;32mAgent response:\033[0m")
         print(result.final_output)
+        print("-"*100)
         
         # Extract downloaded files from the agent's tools if any were generated
         # Note: We need to check the actual execution results for downloaded files
