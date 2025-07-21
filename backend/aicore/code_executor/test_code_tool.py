@@ -41,64 +41,64 @@ os.makedirs(PLOTS_DIR, exist_ok=True)
 
 # Advanced test prompts for complex tasks, data analysis, and heavier computation
 ADVANCED_TEST_PROMPTS = [
-    # Data analysis with actual results
+    # 1. Data analysis with actual results 
     "Analyze these two datasets representing daily temperatures [72, 75, 73, 70, 76] and [65, 63, 68, 70, 71]. Calculate the average, min, max for each dataset and determine if there's a statistically significant difference between them.",
     
-    # Financial calculations
+    # 2. Financial calculations
     "I have two investment options: Option A with initial investment of $5000 and 7% annual return, and Option B with initial investment of $7000 and 5.5% annual return. Compare their values after 10 years and tell me which option yields better returns.",
     
-    # Text processing and sentiment analysis
+    # 3. Text processing and sentiment analysis
     "Analyze these two customer reviews: 'This product exceeded my expectations, highly recommend!' and 'Disappointed with quality, wouldn't buy again'. Score their sentiment on a scale of -1 to 1 and extract key positive/negative phrases.",
     
-    # Recommendation system simulation
+    # 4. Recommendation system simulation
     "Based on two user preferences arrays [5, 3, 4, 1, 5] and [2, 4, 5, 1, 3] for categories [movies, books, games, sports, music], recommend top 2 categories for each user and explain your reasoning.",
     
-    # Data transformation for reporting
+    # 5. Data transformation for reporting
     "Transform these raw sales data for two regions: Region A [120, 145, 190, 210, 180] and Region B [150, 135, 160, 175, 190] into quarter-over-quarter growth percentages and create a summary comparing their performance.",
     
-    # Practical algorithm application
+    # 6. Practical algorithm application
     "Sort these two lists of customer IDs [1005, 1001, 1020, 1003] and [2007, 2001, 2015] by priority, where lower numbers have higher priority. Then merge them into a single prioritized queue while maintaining order.",
     
-    # Decision making and optimization
+    # 7. Decision making and optimization
     "I need to schedule 8 hours of work time between two projects. Project A earns $50 per hour but has a 5-hour maximum, while Project B earns $30 per hour. Calculate the optimal allocation of time to maximize earnings and show the reasoning.",
     
-    # Time series forecasting
+    # 8. Time series forecasting
     "Given these historical sales data for two products: Product A [100, 120, 140, 160, 180] and Product B [200, 190, 195, 205, 210], forecast the next two values for each product and explain which product is trending better.",
     
-    # Classification task
+    # 9. Classification task
     "Classify these email subjects into priority categories (High, Medium, Low): 'URGENT: Server down' and 'Weekly newsletter'. Explain your classification reasoning and confidence level.",
     
-    # Risk analysis
+    # 10. Risk analysis
     "Analyze the risk profiles of two investment strategies: Strategy A with 70% success probability and $1000 return vs. Strategy B with 40% success probability and $3000 return. Calculate expected values and tell me which has better risk-adjusted returns.",
     
-    # Graph algorithm
+    # 11. Graph algorithm
     "Given a graph with nodes A, B, C, D, E and edges [(A,B,3), (A,C,5), (B,C,2), (B,D,6), (C,D,1), (C,E,4), (D,E,2)] where the third value is the weight, find the shortest path from A to E using Dijkstra's algorithm and show each step.",
     
-    # Image processing
+    # 12. Image processing
     "Create a function to generate a simple 5x5 image represented as a 2D array. Then apply a blur effect by replacing each pixel with the average of itself and its adjacent pixels.",
     
-    # Cryptography
+    # 13. Cryptography
     "Implement a Caesar cipher function that takes a string and a shift value, then encrypts the string by shifting each letter by the specified amount. Then decrypt the message to verify correctness.",
     
-    # Object-oriented design
+    # 14. Object-oriented design
     "Design a basic banking system with classes for Account, Customer, and Transaction. Include methods for deposit, withdrawal, and transfer between accounts with appropriate validation.",
     
-    # Recursion and dynamic programming
+    # 15. Recursion and dynamic programming
     "Calculate the nth Fibonacci number using both recursive and dynamic programming approaches. Compare their performance for n=20 and explain the difference.",
     
-    # Web API simulation
+    # 16. Web API simulation
     "Create a function that simulates fetching data from an API by parsing this JSON string: '{\"users\": [{\"id\": 1, \"name\": \"Alice\"}, {\"id\": 2, \"name\": \"Bob\"}]}'. Then filter users by a given criterion.",
     
-    # Probability and simulation
+    # 17. Probability and simulation
     "Simulate rolling two dice 1000 times and analyze the distribution of their sum. Calculate the probability of each possible sum and compare with theoretical probabilities.",
     
-    # File operations
+    # 18. File operations
     "Write and run a function that creates a temporary file with sample data, reads it line by line, performs word count analysis, and returns statistics on most frequent words.",
     
-    # Machine learning basics
+    # 19. Machine learning basics
     "Implement a simple k-Nearest Neighbors classifier from scratch. Test it on these points: Class A [(1,2), (2,3), (3,1)] and Class B [(5,6), (6,5), (7,7)]. Classify point (4,5).",
     
-    # String manipulation
+    # 20. String manipulation
     "Create a function to check if two strings are anagrams of each other, ignoring spaces and case. Test with 'listen' and 'silent' as well as 'conversation' and 'voices rant on'.",
 ]
 
@@ -171,7 +171,7 @@ async def main(run_advanced_tests=True, ):
     # Run advanced tests if requested
     message_results = []
     length_of_prompts = len(ADVANCED_TEST_PROMPTS)  
-    filtered_prompts = ADVANCED_TEST_PROMPTS[0:10]
+    filtered_prompts = ADVANCED_TEST_PROMPTS[11:20]
     for i, prompt in enumerate(filtered_prompts):
         print("#"*100)
         print(f"Running advanced test {i} of {len(filtered_prompts)}")
