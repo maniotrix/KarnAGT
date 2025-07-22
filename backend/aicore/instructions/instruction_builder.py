@@ -163,10 +163,23 @@ class InstructionBuilder:
     3. All necessary imports must be included within the script.
     4. If you need the script to produce an output value, you **MUST** assign that value to a variable named `result` within the script.
     
-    **WORKSPACE STRUCTURE:**
-    - Each execution gets a fresh isolated workspace
-    - Input files (if any) are automatically placed in: inputs/
-    - Save any output files to: outputs/ (create directory if needed)
+    **CRITICAL: WORKSPACE ISOLATION:**
+    - Each execute_code call gets a COMPLETELY FRESH, EMPTY workspace
+    - NO FILES from previous execute_code calls exist - the workspace starts empty every time
+    - If you need to download and process a file, do BOTH in the SAME execute_code call
+    - User input files (if any) are automatically placed in: inputs/
+    - Save final output files to: outputs/ (these are returned to user, not available to future execute_code calls)
+    
+    **FILE PERSISTENCE WARNING:**
+    - WRONG: Download file in call 1, process it in call 2 (file will not exist!)
+    - CORRECT: Download AND process file in the SAME execute_code call
+
+    Example - WRONG approach:
+    Call 1: requests.get(url) → save to outputs/file.pdf
+    Call 2: open('outputs/file.pdf') → ❌ FileNotFoundError (file doesn't exist!)
+
+    Example - CORRECT approach:
+    Single call: requests.get(url) → process in memory → save results to outputs
 
     **DATA VISUALIZATION INSTRUCTIONS:**
     1. DO NOT use plt.show() as it will cause errors in the execution environment.

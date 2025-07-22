@@ -15,10 +15,12 @@ import aiohttp
 import json
 from pydantic import BaseModel
 from agents import function_tool
-from aicore.code_executor.logger import get_logger
+from aicore.code_executor.logger import get_logger, set_log_level
+import logging
 
 # Get logger with module-specific name
-logger = get_logger("new_code_tool")
+logger = get_logger("code_executor.new_code_tool")
+set_log_level(logging.DEBUG)
 
 # Configuration
 FASTAPI_SERVER_URL = os.getenv("FASTAPI_CODE_EXECUTOR_URL", "http://localhost:8080")
@@ -382,7 +384,7 @@ print(f"Processed {len(df)} rows")
     logger.info(f"execute_code called from {caller_info}")
     logger.info(f"Files to upload: {len(files) if files else 0}")
     logger.info(f"Code length: {len(code)} characters")
-    logger.info(f"Full code:\n```python\n{code}\n```")
+    logger.debug(f"Full code:\n```python\n{code}\n```")
     
     try:
         # Health check first
@@ -561,6 +563,7 @@ async def execute_system_command_func(command: str, allowed_prefixes: Optional[L
         result = await _http_client.execute_system_command_http(command, allowed_prefixes)
         
         logger.info(f"System command completed: status={result.status}, exit_code={result.exit_code}")
+        logger.debug(f"result: {result}")
         return result
         
     except Exception as e:

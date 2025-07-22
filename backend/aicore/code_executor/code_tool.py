@@ -44,7 +44,7 @@ async def execute_code(code: str, *args: Any, **kwargs: Any) -> CodeExecutionRes
     logger.info(f"execute_code called from {caller_info}")
     logger.info(f"args: {args}")
     logger.info(f"kwargs: {kwargs}")
-    logger.info(f"Full code:\n```python\n{code}\n```")
+    logger.debug(f"Full code:\n```python\n{code}\n```")
     
     # Execute the code and return the result
     # Note: execute_code_string now only takes the code string.
