@@ -28,6 +28,15 @@ class Settings(BaseModel):
     workers: int = 1
     
     # === CORS Configuration ===
+    # List of allowed CORS origins. IMPORTANT SECURITY RULES:
+    #   - Cannot use "*" with credentials in production (security risk)
+    #   - Always include protocol (http:// or https://)
+    #   - No wildcard patterns like *.domain.com (not supported by spec)
+    #   - Use comma-separated values with NO spaces after commas in .env
+    # Examples:
+    #   ["*"] - Allow all origins (DEV ONLY - security risk)
+    #   ["http://localhost:3000", "http://localhost:8080"] - Local development
+    #   ["https://app.mydomain.com", "https://admin.mydomain.com"] - Production
     cors_origins: List[str] = ["*"]
     cors_allow_credentials: bool = True
     
@@ -59,6 +68,41 @@ class Settings(BaseModel):
     log_format: str = "json"
     log_file: Optional[str] = None
     
+    def _parse_cors_origins(self, origins_str: str) -> List[str]:
+        """Parse CORS origins from environment variable with proper validation"""
+        if not origins_str or origins_str.strip() == "":
+            return ["*"]
+        
+        # Split by comma and strip whitespace
+        origins = [origin.strip() for origin in origins_str.split(",")]
+        
+        # Filter out empty strings
+        origins = [origin for origin in origins if origin]
+        
+        # Validate origins format (basic check)
+        validated_origins = []
+        for origin in origins:
+            if origin == "*":
+                validated_origins.append(origin)
+            elif origin.startswith(("http://", "https://")):
+                validated_origins.append(origin)
+            else:
+                # Log warning but still allow (for flexibility)
+                print(f"Warning: CORS origin '{origin}' should include protocol (http:// or https://)")
+                validated_origins.append(origin)
+        
+        return validated_origins if validated_origins else ["*"]
+
+    def _validate_cors_security(self) -> None:
+        """Validate CORS configuration for security issues"""
+        # Check for dangerous combination: wildcard origins with credentials
+        if "*" in self.cors_origins and self.cors_allow_credentials and not self.is_development():
+            print(
+                "WARNING: Using CORS_ORIGINS=* with CORS_ALLOW_CREDENTIALS=true in production "
+                "is a MAJOR security risk. This allows ANY domain to make authenticated requests "
+                "to your API. Please specify explicit origins for production."
+            )
+
     def __init__(self, **data):
         # Load from environment variables
         env_data = {
@@ -74,7 +118,7 @@ class Settings(BaseModel):
             "workers": int(os.getenv("WORKERS", "1")),
             
             # CORS
-            "cors_origins": os.getenv("CORS_ORIGINS", "*").split(",") if os.getenv("CORS_ORIGINS") else ["*"],
+            "cors_origins": self._parse_cors_origins(os.getenv("CORS_ORIGINS", "*")),
             "cors_allow_credentials": os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower() == "true",
             
             # Jupyter
@@ -109,6 +153,9 @@ class Settings(BaseModel):
         # Merge with provided data (provided data takes precedence)
         env_data.update(data)
         super().__init__(**env_data)
+        
+        # Validate configuration for security issues
+        self._validate_cors_security()
     
     @property
     def jupyter_url(self) -> str:
@@ -131,6 +178,31 @@ class Settings(BaseModel):
         if self.jupyter_token:
             headers["Authorization"] = f"token {self.jupyter_token}"
         return headers
+    
+    def get_jupyter_command_args(self) -> List[str]:
+        """Generate Jupyter server command arguments from settings"""
+        cmd = [
+            "jupyter", "server",
+            f"--ip={self.jupyter_host}",
+            f"--port={self.jupyter_port}",
+            "--no-browser"
+        ]
+        
+        # Add authentication if provided
+        if self.jupyter_token:
+            cmd.append(f"--ServerApp.token={self.jupyter_token}")
+            
+        if self.jupyter_password:
+            cmd.append(f"--ServerApp.password={self.jupyter_password}")
+        
+        # Add CORS origins
+        for origin in self.cors_origins:
+            cmd.append(f"--ServerApp.allow_origin={origin}")
+            
+        # Add other server settings
+        cmd.append("--ServerApp.allow_remote_access=True")
+        
+        return cmd
     
     def is_development(self) -> bool:
         """Check if running in development mode"""

@@ -29,11 +29,12 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = current_dir
 sys.path.insert(0, project_root)
 
-from app.utils.logger import get_logger
+from app.utils.logger import get_logger, set_log_level
 from app.core.config import get_settings
 
 # Get logger and settings
 logger = get_logger("server_runner")
+set_log_level("DEBUG")
 settings = get_settings()
 
 
@@ -48,20 +49,13 @@ class ServiceManager:
         """Start Jupyter Server"""
         logger.info(f"🔧 Starting Jupyter Server on {settings.jupyter_host}:{settings.jupyter_port}")
         
-        # Jupyter server command
-        cmd = [
-            "jupyter", "server",
-            f"--ip={settings.jupyter_host}",
-            f"--port={settings.jupyter_port}",
-            f"--ServerApp.allow-origin={settings.cors_origins}",
-            "--no-browser",
-            f"--ServerApp.token={settings.jupyter_token}",
-            f"--ServerApp.password={settings.jupyter_password}",
-            "--ServerApp.allow_remote_access=True"
-        ]
+        # Get Jupyter server command from settings
+        cmd = settings.get_jupyter_command_args()
         
         # Start Jupyter server process
         try:
+            logger.info(f"🔧 Executing command: {' '.join(cmd)}")
+            
             self.jupyter_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -69,13 +63,22 @@ class ServiceManager:
                 text=True
             )
             
+            # Give the process a moment to start
+            await asyncio.sleep(2)
+            
+            # Check if process is still running
             if self.jupyter_process.poll() is None:
-                logger.info(f"🔧 Jupyter Server started with command: {self.jupyter_process.stdout}")
+                logger.info(f"✅ Jupyter Server process started (PID: {self.jupyter_process.pid})")
+                logger.info(f"Stdout: {self.jupyter_process.stdout}")
+                logger.info(f"Stderr: {self.jupyter_process.stderr}")
             else:
+                # Process terminated, get the output
+                stdout, stderr = self.jupyter_process.communicate()
                 logger.error(f"❌ Jupyter Server process terminated unexpectedly!")
-                logger.error(f"📝 Jupyter stdout: {self.jupyter_process.stdout}")
-                logger.error(f"📝 Jupyter stderr: {self.jupyter_process.stderr}")
-                raise RuntimeError(f"Jupyter Server process terminated: {self.jupyter_process.stderr}")
+                logger.error(f"📝 Exit code: {self.jupyter_process.returncode}")
+                logger.error(f"📝 Stdout: {stdout}")
+                logger.error(f"📝 Stderr: {stderr}")
+                raise RuntimeError(f"Jupyter Server process terminated with exit code {self.jupyter_process.returncode}: {stderr}")
         except Exception as e:
             logger.error(f"❌ Error starting Jupyter Server: {e}")
             raise
@@ -89,21 +92,27 @@ class ServiceManager:
         logger.info(f"⏳ Waiting for Jupyter Server at {settings.jupyter_url}/api/status...")
         start_time = time.time()
         
+        # Get authentication headers for Jupyter API
+        headers = settings.get_jupyter_headers()
+        
         while time.time() - start_time < timeout:
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
                         f"{settings.jupyter_url}/api/status",
+                        headers=headers,
                         timeout=5.0
                     )
                     if response.status_code == 200:
                         return
-            except Exception:
-                pass
+                    else:
+                        logger.debug(f"🔄 Jupyter not ready yet: {response}")
+            except Exception as e:
+                logger.debug(f"🔄 Jupyter not ready yet: {e}")
             
             await asyncio.sleep(1)
         
-        raise RuntimeError("Jupyter Server failed to start within timeout")
+        raise RuntimeError(f"Jupyter Server failed to start within timeout: {timeout}s")
     
     async def start_fastapi_server(self):
         """Start FastAPI application"""
