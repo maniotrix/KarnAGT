@@ -208,20 +208,8 @@ if current_dir not in sys.path:
 outputs_dir = Path('outputs')
 outputs_dir.mkdir(exist_ok=True)
 
-# Security: Block dangerous imports
-import builtins
-_original_import = builtins.__import__
-
-BLOCKED_MODULES = {json.dumps(self.settings.blocked_imports)}
-
-def _secure_import(name, *args, **kwargs):
-    if any(blocked in name for blocked in BLOCKED_MODULES):
-        raise ImportError(f"Module '{{name}}' is blocked for security reasons")
-    return _original_import(name, *args, **kwargs)
-
-builtins.__import__ = _secure_import
-
-print(f"Security restrictions applied for: {', '.join(self.settings.blocked_imports)}")
+print("✅ Workspace ready for code execution!")
+print("✅ All libraries and functions available (container isolation provides security)")
 print("Kernel ready for code execution!")
 """
         

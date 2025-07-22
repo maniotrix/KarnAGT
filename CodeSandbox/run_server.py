@@ -121,34 +121,30 @@ class ServiceManager:
         raise RuntimeError(f"Jupyter Server failed to start within timeout: {timeout}s")
     
     async def start_fastapi_server(self):
-        """Start FastAPI application"""
+        """Start FastAPI application using simple uvicorn.run approach"""
         logger.info(f"🚀 Starting FastAPI server on {settings.host}:{settings.port}")
         
         # Enable reload in development
         reload_enabled = settings.environment == "development"
-        if reload_enabled:
-            logger.info("🔄 Auto-reload enabled for development")
+        logger.info(f"🔧 Environment: {settings.environment}")
+        logger.info(f"🔄 Auto-reload enabled: {reload_enabled}")
         
-        # Get absolute path to app directory for reload
-        app_dir = os.path.join(current_dir, "app")
-        reload_dirs = [app_dir] if reload_enabled and os.path.exists(app_dir) else None
-        
-        # FastAPI server configuration
-        config = uvicorn.Config(
-            "app.main:app",
-            host=settings.host,
-            port=settings.port,
-            log_level="info",
-            access_log=True,
-            reload=reload_enabled,  # Enable reload in development
-            reload_dirs=reload_dirs,  # Watch app directory with absolute path
-            workers=1,  # Single worker (required for reload)
-            loop="asyncio"
-        )
-        
-        # Create and start server
-        server = uvicorn.Server(config)
-        await server.serve()
+        # Use the simple uvicorn.run approach (like your working start_dev.py)
+        try:
+            import uvicorn
+            uvicorn.run(
+                "app.main:app",
+                host=settings.host,
+                port=settings.port,
+                reload=reload_enabled,  # Simple reload flag
+                log_level="info",
+                access_log=True
+            )
+        except KeyboardInterrupt:
+            logger.info("🛑 FastAPI server stopped by user")
+        except Exception as e:
+            logger.error(f"❌ FastAPI server error: {e}")
+            raise
     
     async def start_services(self):
         """Start both services"""

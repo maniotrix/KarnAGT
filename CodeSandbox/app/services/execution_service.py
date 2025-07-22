@@ -204,20 +204,8 @@ class ExecutionService:
         if request.timeout > self.settings.max_execution_timeout:
             raise ValueError(f"Timeout too long (max {self.settings.max_execution_timeout}s)")
         
-        # Check for obviously dangerous code patterns
-        dangerous_patterns = [
-            "import subprocess",
-            "import os",
-            "os.system",
-            "eval(",
-            "exec(",
-            "__import__"
-        ]
-        
-        code_lower = request.code.lower()
-        for pattern in dangerous_patterns:
-            if pattern.lower() in code_lower:
-                raise ValueError(f"Potentially dangerous code pattern detected: {pattern}")
+        # No code pattern restrictions for MVP - container isolation provides security
+        # For production security patterns, see SECURITY_ROADMAP.md 
     
     async def get_execution_result(self, execution_id: str) -> Optional[ExecutionResult]:
         """

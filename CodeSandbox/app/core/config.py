@@ -61,7 +61,8 @@ class Settings(BaseModel):
     # === Execution Configuration ===
     default_execution_timeout: int = 30
     max_execution_timeout: int = 300
-    blocked_imports: List[str] = ["subprocess", "os.system", "eval", "exec", "requests", "urllib", "socket", "http"]
+    # No blocked imports for MVP - relying on container isolation for security
+    blocked_imports: List[str] = []
     
     # === Logging Configuration ===
     log_level: str = "INFO"
@@ -146,7 +147,7 @@ class Settings(BaseModel):
             # Execution
             "default_execution_timeout": int(os.getenv("DEFAULT_EXECUTION_TIMEOUT", "30")),
             "max_execution_timeout": int(os.getenv("MAX_EXECUTION_TIMEOUT", "300")),
-            "blocked_imports": os.getenv("BLOCKED_IMPORTS", "subprocess,os.system,eval,exec,requests,urllib,socket,http").split(","),
+            "blocked_imports": os.getenv("BLOCKED_IMPORTS", "").split(",") if os.getenv("BLOCKED_IMPORTS") else [],
             
             # Logging
             "log_level": os.getenv("LOG_LEVEL", "INFO"),
