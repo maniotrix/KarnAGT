@@ -19,7 +19,7 @@ from app.domain.models import (
     WorkspaceInfo, WorkspaceStatus, WorkspaceCreateRequest,
     FileInfo, WorkspaceFilesResponse
 )
-from app.infrastructure.jupyter_client import (
+from app.infrastructure.jupyter_kernel_client import (
     JupyterServerClient, JupyterClientError, WorkspaceNotFoundError
 )
 from app.utils.logger import Loggers

@@ -124,6 +124,15 @@ class ServiceManager:
         """Start FastAPI application"""
         logger.info(f"🚀 Starting FastAPI server on {settings.host}:{settings.port}")
         
+        # Enable reload in development
+        reload_enabled = settings.environment == "development"
+        if reload_enabled:
+            logger.info("🔄 Auto-reload enabled for development")
+        
+        # Get absolute path to app directory for reload
+        app_dir = os.path.join(current_dir, "app")
+        reload_dirs = [app_dir] if reload_enabled and os.path.exists(app_dir) else None
+        
         # FastAPI server configuration
         config = uvicorn.Config(
             "app.main:app",
@@ -131,7 +140,9 @@ class ServiceManager:
             port=settings.port,
             log_level="info",
             access_log=True,
-            workers=1,  # Single worker for development
+            reload=reload_enabled,  # Enable reload in development
+            reload_dirs=reload_dirs,  # Watch app directory with absolute path
+            workers=1,  # Single worker (required for reload)
             loop="asyncio"
         )
         
@@ -178,6 +189,8 @@ def print_startup_info():
     print(f"🏗️  {settings.app_name} v{settings.app_version}")
     print("=" * 60)
     print(f"📊 Environment: {settings.environment}")
+    if settings.environment == "development":
+        print("🔄 Auto-reload: ENABLED")
     print(f"🔧 Jupyter Server: {settings.jupyter_url}")
     print(f"🚀 FastAPI Server: http://{settings.host}:{settings.port}")
     print(f"📚 API Docs: http://{settings.host}:{settings.port}/docs")
@@ -189,6 +202,11 @@ def print_startup_info():
     print(f"   POST http://{settings.host}:{settings.port}/api/v1/workspace/{{id}}/execute")
     print(f"   GET  http://{settings.host}:{settings.port}/api/v1/workspace/{{id}}/files")
     print("=" * 60)
+    if settings.environment == "development":
+        print("💡 Development Tips:")
+        print("   • Code changes will trigger automatic server restart")
+        print("   • Jupyter server runs independently and won't restart")
+        print("=" * 60)
     print("Press Ctrl+C to stop\n")
 
 

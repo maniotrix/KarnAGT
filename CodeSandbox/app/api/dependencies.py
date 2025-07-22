@@ -11,7 +11,7 @@ from functools import lru_cache
 from typing import AsyncGenerator
 
 from app.core.config import Settings, get_settings
-from app.infrastructure.jupyter_client import JupyterServerClient
+from app.infrastructure.jupyter_kernel_client import JupyterServerClient
 from app.services.workspace_service import WorkspaceService
 from app.services.execution_service import ExecutionService
 from app.services.file_service import FileService
@@ -37,6 +37,9 @@ async def get_jupyter_client() -> JupyterServerClient:
     if _jupyter_client is None:
         settings = get_settings_cached()
         _jupyter_client = JupyterServerClient(settings)
+        # Initialize required directories during startup
+        await _jupyter_client.initialize_workspace_directory()
+        
         Loggers.api_dependencies.info("Jupyter client initialized",
                                     jupyter_url=settings.jupyter_url)
     return _jupyter_client

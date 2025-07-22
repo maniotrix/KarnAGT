@@ -18,7 +18,7 @@ from app.domain.models import (
 from app.services.workspace_service import WorkspaceService
 from app.services.execution_service import ExecutionService
 from app.services.file_service import FileService, FileServiceError
-from app.infrastructure.jupyter_client import WorkspaceNotFoundError, JupyterClientError
+from app.infrastructure.jupyter_kernel_client import WorkspaceNotFoundError, JupyterClientError
 from app.api.dependencies import (
     get_workspace_service, get_execution_service, get_file_service, get_settings_cached
 )
@@ -269,9 +269,15 @@ async def upload_file(
     file_service: FileService = Depends(get_file_service)
 ):
     """Upload file to workspace"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"File upload started: {file.filename} to workspace {workspace_id}")
+        
         # Read file content
         content = await file.read()
+        logger.debug(f"File content read: {len(content)} bytes")
         
         # Upload file
         file_info = await file_service.upload_file(
@@ -288,13 +294,17 @@ async def upload_file(
             "relative_path": file_info.relative_path
         }
         
+        logger.info(f"File upload successful: {file.filename}")
         return get_serializable_response(upload_result)
         
     except WorkspaceNotFoundError as e:
+        logger.error(f"Workspace not found for upload: {workspace_id}", exc_info=True)
         raise HTTPException(status_code=404, detail=str(e))
     except FileServiceError as e:
+        logger.error(f"File service error during upload: {file.filename}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Unexpected error during file upload: {file.filename} to {workspace_id}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"File upload failed: {e}")
 
 

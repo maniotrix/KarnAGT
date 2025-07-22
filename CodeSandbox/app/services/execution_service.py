@@ -16,7 +16,7 @@ from app.domain.models import (
     ExecutionRequest, ExecutionResult, ExecutionStatus,
     WorkspaceStatus
 )
-from app.infrastructure.jupyter_client import (
+from app.infrastructure.jupyter_kernel_client import (
     JupyterServerClient, WorkspaceNotFoundError, KernelNotFoundError
 )
 from app.services.workspace_service import WorkspaceService
@@ -92,6 +92,15 @@ class ExecutionService:
                          workspace_id=request.workspace_id,
                          kernel_id=workspace_info.kernel_id)
         
+        # Log the actual code being executed (for debugging)
+        code_preview = request.code[:200] + ("..." if len(request.code) > 200 else "")
+        self.logger.info(f"📝 Code to execute: {code_preview}",
+                        workspace_id=request.workspace_id)
+        
+        # Show full code in debug mode (be careful with sensitive code)
+        self.logger.debug(f"📄 Full code content:\n{request.code}",
+                         workspace_id=request.workspace_id)
+        
         try:
             result = await self.jupyter_client.execute_code(
                 workspace_id=request.workspace_id,
@@ -105,12 +114,32 @@ class ExecutionService:
             # Update workspace activity again after successful execution
             await self.workspace_service.update_workspace_activity(request.workspace_id)
             
-            self.logger.info("Code execution completed",
+            # Log detailed execution results
+            self.logger.info("✅ Code execution completed",
                            workspace_id=request.workspace_id,
                            execution_id=result.execution_id,
                            status=result.status,
                            execution_time_ms=result.execution_time_ms,
-                           output_lines=len(result.outputs))
+                           stdout_length=len(result.stdout) if result.stdout else 0,
+                           stderr_length=len(result.stderr) if result.stderr else 0,
+                           output_count=len(result.outputs),
+                           generated_files=len(result.generated_files))
+            
+            # Log actual outputs for debugging
+            if result.stdout:
+                stdout_preview = result.stdout[:500] + ("..." if len(result.stdout) > 500 else "")
+                self.logger.debug(f"📤 Execution stdout:\n{stdout_preview}",
+                                workspace_id=request.workspace_id)
+            
+            if result.stderr:
+                stderr_preview = result.stderr[:500] + ("..." if len(result.stderr) > 500 else "")
+                self.logger.debug(f"⚠️ Execution stderr:\n{stderr_preview}",
+                                workspace_id=request.workspace_id)
+            
+            if result.outputs:
+                self.logger.debug("🎯 Execution outputs",
+                                workspace_id=request.workspace_id,
+                                output_types=[out.type for out in result.outputs])  # Fixed: use 'type' not 'output_type'
             
             return result
             

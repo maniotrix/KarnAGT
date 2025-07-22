@@ -16,7 +16,7 @@ from app.core.config import Settings
 from app.domain.models import (
     FileInfo, WorkspaceStatus
 )
-from app.infrastructure.jupyter_client import (
+from app.infrastructure.jupyter_kernel_client import (
     JupyterServerClient, WorkspaceNotFoundError
 )
 from app.services.workspace_service import WorkspaceService
@@ -74,7 +74,7 @@ class FileService:
         """
         self.logger.info("File upload requested",
                         workspace_id=workspace_id,
-                        filename=filename,
+                        file_name=filename,  # Renamed to avoid LogRecord conflict
                         file_size_bytes=len(content))
         
         # Validate workspace exists and is ready
@@ -82,13 +82,13 @@ class FileService:
         if not workspace_info:
             self.logger.warning("File upload failed - workspace not found",
                               workspace_id=workspace_id,
-                              filename=filename)
+                              file_name=filename)  # Renamed to avoid LogRecord conflict
             raise WorkspaceNotFoundError(f"Workspace {workspace_id} not found")
         
         if workspace_info.status == WorkspaceStatus.EXPIRED:
             self.logger.warning("File upload failed - workspace expired",
                               workspace_id=workspace_id,
-                              filename=filename,
+                              file_name=filename,
                               status=workspace_info.status)
             raise WorkspaceNotFoundError(f"Workspace {workspace_id} has expired")
         
@@ -98,7 +98,7 @@ class FileService:
         # Upload to workspace via Jupyter
         self.logger.debug("Uploading file to Jupyter workspace",
                          workspace_id=workspace_id,
-                         filename=filename)
+                         file_name=filename)  # Renamed to avoid LogRecord conflict
         
         try:
             file_info = await self.jupyter_client.upload_file_to_workspace(
@@ -112,7 +112,7 @@ class FileService:
             
             self.logger.info("File uploaded successfully",
                            workspace_id=workspace_id,
-                           filename=filename,
+                           file_name=filename,  # Renamed to avoid LogRecord conflict
                            file_size_bytes=len(content))
             
             return file_info
@@ -121,7 +121,7 @@ class FileService:
             self.logger.error("File upload failed",
                             exc=e,
                             workspace_id=workspace_id,
-                            filename=filename,
+                            file_name=filename,  # Renamed to avoid LogRecord conflict
                             file_size_bytes=len(content),
                             error_type=e.__class__.__name__)
             raise FileServiceError(f"Failed to upload file {filename}: {e}")
