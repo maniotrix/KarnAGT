@@ -53,7 +53,7 @@ class ServiceManager:
             "jupyter", "server",
             f"--ip={settings.jupyter_host}",
             f"--port={settings.jupyter_port}",
-            f"--allow-origin={settings.cors_origins}",
+            f"--ServerApp.allow-origin={settings.cors_origins}",
             "--no-browser",
             f"--ServerApp.token={settings.jupyter_token}",
             f"--ServerApp.password={settings.jupyter_password}",
@@ -61,12 +61,24 @@ class ServiceManager:
         ]
         
         # Start Jupyter server process
-        self.jupyter_process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+        try:
+            self.jupyter_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            if self.jupyter_process.poll() is None:
+                logger.info(f"🔧 Jupyter Server started with command: {self.jupyter_process.stdout}")
+            else:
+                logger.error(f"❌ Jupyter Server process terminated unexpectedly!")
+                logger.error(f"📝 Jupyter stdout: {self.jupyter_process.stdout}")
+                logger.error(f"📝 Jupyter stderr: {self.jupyter_process.stderr}")
+                raise RuntimeError(f"Jupyter Server process terminated: {self.jupyter_process.stderr}")
+        except Exception as e:
+            logger.error(f"❌ Error starting Jupyter Server: {e}")
+            raise
         
         # Wait for Jupyter to be ready
         await self._wait_for_jupyter()
@@ -74,6 +86,7 @@ class ServiceManager:
         
     async def _wait_for_jupyter(self, timeout=30):
         """Wait for Jupyter Server to be ready"""
+        logger.info(f"⏳ Waiting for Jupyter Server at {settings.jupyter_url}/api/status...")
         start_time = time.time()
         
         while time.time() - start_time < timeout:
