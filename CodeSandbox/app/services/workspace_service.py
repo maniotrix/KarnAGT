@@ -22,6 +22,7 @@ from app.domain.models import (
 from app.infrastructure.jupyter_client import (
     JupyterServerClient, JupyterClientError, WorkspaceNotFoundError
 )
+from app.utils.logger import Loggers
 
 
 class WorkspaceService:
@@ -35,6 +36,7 @@ class WorkspaceService:
     def __init__(self, settings: Settings, jupyter_client: JupyterServerClient):
         self.settings = settings
         self.jupyter_client = jupyter_client
+        self.logger = Loggers.workspace_service
         
         # Track active workspaces
         self._workspaces: Dict[str, WorkspaceInfo] = {}
@@ -42,6 +44,10 @@ class WorkspaceService:
         # Background cleanup task
         self._cleanup_task: Optional[asyncio.Task] = None
         self._should_stop_cleanup = False
+        
+        self.logger.info("Workspace service initialized",
+                        cleanup_interval_minutes=settings.workspace_cleanup_interval_minutes,
+                        max_ttl_hours=settings.workspace_max_ttl_hours)
     
     async def start(self):
         """Start the workspace service and background tasks"""
@@ -75,11 +81,18 @@ class WorkspaceService:
         # Generate workspace ID if not provided
         workspace_id = request.workspace_id or f"ws_{uuid.uuid4().hex[:8]}"
         
+        self.logger.info("Creating workspace", 
+                        workspace_id=workspace_id, 
+                        ttl_hours=request.ttl_hours)
+        
         # Validate workspace ID uniqueness
         if workspace_id in self._workspaces:
             existing = self._workspaces[workspace_id]
             if existing.status != WorkspaceStatus.EXPIRED:
                 # Return existing active workspace
+                self.logger.info("Returning existing workspace",
+                               workspace_id=workspace_id,
+                               status=existing.status)
                 return existing
         
         # Calculate expiration
@@ -99,9 +112,11 @@ class WorkspaceService:
         
         try:
             # Create workspace directory in Jupyter
+            self.logger.debug("Creating workspace directory", workspace_id=workspace_id)
             await self.jupyter_client.create_workspace_directory(workspace_id)
             
             # Create and initialize kernel
+            self.logger.debug("Creating Jupyter kernel", workspace_id=workspace_id)
             kernel_result = await self.jupyter_client.create_kernel(workspace_id)
             
             # Update workspace info
@@ -109,11 +124,24 @@ class WorkspaceService:
             workspace_info.status = WorkspaceStatus.READY
             workspace_info.last_activity = datetime.utcnow()
             
+            self.logger.info("Workspace created successfully",
+                           workspace_id=workspace_id,
+                           kernel_id=kernel_result["kernel_id"],
+                           expires_at=workspace_info.expires_at.isoformat(),
+                           active_count=len(self._workspaces))
+            
             return workspace_info
             
         except Exception as e:
             # Mark workspace as error
             workspace_info.status = WorkspaceStatus.ERROR
+            
+            self.logger.error("Workspace creation failed",
+                            exc=e,
+                            workspace_id=workspace_id,
+                            ttl_hours=request.ttl_hours,
+                            error_stage="jupyter_setup")
+            
             raise JupyterClientError(f"Failed to create workspace: {e}")
     
     async def get_workspace(self, workspace_id: str) -> Optional[WorkspaceInfo]:
@@ -254,15 +282,19 @@ class WorkspaceService:
         """Background task to clean up expired workspaces"""
         cleanup_interval = self.settings.workspace_cleanup_interval_minutes * 60
         
+        self.logger.info("Starting workspace cleanup loop",
+                        cleanup_interval_minutes=self.settings.workspace_cleanup_interval_minutes)
+        
         while not self._should_stop_cleanup:
             try:
                 await self._cleanup_expired_workspaces()
                 await asyncio.sleep(cleanup_interval)
                 
             except asyncio.CancelledError:
+                self.logger.info("Cleanup loop cancelled")
                 break
             except Exception as e:
-                print(f"Error in workspace cleanup loop: {e}")
+                self.logger.error("Error in workspace cleanup loop", exc=e)
                 await asyncio.sleep(60)  # Retry after 1 minute
     
     async def _cleanup_expired_workspaces(self):
@@ -275,13 +307,27 @@ class WorkspaceService:
             if now > workspace_info.expires_at:
                 expired_workspace_ids.append(workspace_id)
         
+        if expired_workspace_ids:
+            self.logger.info("Found expired workspaces for cleanup",
+                           expired_count=len(expired_workspace_ids),
+                           total_workspaces=len(self._workspaces))
+        
         # Delete expired workspaces
+        cleaned_count = 0
         for workspace_id in expired_workspace_ids:
             try:
                 await self.delete_workspace(workspace_id)
-                print(f"Cleaned up expired workspace: {workspace_id}")
+                cleaned_count += 1
+                self.logger.debug("Cleaned up expired workspace", workspace_id=workspace_id)
             except Exception as e:
-                print(f"Error cleaning up workspace {workspace_id}: {e}")
+                self.logger.error("Error cleaning up workspace", 
+                                exc=e, 
+                                workspace_id=workspace_id)
+        
+        if cleaned_count > 0:
+            self.logger.info("Workspace cleanup completed",
+                           cleaned_count=cleaned_count,
+                           remaining_workspaces=len(self._workspaces))
         
         # Also cleanup idle kernels in Jupyter client
         try:

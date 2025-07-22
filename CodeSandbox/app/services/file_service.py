@@ -20,6 +20,7 @@ from app.infrastructure.jupyter_client import (
     JupyterServerClient, WorkspaceNotFoundError
 )
 from app.services.workspace_service import WorkspaceService
+from app.utils.logger import Loggers
 
 
 class FileServiceError(Exception):
@@ -44,6 +45,11 @@ class FileService:
         self.settings = settings
         self.jupyter_client = jupyter_client
         self.workspace_service = workspace_service
+        self.logger = Loggers.file_service
+        
+        self.logger.info("File service initialized",
+                        max_file_size_mb=settings.max_file_size_mb,
+                        max_files_per_workspace=settings.max_files_per_workspace)
     
     async def upload_file(
         self, 
@@ -66,18 +72,34 @@ class FileService:
             WorkspaceNotFoundError: If workspace doesn't exist
             FileServiceError: If upload fails
         """
+        self.logger.info("File upload requested",
+                        workspace_id=workspace_id,
+                        filename=filename,
+                        file_size_bytes=len(content))
+        
         # Validate workspace exists and is ready
         workspace_info = await self.workspace_service.get_workspace(workspace_id)
         if not workspace_info:
+            self.logger.warning("File upload failed - workspace not found",
+                              workspace_id=workspace_id,
+                              filename=filename)
             raise WorkspaceNotFoundError(f"Workspace {workspace_id} not found")
         
         if workspace_info.status == WorkspaceStatus.EXPIRED:
+            self.logger.warning("File upload failed - workspace expired",
+                              workspace_id=workspace_id,
+                              filename=filename,
+                              status=workspace_info.status)
             raise WorkspaceNotFoundError(f"Workspace {workspace_id} has expired")
         
         # Validate file
         self._validate_file(filename, content)
         
         # Upload to workspace via Jupyter
+        self.logger.debug("Uploading file to Jupyter workspace",
+                         workspace_id=workspace_id,
+                         filename=filename)
+        
         try:
             file_info = await self.jupyter_client.upload_file_to_workspace(
                 workspace_id=workspace_id,
@@ -88,9 +110,20 @@ class FileService:
             # Update workspace activity
             await self.workspace_service.update_workspace_activity(workspace_id)
             
+            self.logger.info("File uploaded successfully",
+                           workspace_id=workspace_id,
+                           filename=filename,
+                           file_size_bytes=len(content))
+            
             return file_info
             
         except Exception as e:
+            self.logger.error("File upload failed",
+                            exc=e,
+                            workspace_id=workspace_id,
+                            filename=filename,
+                            file_size_bytes=len(content),
+                            error_type=e.__class__.__name__)
             raise FileServiceError(f"Failed to upload file {filename}: {e}")
     
     async def list_files(self, workspace_id: str) -> List[FileInfo]:
@@ -106,12 +139,19 @@ class FileService:
         Raises:
             WorkspaceNotFoundError: If workspace doesn't exist
         """
+        self.logger.debug("Listing files in workspace", workspace_id=workspace_id)
+        
         # Validate workspace exists
         workspace_info = await self.workspace_service.get_workspace(workspace_id)
         if not workspace_info:
+            self.logger.warning("List files failed - workspace not found",
+                              workspace_id=workspace_id)
             raise WorkspaceNotFoundError(f"Workspace {workspace_id} not found")
         
         if workspace_info.status == WorkspaceStatus.EXPIRED:
+            self.logger.warning("List files failed - workspace expired",
+                              workspace_id=workspace_id,
+                              status=workspace_info.status)
             raise WorkspaceNotFoundError(f"Workspace {workspace_id} has expired")
         
         # Get files from Jupyter
@@ -119,6 +159,11 @@ class FileService:
         
         # Update workspace activity
         await self.workspace_service.update_workspace_activity(workspace_id)
+        
+        self.logger.info("Files listed successfully",
+                       workspace_id=workspace_id,
+                       file_count=len(files),
+                       total_size_bytes=sum(f.size for f in files) if files else 0)
         
         return files
     

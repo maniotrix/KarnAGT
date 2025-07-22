@@ -20,6 +20,7 @@ from app.infrastructure.jupyter_client import (
     JupyterServerClient, WorkspaceNotFoundError, KernelNotFoundError
 )
 from app.services.workspace_service import WorkspaceService
+from app.utils.logger import Loggers
 
 
 class ExecutionService:
@@ -39,9 +40,14 @@ class ExecutionService:
         self.settings = settings
         self.jupyter_client = jupyter_client
         self.workspace_service = workspace_service
+        self.logger = Loggers.execution_service
         
         # Track execution history
         self._executions: Dict[str, ExecutionResult] = {}
+        
+        self.logger.info("Execution service initialized",
+                        default_timeout=settings.default_execution_timeout,
+                        max_timeout=settings.max_execution_timeout)
     
     async def execute_code(self, request: ExecutionRequest) -> ExecutionResult:
         """
@@ -57,12 +63,19 @@ class ExecutionService:
             WorkspaceNotFoundError: If workspace doesn't exist
             ValueError: If request validation fails
         """
+        self.logger.info("Code execution requested",
+                        workspace_id=request.workspace_id,
+                        code_length=len(request.code),
+                        timeout=request.timeout)
+        
         # Validate request
         self._validate_execution_request(request)
         
         # Check workspace exists and is ready
         workspace_info = await self.workspace_service.get_workspace(request.workspace_id)
         if not workspace_info:
+            self.logger.warning("Execution failed - workspace not found",
+                              workspace_id=request.workspace_id)
             raise WorkspaceNotFoundError(f"Workspace {request.workspace_id} not found")
         
         if workspace_info.status == WorkspaceStatus.EXPIRED:
@@ -75,6 +88,10 @@ class ExecutionService:
         await self.workspace_service.update_workspace_activity(request.workspace_id)
         
         # Execute code via Jupyter client
+        self.logger.debug("Executing code in Jupyter kernel",
+                         workspace_id=request.workspace_id,
+                         kernel_id=workspace_info.kernel_id)
+        
         try:
             result = await self.jupyter_client.execute_code(
                 workspace_id=request.workspace_id,
@@ -88,6 +105,13 @@ class ExecutionService:
             # Update workspace activity again after successful execution
             await self.workspace_service.update_workspace_activity(request.workspace_id)
             
+            self.logger.info("Code execution completed",
+                           workspace_id=request.workspace_id,
+                           execution_id=result.execution_id,
+                           status=result.status,
+                           execution_time_ms=result.execution_time_ms,
+                           output_lines=len(result.outputs))
+            
             return result
             
         except WorkspaceNotFoundError:
@@ -99,6 +123,13 @@ class ExecutionService:
                 workspace_info.status = WorkspaceStatus.ERROR
             raise WorkspaceNotFoundError(f"Execution environment for workspace {request.workspace_id} is not available")
         except Exception as e:
+            self.logger.error("Code execution failed",
+                            exc=e,
+                            workspace_id=request.workspace_id,
+                            code_length=len(request.code),
+                            timeout=request.timeout,
+                            error_type=e.__class__.__name__)
+            
             # Create error result
             error_result = ExecutionResult(
                 workspace_id=request.workspace_id,

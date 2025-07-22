@@ -22,6 +22,7 @@ from app.domain.models import (
     WorkspaceInfo, WorkspaceStatus, ExecutionResult, ExecutionStatus,
     FileInfo, ExecutionOutput
 )
+from app.utils.logger import Loggers
 
 
 class JupyterClientError(Exception):
@@ -52,9 +53,14 @@ class JupyterServerClient:
         self.base_url = settings.jupyter_url
         self.timeout = settings.max_execution_timeout  # Use execution timeout for Jupyter API calls
         self.headers = settings.get_jupyter_headers()
+        self.logger = Loggers.jupyter
         
         # Track active kernels
         self._kernels: Dict[str, Dict[str, Any]] = {}
+        
+        self.logger.info("Jupyter client initialized",
+                        base_url=self.base_url,
+                        timeout=self.timeout)
         
         # HTTP client with proper configuration
         self._client = httpx.AsyncClient(
@@ -127,6 +133,10 @@ class JupyterServerClient:
     
     async def create_kernel(self, workspace_id: str) -> Dict[str, Any]:
         """Create a new Jupyter kernel for the workspace"""
+        self.logger.info("Creating Jupyter kernel",
+                        workspace_id=workspace_id,
+                        jupyter_url=self.base_url)
+        
         try:
             # Create kernel
             response = await self._client.post(
@@ -147,6 +157,11 @@ class JupyterServerClient:
             # Initialize kernel with workspace setup
             await self._initialize_kernel_workspace(workspace_id, kernel_info["id"])
             
+            self.logger.info("Jupyter kernel created successfully",
+                           workspace_id=workspace_id,
+                           kernel_id=kernel_info["id"],
+                           active_kernels=len(self._kernels))
+            
             return {
                 "kernel_id": kernel_info["id"],
                 "workspace_id": workspace_id,
@@ -155,6 +170,11 @@ class JupyterServerClient:
             }
             
         except httpx.HTTPStatusError as e:
+            self.logger.error("Jupyter kernel creation failed",
+                            workspace_id=workspace_id,
+                            status_code=e.response.status_code,
+                            error_text=e.response.text,
+                            jupyter_url=self.base_url)
             raise JupyterClientError(f"Failed to create kernel: {e.response.text}")
     
     async def _initialize_kernel_workspace(self, workspace_id: str, kernel_id: str):
@@ -200,11 +220,20 @@ print(f"Security restrictions applied for: {', '.join(self.settings.blocked_impo
     async def execute_code(self, workspace_id: str, code: str, timeout: Optional[int] = None) -> ExecutionResult:
         """Execute code in workspace kernel"""
         if workspace_id not in self._kernels:
+            self.logger.error("Code execution failed - no kernel found",
+                            workspace_id=workspace_id,
+                            active_kernels=list(self._kernels.keys()))
             raise WorkspaceNotFoundError(f"No kernel found for workspace: {workspace_id}")
         
         kernel_info = self._kernels[workspace_id]
         kernel_id = kernel_info["kernel_id"]
         execution_timeout = timeout or self.settings.default_execution_timeout
+        
+        self.logger.debug("Executing code in kernel",
+                         workspace_id=workspace_id,
+                         kernel_id=kernel_id,
+                         code_length=len(code),
+                         timeout=execution_timeout)
         
         # Update last activity
         kernel_info["last_activity"] = datetime.utcnow()
@@ -232,6 +261,10 @@ print(f"Security restrictions applied for: {', '.join(self.settings.blocked_impo
             )
             
         except asyncio.TimeoutError:
+            self.logger.warning("Code execution timed out",
+                              workspace_id=workspace_id,
+                              kernel_id=kernel_id,
+                              timeout=execution_timeout)
             return ExecutionResult(
                 workspace_id=workspace_id,
                 status=ExecutionStatus.TIMEOUT,
@@ -239,6 +272,12 @@ print(f"Security restrictions applied for: {', '.join(self.settings.blocked_impo
                 completed_at=datetime.utcnow()
             )
         except Exception as e:
+            self.logger.error("Code execution failed in kernel",
+                            exc=e,
+                            workspace_id=workspace_id,
+                            kernel_id=kernel_id,
+                            code_length=len(code),
+                            error_type=e.__class__.__name__)
             return ExecutionResult(
                 workspace_id=workspace_id,
                 status=ExecutionStatus.FAILED,
@@ -402,26 +441,46 @@ print("<<<EXECUTION_END>>>")
     async def delete_kernel(self, workspace_id: str) -> bool:
         """Delete kernel associated with workspace"""
         if workspace_id not in self._kernels:
+            self.logger.debug("Kernel deletion skipped - no kernel found",
+                            workspace_id=workspace_id)
             return False
         
+        kernel_info = self._kernels[workspace_id]
+        kernel_id = kernel_info["kernel_id"]
+        
+        self.logger.info("Deleting Jupyter kernel",
+                        workspace_id=workspace_id,
+                        kernel_id=kernel_id)
+        
         try:
-            kernel_info = self._kernels[workspace_id]
-            kernel_id = kernel_info["kernel_id"]
-            
             response = await self._client.delete(f"/api/kernels/{kernel_id}")
             response.raise_for_status()
             
             # Remove from tracking
             del self._kernels[workspace_id]
             
+            self.logger.info("Jupyter kernel deleted successfully",
+                           workspace_id=workspace_id,
+                           kernel_id=kernel_id,
+                           remaining_kernels=len(self._kernels))
+            
             return True
             
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 # Kernel already deleted
+                self.logger.info("Kernel already deleted on Jupyter server",
+                               workspace_id=workspace_id,
+                               kernel_id=kernel_id)
                 if workspace_id in self._kernels:
                     del self._kernels[workspace_id]
                 return True
+            
+            self.logger.error("Jupyter kernel deletion failed",
+                            workspace_id=workspace_id,
+                            kernel_id=kernel_id,
+                            status_code=e.response.status_code,
+                            error_text=e.response.text)
             raise JupyterClientError(f"Failed to delete kernel: {e.response.text}")
     
     async def cleanup_expired_kernels(self, max_idle_minutes: int = 60):
@@ -436,13 +495,28 @@ print("<<<EXECUTION_END>>>")
             if idle_time.total_seconds() > (max_idle_minutes * 60):
                 expired_workspaces.append(workspace_id)
         
+        if expired_workspaces:
+            self.logger.info("Found idle kernels for cleanup",
+                           expired_count=len(expired_workspaces),
+                           max_idle_minutes=max_idle_minutes,
+                           total_kernels=len(self._kernels))
+        
         # Delete expired kernels
+        cleaned_count = 0
         for workspace_id in expired_workspaces:
             try:
                 await self.delete_kernel(workspace_id)
+                cleaned_count += 1
             except Exception as e:
-                # Log but don't fail cleanup
-                print(f"Warning: Failed to cleanup kernel for workspace {workspace_id}: {e}")
+                self.logger.error("Failed to cleanup idle kernel",
+                                exc=e,
+                                workspace_id=workspace_id,
+                                error_type=e.__class__.__name__)
+        
+        if cleaned_count > 0:
+            self.logger.info("Idle kernel cleanup completed",
+                           cleaned_count=cleaned_count,
+                           remaining_kernels=len(self._kernels))
     
     def get_kernel_info(self, workspace_id: str) -> Optional[Dict[str, Any]]:
         """Get kernel information for workspace"""
