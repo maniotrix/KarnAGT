@@ -35,7 +35,7 @@ class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         # Create base log entry
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now().isoformat(),  # Use local time instead of UTC
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -127,7 +127,7 @@ class ColoredConsoleFormatter(logging.Formatter):
         colored_level = f"{level_color}{record.levelname}{self.RESET}"
         
         # Format timestamp
-        timestamp = datetime.utcnow().strftime('%H:%M:%S')
+        timestamp = datetime.now().strftime('%H:%M:%S')
         
         # Build the base message
         base_msg = f"{timestamp} {colored_level:<15} {self.BOLD}{record.name}{self.RESET} | {record.getMessage()}"
