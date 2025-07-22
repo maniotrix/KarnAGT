@@ -23,6 +23,16 @@ from app.services.workspace_service import WorkspaceService
 from app.utils.logger import Loggers
 
 
+PREVIEW_CUTOFF_STDOUT = 1000
+PREVIEW_CUTOFF_STDERR = 1000
+PREVIEW_FULL_DATA = -1
+
+def preview_data(data: str, cutoff: int) -> str:
+    if cutoff == PREVIEW_FULL_DATA:
+        return data
+    else:
+        return data[:cutoff] + ("..." if len(data) > cutoff else "")
+
 class ExecutionService:
     """
     Service for managing code execution
@@ -93,7 +103,7 @@ class ExecutionService:
                          kernel_id=workspace_info.kernel_id)
         
         # Log the actual code being executed (for debugging)
-        code_preview = request.code[:200] + ("..." if len(request.code) > 200 else "")
+        code_preview = preview_data(request.code, 200)
         self.logger.info(f"📝 Code to execute: {code_preview}",
                         workspace_id=request.workspace_id)
         
@@ -126,13 +136,17 @@ class ExecutionService:
                            generated_files=len(result.generated_files))
             
             # Log actual outputs for debugging
+            self.logger.debug("🎯 Execution outputs",
+                            workspace_id=request.workspace_id,
+                            output_types=[out.type for out in result.outputs])
+            
             if result.stdout:
-                stdout_preview = result.stdout[:500] + ("..." if len(result.stdout) > 500 else "")
+                stdout_preview = preview_data(result.stdout, PREVIEW_FULL_DATA)
                 self.logger.debug(f"📤 Execution stdout:\n{stdout_preview}",
                                 workspace_id=request.workspace_id)
             
             if result.stderr:
-                stderr_preview = result.stderr[:500] + ("..." if len(result.stderr) > 500 else "")
+                stderr_preview = preview_data(result.stderr, PREVIEW_FULL_DATA)
                 self.logger.debug(f"⚠️ Execution stderr:\n{stderr_preview}",
                                 workspace_id=request.workspace_id)
             
