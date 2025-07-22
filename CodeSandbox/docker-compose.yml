@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  codesandbox:
+    build: .
+    ports:
+      - "8080:8080"  # FastAPI
+      - "8888:8888"  # Jupyter Server
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - HOST=0.0.0.0
+      - PORT=8080
+      - JUPYTER_HOST=0.0.0.0
+      - JUPYTER_PORT=8888
+      - JUPYTER_TOKEN=
+      - WORKSPACE_DEFAULT_TTL_HOURS=2
+      - MAX_FILE_SIZE_MB=100
+      - MAX_WORKSPACE_SIZE_MB=500
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./:/app  # Mount source code for development
+      - workspace_data:/tmp/workspaces
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  workspace_data:
+    driver: local 

@@ -1,0 +1,337 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+FastAPI Routes
+
+Main API endpoints for workspace management, code execution, and file operations.
+"""
+
+from typing import Any, List
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import JSONResponse
+
+from app.domain.models import (
+    WorkspaceCreateRequest, WorkspaceInfo, WorkspaceFilesResponse,
+    ExecutionRequest, ExecutionResult, HealthCheck
+)
+from app.services.workspace_service import WorkspaceService
+from app.services.execution_service import ExecutionService
+from app.services.file_service import FileService, FileServiceError
+from app.infrastructure.jupyter_client import WorkspaceNotFoundError, JupyterClientError
+from app.api.dependencies import (
+    get_workspace_service, get_execution_service, get_file_service, get_settings_cached
+)
+
+from app.utils.serialization import SerializableResponse
+
+# Create router
+router = APIRouter()
+
+
+def get_serializable_response(content: Any) -> SerializableResponse:
+    """Get a SerializableResponse object with the given content."""
+    return SerializableResponse(content=content)
+
+
+# ============================================================================
+# Health & Status Endpoints
+# ============================================================================
+
+@router.get("/health", response_model=HealthCheck)
+async def health_check(
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """Health check endpoint"""
+    try:
+        # Get Jupyter status
+        jupyter_client = workspace_service.jupyter_client
+        jupyter_health = await jupyter_client.health_check()
+        
+        # Get workspace stats
+        stats = workspace_service.get_stats()
+        
+        return HealthCheck(
+            status="healthy",
+            jupyter_server_status=jupyter_health.get("status", "unknown"),
+            active_workspaces=stats.get("active_workspaces", 0)
+        )
+    except Exception as e:
+        return HealthCheck(
+            status="unhealthy",
+            jupyter_server_status="error",
+            active_workspaces=0
+        )
+
+
+@router.get("/stats")
+async def get_system_stats(
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    execution_service: ExecutionService = Depends(get_execution_service),
+    file_service: FileService = Depends(get_file_service)
+):
+    """Get system statistics"""
+    stats_data = {
+        "workspace_stats": workspace_service.get_stats(),
+        "execution_stats": execution_service.get_execution_stats(),
+        "file_stats": file_service.get_stats()
+    }
+    return get_serializable_response(stats_data)
+
+
+# ============================================================================
+# Workspace Management Endpoints
+# ============================================================================
+
+@router.post("/workspace/create", response_model=WorkspaceInfo)
+async def create_workspace(
+    request: WorkspaceCreateRequest,
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """Create a new workspace"""
+    try:
+        workspace_info = await workspace_service.create_workspace(request)
+        return workspace_info
+    except JupyterClientError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create workspace: {e}")
+
+
+@router.get("/workspace/{workspace_id}", response_model=WorkspaceInfo)
+async def get_workspace(
+    workspace_id: str,
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """Get workspace information"""
+    workspace_info = await workspace_service.get_workspace(workspace_id)
+    if not workspace_info:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return workspace_info
+
+
+@router.get("/workspaces", response_model=List[WorkspaceInfo])
+async def list_workspaces(
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """List all workspaces"""
+    return await workspace_service.list_workspaces()
+
+
+@router.delete("/workspace/{workspace_id}")
+async def delete_workspace(
+    workspace_id: str,
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """Delete a workspace"""
+    success = await workspace_service.delete_workspace(workspace_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return {"message": "Workspace deleted successfully"}
+
+
+@router.post("/workspace/{workspace_id}/extend")
+async def extend_workspace_ttl(
+    workspace_id: str,
+    additional_hours: int = Form(..., description="Hours to add to TTL"),
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """Extend workspace TTL"""
+    try:
+        workspace_info = await workspace_service.extend_workspace_ttl(workspace_id, additional_hours)
+        if not workspace_info:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        return workspace_info
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================================
+# Code Execution Endpoints (CRITICAL: Use SerializableResponse!)
+# ============================================================================
+
+@router.post("/workspace/{workspace_id}/execute")
+async def execute_code(
+    workspace_id: str,
+    code: str = Form(..., description="Python code to execute"),
+    timeout: int = Form(30, description="Execution timeout in seconds"),
+    execution_service: ExecutionService = Depends(get_execution_service)
+):
+    """Execute code in workspace - RETURNS COMPLEX OBJECTS (numpy, pandas, etc.)"""
+    try:
+        request = ExecutionRequest(
+            workspace_id=workspace_id,
+            code=code,
+            timeout=timeout
+        )
+        result = await execution_service.execute_code(request)
+        
+        # 🔥 THIS IS THE CRITICAL PART - Use SerializableResponse for complex objects!
+        result_data = {
+            "execution_id": result.execution_id,
+            "workspace_id": result.workspace_id,
+            "status": result.status.value,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "result_data": result.result_data,  # This could be numpy/pandas/matplotlib objects!
+            "outputs": [
+                {
+                    "type": output.type,
+                    "content": output.content,  # This could be complex objects too!
+                    "timestamp": output.timestamp.isoformat()
+                } 
+                for output in result.outputs
+            ],
+            "generated_files": [
+                {
+                    "filename": file.filename,
+                    "size": file.size,
+                    "mime_type": file.mime_type,
+                    "download_url": file.download_url,
+                    "relative_path": file.relative_path
+                }
+                for file in result.generated_files
+            ],
+            "execution_time_ms": result.execution_time_ms,
+            "started_at": result.started_at.isoformat(),
+            "completed_at": result.completed_at.isoformat() if result.completed_at else None
+        }
+        
+        # 🚀 Use SerializableResponse to handle complex objects like numpy arrays, pandas DataFrames, etc.
+        return get_serializable_response(result_data)
+        
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Execution failed: {e}")
+
+
+@router.get("/execution/{execution_id}")
+async def get_execution_result(
+    execution_id: str,
+    execution_service: ExecutionService = Depends(get_execution_service)
+):
+    """Get execution result by ID - RETURNS COMPLEX OBJECTS"""
+    result = await execution_service.get_execution_result(execution_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Execution result not found")
+    
+    # Use SerializableResponse for complex result_data
+    result_data = {
+        "execution_id": result.execution_id,
+        "workspace_id": result.workspace_id,
+        "status": result.status.value,
+        "result_data": result.result_data,  # Could be complex objects!
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "outputs": result.outputs,
+        "generated_files": result.generated_files,
+        "execution_time_ms": result.execution_time_ms
+    }
+    
+    return get_serializable_response(result_data)
+
+
+@router.get("/workspace/{workspace_id}/executions")
+async def list_workspace_executions(
+    workspace_id: str,
+    limit: int = 50,
+    execution_service: ExecutionService = Depends(get_execution_service)
+):
+    """List executions for workspace"""
+    executions = await execution_service.list_workspace_executions(workspace_id, limit)
+    
+    # Convert to serializable format
+    executions_data = []
+    for execution in executions:
+        executions_data.append({
+            "execution_id": execution.execution_id,
+            "status": execution.status.value,
+            "result_data": execution.result_data,  # Could be complex!
+            "started_at": execution.started_at.isoformat(),
+            "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
+            "execution_time_ms": execution.execution_time_ms
+        })
+    
+    return get_serializable_response({"executions": executions_data})
+
+
+# ============================================================================
+# File Management Endpoints
+# ============================================================================
+
+@router.post("/workspace/{workspace_id}/upload")
+async def upload_file(
+    workspace_id: str,
+    file: UploadFile = File(...),
+    file_service: FileService = Depends(get_file_service)
+):
+    """Upload file to workspace"""
+    try:
+        # Read file content
+        content = await file.read()
+        
+        # Upload file
+        file_info = await file_service.upload_file(
+            workspace_id=workspace_id,
+            filename=file.filename,
+            content=content
+        )
+        
+        upload_result = {
+            "filename": file_info.filename,
+            "size": file_info.size,
+            "mime_type": file_info.mime_type,
+            "download_url": file_info.download_url,
+            "relative_path": file_info.relative_path
+        }
+        
+        return get_serializable_response(upload_result)
+        
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileServiceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"File upload failed: {e}")
+
+
+@router.get("/workspace/{workspace_id}/files", response_model=WorkspaceFilesResponse)
+async def list_workspace_files(
+    workspace_id: str,
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """List files in workspace"""
+    try:
+        return await workspace_service.get_workspace_files(workspace_id)
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list files: {e}")
+
+
+# ============================================================================
+# Configuration Endpoints
+# ============================================================================
+
+@router.get("/config")
+async def get_configuration():
+    """Get system configuration (safe subset)"""
+    settings = get_settings_cached()
+    config_data = {
+        "app_name": settings.app_name,
+        "app_version": settings.app_version,
+        "environment": settings.environment,
+        "workspace_default_ttl_hours": settings.workspace_default_ttl_hours,
+        "workspace_max_ttl_hours": settings.workspace_max_ttl_hours,
+        "max_file_size_mb": settings.max_file_size_mb,
+        "max_workspace_size_mb": settings.max_workspace_size_mb,
+        "allowed_file_extensions": settings.allowed_file_extensions,
+        "default_execution_timeout": settings.default_execution_timeout,
+        "max_execution_timeout": settings.max_execution_timeout,
+        "serialization_available": True
+    }
+    
+    return get_serializable_response(config_data) 

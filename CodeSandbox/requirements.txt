@@ -1,0 +1,13 @@
+# Core Framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+pydantic>=2.0.0
+httpx>=0.24.0
+python-dotenv>=1.0.0
+
+# Jupyter Integration  
+jupyter-server>=2.0.0
+jupyter-client>=8.0.0
+
+# Existing Dependencies (keep these)
+# Add your existing requirements here from the original requirements.txt 
