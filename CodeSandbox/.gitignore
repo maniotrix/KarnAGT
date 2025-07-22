@@ -1,0 +1,360 @@
+# CodeSandbox .gitignore
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# === Virtual Environments ===
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.env/
+pyvenv.cfg
+
+# === Environment Files ===
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+*.env
+!env.example
+!.env.example
+
+# === IDE/Editor Files ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# === OS Files ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# === Logs ===
+logs/
+*.log
+*.log.*
+log/
+*.out
+
+# === Jupyter ===
+.jupyter/
+.ipynb_checkpoints/
+jupyter_config/
+*.ipynb
+
+# === Temporary Files ===
+tmp/
+temp/
+.tmp/
+.temp/
+
+# === Workspaces ===
+workspaces/
+workspace_data/
+/tmp/workspaces/
+user_workspaces/
+
+# === Database ===
+*.db
+*.sqlite
+*.sqlite3
+database/
+db/
+
+# === Testing ===
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# === MyPy ===
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# === Pylint ===
+pylint-report.txt
+
+# === FastAPI/Uvicorn ===
+fastapi.log
+uvicorn.log
+
+# === File Uploads ===
+uploads/
+upload/
+media/
+static/uploads/
+
+# === Cache ===
+.cache/
+*.pid
+*.seed
+*.pid.lock
+
+# === Certificates/Keys ===
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+ssl/
+certs/
+keys/
+
+# === Docker ===
+.dockerignore
+Dockerfile.dev
+docker-compose.override.yml
+
+# === Backup Files ===
+*.bak
+*.backup
+*.old
+*.orig
+
+# === Process Files ===
+*.pid
+pids/
+
+# === Package Manager ===
+pip-log.txt
+pip-delete-this-directory.txt
+
+# === Compiled Files ===
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# === Archives ===
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# === Local Configuration ===
+config.local.py
+settings.local.py
+local_settings.py
+
+# === Runtime Data ===
+runtime/
+run/
+sessions/
+
+# === Documentation Build ===
+docs/_build/
+site/
+
+# === Node.js (if any frontend tools) ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Temporary Python Files ===
+.python-version
+.coverage
+.coverage.*
+
+# === Editor Specific ===
+# Vim
+*.vim
+.*.sw*
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# === Application Specific ===
+# Jupyter runtime files
+.jupyter/
+jupyter_runtime/
+
+# FastAPI specific
+.fastapi/
+
+# Workspace files
+*.workspace
+
+# === Security ===
+secrets/
+.secrets/
+*.secret
+api_keys.txt
+.api_keys
+
+# === Monitoring/Profiling ===
+*.prof
+.prof/
+monitoring/
+
+# === Build Tools ===
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# === Local Development ===
+.local/
+local/
+dev/
+
+# === Temporary Jupyter Files ===
+Untitled*.ipynb
+
+# === System Files ===
+$RECYCLE.BIN/
+
+# === Python Specific Ignores ===
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# === Unit test / coverage reports ===
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# === Translations ===
+*.mo
+*.pot
+
+# === Django stuff (if applicable) ===
+*.log
+local_settings.py
+db.sqlite3
+
+# === Flask stuff (if applicable) ===
+instance/
+.webassets-cache
+
+# === Scrapy stuff (if applicable) ===
+.scrapy
+
+# === Sphinx documentation ===
+docs/_build/
+
+# === PyBuilder ===
+target/
+
+# === Jupyter Notebook ===
+.ipynb_checkpoints
+
+# === IPython ===
+profile_default/
+ipython_config.py
+
+# === pyenv ===
+.python-version
+
+# === celery beat schedule file ===
+celerybeat-schedule
+
+# === SageMath parsed files ===
+*.sage.py
+
+# === Spyder project settings ===
+.spyderproject
+.spyproject
+
+# === Rope project settings ===
+.ropeproject
+
+# === mkdocs documentation ===
+/site
+
+# === mypy ===
+.mypy_cache/
+.dmypy.json
+dmypy.json 

@@ -65,8 +65,12 @@ class Settings(BaseModel):
     
     # === Logging Configuration ===
     log_level: str = "INFO"
-    log_format: str = "json"
-    log_file: Optional[str] = None
+    log_json_format: bool = False  # Auto-detected based on environment
+    log_file_enabled: bool = True
+    log_max_file_size_mb: int = 10
+    log_backup_count: int = 5
+    log_correlation_id_header: str = "x-correlation-id"
+    log_performance_threshold_ms: float = 1000.0
     
     def _parse_cors_origins(self, origins_str: str) -> List[str]:
         """Parse CORS origins from environment variable with proper validation"""

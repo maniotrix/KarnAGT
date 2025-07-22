@@ -2,148 +2,358 @@
 # -*- coding: utf-8 -*-
 
 """
-Logging configuration for the code executor module.
+Logger Utilities
+
+Easy-to-use logger utilities that provide:
+- Convenient logger instances for different modules
+- Performance timing decorators
+- Exception logging helpers
+- Structured logging with context
+- Workspace and user context binding
 """
 
+import functools
+import time
 import logging
-import os
-import sys
-import inspect
+import traceback
+from typing import Any, Callable, Dict, Optional, Union, TypeVar, cast
+from contextlib import contextmanager
 
-# Default log level
-DEFAULT_LOG_LEVEL = logging.INFO
+from app.core.logging_config import LoggerNames, get_logger
 
-# Store configured loggers to avoid reconfiguration
-_configured_loggers = set()
+F = TypeVar('F', bound=Callable[..., Any])
 
-def configure_logging(level=None):
-    """
-    Configure the logging settings for the code executor module.
-    
-    Args:
-        level: The logging level to use (default: INFO)
-    """
-    # Use environment variable if set, otherwise use the provided level or default
-    log_level = level or os.environ.get('CODE_EXECUTOR_LOG_LEVEL', DEFAULT_LOG_LEVEL)
-    
-    # Convert string log level to actual level if needed
-    if isinstance(log_level, str):
-        log_level = getattr(logging, log_level.upper(), DEFAULT_LOG_LEVEL)
-    
-    return log_level
 
-def _setup_logger(logger_name: str, level=None):
+class AppLogger:
     """
-    Set up a specific logger with the code executor configuration.
-    
-    Args:
-        logger_name: Name for the logger
-        level: Log level to use
-        
-    Returns:
-        Configured logger instance
+    Application logger with structured logging and context support
     """
-    logger = logging.getLogger(logger_name)
     
-    # Skip if already configured
-    if logger_name in _configured_loggers:
-        return logger
+    def __init__(self, name: str):
+        self.name = name
+        self.logger = get_logger(name)
     
-    # Get log level
-    log_level = configure_logging(level)
+    def debug(self, message: str, **context):
+        """Log debug message with context"""
+        self.logger.debug(message, extra=context)
     
-    # Create console handler
-    console_handler = logging.StreamHandler(sys.stdout)
+    def info(self, message: str, **context):
+        """Log info message with context"""
+        self.logger.info(message, extra=context)
     
-    # Set formatter
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    console_handler.setFormatter(formatter)
+    def warning(self, message: str, **context):
+        """Log warning message with context"""
+        self.logger.warning(message, extra=context)
     
-    # Configure logger
-    logger.setLevel(log_level)
-    
-    # Remove existing handlers to avoid duplicates
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-    
-    # Add the console handler
-    logger.addHandler(console_handler)
-    
-    # Disable propagation to prevent duplicate messages from parent loggers
-    logger.propagate = False
-    
-    # Mark as configured
-    _configured_loggers.add(logger_name)
-    
-    return logger
-
-def get_logger(name=None):
-    """
-    Get a logger with optional custom name.
-    
-    Args:
-        name: Optional logger name. If not provided, tries to detect from caller.
-              Can be class name, module name, or any identifier.
-              
-    Returns:
-        Configured logger instance
-        
-    Examples:
-        # Auto-detect from caller
-        logger = get_logger()
-        
-        # Explicit class name  
-        logger = get_logger("HTTPCodeExecutorAgent")
-        
-        # Module name
-        logger = get_logger("new_code_tool")
-        
-        # Method name
-        logger = get_logger("execute_code_func")
-    """
-    if name is None:
-        # Try to auto-detect the caller's context
-        frame = inspect.currentframe()
-        if frame and frame.f_back:
-            caller_frame = frame.f_back
-            # Get the filename and create a name from it
-            filename = caller_frame.f_code.co_filename
-            module_name = os.path.basename(filename).replace('.py', '')
-            
-            # Try to get class name if we're in a class method
-            if 'self' in caller_frame.f_locals:
-                class_name = caller_frame.f_locals['self'].__class__.__name__
-                name = f"code_executor.{module_name}.{class_name}"
-            else:
-                name = f"code_executor.{module_name}"
+    def error(self, message: str, exc: Optional[Exception] = None, **context):
+        """Log error message with optional exception and context"""
+        if exc:
+            context.update({
+                "exception_type": exc.__class__.__name__,
+                "exception_message": str(exc),
+            })
+            self.logger.error(message, extra=context, exc_info=exc)
         else:
-            # Fallback to default
-            name = "code_executor"
-    elif not name.startswith('code_executor'):
-        # Prefix with code_executor for consistency
-        name = f"code_executor.{name}"
+            self.logger.error(message, extra=context)
     
-    return _setup_logger(name)
+    def critical(self, message: str, exc: Optional[Exception] = None, **context):
+        """Log critical message with optional exception and context"""
+        if exc:
+            context.update({
+                "exception_type": exc.__class__.__name__,
+                "exception_message": str(exc),
+            })
+            self.logger.critical(message, extra=context, exc_info=exc)
+        else:
+            self.logger.critical(message, extra=context)
+    
+    def exception(self, message: str, **context):
+        """Log exception with full traceback"""
+        self.logger.exception(message, extra=context)
 
-def set_log_level(level):
+
+class TimingLogger:
     """
-    Set the logging level for all code executor loggers.
+    Logger for performance timing and monitoring
+    """
+    
+    def __init__(self, logger: AppLogger, threshold_ms: float = 100.0):
+        self.logger = logger
+        self.threshold_ms = threshold_ms
+    
+    @contextmanager
+    def time_operation(self, operation_name: str, **context):
+        """
+        Context manager for timing operations
+        
+        Usage:
+            with timing_logger.time_operation("database_query", table="users"):
+                # Your operation here
+                result = db.query()
+        """
+        start_time = time.perf_counter()
+        exception_occurred = False
+        
+        try:
+            self.logger.debug(f"Starting operation: {operation_name}", **context)
+            yield
+        except Exception as e:
+            exception_occurred = True
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            self.logger.error(
+                f"Operation failed: {operation_name}",
+                exc=e,
+                duration_ms=duration_ms,
+                operation=operation_name,
+                **context
+            )
+            raise
+        finally:
+            if not exception_occurred:
+                duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                
+                if duration_ms > self.threshold_ms:
+                    self.logger.warning(
+                        f"Slow operation: {operation_name}",
+                        duration_ms=duration_ms,
+                        threshold_ms=self.threshold_ms,
+                        operation=operation_name,
+                        slow_operation=True,
+                        **context
+                    )
+                else:
+                    self.logger.debug(
+                        f"Completed operation: {operation_name}",
+                        duration_ms=duration_ms,
+                        operation=operation_name,
+                        **context
+                    )
+
+
+def timed_operation(
+    logger: AppLogger, 
+    operation_name: Optional[str] = None,
+    threshold_ms: float = 100.0,
+    log_level: str = "info"
+):
+    """
+    Decorator for timing function execution
     
     Args:
-        level: New log level to apply
+        logger: Logger instance to use
+        operation_name: Name of the operation (defaults to function name)
+        threshold_ms: Threshold for slow operation warning
+        log_level: Log level for normal operations
+        
+    Usage:
+        @timed_operation(logger, "workspace_creation", threshold_ms=500)
+        async def create_workspace(workspace_data):
+            # Function implementation
+            pass
     """
-    # Clear configured loggers so they get reconfigured with new level
-    _configured_loggers.clear()
+    def decorator(func: F) -> F:
+        name = operation_name or func.__name__
+        timing_logger = TimingLogger(logger, threshold_ms)
+        
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            with timing_logger.time_operation(
+                name,
+                function=func.__name__,
+                module=func.__module__,
+            ):
+                return await func(*args, **kwargs)
+        
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            with timing_logger.time_operation(
+                name,
+                function=func.__name__,
+                module=func.__module__,
+            ):
+                return func(*args, **kwargs)
+        
+        # Return appropriate wrapper based on function type
+        if hasattr(func, '__code__') and func.__code__.co_flags & 0x80:  # CO_COROUTINE
+            return cast(F, async_wrapper)
+        else:
+            return cast(F, sync_wrapper)
     
-    # Update any existing code_executor loggers
-    for logger_name in list(logging.Logger.manager.loggerDict.keys()):
-        if logger_name.startswith('code_executor'):
-            logger = logging.getLogger(logger_name)
-            new_level = configure_logging(level)
-            logger.setLevel(new_level)
+    return decorator
 
-# Create default logger for backwards compatibility
-logger = get_logger("code_executor") 
+
+def log_exception(logger: AppLogger, message: str = "An exception occurred", **context):
+    """
+    Decorator for automatic exception logging
+    
+    Usage:
+        @log_exception(logger, "Failed to process request")
+        async def process_request():
+            # Function that might raise exceptions
+            pass
+    """
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                logger.error(
+                    f"{message}: {func.__name__}",
+                    exc=e,
+                    function=func.__name__,
+                    module=func.__module__,
+                    **context
+                )
+                raise
+        
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger.error(
+                    f"{message}: {func.__name__}",
+                    exc=e,
+                    function=func.__name__,
+                    module=func.__module__,
+                    **context
+                )
+                raise
+        
+        # Return appropriate wrapper based on function type
+        if hasattr(func, '__code__') and func.__code__.co_flags & 0x80:  # CO_COROUTINE
+            return cast(F, async_wrapper)
+        else:
+            return cast(F, sync_wrapper)
+    
+    return decorator
+
+
+class WorkspaceLogger:
+    """
+    Logger with workspace context binding
+    """
+    
+    def __init__(self, logger: AppLogger, workspace_id: str):
+        self.logger = logger
+        self.workspace_id = workspace_id
+    
+    def _add_workspace_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Add workspace context to log context"""
+        context["workspace_id"] = self.workspace_id
+        return context
+    
+    def debug(self, message: str, **context):
+        self.logger.debug(message, **self._add_workspace_context(context))
+    
+    def info(self, message: str, **context):
+        self.logger.info(message, **self._add_workspace_context(context))
+    
+    def warning(self, message: str, **context):
+        self.logger.warning(message, **self._add_workspace_context(context))
+    
+    def error(self, message: str, exc: Optional[Exception] = None, **context):
+        self.logger.error(message, exc=exc, **self._add_workspace_context(context))
+    
+    def critical(self, message: str, exc: Optional[Exception] = None, **context):
+        self.logger.critical(message, exc=exc, **self._add_workspace_context(context))
+
+
+# Pre-configured logger instances for different modules
+class Loggers:
+    """Pre-configured logger instances"""
+    
+    # Main application loggers
+    app = AppLogger(LoggerNames.APP)
+    api = AppLogger(LoggerNames.API)
+    services = AppLogger(LoggerNames.SERVICES)
+    middleware = AppLogger(LoggerNames.MIDDLEWARE)
+    jupyter = AppLogger(LoggerNames.JUPYTER)
+    
+    # Service-specific loggers
+    workspace_service = AppLogger(LoggerNames.WORKSPACE_SERVICE)
+    execution_service = AppLogger(LoggerNames.EXECUTION_SERVICE)
+    file_service = AppLogger(LoggerNames.FILE_SERVICE)
+    
+    # API-specific loggers
+    api_routes = AppLogger(LoggerNames.API_ROUTES)
+    api_dependencies = AppLogger(LoggerNames.API_DEPENDENCIES)
+
+
+def get_workspace_logger(workspace_id: str) -> WorkspaceLogger:
+    """
+    Get a logger bound to a specific workspace
+    
+    Args:
+        workspace_id: Workspace identifier
+        
+    Returns:
+        WorkspaceLogger instance with workspace context
+    """
+    return WorkspaceLogger(Loggers.workspace_service, workspace_id)
+
+
+def log_function_call(logger: AppLogger, include_args: bool = False):
+    """
+    Decorator to log function calls
+    
+    Args:
+        logger: Logger instance to use
+        include_args: Whether to include function arguments in log
+        
+    Usage:
+        @log_function_call(Loggers.api_routes)
+        async def create_workspace():
+            pass
+    """
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            context = {
+                "function": func.__name__,
+                "module": func.__module__,
+            }
+            
+            if include_args:
+                context["args_count"] = len(args)
+                context["kwargs_keys"] = list(kwargs.keys())
+            
+            logger.debug(f"Calling function: {func.__name__}", **context)
+            
+            try:
+                result = await func(*args, **kwargs)
+                logger.debug(f"Function completed: {func.__name__}", **context)
+                return result
+            except Exception as e:
+                logger.error(f"Function failed: {func.__name__}", exc=e, **context)
+                raise
+        
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            context = {
+                "function": func.__name__,
+                "module": func.__module__,
+            }
+            
+            if include_args:
+                context["args_count"] = len(args)
+                context["kwargs_keys"] = list(kwargs.keys())
+            
+            logger.debug(f"Calling function: {func.__name__}", **context)
+            
+            try:
+                result = func(*args, **kwargs)
+                logger.debug(f"Function completed: {func.__name__}", **context)
+                return result
+            except Exception as e:
+                logger.error(f"Function failed: {func.__name__}", exc=e, **context)
+                raise
+        
+        # Return appropriate wrapper based on function type
+        if hasattr(func, '__code__') and func.__code__.co_flags & 0x80:  # CO_COROUTINE
+            return cast(F, async_wrapper)
+        else:
+            return cast(F, sync_wrapper)
+    
+    return decorator 

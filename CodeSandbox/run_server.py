@@ -29,13 +29,16 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = current_dir
 sys.path.insert(0, project_root)
 
-from app.utils.logger import get_logger, set_log_level
-from app.core.config import get_settings
+# Initialize logging first
+from app.core.logging_config import setup_logging
+setup_logging()
 
-# Get logger and settings
-logger = get_logger("server_runner")
-set_log_level("DEBUG")
+from app.core.config import get_settings
+from app.utils.logger import AppLogger
+
+# Get settings
 settings = get_settings()
+logger = AppLogger("RUN_SERVER")
 
 
 class ServiceManager:
@@ -47,7 +50,10 @@ class ServiceManager:
         
     async def start_jupyter_server(self):
         """Start Jupyter Server"""
-        logger.info(f"🔧 Starting Jupyter Server on {settings.jupyter_host}:{settings.jupyter_port}")
+        logger.info("Starting Jupyter Server",
+                   host=settings.jupyter_host,
+                   port=settings.jupyter_port,
+                   token_set=bool(settings.jupyter_token))
         
         # Get Jupyter server command from settings
         cmd = settings.get_jupyter_command_args()
