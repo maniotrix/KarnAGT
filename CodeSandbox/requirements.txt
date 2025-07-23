@@ -109,7 +109,7 @@ pytesseract
 easyocr
 paddleocr
 ocrmypdf
-textract
+textract-supercog==1.6.5.post1
 extract-msg
 olefile
 docx2txt
@@ -145,17 +145,6 @@ neo4j
 qdrant-client
 sqlite-utils
 
-# ===================================
-# CLOUD & STORAGE SERVICES
-# ===================================
-boto3
-botocore
-aiobotocore
-s3fs
-minio
-google-cloud-storage
-google-cloud-core
-azure-storage-blob
 
 # ===================================
 # ASYNC & CONCURRENCY
@@ -278,8 +267,7 @@ httpcore
 httpx-sse
 fastapi-cache2
 slowapi
-python-jose
-
+python-jose[cryptography]==3.3.0
 # ===================================
 # TESTING & VALIDATION
 # ===================================
@@ -333,15 +321,6 @@ fredapi
 alpha-vantage
 
 # ===================================
-# AUDIO & MULTIMEDIA
-# ===================================
-pydub
-librosa
-soundfile
-moviepy
-ffmpeg-python
-
-# ===================================
 # GRAPH & VISUALIZATION
 # ===================================
 graphviz
@@ -350,23 +329,8 @@ bokeh
 holoviews
 datashader
 panel
-pygraphviz
 pyvis
 chord
-
-# ===================================
-# STREAMING & REAL-TIME
-# ===================================
-streamlit
-dash
-gradio
-voila
-
-# ===================================
-# VERSION CONTROL & GIT
-# ===================================
-gitpython
-dulwich
 
 # ===================================
 # SYSTEM & PROCESS UTILITIES
@@ -391,28 +355,3 @@ pdfkit
 imgkit
 camelot-py
 tabula-py
-
-# ===================================
-# AI/LLM INTEGRATION
-# ===================================
-openai
-tiktoken
-langchain
-langchain-openai
-langchain-core
-langchain-text-splitters
-langgraph
-langsmith
-llama-index
-
-# ===================================
-# DEVELOPMENT TOOLS
-# ===================================
-black
-ruff
-pytest
-pytest-asyncio
-mypy
-isort
-flake8
-pre-commit 
