@@ -68,30 +68,14 @@ imageio
 scikit-image
 imagehash          # perceptual hashing (dupes)
 
-# ===================================
-# DATABASE & STORAGE
-# ===================================
+# ========== SQLITE & LIGHT DB ==========
 sqlalchemy
 aiosqlite
-asyncpg
-redis
-pymongo
-motor
-psycopg2
-neo4j
-qdrant-client
 sqlite-utils
 
-
-# ===================================
-# ASYNC & CONCURRENCY
-# ===================================
+# ========== ASYNC TOOLING ==========
 aiohttp
 aiofiles
-asyncio-mqtt
-celery
-aioitertools
-async-timeout
 
 # ===================================
 # UTILITIES FOR CODE EXECUTION
@@ -99,37 +83,15 @@ async-timeout
 loguru
 rich
 orjson
-tabulate
-tqdm
-python-multipart
-toml
-configparser
-ruamel-yaml
-simplejson
-xxhash
 wrapt
 more-itertools
-toolz
-funcy
-boltons
 
 # ===================================
 # NATURAL LANGUAGE PROCESSING
 # ===================================
-nltk
-textblob
-spacy
-transformers
-tokenizers
-sentence-transformers
-regex
-gensim
-wordcloud
-pyldavis
+nltk              # faster drop‑in for re
 langdetect
-polyglot
 textstat
-contractions
 emoji
 
 # ===================================
