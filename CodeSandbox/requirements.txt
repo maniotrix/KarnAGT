@@ -185,7 +185,6 @@ uncertainties
 # ===================================
 # CRYPTOGRAPHY & SECURITY
 # ===================================
-cryptography
 bcrypt
 passlib
 pyjwt
