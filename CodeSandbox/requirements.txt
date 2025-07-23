@@ -145,26 +145,14 @@ ta
 graphviz
 pydot
 
-# ===================================
-# SYSTEM & PROCESS UTILITIES
-# ===================================
-psutil
-watchdog
-portalocker
-schedule
-apscheduler
+# ===== SYSTEM & PROCESS UTILITIES =====
+watchdog        # FS change events (pure‑py)
+portalocker     # cross‑platform file locks (tiny)
+schedule        # in‑process cron‑like jobs (pure‑py)
 
 # ===================================
 # FILE CONVERSION & GENERATION
 # ===================================
-pandoc
-pypandoc
-weasyprint
-reportlab
 fpdf2
+reportlab
 html2text
-markdown2
-pdfkit
-imgkit
-camelot-py
-tabula-py
