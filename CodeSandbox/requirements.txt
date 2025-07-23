@@ -135,12 +135,9 @@ geopy
 # ===================================
 yfinance
 pandas-datareader
-quantlib
-ta
-backtrader
-zipline-reloaded
 fredapi
 alpha-vantage
+ta   
 
 # ===================================
 # GRAPH & VISUALIZATION
