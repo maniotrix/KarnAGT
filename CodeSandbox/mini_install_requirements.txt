@@ -1,0 +1,22 @@
+# ===================================
+# CORE WEB FRAMEWORK & API
+# ===================================
+fastapi
+uvicorn
+python-dotenv
+httpx
+websockets
+sse-starlette
+requests
+
+# ===================================
+# JUPYTER & CODE EXECUTION ENVIRONMENT
+# ===================================
+jupyterlab
+ipywidgets
+
+# ===================================
+# DATA SCIENCE & ANALYSIS CORE
+# ===================================
+scikit-learn   # quick classical ML & preprocessing (depends on numpy, scipy)
+seaborn 

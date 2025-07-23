@@ -8,6 +8,7 @@ httpx
 websockets
 sse-starlette
 requests
+tqdm
 
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT
@@ -21,52 +22,46 @@ ipywidgets
 scikit-learn   # quick classical ML & preprocessing (depends on numpy, scipy)
 seaborn        # nicer statistical plots (depends on pandas, matplotlib)
 
-# ===================================
-# FILE & DOCUMENT PROCESSING
-# ===================================
-beautifulsoup4
+# ---------- Detection ----------
+filetype
+python-magic
+
+# ---------- Markup / text ----------
+markdown
 lxml
+ftfy
+unidecode
+python-slugify
+python-bidi
+
+# ---------- Spreadsheet ----------
 openpyxl
 xlsxwriter
 xlrd
 xlwt
-pdfplumber
-python-pptx
-pypdf
+
+# ---------- Word / PPT / RTF ----------
 python-docx
-markdown
-mistune
-pdf2image
-pdfminer-six
-PyMuPDF
-PyPDF2
-pypdfium2
-filetype
-python-bidi
+python-pptx
 striprtf
-python-magic
-ftfy
-unidecode
-python-slugify
+
+# ---------- Columnar / scientific ----------
+pyarrow
+fastparquet
+h5py
+tables
+
+# ---------- PDF core ----------
+pypdf
+pdfplumber
+PyMuPDF
+
+# ---------- PDF → image & OCR ----------
+pdf2image
+pytesseract
 
 # ===================================
-# OCR & TEXT EXTRACTION
-# ===================================
-pytesseract
-easyocr
-paddleocr
-ocrmypdf
-textract-supercog==1.6.5.post1
-extract-msg
-olefile
-docx2txt
-pdfquery
-slate3k
-pdfx
-pymupdf4llm
-docx2python
-# ===================================
-# IMAGE PROCESSING FOR OCR
+# IMAGE PROCESSING
 # ===================================
 opencv-python-headless
 imageio
@@ -111,9 +106,7 @@ rich
 orjson
 tabulate
 tqdm
-pyyaml
 python-multipart
-jinja2
 toml
 configparser
 ruamel-yaml
@@ -197,7 +190,6 @@ bcrypt
 passlib
 pyjwt
 pycryptodome
-argon2-cffi
 itsdangerous
 
 # ===================================
@@ -214,7 +206,6 @@ validators
 cerberus
 marshmallow
 email-validator
-jsonschema
 schema
 
 # ===================================
@@ -228,7 +219,6 @@ memcache
 # LOGGING & MONITORING
 # ===================================
 structlog
-prometheus-client
 python-json-logger
 sentry-sdk
 opencensus
