@@ -227,6 +227,9 @@ tramp
 .jupyter/
 jupyter_runtime/
 
+# ignore kernel file
+kernel-*.json
+
 # FastAPI specific
 .fastapi/
 
