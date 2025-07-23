@@ -1,13 +1,422 @@
-# Core Framework
-fastapi>=0.100.0
-uvicorn[standard]>=0.20.0
-pydantic>=2.0.0
-httpx>=0.24.0
-python-dotenv>=1.0.0
+# ===================================
+# CORE WEB FRAMEWORK & API
+# ===================================
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+httpx
+websockets
+starlette
+anyio
+sse-starlette
 
-# Jupyter Integration  
-jupyter-server>=2.0.0
-jupyter-client>=8.0.0
+# ===================================
+# JUPYTER & CODE EXECUTION ENVIRONMENT
+# ===================================
+ipython
+jupyter-server
+jupyter-client
+jupyterlab
+ipykernel
+jupyter-events
+jupyter_core
+nbclient
+nbconvert
+nbformat
+nest-asyncio
+ipywidgets
+jupyterlab_pygments
 
-# Existing Dependencies (keep these)
-# Add your existing requirements here from the original requirements.txt 
+# ===================================
+# DATA SCIENCE & ANALYSIS CORE
+# ===================================
+numpy
+pandas
+matplotlib
+seaborn
+scikit-learn
+scipy
+plotly
+altair
+statsmodels
+polars
+dask
+distributed
+pyarrow
+fastparquet
+h5py
+tables
+bottleneck
+numexpr
+
+# ===================================
+# MACHINE LEARNING & AI
+# ===================================
+xgboost
+lightgbm
+catboost
+optuna
+joblib
+cloudpickle
+torch
+torchvision
+huggingface-hub
+tensorflow
+keras
+onnx
+onnxruntime
+mlflow
+wandb
+hyperopt
+bayesian-optimization
+
+# ===================================
+# FILE & DOCUMENT PROCESSING
+# ===================================
+pillow
+requests
+beautifulsoup4
+lxml
+openpyxl
+xlsxwriter
+xlrd
+xlwt
+pdfplumber
+python-pptx
+pypdf
+python-docx
+markdown
+mistune
+pdf2image
+pdfminer-six
+PyMuPDF
+PyPDF2
+pypdfium2
+filetype
+python-bidi
+striprtf
+python-magic
+chardet
+ftfy
+unidecode
+python-slugify
+
+# ===================================
+# OCR & TEXT EXTRACTION
+# ===================================
+pytesseract
+easyocr
+paddleocr
+ocrmypdf
+textract
+extract-msg
+olefile
+docx2txt
+pdfquery
+slate3k
+pdfx
+pymupdf4llm
+docx2python
+# ===================================
+# IMAGE PROCESSING FOR OCR
+# ===================================
+opencv-python-headless
+imageio
+scikit-image
+wand
+pillow-simd
+imagehash
+pyheif
+rawpy
+imagecodecs
+tifffile
+
+# ===================================
+# DATABASE & STORAGE
+# ===================================
+sqlalchemy
+aiosqlite
+asyncpg
+redis
+pymongo
+motor
+psycopg2
+neo4j
+qdrant-client
+sqlite-utils
+
+# ===================================
+# CLOUD & STORAGE SERVICES
+# ===================================
+boto3
+botocore
+aiobotocore
+s3fs
+minio
+google-cloud-storage
+google-cloud-core
+azure-storage-blob
+
+# ===================================
+# ASYNC & CONCURRENCY
+# ===================================
+aiohttp
+aiofiles
+asyncio-mqtt
+celery
+aioitertools
+async-timeout
+
+# ===================================
+# UTILITIES FOR CODE EXECUTION
+# ===================================
+loguru
+rich
+orjson
+tabulate
+tqdm
+click
+pyyaml
+python-multipart
+jinja2
+toml
+configparser
+ruamel-yaml
+simplejson
+xxhash
+wrapt
+more-itertools
+toolz
+funcy
+boltons
+
+# ===================================
+# NATURAL LANGUAGE PROCESSING
+# ===================================
+nltk
+textblob
+spacy
+transformers
+tokenizers
+sentence-transformers
+regex
+gensim
+wordcloud
+pyldavis
+langdetect
+polyglot
+textstat
+contractions
+emoji
+
+# ===================================
+# COMPUTER VISION & IMAGE PROCESSING
+# ===================================
+ultralytics
+supervision
+roboflow
+albumentations
+
+# ===================================
+# WEB SCRAPING & AUTOMATION
+# ===================================
+selenium
+playwright
+scrapy
+requests-toolbelt
+fake-useragent
+cloudscraper
+undetected-chromedriver
+mechanicalsoup
+httpx-cache
+
+# ===================================
+# TIME & DATE UTILITIES
+# ===================================
+arrow
+python-dateutil
+pytz
+pendulum
+tzdata
+tzlocal
+dateparser
+croniter
+
+# ===================================
+# SCIENTIFIC COMPUTING
+# ===================================
+sympy
+networkx
+igraph
+numba
+mpmath
+astropy
+biopython
+rdkit
+chempy
+pint
+uncertainties
+
+# ===================================
+# CRYPTOGRAPHY & SECURITY
+# ===================================
+cryptography
+bcrypt
+passlib
+pyjwt
+pycryptodome
+argon2-cffi
+hashlib
+secrets
+itsdangerous
+
+# ===================================
+# API & HTTP UTILITIES
+# ===================================
+urllib3
+certifi
+chardet
+idna
+httpcore
+httpx-sse
+fastapi-cache2
+slowapi
+python-jose
+
+# ===================================
+# TESTING & VALIDATION
+# ===================================
+validators
+cerberus
+marshmallow
+email-validator
+jsonschema
+schema
+
+# ===================================
+# CACHING & PERFORMANCE
+# ===================================
+cachetools
+diskcache
+memcache
+redis-py-cluster
+
+# ===================================
+# LOGGING & MONITORING
+# ===================================
+structlog
+prometheus-client
+python-json-logger
+sentry-sdk
+opencensus
+
+# ===================================
+# GEOSPATIAL & MAPPING
+# ===================================
+folium
+geopandas
+shapely
+geopy
+branca
+rasterio
+fiona
+pyproj
+cartopy
+contextily
+
+# ===================================
+# FINANCIAL & ECONOMIC DATA
+# ===================================
+yfinance
+pandas-datareader
+quantlib
+ta
+backtrader
+zipline-reloaded
+fredapi
+alpha-vantage
+
+# ===================================
+# AUDIO & MULTIMEDIA
+# ===================================
+pydub
+librosa
+soundfile
+moviepy
+ffmpeg-python
+
+# ===================================
+# GRAPH & VISUALIZATION
+# ===================================
+graphviz
+pydot
+bokeh
+holoviews
+datashader
+panel
+pygraphviz
+pyvis
+chord
+
+# ===================================
+# STREAMING & REAL-TIME
+# ===================================
+streamlit
+dash
+gradio
+voila
+
+# ===================================
+# VERSION CONTROL & GIT
+# ===================================
+gitpython
+dulwich
+
+# ===================================
+# SYSTEM & PROCESS UTILITIES
+# ===================================
+psutil
+watchdog
+portalocker
+schedule
+apscheduler
+
+# ===================================
+# FILE CONVERSION & GENERATION
+# ===================================
+pandoc
+weasyprint
+reportlab
+fpdf2
+html2text
+markdown2
+pdfkit
+imgkit
+camelot-py
+tabula-py
+
+# ===================================
+# AI/LLM INTEGRATION
+# ===================================
+openai
+tiktoken
+langchain
+langchain-openai
+langchain-core
+langchain-text-splitters
+langgraph
+langsmith
+llama-index
+
+# ===================================
+# DEVELOPMENT TOOLS
+# ===================================
+black
+ruff
+pytest
+pytest-asyncio
+mypy
+isort
+flake8
+pre-commit 
