@@ -110,13 +110,6 @@ croniter
 # SCIENTIFIC COMPUTING
 # ===================================
 sympy
-igraph
-numba
-mpmath
-astropy
-biopython
-rdkit
-chempy
 pint
 uncertainties
 
