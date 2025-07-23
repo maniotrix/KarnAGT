@@ -8,6 +8,7 @@ httpx
 websockets
 sse-starlette
 requests
+tqdm
 
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT
@@ -19,4 +20,139 @@ ipywidgets
 # DATA SCIENCE & ANALYSIS CORE
 # ===================================
 scikit-learn   # quick classical ML & preprocessing (depends on numpy, scipy)
-seaborn 
+seaborn        # nicer statistical plots (depends on pandas, matplotlib)
+
+# ---------- Detection ----------
+filetype
+python-magic
+
+# ---------- Markup / text ----------
+markdown
+lxml
+ftfy
+unidecode
+python-slugify
+python-bidi
+
+# ---------- Spreadsheet ----------
+openpyxl
+xlsxwriter
+xlrd
+xlwt
+
+# ---------- Word / PPT / RTF ----------
+python-docx
+python-pptx
+striprtf
+
+# ---------- Columnar / scientific ----------
+pyarrow
+fastparquet
+h5py
+tables
+
+# ---------- PDF core ----------
+pypdf
+pdfplumber
+PyMuPDF
+
+# ---------- PDF → image & OCR ----------
+pdf2image
+pytesseract
+
+# ===================================
+# IMAGE PROCESSING
+# ===================================
+opencv-python-headless
+imageio
+scikit-image
+imagehash          # perceptual hashing (dupes)
+
+# ========== SQLITE & LIGHT DB ==========
+sqlalchemy
+aiosqlite
+sqlite-utils
+
+# ========== ASYNC TOOLING ==========
+aiohttp
+aiofiles
+
+# ===================================
+# UTILITIES FOR CODE EXECUTION
+# ===================================
+loguru
+rich
+orjson
+wrapt
+more-itertools
+
+# ===================================
+# NATURAL LANGUAGE PROCESSING
+# ===================================
+nltk              # faster drop‑in for re
+langdetect
+textstat
+emoji
+
+# ===== WEB‑SCRAPING CORE =====
+requests-toolbelt   # small handy wrappers for requests (streaming uploads, etc.)
+mechanicalsoup      # headless form‑fill convenience (pure‑Python, tiny)
+
+# ===================================
+# TIME & DATE UTILITIES
+# ===================================
+pendulum
+tzlocal
+dateparser
+croniter
+
+# ===================================
+# SCIENTIFIC COMPUTING
+# ===================================
+sympy
+pint
+uncertainties
+
+# ===================================
+# CRYPTOGRAPHY & SECURITY
+# ===================================
+python-jose[cryptography]==3.3.0
+itsdangerous
+
+# ==== TEST & VALIDATION (light) ====
+validators
+email-validator
+
+# ==== CACHING (light) ====
+cachetools
+
+# ===== GEOSPATIAL (light) =====
+folium
+geopy
+
+# ===================================
+# FINANCIAL & ECONOMIC DATA
+# ===================================
+yfinance
+pandas-datareader
+fredapi
+alpha-vantage
+ta   
+
+# ===================================
+# GRAPH & VISUALIZATION
+# ===================================
+graphviz
+pydot
+
+# ===== SYSTEM & PROCESS UTILITIES =====
+watchdog        # FS change events (pure‑py)
+portalocker     # cross‑platform file locks (tiny)
+schedule        # in‑process cron‑like jobs (pure‑py)
+
+# ===================================
+# FILE CONVERSION & GENERATION
+# ===================================
+fpdf2
+reportlab
+html2text
