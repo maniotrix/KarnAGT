@@ -286,11 +286,12 @@ async def upload_file(
             content=content
         )
         
+        # Generate download URL at API layer (proper separation of concerns)
         upload_result = {
             "filename": file_info.filename,
             "size": file_info.size,
             "mime_type": file_info.mime_type,
-            "download_url": file_info.download_url,
+            "download_url": f"/workspace/{workspace_id}/files/{file_info.relative_path}",
             "relative_path": file_info.relative_path
         }
         
@@ -308,6 +309,47 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"File upload failed: {e}")
 
 
+@router.get("/workspace/{workspace_id}/files/{filename:path}")
+async def download_file(
+    workspace_id: str,
+    filename: str,
+    file_service: FileService = Depends(get_file_service)
+):
+    """Download file from workspace"""
+    import logging
+    from fastapi.responses import Response
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"File download requested: {filename} from workspace {workspace_id}")
+        
+        # Get file content and info from file service
+        file_content, file_info = await file_service.download_file(workspace_id, filename)
+        
+        logger.info(f"File download successful: {filename} ({file_info.size} bytes)")
+        
+        # Return file content with appropriate headers
+        return Response(
+            content=file_content,
+            media_type=file_info.mime_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{file_info.filename}"',
+                "Content-Length": str(file_info.size)
+            }
+        )
+        
+    except WorkspaceNotFoundError as e:
+        logger.error(f"Workspace not found for download: {workspace_id}")
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    except FileNotFoundError as e:
+        logger.error(f"File not found for download: {filename} in workspace {workspace_id}")
+        raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        logger.error(f"Unexpected error during file download: {filename} from {workspace_id}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"File download failed: {e}")
+
+
 @router.get("/workspace/{workspace_id}/files", response_model=WorkspaceFilesResponse)
 async def list_workspace_files(
     workspace_id: str,
@@ -315,7 +357,13 @@ async def list_workspace_files(
 ):
     """List files in workspace"""
     try:
-        return await workspace_service.get_workspace_files(workspace_id)
+        files_response = await workspace_service.get_workspace_files(workspace_id)
+        
+        # Generate download URLs at API layer (proper separation of concerns)
+        for file_info in files_response.files:
+            file_info.download_url = f"/workspace/{workspace_id}/files/{file_info.relative_path}"
+        
+        return files_response
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

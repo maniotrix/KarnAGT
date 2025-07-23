@@ -167,6 +167,112 @@ class FileService:
         
         return files
     
+    async def download_file(self, workspace_id: str, filename: str) -> tuple[bytes, FileInfo]:
+        """
+        Download file from workspace
+        
+        Args:
+            workspace_id: Workspace identifier
+            filename: Name of file to download (can include subdirectories)
+            
+        Returns:
+            Tuple of (file_content, file_info)
+            
+        Raises:
+            WorkspaceNotFoundError: If workspace doesn't exist
+            FileNotFoundError: If file doesn't exist
+            FileServiceError: If download fails
+        """
+        self.logger.info("File download requested",
+                        workspace_id=workspace_id,
+                        file_name=filename)
+        
+        # Validate workspace exists and is ready
+        workspace_info = await self.workspace_service.get_workspace(workspace_id)
+        if not workspace_info:
+            self.logger.warning("File download failed - workspace not found",
+                              workspace_id=workspace_id,
+                              file_name=filename)
+            raise WorkspaceNotFoundError(f"Workspace {workspace_id} not found")
+        
+        if workspace_info.status == WorkspaceStatus.EXPIRED:
+            self.logger.warning("File download failed - workspace expired",
+                              workspace_id=workspace_id,
+                              file_name=filename,
+                              status=workspace_info.status)
+            raise WorkspaceNotFoundError(f"Workspace {workspace_id} has expired")
+        
+        try:
+            # Get the workspace path from jupyter client
+            workspace_path = Path("workspaces") / workspace_id
+            file_path = workspace_path / filename
+            
+            # Security check: ensure file is within workspace
+            resolved_file_path = file_path.resolve()
+            resolved_workspace_path = workspace_path.resolve()
+            
+            if not str(resolved_file_path).startswith(str(resolved_workspace_path)):
+                raise FileServiceError(f"Access denied: {filename} is outside workspace")
+            
+            # Check if file exists
+            if not file_path.exists() or not file_path.is_file():
+                self.logger.warning("File download failed - file not found",
+                                  workspace_id=workspace_id,
+                                  file_name=filename,
+                                  file_path=str(file_path))
+                raise FileNotFoundError(f"File {filename} not found in workspace {workspace_id}")
+            
+            # Read file content
+            file_content = file_path.read_bytes()
+            
+            # Create FileInfo without download_url (generated at API layer)
+            file_info = FileInfo(
+                filename=file_path.name,
+                size=len(file_content),
+                mime_type=self._get_mime_type(filename),
+                created_at=datetime.fromtimestamp(file_path.stat().st_ctime),
+                relative_path=filename,
+                download_url=""  # Generated at API layer
+            )
+            
+            # Update workspace activity
+            await self.workspace_service.update_workspace_activity(workspace_id)
+            
+            self.logger.info("File downloaded successfully",
+                           workspace_id=workspace_id,
+                           file_name=filename,
+                           file_size_bytes=len(file_content))
+            
+            return file_content, file_info
+            
+        except FileNotFoundError:
+            # Re-raise as is
+            raise
+        except FileServiceError:
+            # Re-raise as is
+            raise
+        except Exception as e:
+            self.logger.error("File download failed",
+                            exc=e,
+                            workspace_id=workspace_id,
+                            file_name=filename,
+                            error_type=e.__class__.__name__)
+            raise FileServiceError(f"Failed to download file {filename}: {e}")
+    
+    def _get_mime_type(self, filename: str) -> str:
+        """
+        Get MIME type for file based on extension
+        
+        Args:
+            filename: File name
+            
+        Returns:
+            MIME type string
+        """
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(filename)
+        return mime_type or "application/octet-stream"
+    
     def _validate_file(self, filename: str, content: bytes):
         """
         Validate file for upload

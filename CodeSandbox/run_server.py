@@ -133,11 +133,11 @@ class ServiceManager:
         try:
             import uvicorn
             uvicorn.run(
-                "app.main:app",
-                host=settings.host,
-                port=settings.port,
+            "app.main:app",
+            host=settings.host,
+            port=settings.port,
                 reload=reload_enabled,  # Simple reload flag
-                log_level="info",
+            log_level="info",
                 access_log=True
             )
         except KeyboardInterrupt:

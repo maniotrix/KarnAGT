@@ -313,6 +313,10 @@ print("Kernel ready for code execution!")
             # Get generated files
             generated_files = await self._get_workspace_files(workspace_id)
             
+            # Filter out uploaded files from generated_files
+            uploaded_file_names = self._read_uploaded_files(workspace_id)
+            generated_files = [f for f in generated_files if f.relative_path not in uploaded_file_names]
+            
             execution_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             
             return ExecutionResult(
@@ -408,13 +412,16 @@ print("Kernel ready for code execution!")
             # Write file to workspace directory
             file_path.write_bytes(content)
             
+            # Add to uploaded files list
+            self._add_uploaded_file(workspace_id, filename)
+            
             return FileInfo(
                 filename=filename,
                 size=len(content),
-                mime_type="application/octet-stream",  # Could detect based on extension
+                mime_type=self._get_mime_type(filename),
                 created_at=datetime.utcnow(),
                 relative_path=filename,
-                download_url=f"file://{file_path.absolute()}"  # Local file URL
+                download_url=""  # No URL generation at infrastructure layer
             )
             
         except Exception as e:
@@ -436,10 +443,10 @@ print("Kernel ready for code execution!")
                     files.append(FileInfo(
                         filename=file_path.name,
                         size=file_path.stat().st_size,
-                        mime_type="application/octet-stream",
+                        mime_type=self._get_mime_type(str(relative_path)),
                         created_at=datetime.fromtimestamp(file_path.stat().st_ctime),
-                        relative_path=str(relative_path),
-                        download_url=f"file://{file_path.absolute()}"
+                        relative_path=relative_path.as_posix(),  # Use forward slashes consistently
+                        download_url=""  # No URL generation at infrastructure layer
                     ))
             
             return files
@@ -449,6 +456,54 @@ print("Kernel ready for code execution!")
                             workspace_id=workspace_id,
                             error=str(e))
             return []
+    
+    def _get_mime_type(self, filename: str) -> str:
+        """Get MIME type for file based on extension"""
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(filename)
+        return mime_type or "application/octet-stream"
+    
+    def _get_uploaded_files_path(self, workspace_id: str) -> Path:
+        """Get path to the .uploaded_files tracking file"""
+        if workspace_id not in self._workspaces:
+            raise WorkspaceNotFoundError(f"Workspace {workspace_id} not found")
+        workspace_path = Path(self._workspaces[workspace_id]["workspace_path"])
+        return workspace_path / ".uploaded_files"
+    
+    def _read_uploaded_files(self, workspace_id: str) -> List[str]:
+        """Read list of uploaded files from .uploaded_files"""
+        try:
+            uploaded_files_path = self._get_uploaded_files_path(workspace_id)
+            if uploaded_files_path.exists():
+                import json
+                return json.loads(uploaded_files_path.read_text())
+            return []
+        except Exception as e:
+            self.logger.warning("Failed to read uploaded files list",
+                              workspace_id=workspace_id,
+                              error=str(e))
+            return []
+    
+    def _write_uploaded_files(self, workspace_id: str, uploaded_files: List[str]):
+        """Write list of uploaded files to .uploaded_files"""
+        try:
+            uploaded_files_path = self._get_uploaded_files_path(workspace_id)
+            import json
+            uploaded_files_path.write_text(json.dumps(uploaded_files, indent=2))
+            self.logger.debug("Updated uploaded files list",
+                            workspace_id=workspace_id,
+                            uploaded_count=len(uploaded_files))
+        except Exception as e:
+            self.logger.error("Failed to write uploaded files list",
+                            exc=e,
+                            workspace_id=workspace_id)
+    
+    def _add_uploaded_file(self, workspace_id: str, relative_path: str):
+        """Add a file to the uploaded files list"""
+        uploaded_files = self._read_uploaded_files(workspace_id)
+        if relative_path not in uploaded_files:
+            uploaded_files.append(relative_path)
+            self._write_uploaded_files(workspace_id, uploaded_files)
     
     async def delete_kernel(self, workspace_id: str) -> bool:
         """Delete kernel associated with workspace"""
@@ -473,6 +528,13 @@ print("Kernel ready for code execution!")
             
             # Remove from tracking
             del self._workspaces[workspace_id]
+            
+            # Delete the .uploaded_files tracking file
+            uploaded_files_path = self._get_uploaded_files_path(workspace_id)
+            if uploaded_files_path.exists():
+                uploaded_files_path.unlink()
+                self.logger.debug("Deleted .uploaded_files tracking file",
+                                workspace_id=workspace_id)
             
             self.logger.info("Jupyter kernel deleted successfully",
                            workspace_id=workspace_id,
