@@ -9,6 +9,7 @@ websockets
 sse-starlette
 requests
 tqdm
+python-multipart
 
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT

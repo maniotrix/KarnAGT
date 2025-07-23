@@ -9,6 +9,7 @@ websockets==15.0.1
 sse-starlette==2.4.1
 requests==2.32.4
 tqdm==4.67.1
+python-multipart==0.0.20
 
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT
