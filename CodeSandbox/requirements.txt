@@ -144,12 +144,6 @@ ta
 # ===================================
 graphviz
 pydot
-bokeh
-holoviews
-datashader
-panel
-pyvis
-chord
 
 # ===================================
 # SYSTEM & PROCESS UTILITIES
