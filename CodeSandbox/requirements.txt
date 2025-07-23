@@ -12,19 +12,8 @@ requests
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT
 # ===================================
-ipython
-jupyter-server
-jupyter-client
 jupyterlab
-ipykernel
-jupyter-events
-jupyter_core
-nbclient
-nbconvert
-nbformat
-nest-asyncio
 ipywidgets
-jupyterlab_pygments
 
 # ===================================
 # DATA SCIENCE & ANALYSIS CORE
