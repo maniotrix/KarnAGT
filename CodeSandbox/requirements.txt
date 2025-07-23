@@ -116,10 +116,7 @@ uncertainties
 # ===================================
 # CRYPTOGRAPHY & SECURITY
 # ===================================
-bcrypt
-passlib
-pyjwt
-pycryptodome
+python-jose[cryptography]==3.3.0
 itsdangerous
 
 # ===================================
@@ -128,7 +125,6 @@ itsdangerous
 httpx-sse
 fastapi-cache2
 slowapi
-python-jose[cryptography]==3.3.0
 # ===================================
 # TESTING & VALIDATION
 # ===================================
