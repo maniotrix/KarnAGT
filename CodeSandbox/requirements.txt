@@ -94,31 +94,13 @@ langdetect
 textstat
 emoji
 
-# ===================================
-# COMPUTER VISION & IMAGE PROCESSING
-# ===================================
-ultralytics
-supervision
-roboflow
-albumentations
-
-# ===================================
-# WEB SCRAPING & AUTOMATION
-# ===================================
-selenium
-playwright
-scrapy
-requests-toolbelt
-fake-useragent
-cloudscraper
-undetected-chromedriver
-mechanicalsoup
-httpx-cache
+# ===== WEB‑SCRAPING CORE =====
+requests-toolbelt   # small handy wrappers for requests (streaming uploads, etc.)
+mechanicalsoup      # headless form‑fill convenience (pure‑Python, tiny)
 
 # ===================================
 # TIME & DATE UTILITIES
 # ===================================
-arrow
 pendulum
 tzlocal
 dateparser
