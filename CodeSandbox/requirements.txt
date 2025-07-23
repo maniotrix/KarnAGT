@@ -66,12 +66,7 @@ pytesseract
 opencv-python-headless
 imageio
 scikit-image
-wand
-imagehash
-pyheif
-rawpy
-imagecodecs
-tifffile
+imagehash          # perceptual hashing (dupes)
 
 # ===================================
 # DATABASE & STORAGE
@@ -171,7 +166,6 @@ croniter
 # SCIENTIFIC COMPUTING
 # ===================================
 sympy
-networkx
 igraph
 numba
 mpmath
