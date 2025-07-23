@@ -2,14 +2,12 @@
 # CORE WEB FRAMEWORK & API
 # ===================================
 fastapi
-uvicorn[standard]
-pydantic
+uvicorn
 python-dotenv
 httpx
 websockets
-starlette
-anyio
 sse-starlette
+requests
 
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT
@@ -75,7 +73,6 @@ bayesian-optimization
 # FILE & DOCUMENT PROCESSING
 # ===================================
 pillow
-requests
 beautifulsoup4
 lxml
 openpyxl
@@ -97,7 +94,6 @@ filetype
 python-bidi
 striprtf
 python-magic
-chardet
 ftfy
 unidecode
 python-slugify
@@ -164,7 +160,6 @@ rich
 orjson
 tabulate
 tqdm
-click
 pyyaml
 python-multipart
 jinja2
@@ -260,10 +255,6 @@ itsdangerous
 # ===================================
 # API & HTTP UTILITIES
 # ===================================
-urllib3
-certifi
-idna
-httpcore
 httpx-sse
 fastapi-cache2
 slowapi
