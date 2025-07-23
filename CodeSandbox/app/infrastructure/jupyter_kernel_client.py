@@ -309,13 +309,9 @@ print("Kernel ready for code execution!")
                                     workspace_id=workspace_id,
                                     error_name=content.get('ename'),
                                     error_value=content.get('evalue'))
-            
-            # Get generated files
-            generated_files = await self._get_workspace_files(workspace_id)
-            
-            # Filter out uploaded files from generated_files
-            uploaded_file_names = self._read_uploaded_files(workspace_id)
-            generated_files = [f for f in generated_files if f.relative_path not in uploaded_file_names]
+                     
+            # Filter out unmodified uploaded files from generated_files
+            filtered_generated_files = await self._filter_generated_files(workspace_id)
             
             execution_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             
@@ -326,7 +322,7 @@ print("Kernel ready for code execution!")
                 stderr="".join(stderr_lines),
                 outputs=[ExecutionOutput(**output) for output in outputs],
                 result_data=None,
-                generated_files=generated_files,
+                generated_files=filtered_generated_files,
                 execution_time_ms=execution_time_ms,
                 completed_at=datetime.utcnow()
             )
@@ -457,6 +453,55 @@ print("Kernel ready for code execution!")
                             error=str(e))
             return []
     
+    async def _filter_generated_files(self, workspace_id: str) -> List[FileInfo]:
+        """
+        Filter files to only include truly generated files (excludes unmodified uploaded files)
+        
+        Args:
+            workspace_id: Workspace identifier            
+        Returns:
+            List of files that were generated or modified by code execution
+        """
+        # Get generated files
+        all_files = await self._get_workspace_files(workspace_id)
+        uploaded_files_metadata = self._read_uploaded_files(workspace_id)
+        workspace_path = Path(self._workspaces[workspace_id]["workspace_path"])
+        
+        filtered_files = []
+        for file in all_files:
+            if file.relative_path not in uploaded_files_metadata:
+                # File was never uploaded, definitely generated
+                filtered_files.append(file)
+            else:
+                # File was uploaded, check if it was modified
+                try:
+                    stored_metadata = uploaded_files_metadata[file.relative_path]
+                    current_file_path = workspace_path / file.relative_path
+                    current_stat = current_file_path.stat()
+                    
+                    # Check if mtime or size changed
+                    if (current_stat.st_mtime != stored_metadata["mtime"] or 
+                        current_stat.st_size != stored_metadata["size"]):
+                        # File was modified by code execution
+                        filtered_files.append(file)
+                        self.logger.debug("Uploaded file was modified by execution",
+                                        workspace_id=workspace_id,
+                                        file_path=file.relative_path,
+                                        old_mtime=stored_metadata["mtime"],
+                                        new_mtime=current_stat.st_mtime,
+                                        old_size=stored_metadata["size"],
+                                        new_size=current_stat.st_size)
+                    # else: File unchanged, exclude from generated_files
+                except (OSError, KeyError) as e:
+                    # File might have been deleted or metadata corrupted, treat as generated
+                    filtered_files.append(file)
+                    self.logger.debug("Could not check file modification, treating as generated",
+                                    workspace_id=workspace_id,
+                                    file_path=file.relative_path,
+                                    error=str(e))
+        
+        return filtered_files
+    
     def _get_mime_type(self, filename: str) -> str:
         """Get MIME type for file based on extension"""
         import mimetypes
@@ -470,22 +515,22 @@ print("Kernel ready for code execution!")
         workspace_path = Path(self._workspaces[workspace_id]["workspace_path"])
         return workspace_path / ".uploaded_files"
     
-    def _read_uploaded_files(self, workspace_id: str) -> List[str]:
-        """Read list of uploaded files from .uploaded_files"""
+    def _read_uploaded_files(self, workspace_id: str) -> Dict[str, Dict[str, Any]]:
+        """Read uploaded files metadata from .uploaded_files"""
         try:
             uploaded_files_path = self._get_uploaded_files_path(workspace_id)
             if uploaded_files_path.exists():
                 import json
                 return json.loads(uploaded_files_path.read_text())
-            return []
+            return {}
         except Exception as e:
             self.logger.warning("Failed to read uploaded files list",
                               workspace_id=workspace_id,
                               error=str(e))
-            return []
+            return {}
     
-    def _write_uploaded_files(self, workspace_id: str, uploaded_files: List[str]):
-        """Write list of uploaded files to .uploaded_files"""
+    def _write_uploaded_files(self, workspace_id: str, uploaded_files: Dict[str, Dict[str, Any]]):
+        """Write uploaded files metadata to .uploaded_files"""
         try:
             uploaded_files_path = self._get_uploaded_files_path(workspace_id)
             import json
@@ -499,11 +544,38 @@ print("Kernel ready for code execution!")
                             workspace_id=workspace_id)
     
     def _add_uploaded_file(self, workspace_id: str, relative_path: str):
-        """Add a file to the uploaded files list"""
-        uploaded_files = self._read_uploaded_files(workspace_id)
-        if relative_path not in uploaded_files:
-            uploaded_files.append(relative_path)
+        """Add a file to the uploaded files list with metadata"""
+        try:
+            # Get file metadata
+            workspace_path = Path(self._workspaces[workspace_id]["workspace_path"])
+            file_path = workspace_path / relative_path
+            file_stat = file_path.stat()
+            
+            # Read current uploaded files
+            uploaded_files = self._read_uploaded_files(workspace_id)
+            
+            # Add/update file metadata
+            from datetime import datetime
+            uploaded_files[relative_path] = {
+                "uploaded_at": datetime.utcnow().isoformat(),
+                "mtime": file_stat.st_mtime,
+                "size": file_stat.st_size
+            }
+            
+            # Write back to file
             self._write_uploaded_files(workspace_id, uploaded_files)
+            
+            self.logger.debug("Added uploaded file with metadata",
+                            workspace_id=workspace_id,
+                            file_path=relative_path,
+                            mtime=file_stat.st_mtime,
+                            size=file_stat.st_size)
+            
+        except Exception as e:
+            self.logger.error("Failed to add uploaded file metadata",
+                            exc=e,
+                            workspace_id=workspace_id,
+                            file_path=relative_path)
     
     async def delete_kernel(self, workspace_id: str) -> bool:
         """Delete kernel associated with workspace"""
