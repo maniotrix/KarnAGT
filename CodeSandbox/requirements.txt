@@ -119,49 +119,16 @@ uncertainties
 python-jose[cryptography]==3.3.0
 itsdangerous
 
-# ===================================
-# API & HTTP UTILITIES
-# ===================================
-httpx-sse
-fastapi-cache2
-slowapi
-# ===================================
-# TESTING & VALIDATION
-# ===================================
+# ==== TEST & VALIDATION (light) ====
 validators
-cerberus
-marshmallow
 email-validator
-schema
 
-# ===================================
-# CACHING & PERFORMANCE
-# ===================================
+# ==== CACHING (light) ====
 cachetools
-diskcache
-memcache
 
-# ===================================
-# LOGGING & MONITORING
-# ===================================
-structlog
-python-json-logger
-sentry-sdk
-opencensus
-
-# ===================================
-# GEOSPATIAL & MAPPING
-# ===================================
+# ===== GEOSPATIAL (light) =====
 folium
-geopandas
-shapely
 geopy
-branca
-rasterio
-fiona
-pyproj
-cartopy
-contextily
 
 # ===================================
 # FINANCIAL & ECONOMIC DATA
