@@ -125,7 +125,6 @@ opencv-python-headless
 imageio
 scikit-image
 wand
-pillow-simd
 imagehash
 pyheif
 rawpy
@@ -267,8 +266,6 @@ passlib
 pyjwt
 pycryptodome
 argon2-cffi
-hashlib
-secrets
 itsdangerous
 
 # ===================================
@@ -276,7 +273,6 @@ itsdangerous
 # ===================================
 urllib3
 certifi
-chardet
 idna
 httpcore
 httpx-sse
@@ -300,7 +296,6 @@ schema
 cachetools
 diskcache
 memcache
-redis-py-cluster
 
 # ===================================
 # LOGGING & MONITORING
@@ -386,6 +381,7 @@ apscheduler
 # FILE CONVERSION & GENERATION
 # ===================================
 pandoc
+pypandoc
 weasyprint
 reportlab
 fpdf2
