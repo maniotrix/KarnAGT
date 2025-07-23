@@ -18,50 +18,12 @@ ipywidgets
 # ===================================
 # DATA SCIENCE & ANALYSIS CORE
 # ===================================
-numpy
-pandas
-matplotlib
-seaborn
-scikit-learn
-scipy
-plotly
-altair
-statsmodels
-polars
-dask
-distributed
-pyarrow
-fastparquet
-h5py
-tables
-bottleneck
-numexpr
-
-# ===================================
-# MACHINE LEARNING & AI
-# ===================================
-xgboost
-lightgbm
-catboost
-optuna
-joblib
-cloudpickle
-torch
-torchvision
-huggingface-hub
-tensorflow
-keras
-onnx
-onnxruntime
-mlflow
-wandb
-hyperopt
-bayesian-optimization
+scikit-learn   # quick classical ML & preprocessing (depends on numpy, scipy)
+seaborn        # nicer statistical plots (depends on pandas, matplotlib)
 
 # ===================================
 # FILE & DOCUMENT PROCESSING
 # ===================================
-pillow
 beautifulsoup4
 lxml
 openpyxl
@@ -207,10 +169,7 @@ httpx-cache
 # TIME & DATE UTILITIES
 # ===================================
 arrow
-python-dateutil
-pytz
 pendulum
-tzdata
 tzlocal
 dateparser
 croniter
