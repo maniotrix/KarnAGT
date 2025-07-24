@@ -56,7 +56,7 @@ class JupyterServerClient:
         
         # Track workspace directories and kernels
         self._workspaces: Dict[str, Dict[str, Any]] = {}
-        self._workspace_base = Path("workspaces")
+        self._workspace_base = Path(self.settings.workspace_base_path)
         
         self.logger.info("Jupyter client initialized using jupyter_client library",
                         workspace_base=str(self._workspace_base))
