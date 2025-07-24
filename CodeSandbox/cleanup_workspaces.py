@@ -15,6 +15,8 @@ import shutil
 import glob
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 def cleanup_workspaces():
     """Clean up workspaces, logs and kernel files"""
     print("🧹 Starting workspace cleanup...")
@@ -73,4 +75,5 @@ def cleanup_workspaces():
         print("📊 No items needed cleanup")
 
 if __name__ == "__main__":
+    load_dotenv()
     cleanup_workspaces() 
