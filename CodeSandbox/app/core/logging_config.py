@@ -180,7 +180,8 @@ class LoggingConfig:
         Set up comprehensive logging configuration
         """
         # Create logs directory if it doesn't exist
-        log_dir = Path("logs")
+        # Use /tmp/logs in containers to avoid permission issues
+        log_dir = Path("/tmp/logs") if not self.is_development else Path("logs")
         log_dir.mkdir(exist_ok=True)
         
         # Determine log level
@@ -213,7 +214,7 @@ class LoggingConfig:
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": log_level,
                     "formatter": "json",
-                    "filename": "logs/app.log",
+                    "filename": str(log_dir / "app.log"),
                     "maxBytes": 10485760,  # 10MB
                     "backupCount": 5,
                     "encoding": "utf-8",
@@ -222,7 +223,7 @@ class LoggingConfig:
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": "INFO",
                     "formatter": "json", 
-                    "filename": "logs/access.log",
+                    "filename": str(log_dir / "access.log"),
                     "maxBytes": 10485760,  # 10MB
                     "backupCount": 5,
                     "encoding": "utf-8",
@@ -231,7 +232,7 @@ class LoggingConfig:
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": "ERROR",
                     "formatter": "json",
-                    "filename": "logs/error.log", 
+                    "filename": str(log_dir / "error.log"), 
                     "maxBytes": 10485760,  # 10MB
                     "backupCount": 10,
                     "encoding": "utf-8",

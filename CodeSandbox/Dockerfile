@@ -36,8 +36,9 @@ COPY --chown=${CS_USER}:${CS_USER} app/ ./app/
 COPY --chown=${CS_USER}:${CS_USER} run_server.py ./
 COPY --chown=${CS_USER}:${CS_USER} .env ./
 
-# Create workspace directory with proper permissions for non-root user
-RUN mkdir -p /tmp/workspaces && chown ${CS_USER}:${CS_USER} /tmp/workspaces
+# Create workspace and logs directories with proper permissions for non-root user
+RUN mkdir -p /tmp/workspaces && chown ${CS_USER}:${CS_USER} /tmp/workspaces && \
+    mkdir -p /tmp/logs && chown ${CS_USER}:${CS_USER} /tmp/logs
 
 # Expose only FastAPI port
 EXPOSE 8080

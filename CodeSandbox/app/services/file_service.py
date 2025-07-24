@@ -204,7 +204,7 @@ class FileService:
         
         try:
             # Get the workspace path from jupyter client
-            workspace_path = Path("workspaces") / workspace_id
+            workspace_path = Path(self.settings.workspace_base_path) / workspace_id
             file_path = workspace_path / filename
             
             # Security check: ensure file is within workspace

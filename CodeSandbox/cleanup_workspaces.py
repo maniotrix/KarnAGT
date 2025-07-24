@@ -21,7 +21,9 @@ def cleanup_workspaces():
     cleaned_items = []
     
     # 1. Remove workspaces directory
-    workspaces_dir = Path("workspaces")
+    # Use environment variable or default to /tmp/workspaces
+    workspace_base_path = os.getenv("WORKSPACE_BASE_PATH", "/tmp/workspaces")
+    workspaces_dir = Path(workspace_base_path)
     if workspaces_dir.exists():
         try:
             shutil.rmtree(workspaces_dir)
