@@ -135,6 +135,9 @@ class ServiceManager:
         
         # Enable reload in development
         reload_enabled = settings.environment == "development"
+        # Limit reload to application code only to avoid walking large directories
+        reload_dirs = [str(Path(__file__).parent / "app")] if reload_enabled else None
+        reload_excludes = ["venv/*", "*.pyc", "__pycache__/*", "workspaces/*", "logs/*"] if reload_enabled else None
         logger.info(f"🔧 Environment: {settings.environment}")
         logger.info(f"🔄 Auto-reload enabled: {reload_enabled}")
         
@@ -145,7 +148,9 @@ class ServiceManager:
             "app.main:app",
             host=settings.host,
             port=settings.port,
-                reload=reload_enabled,  # Simple reload flag
+            reload=reload_enabled,  # Simple reload flag
+            reload_dirs=reload_dirs,
+            reload_excludes=reload_excludes,
             log_level="info",
                 access_log=True
             )
