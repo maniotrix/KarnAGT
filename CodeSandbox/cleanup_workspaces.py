@@ -54,8 +54,20 @@ def cleanup_workspaces():
             print(f"❌ Failed to remove logs directory: {e}")
     else:
         print(f"ℹ️  No logs directory found at: {logs_dir}")
-    
-    # 3. Remove kernel-*.json files
+
+    # 3. Remove jupyter_runtime directory
+    runtime_dir = Path(user_temp_base_path) / "jupyter_runtime"
+    if runtime_dir.exists():
+        try:
+            shutil.rmtree(runtime_dir)
+            cleaned_items.append(f"📁 Removed directory: {runtime_dir}")
+            print(f"✅ Removed runtime directory: {runtime_dir}")
+        except Exception as e:
+            print(f"❌ Failed to remove runtime directory: {e}")
+    else:
+        print(f"ℹ️  No runtime directory found at: {runtime_dir}")
+
+    # 4. Remove kernel-*.json files in current directory (project root)
     kernel_files = glob.glob("kernel-*.json")
     for kernel_file in kernel_files:
         try:

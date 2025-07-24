@@ -9,7 +9,7 @@ Much simpler and more reliable approach.
 """
 
 import asyncio
-import json
+import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -51,8 +51,15 @@ class JupyterServerClient:
         self.settings = settings
         self.logger = Loggers.jupyter
         
-        # Use AsyncMultiKernelManager - the proper way to manage multiple kernels
-        self.kernel_manager = AsyncMultiKernelManager()
+        # Configure a dedicated runtime directory for Jupyter connection files
+        self._jupyter_runtime_dir = Path(self.settings.user_temp_base_path) / "jupyter_runtime"
+        self._jupyter_runtime_dir.mkdir(parents=True, exist_ok=True)
+
+        # Propagate to environment for any child processes (optional, helps external tools)
+        os.environ["JUPYTER_RUNTIME_DIR"] = str(self._jupyter_runtime_dir)
+
+        # Use AsyncMultiKernelManager with explicit connection_dir so files are placed there
+        self.kernel_manager = AsyncMultiKernelManager(connection_dir=str(self._jupyter_runtime_dir))
         
         # Track workspace directories and kernels
         self._workspaces: Dict[str, Dict[str, Any]] = {}
