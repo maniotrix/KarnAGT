@@ -2,11 +2,14 @@ version: '3.8'
 
 services:
   codesandbox:
-    build: .
+    build: 
+      context: .
+      args:
+        CS_USER: code_sandbox
     ports:
       - "${PORT:-8080}:${PORT:-8080}"  # Use PORT from .env file
     env_file:
       - .env  # Load all environment variables from .env file
     volumes:
-      - ./:/home/${USERNAME:-code_sandbox}  # Mount source code for development
+      - ./:/home/${CS_USER:-code_sandbox}  # Mount source code for development
     # restart: unless-stopped 

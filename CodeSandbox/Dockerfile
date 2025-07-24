@@ -17,27 +17,27 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-ARG USERNAME=code_sandbox
-ENV USERNAME=${USERNAME}
-RUN useradd --create-home --shell /bin/bash ${USERNAME}
+ARG CS_USER=code_sandbox
+ENV CS_USER=${CS_USER}
+RUN useradd --create-home --shell /bin/bash ${CS_USER}
 
 # Copy and install requirements as root (avoids PATH warnings)
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Switch to user
-USER ${USERNAME}
+USER ${CS_USER}
 
 # Go to user home
-WORKDIR /home/${USERNAME}
+WORKDIR /home/${CS_USER}
 
 # Copy application files
-COPY --chown=${USERNAME}:${USERNAME} app/ ./app/
-COPY --chown=${USERNAME}:${USERNAME} run_server.py ./
-COPY --chown=${USERNAME}:${USERNAME} .env ./
+COPY --chown=${CS_USER}:${CS_USER} app/ ./app/
+COPY --chown=${CS_USER}:${CS_USER} run_server.py ./
+COPY --chown=${CS_USER}:${CS_USER} .env ./
 
 # Create workspace directory with proper permissions for non-root user
-RUN mkdir -p /tmp/workspaces && chown ${USERNAME}:${USERNAME} /tmp/workspaces
+RUN mkdir -p /tmp/workspaces && chown ${CS_USER}:${CS_USER} /tmp/workspaces
 
 # Expose only FastAPI port
 EXPOSE 8080
