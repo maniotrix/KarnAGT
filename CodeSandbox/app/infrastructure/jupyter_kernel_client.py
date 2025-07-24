@@ -66,8 +66,8 @@ class JupyterServerClient:
         try:
             self.logger.info("Initializing workspace directories")
             
-            # Create the main 'workspaces' directory locally
-            self._workspace_base.mkdir(exist_ok=True)
+            # Create the main 'workspaces' directory locally (create parents too)
+            self._workspace_base.mkdir(parents=True, exist_ok=True)
             
             self.logger.info("Workspace directories initialized successfully")
             
@@ -108,9 +108,9 @@ class JupyterServerClient:
                         workspace_path=str(workspace_path))
         
         try:
-            # Create workspace and outputs directories
-            workspace_path.mkdir(exist_ok=True)
-            (workspace_path / "outputs").mkdir(exist_ok=True)
+            # Ensure workspace and outputs directories exist (create parents just in case)
+            workspace_path.mkdir(parents=True, exist_ok=True)
+            (workspace_path / "outputs").mkdir(parents=True, exist_ok=True)
             
             # Track workspace
             self._workspaces[workspace_id] = {

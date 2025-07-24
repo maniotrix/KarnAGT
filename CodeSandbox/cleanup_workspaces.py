@@ -13,6 +13,7 @@ Simple script to clean up:
 import os
 import shutil
 import glob
+import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -25,7 +26,10 @@ def cleanup_workspaces():
     
     # Get user configuration
     cs_user = os.getenv("CS_USER", "code_sandbox")
-    user_temp_base_path = os.getenv("USER_TEMP_BASE_PATH", f"/tmp/{cs_user}")
+    user_temp_base_path = os.getenv(
+        "USER_TEMP_BASE_PATH",
+        str(Path(tempfile.gettempdir()) / cs_user),
+    )
     
     # 1. Remove workspaces directory
     workspaces_dir = Path(user_temp_base_path) / "workspaces"

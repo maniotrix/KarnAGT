@@ -182,7 +182,8 @@ class LoggingConfig:
         # Create logs directory if it doesn't exist
         # Use settings.logs_base_path consistently across all environments
         log_dir = Path(self.settings.logs_base_path)
-        log_dir.mkdir(exist_ok=True)
+        # Ensure parent directories are created as well (cross-platform safety)
+        log_dir.mkdir(parents=True, exist_ok=True)
         
         # Determine log level
         log_level = getattr(logging, self.settings.log_level.upper(), logging.INFO)
