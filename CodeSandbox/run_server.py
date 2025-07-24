@@ -58,33 +58,41 @@ class ServiceManager:
         # Get Jupyter server command from settings
         cmd = settings.get_jupyter_command_args()
         
+        # Configure output handling based on environment
+        if settings.environment == "development":
+            # In development: show Jupyter logs directly in console
+            stdout_config = None  # Inherit parent's stdout (console)
+            stderr_config = None  # Inherit parent's stderr (console)
+            logger.info("🔧 Development mode: Jupyter logs will be shown in console")
+        else:
+            # In production: discard Jupyter logs
+            stdout_config = subprocess.DEVNULL
+            stderr_config = subprocess.DEVNULL
+            logger.info("🔧 Production mode: Jupyter logs will be discarded")
+        
         # Start Jupyter server process
         try:
             logger.info(f"🔧 Executing command: {' '.join(cmd)}")
             
+            # Start Jupyter with environment-appropriate output handling
             self.jupyter_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=stdout_config,
+                stderr=stderr_config,
                 text=True
             )
             
             # Give the process a moment to start
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
             
             # Check if process is still running
             if self.jupyter_process.poll() is None:
                 logger.info(f"✅ Jupyter Server process started (PID: {self.jupyter_process.pid})")
-                logger.info(f"Stdout: {self.jupyter_process.stdout}")
-                logger.info(f"Stderr: {self.jupyter_process.stderr}")
             else:
-                # Process terminated, get the output
-                stdout, stderr = self.jupyter_process.communicate()
-                logger.error(f"❌ Jupyter Server process terminated unexpectedly!")
+                logger.error(f"❌ Jupyter Server process terminated immediately!")
                 logger.error(f"📝 Exit code: {self.jupyter_process.returncode}")
-                logger.error(f"📝 Stdout: {stdout}")
-                logger.error(f"📝 Stderr: {stderr}")
-                raise RuntimeError(f"Jupyter Server process terminated with exit code {self.jupyter_process.returncode}: {stderr}")
+                raise RuntimeError("Jupyter Server failed to start - check Jupyter configuration")
+                
         except Exception as e:
             logger.error(f"❌ Error starting Jupyter Server: {e}")
             raise
@@ -92,7 +100,8 @@ class ServiceManager:
         # Wait for Jupyter to be ready
         await self._wait_for_jupyter()
         logger.info("✅ Jupyter Server is ready")
-        
+    
+
     async def _wait_for_jupyter(self, timeout=30):
         """Wait for Jupyter Server to be ready"""
         logger.info(f"⏳ Waiting for Jupyter Server at {settings.jupyter_url}/api/status...")
@@ -187,6 +196,9 @@ def print_startup_info():
     print(f"📊 Environment: {settings.environment}")
     if settings.environment == "development":
         print("🔄 Auto-reload: ENABLED")
+        print("📝 Jupyter logs: VISIBLE in console")
+    else:
+        print("📝 Jupyter logs: DISABLED (production)")
     print(f"🔧 Jupyter Server: {settings.jupyter_url}")
     print(f"🚀 FastAPI Server: http://{settings.host}:{settings.port}")
     print(f"📚 API Docs: http://{settings.host}:{settings.port}/docs")
@@ -202,6 +214,7 @@ def print_startup_info():
         print("💡 Development Tips:")
         print("   • Code changes will trigger automatic server restart")
         print("   • Jupyter server runs independently and won't restart")
+        print("   • Jupyter logs will appear directly in this console")
         print("=" * 60)
     print("Press Ctrl+C to stop\n")
 

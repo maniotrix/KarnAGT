@@ -8,10 +8,5 @@ services:
     env_file:
       - .env  # Load all environment variables from .env file
     volumes:
-      - ./:/app  # Mount source code for development
-      - workspace_data:${WORKSPACE_BASE_PATH:-/tmp/workspaces}  # Use WORKSPACE_BASE_PATH from .env
-    restart: unless-stopped
-
-volumes:
-  workspace_data:
-    driver: local 
+      - ./:/home/${USERNAME:-code_sandbox}  # Mount source code for development
+    # restart: unless-stopped 

@@ -38,7 +38,6 @@ class DockerManager:
         self.project_name = "codesandbox"
         self.service_name = "codesandbox"
         self.image_name = f"{self.project_name}_{self.service_name}"
-        self.container_name = f"{self.project_name}_{self.service_name}_1"
         
     def log(self, message: str, color: str = Colors.WHITE, bold: bool = False) -> None:
         """Print colored log message"""
@@ -78,43 +77,109 @@ class DockerManager:
             return False
     
     def get_image_info(self) -> Optional[Dict]:
-        """Get Docker image information"""
+        """Get Docker image information using multiple fallback methods"""
+        
+        # Method 1: Get image name from running container
+        try:
+            container_info = self.get_container_info()
+            if container_info:
+                # Try to get image from container inspect
+                container_name = container_info.get('Name', '')
+                if container_name:
+                    inspect_result = self.run_command([
+                        "docker", "inspect", "--format", "{{.Config.Image}}", container_name
+                    ])
+                    image_name = inspect_result.stdout.strip()
+                    if image_name:
+                        # Get detailed image info
+                        image_result = self.run_command([
+                            "docker", "images", "--format", "json", image_name
+                        ])
+                        for line in image_result.stdout.strip().split('\n'):
+                            if line.strip():
+                                return json.loads(line)
+        except (subprocess.CalledProcessError, json.JSONDecodeError):
+            pass
+        
+        # Method 2: Try docker-compose images (if container method failed)
         try:
             result = self.run_command([
-                "docker", "images", 
-                "--format", "json", 
-                self.image_name
+                "docker-compose", "images", "--format", "json", self.service_name
             ])
             
-            # Handle multiple JSON objects
-            for line in result.stdout.strip().split('\n'):
-                if line.strip():
-                    return json.loads(line)
-            return None
+            if result.stdout.strip():
+                images_list = json.loads(result.stdout.strip())
+                for compose_info in images_list:
+                    actual_image_name = compose_info.get("Repository")
+                    if actual_image_name:
+                        image_result = self.run_command([
+                            "docker", "images", "--format", "json", actual_image_name
+                        ])
+                        for image_line in image_result.stdout.strip().split('\n'):
+                            if image_line.strip():
+                                return json.loads(image_line)
         except (subprocess.CalledProcessError, json.JSONDecodeError):
-            return None
+            pass
+            
+        # Method 3: Try common image name patterns
+        possible_names = [
+            f"{self.project_name}-{self.service_name}",
+            f"{self.project_name}_{self.service_name}",
+            f"{self.service_name}",
+        ]
+        
+        for image_name in possible_names:
+            try:
+                result = self.run_command([
+                    "docker", "images", "--format", "json", image_name
+                ])
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        return json.loads(line)
+            except (subprocess.CalledProcessError, json.JSONDecodeError):
+                continue
+                
+        return None
     
     def get_container_info(self) -> Optional[Dict]:
-        """Get Docker container information"""
+        """Get Docker container information using docker-compose (no hardcoded names)"""
         try:
+            # Use docker-compose ps to get info for our specific service (includes stopped containers)
             result = self.run_command([
-                "docker", "ps", "-a",
-                "--format", "json",
-                "--filter", f"name={self.container_name}"
+                "docker-compose", "ps", "-a", "--format", "json", self.service_name
             ])
             
-            # Handle multiple JSON objects
-            for line in result.stdout.strip().split('\n'):
-                if line.strip():
-                    return json.loads(line)
+            # Parse the JSON output
+            if result.stdout.strip():
+                return json.loads(result.stdout.strip())
             return None
+            
         except (subprocess.CalledProcessError, json.JSONDecodeError):
-            return None
+            # Fallback: try without service filter (includes stopped containers)
+            try:
+                result = self.run_command([
+                    "docker-compose", "ps", "-a", "--format", "json"
+                ])
+                
+                # Find our service in the list
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        container_info = json.loads(line)
+                        if container_info.get("Service") == self.service_name:
+                            return container_info
+                return None
+            except (subprocess.CalledProcessError, json.JSONDecodeError):
+                return None
     
     def is_container_running(self) -> bool:
         """Check if container is currently running"""
         container_info = self.get_container_info()
-        return container_info is not None and "Up" in container_info.get("Status", "")
+        if container_info is None:
+            return False
+        
+        # docker-compose ps uses "State" field, not "Status"
+        state = container_info.get("State", "").lower()
+        return "running" in state or "up" in state
     
     def get_dockerfile_hash(self) -> str:
         """Get hash of Dockerfile and requirements.txt for change detection"""
@@ -136,27 +201,38 @@ class DockerManager:
         if not image_info:
             return True, "Image does not exist"
         
-        # Check if key files changed
-        current_hash = self.get_dockerfile_hash()
-        image_labels = {}
+        # Simple approach: Check if key files are newer than image
+        files_to_check = ["Dockerfile", "requirements.txt", "docker-compose.yml"]
         
-        # Try to get labels from image
+        # Get image creation time
         try:
-            result = self.run_command([
-                "docker", "inspect", 
-                "--format", "{{json .Config.Labels}}", 
-                self.image_name
-            ])
-            image_labels = json.loads(result.stdout.strip() or "{}")
-        except (subprocess.CalledProcessError, json.JSONDecodeError):
-            pass
-        
-        stored_hash = image_labels.get("build_hash", "")
-        
-        if current_hash != stored_hash:
-            return True, f"Configuration changed (hash: {stored_hash} → {current_hash})"
-        
-        return False, "Image is up to date"
+            image_created = image_info.get("CreatedAt", "")
+            if not image_created:
+                return True, "Cannot determine image age"
+            
+            # Parse image creation time (format: 2025-07-24 07:33:08 +0530 IST)
+            from datetime import datetime
+            import re
+            
+            # Extract datetime part before timezone
+            created_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', image_created)
+            if not created_match:
+                return True, "Cannot parse image creation time"
+            
+            image_time = datetime.strptime(created_match.group(1), "%Y-%m-%d %H:%M:%S")
+            
+            # Check if any key files are newer than image
+            for file_path in files_to_check:
+                if Path(file_path).exists():
+                    file_time = datetime.fromtimestamp(Path(file_path).stat().st_mtime)
+                    if file_time > image_time:
+                        return True, f"{file_path} changed since last build"
+            
+            return False, "Image is up to date"
+            
+        except Exception as e:
+            # If we can't determine age, it's safer to rebuild
+            return True, f"Cannot determine if rebuild needed: {e}"
     
     def build_image(self, force_rebuild: bool = False) -> bool:
         """Build Docker image intelligently"""
@@ -171,18 +247,9 @@ class DockerManager:
             self.log("🔨 Force rebuilding image...", Colors.YELLOW, bold=True)
         
         try:
-            # Build with hash label for change tracking
-            build_hash = self.get_dockerfile_hash()
-            
+            # Build image using docker-compose
             self.run_command([
-                "docker-compose", "build", 
-                "--build-arg", f"BUILD_HASH={build_hash}",
-                self.service_name
-            ], capture_output=False)
-            
-            # Add label to track build hash
-            self.run_command([
-                "docker", "image", "ls", self.image_name, "--format", "table"
+                "docker-compose", "build", self.service_name
             ], capture_output=False)
             
             self.log("✅ Image built successfully", Colors.GREEN, bold=True)
@@ -263,9 +330,11 @@ class DockerManager:
         # Container status
         container_info = self.get_container_info()
         if container_info:
-            status = container_info['Status']
-            color = Colors.GREEN if "Up" in status else Colors.YELLOW
-            self.log(f"   📦 Container: {container_info['Names']} - {status}", color)
+            # docker-compose ps output uses different field names
+            name = container_info.get('Name', container_info.get('Names', 'unknown'))
+            state = container_info.get('State', container_info.get('Status', 'unknown'))
+            color = Colors.GREEN if "running" in state.lower() or "up" in state.lower() else Colors.YELLOW  
+            self.log(f"   📦 Container: {name} - {state}", color)
         else:
             self.log(f"   📦 Container: Not found", Colors.YELLOW)
         
@@ -360,7 +429,15 @@ def main():
         
         elif command == "rebuild":
             docker_manager.log("🔨 Rebuilding CodeSandbox...", Colors.CYAN, bold=True)
-            docker_manager.stop_containers()
+            
+            # Check for --clean flag
+            clean_rebuild = "--clean" in args
+            if clean_rebuild:
+                docker_manager.log("🧹 Clean rebuild requested - removing old images...", Colors.YELLOW)
+                docker_manager.cleanup(full=True)
+            else:
+                docker_manager.stop_containers()
+                
             if docker_manager.build_image(force_rebuild=True) and docker_manager.start_containers():
                 docker_manager.show_status()
         
@@ -374,6 +451,19 @@ def main():
             full_cleanup = "--full" in args
             docker_manager.cleanup(full=full_cleanup)
         
+        elif command == "shell":
+            # Check for --root flag
+            is_root = "--root" in args
+            user_flag = "--user root" if is_root else ""
+            user_desc = "root" if is_root else "code_sandbox"
+            
+            docker_manager.log(f"🐚 Opening shell as {user_desc} user...", Colors.CYAN)
+            
+            try:
+                subprocess.run(f"docker-compose exec {user_flag} codesandbox bash", shell=True)
+            except KeyboardInterrupt:
+                docker_manager.log("\n🐚 Shell session ended", Colors.GREEN)
+        
         elif command in ["help", "-h", "--help"]:
             print(f"""
 {Colors.CYAN}{Colors.BOLD}CodeSandbox Docker Manager{Colors.END}
@@ -385,15 +475,18 @@ def main():
     {Colors.GREEN}start{Colors.END}      Start the application (default)
     {Colors.GREEN}stop{Colors.END}       Stop containers
     {Colors.GREEN}restart{Colors.END}    Stop and start containers
-    {Colors.GREEN}rebuild{Colors.END}    Force rebuild image and restart
+    {Colors.GREEN}rebuild{Colors.END}    Force rebuild image and restart (add --clean for fresh build)
     {Colors.GREEN}logs{Colors.END}       Show container logs
     {Colors.GREEN}status{Colors.END}     Show current status
+    {Colors.GREEN}shell{Colors.END}      Open bash shell (add --root for root access)
     {Colors.GREEN}cleanup{Colors.END}    Clean up containers (add --full to remove images)
     {Colors.GREEN}help{Colors.END}       Show this help message
 
 {Colors.YELLOW}Examples:{Colors.END}
     python setup_and_run.py start
     python setup_and_run.py logs
+    python setup_and_run.py rebuild --clean
+    python setup_and_run.py shell --root
     python setup_and_run.py cleanup --full
             """)
         
