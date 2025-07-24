@@ -291,12 +291,6 @@ class FileService:
         # Check file size
         if len(content) > self.settings.max_file_size_bytes:
             raise FileServiceError(f"File too large ({len(content)} bytes, max {self.settings.max_file_size_mb}MB)")
-        
-        # Check file extension if configured
-        if self.settings.allowed_file_extensions:
-            file_ext = Path(filename).suffix.lower()
-            if file_ext and file_ext not in self.settings.allowed_file_extensions:
-                raise FileServiceError(f"File extension {file_ext} not allowed")
     
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -308,6 +302,5 @@ class FileService:
         return {
             "max_file_size_mb": self.settings.max_file_size_mb,
             "max_workspace_size_mb": self.settings.max_workspace_size_mb,
-            "allowed_extensions": self.settings.allowed_file_extensions,
             "operations": ["upload", "list", "download"]
         } 

@@ -386,7 +386,6 @@ async def get_configuration():
         "workspace_max_ttl_hours": settings.workspace_max_ttl_hours,
         "max_file_size_mb": settings.max_file_size_mb,
         "max_workspace_size_mb": settings.max_workspace_size_mb,
-        "allowed_file_extensions": settings.allowed_file_extensions,
         "default_execution_timeout": settings.default_execution_timeout,
         "max_execution_timeout": settings.max_execution_timeout,
         "serialization_available": True

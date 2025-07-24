@@ -56,7 +56,6 @@ class Settings(BaseModel):
     max_file_size_mb: int = 100
     max_files_per_workspace: int = 50
     max_workspace_size_mb: int = 500
-    allowed_file_extensions: List[str] = [".py", ".txt", ".csv", ".json", ".yaml", ".yml", ".md", ".pdf", ".png", ".jpg", ".jpeg"]
     
     # === Execution Configuration ===
     default_execution_timeout: int = 30
@@ -142,7 +141,6 @@ class Settings(BaseModel):
             "max_file_size_mb": int(os.getenv("MAX_FILE_SIZE_MB", "100")),
             "max_files_per_workspace": int(os.getenv("MAX_FILES_PER_WORKSPACE", "50")),
             "max_workspace_size_mb": int(os.getenv("MAX_WORKSPACE_SIZE_MB", "500")),
-            "allowed_file_extensions": os.getenv("ALLOWED_FILE_EXTENSIONS", ".py,.txt,.csv,.json,.yaml,.yml,.md,.pdf,.png,.jpg,.jpeg").split(","),
             
             # Execution
             "default_execution_timeout": int(os.getenv("DEFAULT_EXECUTION_TIMEOUT", "30")),
