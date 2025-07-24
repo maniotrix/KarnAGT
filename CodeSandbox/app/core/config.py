@@ -22,6 +22,9 @@ class Settings(BaseModel):
     environment: str = "development"
     debug: bool = True
     
+    # === User Configuration ===
+    cs_user: str = "code_sandbox"
+    
     # === Server Configuration ===
     host: str = "127.0.0.1"
     port: int = 8080
@@ -47,7 +50,7 @@ class Settings(BaseModel):
     jupyter_password: str = ""
     
     # === Workspace Configuration ===
-    workspace_base_path: str = "/tmp/workspaces"
+    user_temp_base_path: str = "/tmp/code_sandbox"
     workspace_default_ttl_hours: int = 2
     workspace_max_ttl_hours: int = 24
     workspace_cleanup_interval_minutes: int = 15
@@ -71,6 +74,16 @@ class Settings(BaseModel):
     log_backup_count: int = 5
     log_correlation_id_header: str = "x-correlation-id"
     log_performance_threshold_ms: float = 1000.0
+    
+    @property
+    def workspace_base_path(self) -> str:
+        """Workspace base path derived from user temp base path"""
+        return f"{self.user_temp_base_path}/workspaces"
+    
+    @property
+    def logs_base_path(self) -> str:
+        """Logs base path derived from user temp base path"""
+        return f"{self.user_temp_base_path}/logs"
     
     def _parse_cors_origins(self, origins_str: str) -> List[str]:
         """Parse CORS origins from environment variable with proper validation"""
@@ -109,12 +122,17 @@ class Settings(BaseModel):
 
     def __init__(self, **data):
         # Load from environment variables
+        cs_user = os.getenv("CS_USER", "code_sandbox")
+        
         env_data = {
             # Application
             "app_name": os.getenv("APP_NAME", "CodeSandbox"),
             "app_version": os.getenv("APP_VERSION", "1.0.0"), 
             "environment": os.getenv("ENVIRONMENT", "development"),
             "debug": os.getenv("DEBUG", "true").lower() == "true",
+            
+            # User
+            "cs_user": cs_user,
             
             # Server
             "host": os.getenv("HOST", "127.0.0.1"),
@@ -131,8 +149,8 @@ class Settings(BaseModel):
             "jupyter_token": os.getenv("JUPYTER_TOKEN", ""),
             "jupyter_password": os.getenv("JUPYTER_PASSWORD", ""),
             
-            # Workspace
-            "workspace_base_path": os.getenv("WORKSPACE_BASE_PATH", "/tmp/workspaces"),
+            # Workspace - using user temp base path structure
+            "user_temp_base_path": os.getenv("USER_TEMP_BASE_PATH", f"/tmp/{cs_user}"),
             "workspace_default_ttl_hours": int(os.getenv("WORKSPACE_DEFAULT_TTL_HOURS", "2")),
             "workspace_max_ttl_hours": int(os.getenv("WORKSPACE_MAX_TTL_HOURS", "24")),
             "workspace_cleanup_interval_minutes": int(os.getenv("WORKSPACE_CLEANUP_INTERVAL_MINUTES", "15")),

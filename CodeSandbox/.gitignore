@@ -90,6 +90,7 @@ temp/
 workspaces/
 workspace_data/
 /tmp/workspaces/
+/tmp/code_sandbox/
 user_workspaces/
 
 # === Database ===

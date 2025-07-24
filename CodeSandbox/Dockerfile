@@ -25,6 +25,10 @@ RUN useradd --create-home --shell /bin/bash ${CS_USER}
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
+# Create user temp directory with proper permissions
+# Application will create subdirectories (workspaces, logs) as needed
+RUN mkdir -p /tmp/${CS_USER} && chown ${CS_USER}:${CS_USER} /tmp/${CS_USER}
+
 # Switch to user
 USER ${CS_USER}
 
@@ -35,10 +39,6 @@ WORKDIR /home/${CS_USER}
 COPY --chown=${CS_USER}:${CS_USER} app/ ./app/
 COPY --chown=${CS_USER}:${CS_USER} run_server.py ./
 COPY --chown=${CS_USER}:${CS_USER} .env ./
-
-# Create workspace and logs directories with proper permissions for non-root user
-RUN mkdir -p /tmp/workspaces && chown ${CS_USER}:${CS_USER} /tmp/workspaces && \
-    mkdir -p /tmp/logs && chown ${CS_USER}:${CS_USER} /tmp/logs
 
 # Expose only FastAPI port
 EXPOSE 8080

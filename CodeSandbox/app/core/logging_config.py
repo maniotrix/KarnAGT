@@ -180,8 +180,8 @@ class LoggingConfig:
         Set up comprehensive logging configuration
         """
         # Create logs directory if it doesn't exist
-        # Use /tmp/logs in containers to avoid permission issues
-        log_dir = Path("/tmp/logs") if not self.is_development else Path("logs")
+        # Use settings.logs_base_path consistently across all environments
+        log_dir = Path(self.settings.logs_base_path)
         log_dir.mkdir(exist_ok=True)
         
         # Determine log level
