@@ -9,6 +9,8 @@ Loads configuration from environment variables with sensible defaults.
 """
 
 import os
+import tempfile
+from pathlib import Path
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -77,13 +79,13 @@ class Settings(BaseModel):
     
     @property
     def workspace_base_path(self) -> str:
-        """Workspace base path derived from user temp base path"""
-        return f"{self.user_temp_base_path}/workspaces"
+        """Workspace base path derived from user temp base path (cross-platform)."""
+        return str(Path(self.user_temp_base_path) / "workspaces")
     
     @property
     def logs_base_path(self) -> str:
-        """Logs base path derived from user temp base path"""
-        return f"{self.user_temp_base_path}/logs"
+        """Logs base path derived from user temp base path (cross-platform)."""
+        return str(Path(self.user_temp_base_path) / "logs")
     
     def _parse_cors_origins(self, origins_str: str) -> List[str]:
         """Parse CORS origins from environment variable with proper validation"""
@@ -149,8 +151,11 @@ class Settings(BaseModel):
             "jupyter_token": os.getenv("JUPYTER_TOKEN", ""),
             "jupyter_password": os.getenv("JUPYTER_PASSWORD", ""),
             
-            # Workspace - using user temp base path structure
-            "user_temp_base_path": os.getenv("USER_TEMP_BASE_PATH", f"/tmp/{cs_user}"),
+            # Workspace paths – choose a sensible cross-platform default located in the OS temp directory
+            "user_temp_base_path": os.getenv(
+                "USER_TEMP_BASE_PATH",
+                str(Path(tempfile.gettempdir()) / cs_user),
+            ),
             "workspace_default_ttl_hours": int(os.getenv("WORKSPACE_DEFAULT_TTL_HOURS", "2")),
             "workspace_max_ttl_hours": int(os.getenv("WORKSPACE_MAX_TTL_HOURS", "24")),
             "workspace_cleanup_interval_minutes": int(os.getenv("WORKSPACE_CLEANUP_INTERVAL_MINUTES", "15")),
