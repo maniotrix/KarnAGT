@@ -513,6 +513,9 @@ class StreamingService:
             assistant_client = assistant_manager.get_client(self.user.user_id, conversation_id)
             stream_handler.set_assistant_client(assistant_client)
             
+            # Set the user message ID for cancellation events (edit flow uses existing message)
+            stream_handler.set_user_message_id(message_id)
+            
             # Import necessary services and modules for edit operations
             from app.services.chat.message_service import MessageService
             from app.models.schemas.chat_schemas import MessageUpdate
