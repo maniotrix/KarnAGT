@@ -267,7 +267,7 @@ class ConfigurableOpenAIAssistant:
     
     def _cleanup_streaming_state(self):
         """Clean up streaming state after completion or error"""
-        self.cancel_current_stream()
+        self.cancel_current_stream("automatic_cleanup")
         
         # Clear references
         self.current_streaming_result = None
@@ -390,9 +390,14 @@ class ConfigurableOpenAIAssistant:
                 self.messages = self.messages[:agent_config.max_context_messages]
             # Note: "summarize" strategy would require additional implementation
     
-    def cancel_current_stream(self):
+    def cancel_current_stream(self, reason: str = "user_requested"):
         """Cancel the current streaming operation"""
-        logger.info("Cancelling current stream")
+        logger.info("--------------------------------")
+        if reason == "user_requested":
+            logger.info("[USER-INITIATED] Cancelling current stream - user requested stop")
+        else:
+            logger.info(f"[INTERNAL] Cancelling current stream - {reason}")
+        
         logger.info(f"[DEBUG] Setting is_stream_cancelled from {self.is_stream_cancelled} to True")
         self.is_stream_cancelled = True
 
@@ -422,7 +427,12 @@ class ConfigurableOpenAIAssistant:
             else:
                 logger.info("[DEBUG] No current_streaming_result")
         
-        logger.info("[SUCCESS] Stream cancellation initiated")
+        if reason == "user_requested":
+            logger.info("[SUCCESS] User-initiated stream cancellation completed")
+        else:
+            logger.info(f"[SUCCESS] Cleanup stream cancellation completed - {reason}")
+            
+        logger.info("--------------------------------")
     
     def clear_memory(self) -> None:
         """Clear the agent's memory"""
