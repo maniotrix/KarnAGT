@@ -226,7 +226,7 @@ class ConfigurableOpenAIAssistant:
             try:
                 async for event in result.stream_events():
                     event_count += 1
-                    logger.info(f"[DEBUG] Processing event #{event_count}, cancelled flag: {self.is_stream_cancelled}")
+                    logger.debug(f"[DEBUG] Processing event #{event_count}, cancelled flag: {self.is_stream_cancelled}")
 
                     # Early exit if cancellation requested
                     if self.is_stream_cancelled:
@@ -239,7 +239,7 @@ class ConfigurableOpenAIAssistant:
                         if delta:
                             full_chunks.append(delta)
                             if self.streaming_callback:
-                                logger.info(f"[DEBUG] Calling streaming callback with token: '{delta[:20]}...'")
+                                logger.debug(f"[DEBUG] Calling streaming callback with token: '{delta[:20]}...'")
                                 self.streaming_callback(delta)
 
             except asyncio.CancelledError:
