@@ -10,7 +10,7 @@ from app.models.database.user_memory import UserMemory
 from app.models.database.memory_preference import MemoryPreference
 from app.models.database.user import User
 from app.services.memory.memory_setup import MEMORY_BUCKET_CONFIGS
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

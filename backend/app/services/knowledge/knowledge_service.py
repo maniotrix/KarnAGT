@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.knowledge.production_rag_service import ProductionRAGService, ProcessingResult, QueryResult
 from app.services.knowledge.config import RAGConfig
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -779,9 +779,9 @@ class ProductionRAGService:
                 if not file_groups[s3_key]['metadata']:
                     file_groups[s3_key]['metadata'] = document.metadata
                     
-                logger.info(f"  ✅ Document {document.id_} processed with {len(document_to_nodes[document.id_])} nodes")
+                logger.info(f"  [SUCCESS] Document {document.id_} processed with {len(document_to_nodes[document.id_])} nodes")
             else:
-                logger.warning(f"  ❌ Document {document.id_} not found in document_to_nodes mapping")
+                logger.warning(f"  [ERROR] Document {document.id_} not found in document_to_nodes mapping")
         
         # Create or update ONE KnowledgeFile record per file
         for s3_key, file_group in file_groups.items():
@@ -924,11 +924,11 @@ class ProductionRAGService:
             from qdrant_client import AsyncQdrantClient
             aclient = AsyncQdrantClient(url=self.qdrant_config.url)
             await aclient.delete_collection(collection_name)
-            logger.info(f"   🗑️  Deleted collection: {collection_name}")
+            logger.info(f"  [DELETE] Deleted collection: {collection_name}")
         except Exception as e:
-            logger.error(f"   ⚠️  Qdrant cleanup warning: {e}")
+            logger.error(f"  [WARNING] Qdrant cleanup warning: {e}")
         
-        logger.info("   ✅ Qdrant cleanup completed")
+        logger.info("   [SUCCESS] Qdrant cleanup completed")
 
     # NEW FUNCTIONS FOR DOCUMENT-SPECIFIC FILTERING
 

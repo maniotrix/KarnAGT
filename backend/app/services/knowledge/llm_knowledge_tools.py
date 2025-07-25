@@ -8,7 +8,7 @@ LLM Knowledge Tools - Functions for AI agents to search uploaded files and docum
 from typing import Dict, List, Optional, Any
 from agents import function_tool
 from app.services.knowledge.knowledge_service import KnowledgeService
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

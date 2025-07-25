@@ -17,7 +17,7 @@ from app.core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)

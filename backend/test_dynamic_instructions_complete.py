@@ -24,10 +24,10 @@ from app.services.memory.memory_service import MemoryService
 from app.services.memory.memory_setup import setup_user_memory_system
 
 # AI Core imports
-from aicore.config import config_manager
-from aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
-from aicore.instructions import InstructionBuilder, InstructionContext
-from aicore.logger import get_logger
+from app.aicore.config import config_manager
+from app.aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
+from app.aicore.instructions import InstructionBuilder, InstructionContext
+from app.logging.logger import get_logger
 
 # SQLAlchemy cleanup
 from sqlalchemy import delete
@@ -500,10 +500,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    from aicore.logger import get_logger
+    from app.logging.logger import get_logger
     logger = get_logger(__name__)
     logger.info("Starting complete dynamic instructions content testing")
     
-    from aicore.ai_config import validate_api_keys
+    from tests.ai_config import validate_api_keys
     validate_api_keys()
     asyncio.run(main()) 

@@ -19,8 +19,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 # Environment and imports
-from aicore.ai_config import validate_api_keys
-from aicore.logger import get_logger
+from tests.ai_config import validate_api_keys
+from app.logging.logger import get_logger
 
 try:
     from app.core.database import AsyncSessionLocal

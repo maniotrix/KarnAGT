@@ -1,8 +1,8 @@
 import asyncio
 from typing import List, Dict, Any
 from agents import Agent, Runner
-from aicore.logger import get_logger
-from aicore.config.model_config import get_default_model_config, ModelConfig
+from app.logging.logger import get_logger
+from app.aicore.config.model_config import get_default_model_config, ModelConfig
 from .utils import count_tokens
 
 logger = get_logger(__name__)

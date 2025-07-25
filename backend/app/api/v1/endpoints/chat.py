@@ -46,7 +46,7 @@ from app.api.v1.dependencies.auth import (
 from app.services.chat.chat_service import ChatService
 from app.services.chat.streaming_service import StreamingService
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)
