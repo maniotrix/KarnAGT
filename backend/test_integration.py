@@ -30,7 +30,8 @@ try:
     from app.models.database.message import Message
     from app.models.schemas.chat_schemas import ConversationCreate, MessageCreate
     from app.services.chat.chat_service import ChatService
-    from app.integrations.openai.assistant_client import OpenAIAssistantClient, assistant_manager
+    from app.aicore.core.configurable_openai_assistant import ConfigurableOpenAIAssistant as OpenAIAssistantClient  
+    from app.aicore.core.configurable_assistant_client import configurable_assistant_manager as assistant_manager
     from app.integrations.openai.cost_tracker import CostTracker
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy import select, text

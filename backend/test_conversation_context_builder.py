@@ -31,8 +31,8 @@ try:
     from sqlalchemy.ext.asyncio import AsyncSession
     import traceback
     import json
-    from aicore.logger import get_logger
-    from aicore.ai_config import validate_api_keys
+    from app.logging.logger import get_logger
+    from tests.ai_config import validate_api_keys
 except ImportError as e:
     print(f"❌ Import Error: {e}")
     print("Make sure you're running from the backend directory and all dependencies are installed.")

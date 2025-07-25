@@ -8,7 +8,7 @@ LLM Memory Tools - Functions for AI agents to interact with user memory system
 from typing import Dict, List, Optional, Any
 from agents import function_tool
 from app.services.memory.memory_service import MemoryService
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

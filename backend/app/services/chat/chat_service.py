@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 from sqlalchemy.orm import selectinload
 
-from aicore.core.configurable_assistant_client import (
+from app.aicore.core.configurable_assistant_client import (
     configurable_assistant_manager as assistant_manager,
     ConfigurableAssistantClient
 )
@@ -36,7 +36,7 @@ from app.core.exceptions import (
 )
 from app.services.context.conversation_context_builder import get_context_for_conversation
 from app.services.knowledge.knowledge_tools_config import get_unified_tools_override_config
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 from app.models.schemas.staging_schemas import StagingFileCollection
 
 # Set up logger
@@ -454,6 +454,9 @@ class ChatService:
                 }
             )
             
+            # Debug logging for stream cancellation issue
+            logger.info(f"[DEBUG] AI response data received: content_length={len(ai_response_data.get('content', ''))}, was_cancelled={ai_response_data.get('was_cancelled', False)}")
+            
             # Save AI response message with appropriate status based on cancellation
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
@@ -461,6 +464,7 @@ class ChatService:
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
+            logger.info(f"[DEBUG] About to create AI message with status: {ai_message_data.status}")
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
             # Capture all needed values immediately to avoid lazy loading later
             ai_message_db_id = ai_message.id
@@ -898,6 +902,9 @@ class ChatService:
                 }
             )
             
+            # Debug logging for stream cancellation issue
+            logger.info(f"[DEBUG] Edit AI response data received: content_length={len(ai_response_data.get('content', ''))}, was_cancelled={ai_response_data.get('was_cancelled', False)}")
+            
             # Save AI response message only with appropriate status based on cancellation
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
@@ -905,6 +912,7 @@ class ChatService:
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
+            logger.info(f"[DEBUG] About to create edit AI message with status: {ai_message_data.status}")
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
             # Capture all needed values immediately to avoid lazy loading later
             ai_message_db_id = ai_message.id

@@ -9,10 +9,10 @@ import sys
 # Add backend to path
 sys.path.append('.')
 
-from aicore.config import config_manager
-from aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
-from aicore.instructions import InstructionBuilder, InstructionContext
-from aicore.logger import get_logger
+from app.aicore.config import config_manager
+from app.aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
+from app.aicore.instructions import InstructionBuilder, InstructionContext
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

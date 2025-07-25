@@ -22,7 +22,7 @@ from app.core.exceptions import (
     ExternalServiceException
 )
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)

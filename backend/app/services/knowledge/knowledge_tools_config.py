@@ -15,7 +15,7 @@ from app.services.knowledge.llm_knowledge_tools import (
     create_knowledge_discovery_tool,
     create_knowledge_service_from_config
 )
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

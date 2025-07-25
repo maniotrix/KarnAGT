@@ -15,7 +15,7 @@ from app.core.database import AsyncSessionLocal
 from app.services.memory.memory_setup import MEMORY_BUCKET_CONFIGS, create_default_memory_preferences
 from app.services.memory.memory_service import MemoryService
 from app.models.database.user import User
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

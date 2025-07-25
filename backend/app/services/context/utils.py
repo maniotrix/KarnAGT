@@ -1,7 +1,7 @@
 import tiktoken
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

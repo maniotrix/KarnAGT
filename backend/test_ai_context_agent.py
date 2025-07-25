@@ -1,5 +1,5 @@
 from app.services.context.ai_context_agent import summarize_conversation
-from aicore.config.model_config import get_default_model_config, get_gpt4o_mini_config
+from app.aicore.config.model_config import get_default_model_config, get_gpt4o_mini_config
 
 def test_model_configuration():
     """Test model configuration and capabilities."""
@@ -208,11 +208,11 @@ def run_comprehensive_tests():
     print("=" * 80)
 
 if __name__ == "__main__":
-    from aicore.logger import get_logger
+    from app.logging.logger import get_logger
     logger = get_logger(__name__)
     logger.info("Starting comprehensive conversation summarizer testing")
     
-    from aicore.ai_config import validate_api_keys
+    from tests.ai_config import validate_api_keys
     validate_api_keys()
     
     # Run all tests

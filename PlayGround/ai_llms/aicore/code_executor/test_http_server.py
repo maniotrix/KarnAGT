@@ -164,12 +164,14 @@ print("Output file created successfully")
             # Check output file details
             output_file = data["output_files"][0]
             assert output_file["name"] == "test_result.txt"
-            assert output_file["relative_path"] == "test_result.txt"
+            # New server response no longer includes 'relative_path'; validate download_url instead
+            assert output_file["download_url"].endswith("/test_result.txt")
             assert "download_url" in output_file
             assert output_file["size"] > 0
             
             # Test downloading the file
-            download_url = f"{SERVER_URL}{output_file['download_url'].replace('/download/', '/download/')}"
+            # Server now returns an absolute download_url; prepend host only if needed
+            download_url = output_file["download_url"]
             download_response = requests.get(download_url, timeout=TEST_TIMEOUT)
             
             if download_response.status_code == 200:

@@ -90,9 +90,9 @@ from app.services.storage.storage import S3StorageBackend, generate_file_id, gen
 from app.utils.profiler_util import PerformanceMonitor
 
 # AI Agent imports for LLM integration
-from aicore.config import config_manager
-from aicore.core.configurable_assistant_client import ConfigurableAssistantClient
-from aicore.logger import get_logger
+from app.aicore.config import config_manager
+from app.aicore.core.configurable_assistant_client import ConfigurableAssistantClient
+from app.logging.logger import get_logger
 
 test_docs_dir = os.path.join(backend_dir, "test_docs")
 test_file_1 = os.path.join(test_docs_dir, "PRY NDLS 20 June.pdf")

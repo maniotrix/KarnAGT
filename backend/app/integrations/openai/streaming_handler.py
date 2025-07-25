@@ -16,7 +16,7 @@ import threading
 from fastapi import Request
 from sse_starlette.sse import EventSourceResponse
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)
@@ -219,9 +219,9 @@ class StreamingHandler:
         if self.assistant_client:
             try:
                 self.assistant_client.cancel_streaming()
-                logger.info(f"✅ Cancelled aicore streaming for stream {self.stream_id}")
+                logger.info(f"[SUCCESS] Cancelled aicore streaming for stream {self.stream_id}")
             except Exception as e:
-                logger.error(f"❌ Error cancelling aicore streaming: {e}")
+                logger.error(f"[ERROR] Error cancelling aicore streaming: {e}")
         else:
             logger.warning(f"No assistant client to cancel for stream {self.stream_id}")
     

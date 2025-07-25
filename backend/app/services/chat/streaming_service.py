@@ -16,7 +16,10 @@ from app.models.database.user import User
 from app.models.schemas.chat_schemas import MessageStreamResponse, MessageCreate
 from app.models.schemas.staging_schemas import StagingFileCollection
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
+
+# Get assistant client and set it on the streaming handler for cancellation
+from app.aicore.core.configurable_assistant_client import configurable_assistant_manager as assistant_manager
 
 # Set up logger
 logger = get_logger(__name__)
@@ -150,8 +153,6 @@ class StreamingService:
             MessageResponse or None
         """
         try:
-            # Get assistant client and set it on the streaming handler for cancellation
-            from app.integrations.openai.assistant_client import assistant_manager
             assistant_client = assistant_manager.get_client(self.user.user_id, conversation_id)
             stream_handler.set_assistant_client(assistant_client)
             
@@ -509,7 +510,6 @@ class StreamingService:
         """
         try:
             # Get assistant client and set it on the streaming handler for cancellation
-            from app.integrations.openai.assistant_client import assistant_manager
             assistant_client = assistant_manager.get_client(self.user.user_id, conversation_id)
             stream_handler.set_assistant_client(assistant_client)
             

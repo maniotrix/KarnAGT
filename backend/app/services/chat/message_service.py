@@ -18,7 +18,7 @@ from app.models.database.user import User
 from app.models.schemas.chat_schemas import MessageCreate, MessageUpdate
 from app.core.exceptions import MessageNotFoundException
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.storage.staging_storage import staging_service
 from app.models.schemas.staging_schemas import StagingFileCollection, StagingFileInfo
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

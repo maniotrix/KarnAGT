@@ -6,7 +6,7 @@ from app.services.context.ai_context_agent import ConversationSummarizerAgent, s
 from app.services.context.utils import count_tokens
 from app.models.database.conversation import Conversation
 from app.models.database.message import Message
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 import json
 
 logger = get_logger(__name__)

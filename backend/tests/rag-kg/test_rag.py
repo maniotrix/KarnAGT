@@ -11,7 +11,7 @@ import sys
 backend_dir = os.path.join(os.path.dirname(__file__), "..", "..")
 sys.path.insert(0, backend_dir)
 
-from aicore.logger import get_logger, set_log_level
+from app.logging.logger import get_logger, set_log_level
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = get_logger(__name__, logging.DEBUG)
