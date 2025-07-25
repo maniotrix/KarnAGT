@@ -310,6 +310,7 @@ export function useChat(options: ChatOptions = {}) {
       
       let assistantMessage: Message | null = null;
       let assistantContent = '';
+      let streamIdCaptured = false;
       
       while (true) {
         const { done, value } = await reader.read();
@@ -337,6 +338,16 @@ export function useChat(options: ChatOptions = {}) {
             }
             
             if (data === '') continue;
+            
+            // Try to capture stream_id from this event (critical for stop button)
+            if (!streamIdCaptured) {
+              const extractedStreamId = extractStreamIdFromSSE(data);
+              if (extractedStreamId) {
+                setCurrentStreamId(extractedStreamId);
+                streamIdCaptured = true;
+                console.log('🎯 NORMAL STREAM_ID CAPTURED:', extractedStreamId);
+              }
+            }
             
             try {
               const parsed = JSON.parse(data);
@@ -443,8 +454,9 @@ export function useChat(options: ChatOptions = {}) {
       setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
     } finally {
       setIsLoading(false);
+      setCurrentStreamId(null);
     }
-  }, [options, setMessages, setInput, setError, setIsLoading]);
+  }, [options, setMessages, setInput, setError, setIsLoading, extractStreamIdFromSSE]);
 
   // Handle submit
   const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Record<string, any>; imageData?: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> })) => {
