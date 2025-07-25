@@ -5,10 +5,16 @@
 Configurable OpenAI Assistant - Uses centralized configuration system
 """
 
+# Standard Library / Typing
 import asyncio
+import contextvars
 from typing import Optional, Dict, Any, Callable, List
 
+# Third-party
 from agents import Runner, RunConfig, ModelSettings, OpenAIProvider
+
+# OpenAI types for safe isinstance checks
+from openai.types.responses import ResponseTextDeltaEvent
 
 # Import configuration classes
 from app.aicore.config import AIConfig, config_manager
@@ -91,6 +97,9 @@ class ConfigurableOpenAIAssistant:
         # Store the current streaming result for cancellation
         self.current_streaming_result = None
         self.is_stream_cancelled = False
+
+        # Task that wraps consumption of the SDK stream iterator
+        self._stream_task = None
         
         logger.info(f"ConfigurableOpenAIAssistant initialized with configuration: {config_manager.get_config_summary(config)}")
     
@@ -155,92 +164,158 @@ class ConfigurableOpenAIAssistant:
         logger.info("Using streaming response mode")
         
         try:
-            # Reset cancellation flag
-            self.is_stream_cancelled = False
+            # Setup streaming
+            message_id, result = await self._setup_streaming(user_message)
             
-            # Set message ID
-            message_id = self.agent.set_message_id()
-            
-            result = Runner.run_streamed(
-                    self.agent,
-                    input=user_message,
-                    # previous_response_id=self.last_response_id
-                )
-            
-            # Store the streaming result for cancellation
-            self.current_streaming_result = result
-            
-            # Collect the full response while streaming
-            full_response = ""
+            # Holder for response chunks that persists across all error scenarios
+            full_chunks: List[str] = []
             
             try:
-                # Process streaming events with cancellation check
-                async for event in result.stream_events():
-                    # Check if we were cancelled
-                    if self.is_stream_cancelled:
-                        logger.info("[CANCEL] Stream cancelled by user - stopping event processing")
-                        break
-                    
-                    # Handle text delta events (check for ResponseTextDeltaEvent specifically)
-                    if (event.type == "raw_response_event" and 
-                        event.data.__class__.__name__ == "ResponseTextDeltaEvent" and
-                        hasattr(event.data, 'delta')):
-                        text_delta = getattr(event.data, 'delta', '')
-                        if text_delta:
-                            full_response += text_delta
-                            
-                            # Call the streaming callback
-                            if self.streaming_callback:
-                                self.streaming_callback(text_delta)
-                            
+                # Process events with wrapper task
+                event_count = await self._process_streaming_events(result, full_chunks)
+                
+                # Handle successful completion
+                return self._build_final_response(message_id, result, full_chunks, was_error=False)
+                
             except asyncio.CancelledError:
+                # User-requested cancellation or task-level cancellation
                 logger.info("[CANCEL] Stream cancelled via asyncio.CancelledError")
                 self.is_stream_cancelled = True
-            
-            # Cancel the underlying task if we were cancelled
-            if self.is_stream_cancelled:
-                logger.info("[CANCEL] Cancelling underlying task after event loop exit")
-                self.cancel_current_stream()
-            
-            # Clear the streaming result reference
-            self.current_streaming_result = None
-            
-            # Handle cancelled streams
-            if self.is_stream_cancelled:
-                logger.info(f"Stream was cancelled, returning partial response: {len(full_response)} chars")
-                return {
-                    "content": full_response,
-                    "was_cancelled": True,
-                    "partial_response": True,
-                    "plots": [],
-                    "metadata": self._create_response_metadata(message_id, None, cancelled=True)
-                }
-            
-            # Process completed response
-            plots = self._get_plots_for_message(message_id)
-            
-            # Log usage information
-            self._log_usage_info(result.raw_responses)
-            
-            # Update state
-            self.last_response_id = getattr(result, 'last_response_id', None)
-            
-            # Store AI response in history
-            if self.config.agent.maintain_conversation_history:
-                self.messages.append({"role": "assistant", "content": full_response})
-            
-            return {
-                "content": full_response,
-                "was_cancelled": False,
-                "partial_response": False,
-                "plots": plots,
-                "metadata": self._create_response_metadata(message_id, result)
-            }
+                return self._build_final_response(message_id, None, full_chunks, was_error=False)
+                
+            except Exception as e:
+                # Any streaming-related SDK error (ContextVar, network, etc.)
+                logger.error(f"Streaming failed during event processing: {e}")
+                self.is_stream_cancelled = True
+                return self._build_final_response(message_id, None, full_chunks, was_error=True, error=e)
             
         except Exception as e:
             logger.error(f"Error during streaming agent execution: {e}")
             self.current_streaming_result = None
             raise
+    
+    async def _setup_streaming(self, user_message: List[Dict[str, Any]]) -> tuple[str, Any]:
+        """Setup streaming components and return message_id and result"""
+        # Reset cancellation flag
+        self.is_stream_cancelled = False
+        logger.info(f"[DEBUG] Reset cancellation flag to False")
+        
+        # Set message ID
+        message_id = self.agent.set_message_id()
+        
+        # Create streaming result
+        result = Runner.run_streamed(
+            self.agent,
+            input=user_message,
+            # previous_response_id=self.last_response_id
+        )
+        
+        # Store the streaming result for cancellation
+        self.current_streaming_result = result
+        logger.info(f"[DEBUG] Stored streaming result, task: {result._run_impl_task}")
+        
+        return message_id, result
+    
+    async def _process_streaming_events(self, result, full_chunks: List[str]) -> int:
+        """Process streaming events using wrapper task with context preservation"""
+        event_count = 0
+
+        async def _consume_events():
+            nonlocal event_count
+            logger.info("[DEBUG] Starting event loop processing (wrapper task)")
+            try:
+                async for event in result.stream_events():
+                    event_count += 1
+                    logger.info(f"[DEBUG] Processing event #{event_count}, cancelled flag: {self.is_stream_cancelled}")
+
+                    # Early exit if cancellation requested
+                    if self.is_stream_cancelled:
+                        logger.info(f"[CANCEL] Stream cancelled by user - breaking consume loop after {event_count} events")
+                        break
+
+                    # Handle text deltas safely with isinstance
+                    if (event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent)):
+                        delta = event.data.delta
+                        if delta:
+                            full_chunks.append(delta)
+                            if self.streaming_callback:
+                                logger.info(f"[DEBUG] Calling streaming callback with token: '{delta[:20]}...'")
+                                self.streaming_callback(delta)
+
+            except asyncio.CancelledError:
+                logger.info(f"[CANCEL] Consume task cancelled after {event_count} events")
+                raise
+
+        # Launch wrapper task and store reference for cancellation
+        # Preserve the current context so agents SDK tracing variables remain accessible
+        current_context = contextvars.copy_context()
+        self._stream_task = current_context.run(asyncio.create_task, _consume_events())
+
+        try:
+            await self._stream_task
+            logger.info(f"[DEBUG] Event loop completed normally. Total events: {event_count}, cancelled flag: {self.is_stream_cancelled}")
+        except asyncio.CancelledError:
+            # Propagate cancellation state
+            self.is_stream_cancelled = True
+            logger.info(f"[CANCEL] Stream task CancelledError after {event_count} events")
+            raise
+        finally:
+            # Always cleanup, regardless of how the task ended
+            self._cleanup_streaming_state()
+        
+        return event_count
+    
+    def _cleanup_streaming_state(self):
+        """Clean up streaming state after completion or error"""
+        self.cancel_current_stream()
+        
+        # Clear references
+        self.current_streaming_result = None
+        self._stream_task = None
+    
+    def _build_final_response(self, message_id: str, result: Any, full_chunks: List[str], *, was_error: bool = False, error: Exception = None) -> Dict[str, Any]:
+        """Build the final streaming response for both success and error cases"""
+        content = "".join(full_chunks)
+        
+        # Handle cancelled or error scenarios
+        if self.is_stream_cancelled or was_error:
+            metadata = self._create_response_metadata(message_id, None, cancelled=True)
+            if was_error and error:
+                metadata["stream_error"] = str(error)
+                metadata["error_type"] = type(error).__name__
+            
+            logger.info(f"Stream {'cancelled' if self.is_stream_cancelled else 'failed'}, returning partial response: {len(content)} chars")
+            return {
+                "content": content,
+                "was_cancelled": True,
+                "partial_response": True,
+                "plots": [],
+                "metadata": metadata
+            }
+        
+        # Handle successful completion
+        logger.info(f"[DEBUG] Stream completed normally with {len(content)} chars")
+        
+        # Process completed response
+        plots = self._get_plots_for_message(message_id)
+        
+        # Log usage information
+        self._log_usage_info(result.raw_responses)
+        
+        # Update state
+        self.last_response_id = getattr(result, 'last_response_id', None)
+        
+        # Store AI response in history
+        if self.config.agent.maintain_conversation_history:
+            self.messages.append({"role": "assistant", "content": content})
+        
+        return {
+            "content": content,
+            "was_cancelled": False,
+            "partial_response": False,
+            "plots": plots,
+            "metadata": self._create_response_metadata(message_id, result)
+        }
     
     def _create_run_config(self) -> RunConfig:
         """Create RunConfig from our configuration"""
@@ -318,14 +393,34 @@ class ConfigurableOpenAIAssistant:
     def cancel_current_stream(self):
         """Cancel the current streaming operation"""
         logger.info("Cancelling current stream")
+        logger.info(f"[DEBUG] Setting is_stream_cancelled from {self.is_stream_cancelled} to True")
         self.is_stream_cancelled = True
+
+        # Cancel wrapper task first (if running)
+        if getattr(self, "_stream_task", None) and not self._stream_task.done():
+            logger.info("[CANCEL] Cancelling wrapper _stream_task")
+            self._stream_task.cancel()
         
         if (self.current_streaming_result and 
             hasattr(self.current_streaming_result, '_run_impl_task') and
             self.current_streaming_result._run_impl_task and 
             not self.current_streaming_result._run_impl_task.done()):
             logger.info("[CANCEL] Cancelling SDK _run_impl_task")
+            logger.info(f"[DEBUG] Task before cancel - done: {self.current_streaming_result._run_impl_task.done()}, cancelled: {self.current_streaming_result._run_impl_task.cancelled()}")
             self.current_streaming_result._run_impl_task.cancel()
+            logger.info(f"[DEBUG] Task after cancel - done: {self.current_streaming_result._run_impl_task.done()}, cancelled: {self.current_streaming_result._run_impl_task.cancelled()}")
+        else:
+            logger.info("[DEBUG] No task to cancel or task already done")
+            if self.current_streaming_result:
+                if hasattr(self.current_streaming_result, '_run_impl_task'):
+                    if self.current_streaming_result._run_impl_task:
+                        logger.info(f"[DEBUG] Task is already done: {self.current_streaming_result._run_impl_task.done()}")
+                    else:
+                        logger.info("[DEBUG] _run_impl_task is None")
+                else:
+                    logger.info("[DEBUG] No _run_impl_task attribute")
+            else:
+                logger.info("[DEBUG] No current_streaming_result")
         
         logger.info("[SUCCESS] Stream cancellation initiated")
     
