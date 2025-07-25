@@ -392,7 +392,7 @@ class ConfigurableOpenAIAssistant:
     
     def cancel_current_stream(self, reason: str = "user_requested"):
         """Cancel the current streaming operation"""
-        logger.info("--------------------------------")
+        logger.info("[START CANCEL CURRENT STREAM LOG: --------------------------------]")
         if reason == "user_requested":
             logger.info("[USER-INITIATED] Cancelling current stream - user requested stop")
         else:
@@ -432,7 +432,7 @@ class ConfigurableOpenAIAssistant:
         else:
             logger.info(f"[SUCCESS] Cleanup stream cancellation completed - {reason}")
             
-        logger.info("--------------------------------")
+        logger.info("[END CANCEL CURRENT STREAM LOG: --------------------------------]")
     
     def clear_memory(self) -> None:
         """Clear the agent's memory"""
