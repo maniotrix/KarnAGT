@@ -251,10 +251,14 @@ async def test_file_service_comprehensive(results: TestResults, workspace_ids: L
     upload_result3 = await file_service.upload_file(workspace_id, "binary.dat", binary_content)
     results.assert_true(upload_result3.success, "Binary file upload succeeds")
     
-    # Test 4: Upload file to subdirectory
-    print("\n4. Testing subdirectory file upload...")
+    # Test 4: Upload file with invalid subdirectory path (should fail)
+    print("\n4. Testing invalid subdirectory file upload...")
     upload_result4 = await file_service.upload_file(workspace_id, "subdir/nested.txt", "Nested file content")
-    results.assert_true(upload_result4.success, "Subdirectory file upload succeeds")
+    results.assert_false(upload_result4.success, "Subdirectory file upload correctly fails due to validation")
+    if not upload_result4.success:
+        print(f"   ✅ Expected validation error: {upload_result4.error}")
+    else:
+        print(f"   ❌ BUG: Subdirectory upload should have failed but succeeded!")
     
     # Test 5: Upload to non-existent workspace
     print("\n5. Testing upload to non-existent workspace...")

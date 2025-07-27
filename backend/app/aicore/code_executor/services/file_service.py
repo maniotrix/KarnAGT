@@ -10,6 +10,7 @@ Separated from tool decorators for flexibility and reusability.
 
 import base64
 from typing import Union, Optional
+from pathvalidate import ValidationError as PathValidationError, validate_filename, Platform
 from pydantic import ValidationError
 from app.logging.logger import get_logger
 from app.aicore.code_executor.clients import (
@@ -69,6 +70,13 @@ class FileService:
         if not filename or not filename.strip():
             logger.warning("Attempted to upload file with empty filename")
             return FileUploadResult.error_result("Filename cannot be empty")
+        
+        # CLIENT-SIDE FILENAME VALIDATION (Defense in Depth)
+        # Validate filename before sending to server to fail fast and provide consistent behavior
+        validation_error = self._validate_filename_client_side(filename)
+        if validation_error:
+            logger.warning(f"Client-side filename validation failed for '{filename}': {validation_error}")
+            return FileUploadResult.error_result(validation_error)
         
         try:
             logger.info(f"Uploading file {filename} to workspace {workspace_id}")
@@ -195,4 +203,53 @@ class FileService:
             return FileListResult.error_result("Invalid file list format received from server")
         except Exception as e:
             logger.error(f"Failed to list files in workspace {workspace_id}: {e}")
-            return FileListResult.error_result(f"Failed to list files in workspace {workspace_id}: {e}") 
+            return FileListResult.error_result(f"Failed to list files in workspace {workspace_id}: {e}")
+    
+    def _validate_filename_client_side(self, filename: str) -> Optional[str]:
+        """
+        Client-side filename validation (mirrors server-side validation)
+        
+        This provides defense-in-depth by catching invalid filenames before
+        they're sent to the server, enabling fail-fast behavior and consistent
+        validation even when the server is unavailable.
+        
+        CRITICAL SECURITY CHECKS (restored from original logic):
+        1. No empty filenames
+        2. No hidden files (.) - prevents access to .env, .git, .ssh, etc.
+        3. No path separators (/ or \) - prevents directory traversal attacks
+        4. Additional pathvalidate checks for cross-platform compatibility
+        
+        Args:
+            filename: Filename to validate (should be URL-decoded)
+            
+        Returns:
+            Error message string if validation fails, None if valid
+        """
+        # Check for empty filename
+        if not filename or not filename.strip():
+            return "Filename cannot be empty"
+        
+        # CRITICAL SECURITY: Check for hidden files (starting with dot)
+        # This prevents access to .env, .git, .ssh, etc.
+        if filename.startswith('.'):
+            return "Hidden files (starting with '.') are not allowed - security restriction"
+        
+        # CRITICAL SECURITY: Check for path separators - NO DIRECTORIES ALLOWED
+        # This prevents directory traversal attacks like ../../../etc/passwd
+        if '/' in filename:
+            return "Forward slashes (/) are not allowed in filenames - no subdirectories permitted for security"
+        
+        if '\\' in filename:
+            return "Backslashes (\\) are not allowed in filenames - no subdirectories permitted for security"
+        
+        try:
+            # Use pathvalidate for additional cross-platform validation
+            # This handles reserved names, invalid chars, length limits, etc.
+            validate_filename(filename, platform=Platform.UNIVERSAL)
+            return None  # Valid filename
+            
+        except PathValidationError as e:
+            return f"Invalid filename: {str(e)}"
+        except Exception as e:
+            # Fallback for any unexpected errors
+            return f"Filename validation error: {e}"
