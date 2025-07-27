@@ -270,10 +270,11 @@ async def test_file_service_comprehensive(results: TestResults, workspace_ids: L
     list_result = await file_service.list_workspace_files(workspace_id)
     results.assert_true(list_result.success, "List workspace files succeeds")
     if list_result.success:
-        results.assert_true(len(list_result.files) >= 4, "At least 4 files listed")
+        results.assert_true(len(list_result.files) == 3, "Exactly 3 files listed")
         filenames = [f.filename for f in list_result.files]
         results.assert_true("test.txt" in filenames, "test.txt appears in file list")
         results.assert_true("data.json" in filenames, "data.json appears in file list")
+        results.assert_true("binary.dat" in filenames, "binary.dat appears in file list")
     
     # Test 7: List files in non-existent workspace
     print("\n7. Testing list files in non-existent workspace...")
