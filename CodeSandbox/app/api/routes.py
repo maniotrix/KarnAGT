@@ -223,11 +223,29 @@ async def get_execution_result(
         "execution_id": result.execution_id,
         "workspace_id": result.workspace_id,
         "status": result.status.value,
-        "result_data": result.result_data,  # Could be complex objects!
+        "started_at": result.started_at.isoformat(),
+        "completed_at": result.completed_at.isoformat() if result.completed_at else None,
         "stdout": result.stdout,
         "stderr": result.stderr,
-        "outputs": result.outputs,
-        "generated_files": result.generated_files,
+        "result_data": result.result_data,  # Could be complex objects!
+        "outputs": [
+            {
+                "type": output.type,
+                "content": output.content,
+                "timestamp": output.timestamp.isoformat()
+            } 
+            for output in result.outputs
+        ],
+        "generated_files": [
+            {
+                "filename": file.filename,
+                "size": file.size,
+                "mime_type": file.mime_type,
+                "download_url": file.download_url,
+                "relative_path": file.relative_path
+            }
+            for file in result.generated_files
+        ],
         "execution_time_ms": result.execution_time_ms
     }
     
@@ -248,10 +266,31 @@ async def list_workspace_executions(
     for execution in executions:
         executions_data.append({
             "execution_id": execution.execution_id,
+            "workspace_id": execution.workspace_id,
             "status": execution.status.value,
-            "result_data": execution.result_data,  # Could be complex!
             "started_at": execution.started_at.isoformat(),
             "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
+            "stdout": execution.stdout,
+            "stderr": execution.stderr,
+            "result_data": execution.result_data,  # Could be complex!
+            "outputs": [
+                {
+                    "type": output.type,
+                    "content": output.content,
+                    "timestamp": output.timestamp.isoformat()
+                } 
+                for output in execution.outputs
+            ],
+            "generated_files": [
+                {
+                    "filename": file.filename,
+                    "size": file.size,
+                    "mime_type": file.mime_type,
+                    "download_url": file.download_url,
+                    "relative_path": file.relative_path
+                }
+                for file in execution.generated_files
+            ],
             "execution_time_ms": execution.execution_time_ms
         })
     
