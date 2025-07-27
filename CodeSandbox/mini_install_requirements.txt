@@ -11,6 +11,7 @@ sse-starlette
 requests
 tqdm
 python-multipart
+pathvalidate
 
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT

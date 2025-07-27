@@ -320,19 +320,25 @@ async def upload_file(
 ):
     """Upload file to workspace"""
     import logging
+    import urllib.parse
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info(f"File upload started: {file.filename} to workspace {workspace_id}")
+        # CRITICAL FIX: URL-decode the filename before validation
+        # The original filename from multipart form data is URL-encoded,
+        # but validation must check the actual filename that will be written to disk
+        decoded_filename = urllib.parse.unquote(file.filename) if file.filename else ""
+        
+        logger.info(f"File upload started: {file.filename} (decoded: {decoded_filename}) to workspace {workspace_id}")
         
         # Read file content
         content = await file.read()
         logger.debug(f"File content read: {len(content)} bytes")
         
-        # Upload file
+        # Upload file with decoded filename
         file_info = await file_service.upload_file(
             workspace_id=workspace_id,
-            filename=file.filename,
+            filename=decoded_filename,
             content=content
         )
         
@@ -345,7 +351,7 @@ async def upload_file(
             "relative_path": file_info.relative_path
         }
         
-        logger.info(f"File upload successful: {file.filename}")
+        logger.info(f"File upload successful: {decoded_filename}")
         return get_serializable_response(upload_result)
         
     except WorkspaceNotFoundError as e:

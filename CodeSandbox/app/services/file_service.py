@@ -11,6 +11,7 @@ Only handles direct file uploads and downloads - no staging bullshit.
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+from pathvalidate import validate_filename, ValidationError as PathValidationError, Platform
 
 from app.core.config import Settings
 from app.domain.models import (
@@ -278,15 +279,43 @@ class FileService:
         Validate file for upload
         
         Args:
-            filename: File name
+            filename: File name (must be URL-decoded before calling this method)
             content: File content
             
         Raises:
             FileServiceError: If validation fails
         """
-        # Check filename
-        if not filename or filename.startswith('.') or '/' in filename or '\\' in filename:
-            raise FileServiceError("Invalid filename - no paths or hidden files allowed")
+        # CRITICAL SECURITY CHECKS (must match client-side validation)
+        
+        # Check for empty filename
+        if not filename or not filename.strip():
+            raise FileServiceError("Filename cannot be empty")
+        
+        # CRITICAL SECURITY: Check for hidden files (starting with dot)
+        # This prevents access to .env, .git, .ssh, etc.
+        if filename.startswith('.'):
+            raise FileServiceError("Hidden files (starting with '.') are not allowed - security restriction")
+        
+        # CRITICAL SECURITY: Check for path separators - NO DIRECTORIES ALLOWED
+        # This prevents directory traversal attacks like ../../../etc/passwd
+        if '/' in filename:
+            raise FileServiceError("Forward slashes (/) are not allowed in filenames - no subdirectories permitted for security")
+        
+        if '\\' in filename:
+            raise FileServiceError("Backslashes (\\) are not allowed in filenames - no subdirectories permitted for security")
+        
+        # Use pathvalidate library for additional cross-platform validation
+        try:
+            # Validate using universal platform for maximum compatibility
+            # This handles reserved names, invalid chars, length limits, etc.
+            validate_filename(filename, platform=Platform.UNIVERSAL)
+            
+        except PathValidationError as e:
+            raise FileServiceError(f"Invalid filename: {e}")
+        except ImportError:
+            # Fallback if pathvalidate is not available (should not happen in production)
+            if len(filename) > 255:
+                raise FileServiceError("Filename too long (max 255 characters)")
         
         # Check file size
         if len(content) > self.settings.max_file_size_bytes:
