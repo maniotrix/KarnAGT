@@ -16,7 +16,7 @@ from app.logging.logger import get_logger
 
 # Import HTTP code execution functionality
 from app.aicore.code_executor.new_code_tool import execute_code_func, execute_system_command_func, CodeExecutionResult, SystemCommandResult, DEFAULT_TIMEOUT
-from app.aicore.code_executor.models.data_models import DownloadedFilesTracker
+from app.aicore.ai_agents.agent_models import DownloadedFilesTracker
 
 
 # Get logger
