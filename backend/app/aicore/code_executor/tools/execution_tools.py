@@ -11,7 +11,8 @@ Thin wrappers around ExecutionService for LLM tool usage.
 from agents import function_tool
 
 from app.aicore.code_executor.models import (
-    ExecutionResult,
+    ExecutionOperationResult,
+    ExecutionGetResult,
     ExecutionHistoryResult
 )
 from app.aicore.code_executor.services import ExecutionService
@@ -25,7 +26,7 @@ async def execute_code(
     workspace_id: str, 
     code: str, 
     timeout: int = 60
-) -> ExecutionResult:
+) -> ExecutionOperationResult:
     """
     Execute Python code in a workspace.
     
@@ -87,7 +88,7 @@ result = {"rows": len(df), "plot_saved": True}
 
 
 @function_tool(strict_mode=False)
-async def get_execution_result(execution_id: str) -> ExecutionResult:
+async def get_execution_result(execution_id: str) -> ExecutionGetResult:
     """
     Get the result of a previous code execution by its ID.
     

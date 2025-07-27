@@ -11,7 +11,7 @@ Thin wrappers around WorkspaceService for LLM tool usage.
 from agents import function_tool
 
 from app.aicore.code_executor.models import (
-    WorkspaceInfo,
+    WorkspaceGetResult,
     WorkspaceCreateResult,
     WorkspaceDeleteResult,
     WorkspaceTTLExtendResult
@@ -54,7 +54,7 @@ async def create_workspace(ttl_hours: int = 2) -> WorkspaceCreateResult:
 
 
 @function_tool(strict_mode=False)
-async def get_workspace(workspace_id: str) -> WorkspaceInfo:
+async def get_workspace(workspace_id: str) -> WorkspaceGetResult:
     """
     Get information about an existing workspace.
     
