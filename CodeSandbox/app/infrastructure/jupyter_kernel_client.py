@@ -585,49 +585,190 @@ print("Kernel ready for code execution!")
                             file_path=relative_path)
     
     async def delete_kernel(self, workspace_id: str) -> bool:
-        """Delete kernel associated with workspace"""
-        if workspace_id not in self._workspaces:
-            self.logger.debug("Kernel deletion skipped - no workspace found",
-                            workspace_id=workspace_id)
-            return False
+        """
+        Delete kernel associated with workspace with improved error handling
         
-        workspace_info = self._workspaces[workspace_id]
-        if "kernel_id" not in workspace_info:
-            return False
-        
-        kernel_id = workspace_info["kernel_id"]
-        
-        self.logger.info("Deleting Jupyter kernel",
-                        workspace_id=workspace_id,
-                        kernel_id=kernel_id)
-        
+        Enhanced to handle:
+        - Already deleted kernels gracefully
+        - ZMQ context cleanup issues
+        - Timeout scenarios
+        - Partial cleanup states
+        """
         try:
-            # Shutdown kernel using proper jupyter_client
-            await self.kernel_manager.shutdown_kernel(kernel_id)
-            
-            # Remove from tracking
-            del self._workspaces[workspace_id]
-            
-            # Delete the .uploaded_files tracking file
-            uploaded_files_path = self._get_uploaded_files_path(workspace_id)
-            if uploaded_files_path.exists():
-                uploaded_files_path.unlink()
-                self.logger.debug("Deleted .uploaded_files tracking file",
+            # Check if workspace exists - if not, consider it already cleaned
+            if workspace_id not in self._workspaces:
+                self.logger.debug("Kernel deletion skipped - workspace already cleaned",
                                 workspace_id=workspace_id)
+                return True  # Already deleted, return success
             
-            self.logger.info("Jupyter kernel deleted successfully",
+            workspace_info = self._workspaces[workspace_id]
+            
+            # If no kernel_id, just clean up workspace info
+            if "kernel_id" not in workspace_info:
+                self.logger.debug("Kernel deletion - no kernel to delete, cleaning workspace info",
+                                workspace_id=workspace_id)
+                del self._workspaces[workspace_id]
+                self._cleanup_workspace_files(workspace_id)
+                return True
+            
+            kernel_id = workspace_info["kernel_id"]
+            
+            self.logger.info("Deleting Jupyter kernel",
+                            workspace_id=workspace_id,
+                            kernel_id=kernel_id)
+            
+            # Step 1: Graceful kernel shutdown with timeout
+            try:
+                await asyncio.wait_for(
+                    self.kernel_manager.shutdown_kernel(kernel_id), 
+                    timeout=5.0
+                )
+                self.logger.debug("Kernel shutdown completed gracefully",
+                                workspace_id=workspace_id,
+                                kernel_id=kernel_id)
+            except asyncio.TimeoutError:
+                self.logger.warning("Kernel shutdown timeout, attempting force shutdown",
+                               workspace_id=workspace_id,
+                               kernel_id=kernel_id)
+                try:
+                    # Force shutdown
+                    await self.kernel_manager.shutdown_kernel(kernel_id, now=True)
+                except Exception as force_error:
+                    self.logger.warning("Force shutdown also failed, proceeding with cleanup",
+                                      workspace_id=workspace_id,
+                                      kernel_id=kernel_id,
+                                      error=str(force_error))
+            except Exception as shutdown_error:
+                self.logger.warning("Kernel shutdown failed, proceeding with cleanup",
+                                  workspace_id=workspace_id,
+                                  kernel_id=kernel_id,
+                                  error=str(shutdown_error))
+            
+            # Step 2: Always clean up tracking (even if shutdown failed)
+            try:
+                del self._workspaces[workspace_id]
+                self.logger.debug("Workspace tracking cleaned up",
+                                workspace_id=workspace_id)
+            except KeyError:
+                # Already removed, that's fine
+                pass
+            
+            # Step 3: Clean up workspace files
+            self._cleanup_workspace_files(workspace_id)
+            
+            self.logger.info("Kernel cleanup completed",
                            workspace_id=workspace_id,
                            kernel_id=kernel_id,
-                           remaining_kernels=len(self.kernel_manager))
+                           remaining_kernels=len(self._workspaces))
             
             return True
             
         except Exception as e:
-            self.logger.error("Jupyter kernel deletion failed",
+            # Log error but don't re-raise - cleanup should be fault-tolerant
+            self.logger.error("Kernel cleanup encountered unexpected error",
                             workspace_id=workspace_id,
-                            kernel_id=kernel_id,
+                            error=str(e),
+                            error_type=type(e).__name__)
+            
+            # Still attempt to clean up tracking to prevent memory leaks
+            try:
+                self._workspaces.pop(workspace_id, None)
+                self._cleanup_workspace_files(workspace_id)
+                self.logger.info("Emergency cleanup completed despite errors",
+                               workspace_id=workspace_id)
+            except Exception as cleanup_error:
+                self.logger.error("Emergency cleanup also failed",
+                                workspace_id=workspace_id,
+                                cleanup_error=str(cleanup_error))
+            
+            return False
+    
+    def _cleanup_workspace_files(self, workspace_id: str) -> None:
+        """Clean up entire workspace directory and all files"""
+        import shutil
+        
+        # Always initialize workspace_path
+        workspace_path = None
+        
+        try:
+            # Try to get path from tracking first
+            if workspace_id in self._workspaces:
+                workspace_path = Path(self._workspaces[workspace_id]["workspace_path"])
+            else:
+                # Fallback: construct path manually if not in tracking
+                workspace_path = self._workspace_base / workspace_id
+            
+            if workspace_path and workspace_path.exists():
+                # Log what we're about to delete
+                try:
+                    # Get directory size for logging
+                    total_size = sum(f.stat().st_size for f in workspace_path.rglob('*') if f.is_file())
+                    file_count = len(list(workspace_path.rglob('*')))
+                    
+                    self.logger.info("Removing entire workspace directory",
+                                   workspace_id=workspace_id,
+                                   workspace_path=str(workspace_path),
+                                   total_files=file_count,
+                                   total_size_bytes=total_size)
+                except Exception:
+                    # Don't fail cleanup if we can't get stats
+                    self.logger.info("Removing workspace directory",
+                                   workspace_id=workspace_id,
+                                   workspace_path=str(workspace_path))
+                
+                # Remove entire directory tree
+                shutil.rmtree(workspace_path, ignore_errors=False)
+                
+                # Verify deletion was successful
+                if workspace_path.exists():
+                    self.logger.warning("Workspace directory still exists after deletion attempt",
+                                      workspace_id=workspace_id,
+                                      workspace_path=str(workspace_path))
+                    # Try with ignore_errors=True as fallback
+                    shutil.rmtree(workspace_path, ignore_errors=True)
+                else:
+                    self.logger.info("Workspace directory successfully removed",
+                                   workspace_id=workspace_id,
+                                   workspace_path=str(workspace_path))
+            else:
+                self.logger.debug("Workspace directory not found, nothing to clean",
+                                workspace_id=workspace_id,
+                                workspace_path=str(workspace_path) if workspace_path else "unknown")
+                
+        except PermissionError as e:
+            self.logger.error("Permission error during workspace cleanup",
+                            workspace_id=workspace_id,
                             error=str(e))
-            raise JupyterClientError(f"Failed to delete kernel: {e}")
+            # Try alternative cleanup approaches
+            try:
+                # Try to at least clear the contents
+                if workspace_path is not None and workspace_path.exists():
+                    for item in workspace_path.iterdir():
+                        try:
+                            if item.is_file():
+                                item.unlink()
+                            elif item.is_dir():
+                                shutil.rmtree(item, ignore_errors=True)
+                        except Exception:
+                            continue
+                    # Try to remove the empty directory
+                    workspace_path.rmdir()
+            except Exception as fallback_error:
+                self.logger.error("Alternative cleanup also failed",
+                                workspace_id=workspace_id,
+                                fallback_error=str(fallback_error))
+                
+        except Exception as e:
+            self.logger.error("Workspace directory cleanup failed",
+                            workspace_id=workspace_id,
+                            error=str(e),
+                            error_type=type(e).__name__)
+            # Don't raise - cleanup should be fault-tolerant, but try one more approach
+            try:
+                if workspace_path is not None and workspace_path.exists():
+                    shutil.rmtree(workspace_path, ignore_errors=True)
+            except Exception:
+                pass  # Final fallback - just continue
     
     async def cleanup_expired_kernels(self, max_idle_minutes: int = 60):
         """Clean up kernels that have been idle for too long"""

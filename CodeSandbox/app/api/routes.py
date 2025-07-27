@@ -166,7 +166,7 @@ async def execute_code(
         )
         result = await execution_service.execute_code(request)
         
-        # 🔥 THIS IS THE CRITICAL PART - Use SerializableResponse for complex objects!
+        # 🔥 THIS IS THE CRITICAL PART - Use enhanced serialization for complex objects!
         result_data = {
             "execution_id": result.execution_id,
             "workspace_id": result.workspace_id,
@@ -197,8 +197,10 @@ async def execute_code(
             "completed_at": result.completed_at.isoformat() if result.completed_at else None
         }
         
-        # 🚀 Use SerializableResponse to handle complex objects like numpy arrays, pandas DataFrames, etc.
-        return get_serializable_response(result_data)
+        # 🚀 Use enhanced serialization to safely handle complex objects
+        from app.utils.serialization import safe_serialize_execution_result, get_serializable_response
+        safe_result = safe_serialize_execution_result(result_data)
+        return get_serializable_response(safe_result)
         
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -249,7 +251,10 @@ async def get_execution_result(
         "execution_time_ms": result.execution_time_ms
     }
     
-    return get_serializable_response(result_data)
+    # Use enhanced serialization for safety
+    from app.utils.serialization import safe_serialize_execution_result, get_serializable_response
+    safe_result = safe_serialize_execution_result(result_data)
+    return get_serializable_response(safe_result)
 
 
 @router.get("/workspace/{workspace_id}/executions")
@@ -261,10 +266,10 @@ async def list_workspace_executions(
     """List executions for workspace"""
     executions = await execution_service.list_workspace_executions(workspace_id, limit)
     
-    # Convert to serializable format
+    # Convert to serializable format with enhanced safety
     executions_data = []
     for execution in executions:
-        executions_data.append({
+        execution_data = {
             "execution_id": execution.execution_id,
             "workspace_id": execution.workspace_id,
             "status": execution.status.value,
@@ -292,8 +297,14 @@ async def list_workspace_executions(
                 for file in execution.generated_files
             ],
             "execution_time_ms": execution.execution_time_ms
-        })
-    
+        }
+        
+        # Use safe serialization for each execution
+        from app.utils.serialization import safe_serialize_execution_result
+        safe_execution = safe_serialize_execution_result(execution_data)
+        executions_data.append(safe_execution)
+
+    from app.utils.serialization import get_serializable_response
     return get_serializable_response({"executions": executions_data})
 
 

@@ -179,7 +179,7 @@ class WorkspaceService:
     
     async def delete_workspace(self, workspace_id: str) -> bool:
         """
-        Delete workspace and its resources
+        Delete workspace and all its resources
         
         Args:
             workspace_id: Workspace to delete
@@ -190,18 +190,21 @@ class WorkspaceService:
         if workspace_id not in self._workspaces:
             return False
         
+        self.logger.info("Deleting workspace", workspace_id=workspace_id)
+        
         try:
-            # Delete Jupyter kernel
+            # Delete kernel (this also deletes the entire workspace directory)
             await self.jupyter_client.delete_kernel(workspace_id)
             
-            # Remove from tracking
+            # Remove from memory tracking
             del self._workspaces[workspace_id]
             
+            self.logger.info("Workspace deleted successfully", workspace_id=workspace_id)
             return True
             
         except Exception as e:
-            # Log error but still remove from tracking
-            print(f"Warning: Error deleting workspace {workspace_id}: {e}")
+            # Log error but still remove from tracking to prevent memory leaks
+            self.logger.error("Error deleting workspace", workspace_id=workspace_id, error=str(e))
             if workspace_id in self._workspaces:
                 del self._workspaces[workspace_id]
             return True

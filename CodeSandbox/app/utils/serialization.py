@@ -116,28 +116,47 @@ class SerializationRegistry:
         self.register(frozenset, lambda x: list(x))
         self.register(Enum, lambda x: x.value)
         
-        # Numpy types (if available)
+        # Enhanced Numpy types handling (if available)
         if HAS_NUMPY:
-            self.register([
+            # Integer types - explicit handling for all variants
+            integer_types = [
                 np.integer, np.int8, np.int16, np.int32, np.int64,
-                np.uint8, np.uint16, np.uint32, np.uint64
-            ], lambda x: int(x))
+                np.uint8, np.uint16, np.uint32, np.uint64,
+                np.longlong, np.ulonglong  # Additional long types
+            ]
+            for int_type in integer_types:
+                self.register(int_type, lambda x: int(x))
             
-            self.register([
-                np.floating, np.float16, np.float32, np.float64
-            ], lambda x: float(x))
+            # Floating point types
+            float_types = [
+                np.floating, np.float16, np.float32, np.float64,
+                np.longdouble  # Extended precision
+            ]
+            for float_type in float_types:
+                self.register(float_type, lambda x: float(x))
             
+            # Boolean types
             self.register(np.bool_, lambda x: bool(x))
             
+            # Array types
             self.register(np.ndarray, lambda x: x.tolist())
             self.register(np.matrix, lambda x: x.tolist())
             
-        # Pandas types (if available)
+            # Scalar types that might slip through
+            self.register(np.number, lambda x: x.item() if hasattr(x, 'item') else float(x))
+            
+        # Enhanced Pandas types handling (if available)
         if HAS_PANDAS:
             self.register(pd.DataFrame, lambda x: x.to_dict('records'))
             self.register(pd.Series, lambda x: x.to_list())
             self.register(pd.Index, lambda x: x.to_list())
             self.register(pd.Timestamp, lambda x: x.isoformat())
+            
+            # Handle pandas nullable integer types
+            if hasattr(pd, 'Int64Dtype'):
+                self.register(pd.Int64Dtype, lambda x: int(x) if pd.notna(x) else None)
+            if hasattr(pd, 'Float64Dtype'):
+                self.register(pd.Float64Dtype, lambda x: float(x) if pd.notna(x) else None)
 
 
 # Global registry instance
@@ -148,11 +167,13 @@ def make_serializable(obj: Any) -> Any:
     """
     Convert any Python object to a JSON-serializable format.
     
-    This function intelligently handles:
+    Enhanced to handle:
     - Built-in types (already serializable)
     - Registered types (via handlers)
+    - Numpy types with explicit int64/float64 handling
     - Custom objects (via __dict__ or string representation)
     - Recursive structures (lists, dicts, tuples)
+    - Edge cases and error recovery
     
     Args:
         obj: Any Python object
@@ -169,12 +190,60 @@ def make_serializable(obj: Any) -> Any:
     if isinstance(obj, (str, int, float, bool)):
         return obj
     
+    # Enhanced numpy type handling before general checks
+    if HAS_NUMPY and hasattr(obj, 'dtype'):
+        try:
+            # Handle numpy scalars explicitly
+            if obj.ndim == 0:  # Scalar
+                if 'int' in str(obj.dtype):
+                    return int(obj.item())
+                elif 'float' in str(obj.dtype):
+                    return float(obj.item())
+                elif 'bool' in str(obj.dtype):
+                    return bool(obj.item())
+                else:
+                    return obj.item()  # Generic scalar extraction
+            else:
+                # Handle arrays
+                return obj.tolist()
+        except Exception as e:
+            logger.warning(f"Numpy conversion failed for {type(obj)}: {e}")
+            # Fall through to other handlers
+    
+    # Handle pandas types early to catch int64 issues
+    if HAS_PANDAS:
+        try:
+            import pandas as pd
+            if isinstance(obj, (pd.Int64Dtype, pd.Float64Dtype, pd.Timestamp)):
+                try:
+                    # Try item() method for extracting scalar values
+                    return obj.item()  # type: ignore
+                except (AttributeError, ValueError):
+                    try:
+                        if pd.isna(obj):  # type: ignore
+                            return None
+                    except (AttributeError, TypeError):
+                        pass
+                    return str(obj)  # Fallback to string
+        except Exception as e:
+            logger.warning(f"Pandas conversion failed for {type(obj)}: {e}")
+    
     # Handle collections recursively
     if isinstance(obj, (list, tuple)):
         return [make_serializable(item) for item in obj]
     
     if isinstance(obj, dict):
-        return {str(k): make_serializable(v) for k, v in obj.items()}
+        serializable_dict = {}
+        for k, v in obj.items():
+            try:
+                # Ensure keys are strings
+                key = str(k) if not isinstance(k, str) else k
+                serializable_dict[key] = make_serializable(v)
+            except Exception as e:
+                logger.warning(f"Failed to serialize dict item {k}: {e}")
+                # Skip problematic items rather than failing entirely
+                continue
+        return serializable_dict
     
     # Check for registered handler
     obj_type = type(obj)
@@ -203,32 +272,42 @@ def make_serializable(obj: Any) -> Any:
         except Exception as e:
             logger.warning(f"__dict__ serialization failed: {e}")
     
-    # Try object with to_dict method
-    if hasattr(obj, 'to_dict'):
-        to_dict_method = getattr(obj, 'to_dict', None)
-        if callable(to_dict_method):
-            try:
-                return make_serializable(to_dict_method())
-            except Exception as e:
-                logger.warning(f"to_dict() serialization failed: {e}")
-    
-    # Try object with to_json method
-    if hasattr(obj, 'to_json'):
-        to_json_method = getattr(obj, 'to_json', None)
-        if callable(to_json_method):
-            try:
-                result = to_json_method()
-                if isinstance(result, str):
-                    return json.loads(result)
-                return result
-            except Exception as e:
-                logger.warning(f"to_json() serialization failed: {e}")
-    
-    # Final fallback: string representation
+    # Enhanced fallback handling - use try-catch for dynamic attributes
     try:
-        return str(obj)
-    except Exception:
-        return f"<unserializable: {obj_type.__name__}>"
+        # Try to extract value if it's a wrapper type
+        try:
+            return obj.item()  # type: ignore
+        except (AttributeError, ValueError, TypeError):
+            pass
+        
+        try:
+            return make_serializable(obj.value)  # type: ignore
+        except (AttributeError, ValueError, TypeError):
+            pass
+            
+        try:
+            return obj.tolist()  # type: ignore
+        except (AttributeError, ValueError, TypeError):
+            pass
+            
+        try:
+            return obj.__json__()  # type: ignore
+        except (AttributeError, ValueError, TypeError):
+            pass
+        
+        # Last resort: string representation
+        if hasattr(obj, '__str__'):
+            str_repr = str(obj)
+            # Avoid very long string representations
+            if len(str_repr) > 1000:
+                str_repr = str_repr[:997] + "..."
+            return f"<{type(obj).__name__}: {str_repr}>"
+        else:
+            return f"<{type(obj).__name__} object>"
+            
+    except Exception as e:
+        logger.error(f"All serialization attempts failed for {type(obj)}: {e}")
+        return f"<unserializable {type(obj).__name__}>"
 
 
 class SerializableResponse(Response):
@@ -363,6 +442,68 @@ def register_custom_type(custom_type: type, serializer: Callable):
         register_custom_type(MyCustomClass, lambda x: {"id": x.id, "name": x.name})
     """
     registry.register(custom_type, serializer)
+
+
+def get_serializable_response(content: Any) -> SerializableResponse:
+    """
+    Convenience function to create a SerializableResponse.
+    
+    Args:
+        content: Any content to serialize
+        
+    Returns:
+        SerializableResponse ready for FastAPI return
+    """
+    return SerializableResponse(content=content)
+
+
+def safe_serialize_execution_result(result_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Safely serialize execution result data with enhanced error handling.
+    
+    This function specifically handles common issues in execution results:
+    - Numpy int64/float64 serialization errors
+    - Complex nested data structures
+    - Large output handling
+    
+    Args:
+        result_data: Execution result dictionary
+        
+    Returns:
+        JSON-serializable execution result
+    """
+    try:
+        # Pre-process known problematic fields
+        safe_result = {}
+        
+        for key, value in result_data.items():
+            try:
+                if key in ('result_data', 'outputs', 'generated_files'):
+                    # These fields often contain complex objects
+                    safe_result[key] = make_serializable(value)
+                elif key in ('stdout', 'stderr'):
+                    # Handle potentially large text output
+                    if isinstance(value, str) and len(value) > 50000:
+                        safe_result[key] = value[:50000] + "\n... (output truncated)"
+                        safe_result[f"{key}_truncated"] = True
+                    else:
+                        safe_result[key] = str(value) if value is not None else ""
+                else:
+                    # Standard fields
+                    safe_result[key] = make_serializable(value)
+            except Exception as e:
+                logger.warning(f"Failed to serialize field '{key}': {e}")
+                safe_result[key] = f"<serialization_error: {str(e)[:100]}>"
+        
+        return safe_result
+        
+    except Exception as e:
+        logger.error(f"Complete serialization failure: {e}")
+        return {
+            "error": "Serialization failed",
+            "message": str(e),
+            "original_keys": list(result_data.keys()) if isinstance(result_data, dict) else "not_dict"
+        }
 
 
 if __name__ == "__main__":
