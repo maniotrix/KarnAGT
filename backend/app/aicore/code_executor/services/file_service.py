@@ -10,6 +10,7 @@ Separated from tool decorators for flexibility and reusability.
 
 import base64
 from typing import Union, Optional
+from pydantic import ValidationError
 from app.logging.logger import get_logger
 from app.aicore.code_executor.clients import (
     SandboxClient, 
@@ -60,6 +61,15 @@ class FileService:
         Returns:
             FileUploadResult with success/error status and file info
         """
+        # Input validation
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to upload file with empty workspace ID")
+            return FileUploadResult.error_result("Workspace ID cannot be empty")
+            
+        if not filename or not filename.strip():
+            logger.warning("Attempted to upload file with empty filename")
+            return FileUploadResult.error_result("Filename cannot be empty")
+        
         try:
             logger.info(f"Uploading file {filename} to workspace {workspace_id}")
             
@@ -81,6 +91,9 @@ class FileService:
         except FileOperationError as e:
             logger.error(f"Failed to upload file {filename} to workspace {workspace_id}: {e}")
             return FileUploadResult.error_result(f"Failed to upload {filename} to workspace {workspace_id}: {e}")
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid file info structure for upload: {e}")
+            return FileUploadResult.error_result("Invalid file info format received from server")
         except Exception as e:
             logger.error(f"Unexpected error uploading file {filename} to workspace {workspace_id}: {e}")
             return FileUploadResult.error_result(f"Unexpected upload error for {filename} in workspace {workspace_id}: {e}")
@@ -96,6 +109,15 @@ class FileService:
         Returns:
             FileDownloadResult with success/error status and file content
         """
+        # Input validation
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to download file with empty workspace ID")
+            return FileDownloadResult.error_result("Workspace ID cannot be empty")
+            
+        if not file_path or not file_path.strip():
+            logger.warning("Attempted to download file with empty file path")
+            return FileDownloadResult.error_result("File path cannot be empty")
+        
         try:
             logger.info(f"Downloading file {file_path} from workspace {workspace_id}")
             
@@ -127,6 +149,9 @@ class FileService:
         except FileOperationError as e:
             logger.error(f"Failed to download file {file_path} from workspace {workspace_id}: {e}")
             return FileDownloadResult.error_result(f"Failed to download {file_path} from workspace {workspace_id}: {e}")
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid response for file download: {e}")
+            return FileDownloadResult.error_result("Invalid file download response from server")
         except Exception as e:
             logger.error(f"Unexpected error downloading file {file_path} from workspace {workspace_id}: {e}")
             return FileDownloadResult.error_result(f"Unexpected download error for {file_path} in workspace {workspace_id}: {e}")
@@ -141,6 +166,11 @@ class FileService:
         Returns:
             FileListResult with success/error status and file list
         """
+        # Input validation
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to list files with empty workspace ID")
+            return FileListResult.error_result("Workspace ID cannot be empty")
+        
         try:
             logger.debug(f"Listing files in workspace {workspace_id}")
             
@@ -160,8 +190,9 @@ class FileService:
         except WorkspaceNotFoundError as e:
             logger.warning(f"Workspace {workspace_id} not found for file listing: {e}")
             return FileListResult.error_result(f"Workspace {workspace_id} not found: {e}")
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid file list structure for workspace {workspace_id}: {e}")
+            return FileListResult.error_result("Invalid file list format received from server")
         except Exception as e:
             logger.error(f"Failed to list files in workspace {workspace_id}: {e}")
-            return FileListResult.error_result(f"Failed to list files in workspace {workspace_id}: {e}")
-    
-# Conversion method removed - client and service now use same models 
+            return FileListResult.error_result(f"Failed to list files in workspace {workspace_id}: {e}") 

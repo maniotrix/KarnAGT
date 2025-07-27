@@ -81,6 +81,47 @@ class ExecutionOperationResult(BaseModel):
     def error_result(cls, error: str) -> "ExecutionOperationResult":
         """Create an error result"""
         return cls(success=False, error=error)
+    
+    # Enhanced properties for consistent null handling
+    @property
+    def has_result_data(self) -> bool:
+        """Check if execution produced result data"""
+        return (self.success and 
+                self.execution_result is not None and 
+                self.execution_result.result_data is not None)
+    
+    def get_result_data_safe(self) -> Dict[str, Any]:
+        """Get result data with safe defaults"""
+        if self.has_result_data and isinstance(self.execution_result.result_data, dict):
+            return self.execution_result.result_data
+        return {}
+    
+    @property
+    def generated_files_count(self) -> int:
+        """Get count of generated files safely"""
+        if self.success and self.execution_result and self.execution_result.generated_files:
+            return len(self.execution_result.generated_files)
+        return 0
+    
+    @property
+    def has_stdout(self) -> bool:
+        """Check if execution produced stdout output"""
+        return (self.success and 
+                self.execution_result is not None and 
+                bool(self.execution_result.stdout.strip()))
+    
+    @property
+    def has_stderr(self) -> bool:
+        """Check if execution produced stderr output"""
+        return (self.success and 
+                self.execution_result is not None and 
+                bool(self.execution_result.stderr.strip()))
+    
+    def get_generated_files_safe(self) -> List[Dict[str, Any]]:
+        """Get generated files with safe defaults"""
+        if self.success and self.execution_result and self.execution_result.generated_files:
+            return self.execution_result.generated_files
+        return []
 
 
 class ExecutionGetResult(BaseModel):

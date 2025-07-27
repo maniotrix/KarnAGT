@@ -9,6 +9,7 @@ Separated from tool decorators for flexibility and reusability.
 """
 
 from typing import Optional
+from pydantic import ValidationError
 from app.logging.logger import get_logger
 from app.aicore.code_executor.clients import (
     SandboxClient,
@@ -61,6 +62,19 @@ class ExecutionService:
         Returns:
             ExecutionOperationResult with success/error status and execution details
         """
+        # Input validation - prevent server call for invalid inputs
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to execute code with empty workspace ID")
+            return ExecutionOperationResult.error_result("Workspace ID cannot be empty")
+            
+        if not code or not code.strip():
+            logger.warning("Attempted to execute empty code")
+            return ExecutionOperationResult.error_result("Code cannot be empty")
+            
+        if timeout <= 0 or timeout > 300:  # Reasonable bounds
+            logger.warning(f"Invalid timeout value: {timeout}")
+            return ExecutionOperationResult.error_result("Timeout must be between 1 and 300 seconds")
+        
         try:
             logger.info(f"Executing code in workspace {workspace_id} (timeout: {timeout}s)")
             logger.debug(f"Code to execute:\n{code}")
@@ -88,6 +102,9 @@ class ExecutionService:
         except ExecutionError as e:
             logger.error(f"Code execution failed in workspace {workspace_id}: {e}")
             return ExecutionOperationResult.error_result(f"Code execution failed: {e}")
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid execution result structure: {e}")
+            return ExecutionOperationResult.error_result("Invalid execution result format received from server")
         except Exception as e:
             logger.error(f"Unexpected error during code execution in workspace {workspace_id}: {e}")
             return ExecutionOperationResult.error_result(f"Unexpected error: {e}")
@@ -100,8 +117,13 @@ class ExecutionService:
             execution_id: Unique execution identifier
             
         Returns:
-            ExecutionResult with success/error status and execution details
+            ExecutionGetResult with success/error status and execution details
         """
+        # Input validation
+        if not execution_id or not execution_id.strip():
+            logger.warning("Attempted to get execution result with empty execution ID")
+            return ExecutionGetResult.error_result("Execution ID cannot be empty")
+        
         try:
             logger.debug(f"Getting execution result for {execution_id}")
             
@@ -111,16 +133,18 @@ class ExecutionService:
                 async with SandboxClient() as client:
                     client_execution_result = await client.get_execution_result(execution_id)
             
-            workspace_id = client_execution_result.workspace_id if client_execution_result else "unknown"
-            logger.info(f"Successfully retrieved execution result {execution_id} for workspace {workspace_id}")
+            logger.info(f"Successfully retrieved execution result {execution_id}")
             return ExecutionGetResult.success_result(client_execution_result)
             
-        except ExecutionError as e:
-            logger.warning(f"Execution result {execution_id} not found: {e}")
-            return ExecutionGetResult.error_result(f"Execution result not found: {e}")
+        except WorkspaceNotFoundError as e:
+            logger.warning(f"Execution {execution_id} not found: {e}")
+            return ExecutionGetResult.error_result(f"Execution not found: {e}")
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid execution result structure for {execution_id}: {e}")
+            return ExecutionGetResult.error_result("Invalid execution result format received from server")
         except Exception as e:
             logger.error(f"Failed to get execution result {execution_id}: {e}")
-            return ExecutionGetResult.error_result(f"Unexpected error: {e}")
+            return ExecutionGetResult.error_result(f"Failed to get execution result: {e}")
     
     async def list_workspace_executions(
         self, 
@@ -137,6 +161,18 @@ class ExecutionService:
         Returns:
             ExecutionHistoryResult with success/error status and execution list
         """
+        # Input validation
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to list executions with empty workspace ID")
+            return ExecutionHistoryResult.error_result(workspace_id, "Workspace ID cannot be empty")
+            
+        # Normalize limit to reasonable bounds
+        if limit <= 0:
+            limit = 10
+        elif limit > 100:
+            limit = 100
+            logger.info(f"Execution list limit capped at 100 for workspace {workspace_id}")
+        
         try:
             logger.debug(f"Listing executions for workspace {workspace_id} (limit: {limit})")
             
@@ -146,29 +182,37 @@ class ExecutionService:
                 async with SandboxClient() as client:
                     client_executions = await client.list_workspace_executions(workspace_id, limit)
             
-            # Convert to our models
+            # Convert to our models with safe handling
             executions = []
             for client_execution in client_executions:
-                exec_summary = ExecutionSummary(
-                    execution_id=client_execution.execution_id,
-                    workspace_id=workspace_id,
-                    status=client_execution.status,
-                    started_at=client_execution.started_at,
-                    completed_at=client_execution.completed_at,
-                    execution_time_ms=client_execution.execution_time_ms,
-                    has_result_data=client_execution.result_data is not None,
-                    generated_files_count=len(client_execution.generated_files),
-                    has_stdout=bool(client_execution.stdout.strip()),
-                    has_stderr=bool(client_execution.stderr.strip())
-                )
-                executions.append(exec_summary)
+                try:
+                    exec_summary = ExecutionSummary(
+                        execution_id=client_execution.execution_id,
+                        workspace_id=workspace_id,
+                        status=client_execution.status,
+                        started_at=client_execution.started_at,
+                        completed_at=client_execution.completed_at,
+                        execution_time_ms=client_execution.execution_time_ms,
+                        has_result_data=client_execution.result_data is not None,
+                        generated_files_count=len(client_execution.generated_files) if client_execution.generated_files else 0,
+                        has_stdout=bool(client_execution.stdout.strip()) if client_execution.stdout else False,
+                        has_stderr=bool(client_execution.stderr.strip()) if client_execution.stderr else False
+                    )
+                    executions.append(exec_summary)
+                except Exception as e:
+                    logger.warning(f"Skipping invalid execution result in list: {e}")
+                    continue
             
             logger.info(f"Successfully listed {len(executions)} executions for workspace {workspace_id}")
             return ExecutionHistoryResult.success_result(workspace_id, executions)
             
         except WorkspaceNotFoundError as e:
-            logger.warning(f"Workspace {workspace_id} not found for execution listing: {e}")
-            return ExecutionHistoryResult.error_result(workspace_id, f"Workspace not found: {e}")
+            logger.info(f"Workspace {workspace_id} not found for execution listing - returning empty list")
+            # Server behavior: return empty list for non-existent workspace
+            return ExecutionHistoryResult.success_result(workspace_id, [])
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid execution list structure for workspace {workspace_id}: {e}")
+            return ExecutionHistoryResult.error_result(workspace_id, "Invalid execution list format received from server")
         except Exception as e:
             logger.error(f"Failed to list executions for workspace {workspace_id}: {e}")
-            return ExecutionHistoryResult.error_result(workspace_id, str(e)) 
+            return ExecutionHistoryResult.error_result(workspace_id, f"Failed to list executions: {e}") 

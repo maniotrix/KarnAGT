@@ -9,6 +9,7 @@ Separated from tool decorators for flexibility and reusability.
 """
 
 from typing import Optional
+from pydantic import ValidationError
 from app.logging.logger import get_logger
 from app.aicore.code_executor.clients import (
     SandboxClient, 
@@ -53,6 +54,11 @@ class WorkspaceService:
         Returns:
             WorkspaceCreateResult with success/error status and workspace info
         """
+        # Input validation
+        if ttl_hours <= 0 or ttl_hours > 24:
+            logger.warning(f"Invalid TTL hours: {ttl_hours}")
+            return WorkspaceCreateResult.error_result("TTL hours must be between 1 and 24")
+        
         try:
             logger.info(f"Creating workspace with TTL {ttl_hours} hours")
             
@@ -71,6 +77,9 @@ class WorkspaceService:
         except WorkspaceError as e:
             logger.error(f"Failed to create workspace: {e}")
             return WorkspaceCreateResult.error_result(str(e))
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid workspace structure: {e}")
+            return WorkspaceCreateResult.error_result("Invalid workspace format received from server")
         except Exception as e:
             logger.error(f"Unexpected error creating workspace: {e}")
             return WorkspaceCreateResult.error_result(f"Unexpected error: {e}")
@@ -85,6 +94,11 @@ class WorkspaceService:
         Returns:
             WorkspaceGetResult with workspace details or error
         """
+        # Input validation
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to get workspace with empty workspace ID")
+            return WorkspaceGetResult.error_result("Workspace ID cannot be empty")
+        
         try:
             logger.debug(f"Getting workspace info for {workspace_id}")
             
@@ -100,6 +114,9 @@ class WorkspaceService:
         except WorkspaceNotFoundError as e:
             logger.warning(f"Workspace {workspace_id} not found: {e}")
             return WorkspaceGetResult.error_result(f"Workspace {workspace_id} not found: {e}")
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid workspace structure for {workspace_id}: {e}")
+            return WorkspaceGetResult.error_result("Invalid workspace format received from server")
         except Exception as e:
             logger.error(f"Failed to get workspace {workspace_id}: {e}")
             return WorkspaceGetResult.error_result(f"Failed to get workspace {workspace_id}: {e}")
@@ -114,6 +131,11 @@ class WorkspaceService:
         Returns:
             WorkspaceDeleteResult with success/error status
         """
+        # Input validation
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to delete workspace with empty workspace ID")
+            return WorkspaceDeleteResult.error_result(workspace_id, "Workspace ID cannot be empty")
+        
         try:
             logger.info(f"Deleting workspace {workspace_id}")
             
@@ -138,32 +160,42 @@ class WorkspaceService:
     
     async def extend_workspace_ttl(self, workspace_id: str, additional_hours: int) -> WorkspaceTTLExtendResult:
         """
-        Extend the time-to-live (TTL) of a workspace.
+        Extend the TTL of an existing workspace.
         
         Args:
             workspace_id: Workspace to extend
             additional_hours: Hours to add to the current TTL
             
         Returns:
-            WorkspaceTTLExtendResult with success/error status
+            WorkspaceTTLExtendResult with success/error status and updated workspace info
         """
+        # Input validation
+        if not workspace_id or not workspace_id.strip():
+            logger.warning("Attempted to extend TTL with empty workspace ID")
+            return WorkspaceTTLExtendResult.error_result("Workspace ID cannot be empty")
+            
+        if additional_hours <= 0 or additional_hours > 24:
+            logger.warning(f"Invalid additional TTL hours: {additional_hours}")
+            return WorkspaceTTLExtendResult.error_result("Additional hours must be between 1 and 24")
+        
         try:
-            logger.info(f"Extending workspace {workspace_id} TTL by {additional_hours} hours")
+            logger.info(f"Extending TTL for workspace {workspace_id} by {additional_hours} hours")
             
             if self.sandbox_client:
-                workspace_info = await self.sandbox_client.extend_workspace_ttl(workspace_id, additional_hours)
+                client_workspace_info = await self.sandbox_client.extend_workspace_ttl(workspace_id, additional_hours)
             else:
                 async with SandboxClient() as client:
-                    workspace_info = await client.extend_workspace_ttl(workspace_id, additional_hours)
+                    client_workspace_info = await client.extend_workspace_ttl(workspace_id, additional_hours)
             
-            logger.info(f"Successfully extended workspace {workspace_id} TTL by {additional_hours}h (expires: {workspace_info.expires_at})")
-            return WorkspaceTTLExtendResult.success_result(workspace_info)
+            logger.info(f"Successfully extended TTL for workspace {workspace_id}")
+            return WorkspaceTTLExtendResult.success_result(client_workspace_info)
             
         except WorkspaceNotFoundError as e:
             logger.warning(f"Workspace {workspace_id} not found for TTL extension: {e}")
             return WorkspaceTTLExtendResult.error_result(f"Workspace {workspace_id} not found: {e}")
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid workspace structure for TTL extension: {e}")
+            return WorkspaceTTLExtendResult.error_result("Invalid workspace format received from server")
         except Exception as e:
-            logger.error(f"Failed to extend workspace {workspace_id} TTL by {additional_hours}h: {e}")
-            return WorkspaceTTLExtendResult.error_result(f"Failed to extend workspace {workspace_id} TTL: {e}")
-    
-# Conversion method removed - client and service now use same models 
+            logger.error(f"Failed to extend TTL for workspace {workspace_id}: {e}")
+            return WorkspaceTTLExtendResult.error_result(f"Failed to extend TTL: {e}") 

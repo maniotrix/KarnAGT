@@ -9,6 +9,7 @@ Provides centralized health check functionality for the code executor system.
 """
 
 from typing import Dict, Any, Optional
+from pydantic import ValidationError
 from app.logging.logger import get_logger
 from app.aicore.code_executor.clients import SandboxClient
 from app.aicore.code_executor.models import (
@@ -70,6 +71,15 @@ class HealthService:
                 logger.warning(f"CodeSandbox server is unhealthy: {health_check.status}")
                 return HealthCheckResult.error_result(f"CodeSandbox server is unhealthy: {health_check.status}", codesandbox_details)
                 
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid health check structure: {e}")
+            codesandbox_details = {
+                "healthy": False,
+                "status": "error",
+                "error": "Invalid health check format",
+                "url": self.sandbox_client.base_url if self.sandbox_client else SandboxClient().base_url
+            }
+            return HealthCheckResult.error_result("Invalid health check format received from server", codesandbox_details)
         except Exception as e:
             logger.error(f"CodeSandbox health check failed: {e}")
             codesandbox_details = {
@@ -111,6 +121,14 @@ class HealthService:
                 "url": self.sandbox_client.base_url if self.sandbox_client else SandboxClient().base_url
             }
             
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid health check structure: {e}")
+            return {
+                "healthy": False,
+                "status": "error",
+                "error": "Invalid health check format",
+                "url": self.sandbox_client.base_url if self.sandbox_client else SandboxClient().base_url
+            }
         except Exception as e:
             logger.error(f"CodeSandbox health check failed: {e}")
             return {
@@ -139,6 +157,9 @@ class HealthService:
             logger.info("Successfully retrieved system statistics")
             return SystemStatsResult.success_result(stats)
             
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid stats structure: {e}")
+            return SystemStatsResult.error_result("Invalid stats format received from server")
         except Exception as e:
             logger.error(f"Failed to get system stats: {e}")
             return SystemStatsResult.error_result(f"Failed to get system stats: {e}")
@@ -162,6 +183,9 @@ class HealthService:
             logger.info("Successfully retrieved system configuration")
             return SystemConfigResult.success_result(config)
             
+        except ValidationError as e:
+            logger.warning(f"Server returned invalid config structure: {e}")
+            return SystemConfigResult.error_result("Invalid config format received from server")
         except Exception as e:
             logger.error(f"Failed to get system config: {e}")
             return SystemConfigResult.error_result(f"Failed to get system config: {e}")
