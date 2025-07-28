@@ -187,7 +187,7 @@ async def execute_code(
                     "filename": file.filename,
                     "size": file.size,
                     "mime_type": file.mime_type,
-                    "download_url": file.download_url,
+                    "download_url": f"/workspace/{workspace_id}/files/{file.relative_path}",
                     "relative_path": file.relative_path
                 }
                 for file in result.generated_files
@@ -243,7 +243,7 @@ async def get_execution_result(
                 "filename": file.filename,
                 "size": file.size,
                 "mime_type": file.mime_type,
-                "download_url": file.download_url,
+                "download_url": f"/workspace/{result.workspace_id}/files/{file.relative_path}",
                 "relative_path": file.relative_path
             }
             for file in result.generated_files
@@ -291,7 +291,7 @@ async def list_workspace_executions(
                     "filename": file.filename,
                     "size": file.size,
                     "mime_type": file.mime_type,
-                    "download_url": file.download_url,
+                    "download_url": f"/workspace/{workspace_id}/files/{file.relative_path}",
                     "relative_path": file.relative_path
                 }
                 for file in execution.generated_files
