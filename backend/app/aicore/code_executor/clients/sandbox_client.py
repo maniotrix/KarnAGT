@@ -40,7 +40,6 @@ from ..config import get_server_config
 
 _config = get_server_config()
 DEFAULT_BASE_URL = _config.base_url
-DEFAULT_TIMEOUT = _config.timeout
 MAX_RETRIES = _config.max_retries
 
 
@@ -57,19 +56,17 @@ class SandboxClient:
     - Code execution (execute, get results)
     """
     
-    def __init__(self, base_url: str = DEFAULT_BASE_URL, timeout: int = DEFAULT_TIMEOUT):
+    def __init__(self, base_url: str = DEFAULT_BASE_URL):
         """
         Initialize the sandbox client
         
         Args:
             base_url: Base URL of the CodeSandbox API
-            timeout: Default timeout for requests in seconds
         """
         self.base_url = base_url.rstrip('/')
-        self.timeout = timeout
         self.session: Optional[aiohttp.ClientSession] = None
         
-        logger.info(f"SandboxClient initialized with base_url={self.base_url}, timeout={self.timeout}")
+        logger.info(f"SandboxClient initialized with base_url={self.base_url}")
     
     async def __aenter__(self):
         """Async context manager entry"""
@@ -83,7 +80,8 @@ class SandboxClient:
     async def _ensure_session(self):
         """Ensure aiohttp session is created"""
         if self.session is None or self.session.closed:
-            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            # Use reasonable default timeout for general HTTP operations
+            timeout = aiohttp.ClientTimeout(total=120)
             self.session = aiohttp.ClientSession(timeout=timeout)
     
     async def close(self):
@@ -443,8 +441,7 @@ class SandboxClient:
     async def execute_code(
         self, 
         workspace_id: str, 
-        code: str, 
-        timeout: int = DEFAULT_TIMEOUT
+        code: str
     ) -> ExecutionResult:
         """
         Execute code in workspace
@@ -452,7 +449,6 @@ class SandboxClient:
         Args:
             workspace_id: Target workspace
             code: Python code to execute
-            timeout: Execution timeout in seconds
             
         Returns:
             ExecutionResult: Execution results
@@ -465,10 +461,10 @@ class SandboxClient:
         try:
             data = aiohttp.FormData()
             data.add_field('code', code)
-            data.add_field('timeout', str(timeout))
+            # No timeout field - let server use its defaults
             
-            # Use custom timeout for this request
-            request_timeout = aiohttp.ClientTimeout(total=timeout + 10)
+            # Fixed HTTP timeout: Server max time (35s) + generous buffer (25s) = 60s
+            request_timeout = aiohttp.ClientTimeout(total=60)
             
             await self._ensure_session()
             url = f"{self.base_url}/workspace/{workspace_id}/execute"
@@ -486,7 +482,7 @@ class SandboxClient:
                     raise ExecutionError(f"Execution failed: HTTP {response.status}: {error_text}")
                     
         except asyncio.TimeoutError:
-            raise ExecutionTimeoutError(f"Code execution timed out after {timeout} seconds")
+            raise ExecutionTimeoutError(f"HTTP request timed out after 60 seconds")
         except (WorkspaceNotFoundError, ExecutionError, ExecutionTimeoutError):
             raise
         except Exception as e:

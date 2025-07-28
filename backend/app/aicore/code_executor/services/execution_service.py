@@ -49,8 +49,7 @@ class ExecutionService:
     async def execute_code(
         self, 
         workspace_id: str, 
-        code: str, 
-        timeout: int = 60
+        code: str
     ) -> ExecutionOperationResult:
         """
         Execute Python code in a workspace.
@@ -58,11 +57,13 @@ class ExecutionService:
         Args:
             workspace_id: Target workspace identifier
             code: Python code to execute
-            timeout: Execution timeout in seconds (default: 60)
             
         Returns:
             ExecutionOperationResult with success/error status and execution details.
             Generated files will have full HTTP download URLs.
+            
+        Note:
+            Server uses its own timeout defaults (30s). Client doesn't override server business logic.
         """
         # Input validation - prevent server call for invalid inputs
         if not workspace_id or not workspace_id.strip():
@@ -78,19 +79,15 @@ class ExecutionService:
             logger.warning("Attempted to execute empty code")
             return ExecutionOperationResult.error_result("Code cannot be empty")
             
-        if timeout <= 0 or timeout > 300:  # Reasonable bounds
-            logger.warning(f"Invalid timeout value: {timeout}")
-            return ExecutionOperationResult.error_result("Timeout must be between 1 and 300 seconds")
-        
         try:
-            logger.info(f"Executing code in workspace {workspace_id} (timeout: {timeout}s)")
+            logger.info(f"Executing code in workspace {workspace_id}")
             logger.debug(f"Code to execute:\n{code}")
             
             if self.sandbox_client:
-                client_execution_result = await self.sandbox_client.execute_code(workspace_id, code, timeout)
+                client_execution_result = await self.sandbox_client.execute_code(workspace_id, code)
             else:
                 async with SandboxClient() as client:
-                    client_execution_result = await client.execute_code(workspace_id, code, timeout)
+                    client_execution_result = await client.execute_code(workspace_id, code)
             
             # Enhance execution result with full download URLs
             enhance_execution_result_with_full_urls(client_execution_result, workspace_id)

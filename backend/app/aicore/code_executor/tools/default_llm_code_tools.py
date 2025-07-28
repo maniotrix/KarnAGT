@@ -114,6 +114,7 @@ async def upload_file(
     - Working directory: workspace root (contains uploaded files)
     - Full Python standard library + common packages (numpy, pandas, matplotlib, etc.)
     - Output capture: stdout, stderr, and execution results
+    - Your code will be executed with a timeout of 30 seconds.
     
     ## FILE OPERATIONS:
     - **Read files**: open('filename.txt', 'r') - access uploaded files directly
@@ -164,7 +165,7 @@ async def execute_code(
     code: str,
 ) -> ExecutionOperationResult:
     """Execute Python code in a workspace with persistent state."""
-    return await _execution_service.execute_code(workspace_id, code, timeout=60)
+    return await _execution_service.execute_code(workspace_id, code)
 
 
 # What gets imported when using `from default_llm_code_tools import *`

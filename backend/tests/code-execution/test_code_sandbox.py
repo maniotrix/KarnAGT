@@ -435,14 +435,13 @@ result = {"plot_created": True, "data_points": len(x)}
         
         # The code creates exactly 1 PNG file: plots/sine_wave.png
         generated_files = exec_result3.get_generated_files_safe()
-        plot_files = [f for f in generated_files if isinstance(f, dict) and f.get('filename', '').endswith('.png')]
+        plot_files = [f for f in generated_files if f.filename.endswith('.png')]
         results.assert_true(len(plot_files) == 1, f"Expected 1 PNG file, got {len(plot_files)}")
         
         # Verify the specific plot file was created
         if plot_files:
-            plot_filename = plot_files[0].get('filename', '')
-            results.assert_true('sine_wave.png' in plot_filename, "sine_wave.png file generated")
-            print(f"   Generated plot: {plot_filename}")
+            results.assert_true('sine_wave.png' in plot_files[0].filename, "sine_wave.png file generated")
+            print(f"   Generated plot: {plot_files[0].filename}")
     
     # Test 4: Code execution with pandas
     print("\n4. Testing code execution with pandas...")
@@ -488,20 +487,13 @@ result = stats
         
         # The code creates exactly 1 CSV file: people.csv
         generated_files = exec_result4.get_generated_files_safe()
-        csv_files = [f for f in generated_files if isinstance(f, dict) and f.get('filename', '').endswith('.csv')]
+        csv_files = [f for f in generated_files if f.filename.endswith('.csv')]
         results.assert_true(len(csv_files) == 1, f"Expected 1 CSV file, got {len(csv_files)}")
         
         # Verify the specific CSV file was created
         if csv_files:
-            csv_filename = csv_files[0].get('filename', '')
-            results.assert_true('people.csv' in csv_filename, "people.csv file generated")
-            print(f"   Generated CSV: {csv_filename}")
-    
-    # Test 5: Code execution with timeout
-    print("\n5. Testing code execution with custom timeout...")
-    quick_code = "print('Quick execution')\nresult = {'status': 'quick'}"
-    exec_result5 = await execution_service.execute_code(workspace_id, quick_code, timeout=30)
-    results.assert_true(exec_result5.success, "Code execution with custom timeout succeeds")
+            results.assert_true('people.csv' in csv_files[0].filename, "people.csv file generated")
+            print(f"   Generated CSV: {csv_files[0].filename}")
     
     # Test 6: Code execution with error
     print("\n6. Testing code execution with error...")
@@ -696,10 +688,6 @@ async def test_error_handling_edge_cases(results: TestResults):
     results.assert_false(empty_exec_id_result.success, "Empty execution ID fails")
     results.assert_true(empty_exec_id_result.error and "cannot be empty" in empty_exec_id_result.error, "Proper error message for empty execution ID")
     
-    # Test invalid timeout
-    invalid_timeout_result = await execution_service.execute_code("test-workspace", "print('test')", timeout=500)
-    results.assert_false(invalid_timeout_result.success, "Invalid timeout fails")
-    results.assert_true(invalid_timeout_result.error and "between 1 and 300" in invalid_timeout_result.error, "Proper error message for invalid timeout")
     
     # Test empty filename
     empty_filename_result = await file_service.upload_file("test-workspace", "", "content")

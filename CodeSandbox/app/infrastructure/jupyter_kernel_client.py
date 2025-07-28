@@ -238,6 +238,7 @@ print("Kernel ready for code execution!")
                             error=str(e))
             raise JupyterClientError(f"Failed to initialize kernel workspace: {e}")
     
+
     async def execute_code(self, workspace_id: str, code: str, timeout: Optional[int] = None) -> ExecutionResult:
         """Execute code in workspace kernel using proper jupyter_client"""
         if workspace_id not in self._workspaces:
@@ -251,11 +252,12 @@ print("Kernel ready for code execution!")
             raise KernelNotFoundError(f"No kernel found for workspace: {workspace_id}")
         
         kernel_client: AsyncKernelClient = workspace_info["kernel_client"]
+        kernel_id = workspace_info["kernel_id"]
         execution_timeout = timeout or self.settings.default_execution_timeout
         
         self.logger.debug("Executing code in kernel using jupyter_client",
                          workspace_id=workspace_id,
-                         kernel_id=workspace_info["kernel_id"],
+                         kernel_id=kernel_id,
                          code_length=len(code),
                          timeout=execution_timeout)
         
@@ -268,7 +270,7 @@ print("Kernel ready for code execution!")
             # Execute code using proper jupyter_client - much simpler!
             self.logger.debug("🚀 Sending code to kernel",
                             workspace_id=workspace_id,
-                            kernel_id=workspace_info["kernel_id"])
+                            kernel_id=kernel_id)
             
             msg_id = kernel_client.execute(code)
             
@@ -276,7 +278,7 @@ print("Kernel ready for code execution!")
                             workspace_id=workspace_id,
                             msg_id=msg_id)
             
-            # Collect execution results
+            # Collect execution results with proper timeout enforcement
             stdout_lines = []
             stderr_lines = []
             outputs = []
@@ -317,6 +319,35 @@ print("Kernel ready for code execution!")
                                     error_name=content.get('ename'),
                                     error_value=content.get('evalue'))
                      
+            # Check if execution timed out (soft timeout from _collect_execution_results)
+            current_time = datetime.utcnow()
+            elapsed_time = (current_time - start_time).total_seconds()
+            
+            if elapsed_time >= execution_timeout:
+                # Execution likely timed out - interrupt the kernel
+                self.logger.warning("Execution likely timed out - interrupting kernel",
+                                  workspace_id=workspace_id,
+                                  kernel_id=kernel_id,
+                                  elapsed_time=elapsed_time,
+                                  timeout=execution_timeout)
+                
+                # Send interrupt signal without waiting - fire and forget
+                try:
+                    self.kernel_manager.interrupt_kernel(kernel_id)
+                    self.logger.info("Kernel interrupt signal sent", workspace_id=workspace_id, kernel_id=kernel_id)
+                except Exception as e:
+                    self.logger.error("Failed to interrupt kernel", workspace_id=workspace_id, kernel_id=kernel_id, error=str(e))
+                
+                # Return timeout result
+                execution_time_ms = int(elapsed_time * 1000)
+                return ExecutionResult(
+                    workspace_id=workspace_id,
+                    status=ExecutionStatus.TIMEOUT,
+                    stderr=f"Execution timed out after {elapsed_time:.1f} seconds",
+                    execution_time_ms=execution_time_ms,
+                    completed_at=current_time
+                )
+            
             # Filter out unmodified uploaded files from generated_files
             filtered_generated_files = await self._filter_generated_files(workspace_id)
             
@@ -335,9 +366,18 @@ print("Kernel ready for code execution!")
             )
             
         except asyncio.TimeoutError:
+            # This shouldn't happen with the inner timeout, but just in case
             self.logger.warning("Code execution timed out",
                               workspace_id=workspace_id,
                               timeout=execution_timeout)
+            
+            # Send interrupt signal without waiting (fire and forget)
+            try:
+                self.kernel_manager.interrupt_kernel(kernel_id)
+                self.logger.info("Kernel interrupt signal sent", workspace_id=workspace_id, kernel_id=kernel_id)
+            except Exception as e:
+                self.logger.error("Failed to interrupt kernel", workspace_id=workspace_id, kernel_id=kernel_id, error=str(e))
+            
             return ExecutionResult(
                 workspace_id=workspace_id,
                 status=ExecutionStatus.TIMEOUT,
@@ -349,6 +389,7 @@ print("Kernel ready for code execution!")
             self.logger.error("Code execution failed",
                             exc=e,
                             workspace_id=workspace_id,
+                            kernel_id=kernel_id,
                             error_type=e.__class__.__name__)
             execution_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             return ExecutionResult(

@@ -35,11 +35,6 @@ class CodeExecutorServerConfig(BaseModel):
         description="Base URL of the CodeSandbox API server"
     )
     
-    timeout: int = Field(
-        default_factory=lambda: int(os.getenv("CODESANDBOX_TIMEOUT", "60")),
-        description="Default timeout for requests in seconds"
-    )
-    
     max_retries: int = Field(
         default_factory=lambda: int(os.getenv("CODESANDBOX_MAX_RETRIES", "3")),
         description="Maximum number of retry attempts"
