@@ -67,6 +67,8 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 
+OUTPUT_TRUNCATION_LIMIT = 10000
+
 class SerializationRegistry:
     """Registry for custom serialization handlers"""
     
@@ -482,9 +484,9 @@ def safe_serialize_execution_result(result_data: Dict[str, Any]) -> Dict[str, An
                     # These fields often contain complex objects
                     safe_result[key] = make_serializable(value)
                 elif key in ('stdout', 'stderr'):
-                    # Handle potentially large text output
-                    if isinstance(value, str) and len(value) > 50000:
-                        safe_result[key] = value[:50000] + "\n... (output truncated)"
+                    # Handle potentially large text output - keep limit small for LLM context
+                    if isinstance(value, str) and len(value) > OUTPUT_TRUNCATION_LIMIT:  # Reduced from 50000 to 5000
+                        safe_result[key] = value[:OUTPUT_TRUNCATION_LIMIT] + "\n... (output truncated)"
                         safe_result[f"{key}_truncated"] = True
                     else:
                         safe_result[key] = str(value) if value is not None else ""
