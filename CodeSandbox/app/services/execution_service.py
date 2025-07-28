@@ -121,6 +121,33 @@ class ExecutionService:
             # Store execution result
             self._executions[result.execution_id] = result
             
+            # Handle timeout status - cleanup workspace
+            if result.status == ExecutionStatus.TIMEOUT:
+                self.logger.warning("Execution timed out - cleaning up workspace",
+                                   workspace_id=request.workspace_id,
+                                   elapsed_seconds=(result.execution_time_ms or 0) / 1000)
+                
+                cleanup_message = "Workspace has been destroyed due to timeout. Create a new workspace to continue."
+                # Cleanup workspace using existing service
+                try:
+                    await self.workspace_service.delete_workspace(request.workspace_id)
+                except Exception as cleanup_error:
+                    self.logger.error("Failed to cleanup timed out workspace", 
+                                     workspace_id=request.workspace_id, 
+                                     cleanup_error=str(cleanup_error))
+                
+                # Update result with cleanup message
+                result = ExecutionResult(
+                    workspace_id=result.workspace_id,
+                    status=ExecutionStatus.TIMEOUT,
+                    stderr=f"{result.stderr}\n{cleanup_message}",
+                    execution_time_ms=result.execution_time_ms,
+                    completed_at=result.completed_at
+                )
+                
+                # Store updated result
+                self._executions[result.execution_id] = result
+            
             # Update workspace activity again after successful execution
             await self.workspace_service.update_workspace_activity(request.workspace_id)
             

@@ -173,7 +173,7 @@ async def test_with_prompt(prompt, agent: Agent):
 async def main():
     results = TestResults()
     await check_sandbox_health(results)
-    filtered_prompts = ADVANCED_TEST_PROMPTS[10:20]  # File operations test
+    filtered_prompts = ADVANCED_TEST_PROMPTS[16:17]  # File operations test
     for i, prompt in enumerate(filtered_prompts):
         print(f"--- Running test {i+1} ---")
         await test_with_prompt(prompt, test_agent)

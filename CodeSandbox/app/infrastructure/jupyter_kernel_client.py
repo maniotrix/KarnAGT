@@ -324,19 +324,12 @@ print("Kernel ready for code execution!")
             elapsed_time = (current_time - start_time).total_seconds()
             
             if elapsed_time >= execution_timeout:
-                # Execution likely timed out - interrupt the kernel
-                self.logger.warning("Execution likely timed out - interrupting kernel",
+                # Execution timed out - return timeout result
+                self.logger.warning("Execution timed out",
                                   workspace_id=workspace_id,
                                   kernel_id=kernel_id,
                                   elapsed_time=elapsed_time,
                                   timeout=execution_timeout)
-                
-                # Send interrupt signal without waiting - fire and forget
-                try:
-                    self.kernel_manager.interrupt_kernel(kernel_id)
-                    self.logger.info("Kernel interrupt signal sent", workspace_id=workspace_id, kernel_id=kernel_id)
-                except Exception as e:
-                    self.logger.error("Failed to interrupt kernel", workspace_id=workspace_id, kernel_id=kernel_id, error=str(e))
                 
                 # Return timeout result
                 execution_time_ms = int(elapsed_time * 1000)
@@ -370,13 +363,6 @@ print("Kernel ready for code execution!")
             self.logger.warning("Code execution timed out",
                               workspace_id=workspace_id,
                               timeout=execution_timeout)
-            
-            # Send interrupt signal without waiting (fire and forget)
-            try:
-                self.kernel_manager.interrupt_kernel(kernel_id)
-                self.logger.info("Kernel interrupt signal sent", workspace_id=workspace_id, kernel_id=kernel_id)
-            except Exception as e:
-                self.logger.error("Failed to interrupt kernel", workspace_id=workspace_id, kernel_id=kernel_id, error=str(e))
             
             return ExecutionResult(
                 workspace_id=workspace_id,

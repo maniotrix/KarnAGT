@@ -24,6 +24,8 @@ BASE_URL = "http://localhost:8080/api/v1"
 
 # Server's actual default timeout from config.py
 SERVER_DEFAULT_TIMEOUT_SECONDS = 30
+# Actual timeout is exactly 30s (the 5s grace period doesn't apply to our timeout logic)
+ACTUAL_TOTAL_TIMEOUT_SECONDS = SERVER_DEFAULT_TIMEOUT_SECONDS  # 30s actual
 
 
 class TimeoutTestResults:
@@ -92,6 +94,25 @@ async def create_test_workspace(client: httpx.AsyncClient) -> str:
     assert response.status_code == 200, "Failed to create workspace"
     workspace_data = response.json()
     return workspace_data["workspace_id"]
+
+
+async def check_workspace_status(client: httpx.AsyncClient, workspace_id: str) -> tuple[int, str]:
+    """
+    Check workspace status for cleanup verification
+    
+    Returns:
+        tuple: (status_code, status_description)
+    """
+    try:
+        response = await client.get(f"{BASE_URL}/workspace/{workspace_id}/files")
+        if response.status_code == 404:
+            return (404, "destroyed")
+        elif response.status_code == 200:
+            return (200, "active")
+        else:
+            return (response.status_code, f"unknown_status_{response.status_code}")
+    except Exception as e:
+        return (500, f"error: {str(e)}")
 
 
 async def test_fast_execution(client: httpx.AsyncClient, workspace_id: str, results: TimeoutTestResults):
@@ -173,7 +194,7 @@ print("This should NOT be printed - server should timeout at 30s")
 """
     
     start_time = time.time()
-    # ✅ NO timeout parameter - use server's default (30s)
+    # ✅ NO timeout parameter - server always uses configured default
     response = await client.post(
         f"{BASE_URL}/workspace/{workspace_id}/execute",
         data={"code": code}
@@ -185,42 +206,52 @@ print("This should NOT be printed - server should timeout at 30s")
     exec_result = response.json()
     results.assert_equals(exec_result['status'], 'timeout', "Execution should timeout")
     results.assert_true('timed out' in exec_result['stderr'].lower(), "Should contain timeout message")
+    results.assert_true('workspace has been destroyed' in exec_result['stderr'].lower(), "Should contain cleanup message")
     results.assert_true('This should NOT be printed' not in exec_result['stdout'], "Should not complete full execution")
-    # ✅ Server correctly returns empty stdout on timeout - don't expect output
     results.assert_equals(exec_result['stdout'].strip(), "", "Server should return empty stdout on timeout")
     
-    # ⭐ KEY TEST: Sleep operations should timeout at exactly 30s (interruptible)
-    results.assert_close(execution_time, SERVER_DEFAULT_TIMEOUT_SECONDS, 1.0, 
-                        f"Sleep should timeout at server default ({SERVER_DEFAULT_TIMEOUT_SECONDS}s)")
+    # ⭐ KEY TEST: Sleep operations timeout at exactly 30s
+    results.assert_close(execution_time, ACTUAL_TOTAL_TIMEOUT_SECONDS, 1.0, 
+                        f"Sleep should timeout at actual timeout ({ACTUAL_TOTAL_TIMEOUT_SECONDS}s)")
+    
+    # ⭐ VERIFY WORKSPACE CLEANUP
+    print("   Verifying workspace cleanup...")
+    status_code, status_desc = await check_workspace_status(client, workspace_id)
+    results.assert_equals(status_code, 404, f"Workspace should be destroyed after timeout (got: {status_desc})")
     
     print(f"   📊 Actual execution time: {execution_time:.1f}s")
     print(f"   📊 Reported execution time: {exec_result['execution_time_ms']}ms") 
-    print(f"   📊 Expected server timeout: {SERVER_DEFAULT_TIMEOUT_SECONDS}s")
+    print(f"   📊 Expected timeout: {ACTUAL_TOTAL_TIMEOUT_SECONDS}s")
     print(f"   📝 Stdout: '{exec_result['stdout']}' (empty - correct)")
     print(f"   📝 Stderr: {exec_result['stderr']}")
+    print(f"   🗑️  Workspace status: {status_desc}")
     print()
 
 
 async def test_infinite_loop_server_timeout(client: httpx.AsyncClient, workspace_id: str, results: TimeoutTestResults):
-    """Test infinite loop that should be interrupted by server's default timeout + kernel interrupt"""
-    print("4️⃣  Infinite Loop Server Timeout (Kernel Interrupt Test)")
+    """Test infinite loop that times out at server's 30s default"""
+    print("4️⃣  Infinite Loop Server Timeout (30s)")
+    
+    # Create new workspace since previous timeout test destroyed the original
+    print("   Creating new workspace for infinite loop test...")
+    new_workspace_id = await create_test_workspace(client)
     
     code = """
 import time
 print("Starting infinite loop...")
 counter = 0
-while True:  # Infinite loop - should be interrupted by server at 30s
+while True:  # Infinite loop - will timeout at 30s
     counter += 1
     if counter % 10000000 == 0:  # Less frequent prints to avoid spam
         print(f"Loop iteration: {counter}")
-    # This loop should be interrupted by server's kernel interrupt
-print("This should NEVER be printed - server should interrupt at 30s")
+    # This loop will timeout after 30s
+print("This should NEVER be printed - server should timeout")
 """
     
     start_time = time.time()
-    # ✅ NO timeout parameter - use server's default (30s)
+    # ✅ NO timeout parameter - server always uses configured default
     response = await client.post(
-        f"{BASE_URL}/workspace/{workspace_id}/execute",
+        f"{BASE_URL}/workspace/{new_workspace_id}/execute",
         data={"code": code}
     )
     execution_time = time.time() - start_time
@@ -230,26 +261,35 @@ print("This should NEVER be printed - server should interrupt at 30s")
     exec_result = response.json()
     results.assert_equals(exec_result['status'], 'timeout', "Execution should timeout")
     results.assert_true('timed out' in exec_result['stderr'].lower(), "Should contain timeout message")
+    results.assert_true('workspace has been destroyed' in exec_result['stderr'].lower(), "Should contain cleanup message")
     results.assert_true('This should NEVER be printed' not in exec_result['stdout'], "Should not complete execution")
-    
-    # ⭐ CRITICAL TEST: Simple loops should be interrupted at server default timeout  
-    results.assert_close(execution_time, SERVER_DEFAULT_TIMEOUT_SECONDS, 1.0,
-                        f"Simple loop should be interrupted at server default ({SERVER_DEFAULT_TIMEOUT_SECONDS}s)")
-    
-    # ✅ Server correctly returns empty stdout on timeout - don't expect output
     results.assert_equals(exec_result['stdout'].strip(), "", "Server should return empty stdout on timeout")
+    
+    # ⭐ CRITICAL TEST: Infinite loops timeout at exactly 30s
+    results.assert_close(execution_time, ACTUAL_TOTAL_TIMEOUT_SECONDS, 1.0,
+                        f"Infinite loop should timeout at actual timeout ({ACTUAL_TOTAL_TIMEOUT_SECONDS}s)")
+    
+    # ⭐ VERIFY WORKSPACE CLEANUP  
+    print("   Verifying workspace cleanup...")
+    status_code, status_desc = await check_workspace_status(client, new_workspace_id)
+    results.assert_equals(status_code, 404, f"Workspace should be destroyed after timeout (got: {status_desc})")
     
     print(f"   📊 Actual execution time: {execution_time:.1f}s")
     print(f"   📊 Reported execution time: {exec_result['execution_time_ms']}ms")
-    print(f"   📊 Expected server timeout: {SERVER_DEFAULT_TIMEOUT_SECONDS}s")
+    print(f"   📊 Expected timeout: {ACTUAL_TOTAL_TIMEOUT_SECONDS}s")
     print(f"   📝 Stdout: '{exec_result['stdout']}' (empty - correct)")
     print(f"   📝 Stderr: {exec_result['stderr']}")
+    print(f"   🗑️  Workspace status: {status_desc}")
     print()
 
 
 async def test_cpu_intensive_server_timeout(client: httpx.AsyncClient, workspace_id: str, results: TimeoutTestResults):
-    """Test CPU-intensive task that should be interrupted by server's default timeout"""
-    print("5️⃣  CPU Intensive Server Timeout (Heavy Computation)")
+    """Test CPU-intensive task that times out at server's 30s default"""
+    print("5️⃣  CPU Intensive Server Timeout (30s)")
+    
+    # Create new workspace since previous timeout test destroyed the original
+    print("   Creating new workspace for CPU intensive test...")
+    new_workspace_id = await create_test_workspace(client)
     
     code = """
 import time
@@ -269,9 +309,9 @@ print("This should NOT be printed - server should timeout at 30s")
 """
     
     start_time = time.time()
-    # ✅ NO timeout parameter - use server's default (30s)
+    # ✅ NO timeout parameter - server always uses configured default
     response = await client.post(
-        f"{BASE_URL}/workspace/{workspace_id}/execute",
+        f"{BASE_URL}/workspace/{new_workspace_id}/execute",
         data={"code": code}
     )
     execution_time = time.time() - start_time
@@ -281,103 +321,112 @@ print("This should NOT be printed - server should timeout at 30s")
     exec_result = response.json()
     results.assert_equals(exec_result['status'], 'timeout', "Execution should timeout")
     results.assert_true('timed out' in exec_result['stderr'].lower(), "Should contain timeout message")
-    
-    # ⭐ KEY TEST: CPU-intensive tasks take 30s + 5s final reply = 35s (expected behavior)
-    expected_cpu_timeout = SERVER_DEFAULT_TIMEOUT_SECONDS + 5  # 35s total
-    results.assert_close(execution_time, expected_cpu_timeout, 2.0,
-                        f"CPU-intensive should timeout at {expected_cpu_timeout}s (30s + 5s final reply)")
-    
-    # ✅ Server correctly returns empty stdout on timeout - don't expect output
+    results.assert_true('workspace has been destroyed' in exec_result['stderr'].lower(), "Should contain cleanup message")
     results.assert_equals(exec_result['stdout'].strip(), "", "Server should return empty stdout on timeout")
+    
+    # ⭐ KEY TEST: CPU-intensive tasks timeout at exactly 30s
+    results.assert_close(execution_time, ACTUAL_TOTAL_TIMEOUT_SECONDS, 1.0,
+                        f"CPU-intensive should timeout at actual timeout ({ACTUAL_TOTAL_TIMEOUT_SECONDS}s)")
+    
+    # ⭐ VERIFY WORKSPACE CLEANUP
+    print("   Verifying workspace cleanup...")
+    status_code, status_desc = await check_workspace_status(client, new_workspace_id)
+    results.assert_equals(status_code, 404, f"Workspace should be destroyed after timeout (got: {status_desc})")
     
     print(f"   📊 Actual execution time: {execution_time:.1f}s")
     print(f"   📊 Reported execution time: {exec_result['execution_time_ms']}ms")
-    print(f"   📊 Expected server timeout: {expected_cpu_timeout}s (30s + 5s final reply)")
+    print(f"   📊 Expected timeout: {ACTUAL_TOTAL_TIMEOUT_SECONDS}s")
     print(f"   📝 Stdout: '{exec_result['stdout']}' (empty - correct)")
     print(f"   📝 Stderr: {exec_result['stderr']}")
+    print(f"   🗑️  Workspace status: {status_desc}")
     print()
 
 
 async def test_kernel_recovery_after_server_timeout(client: httpx.AsyncClient, workspace_id: str, results: TimeoutTestResults):
-    """Test that kernel can execute new code after being interrupted by server timeout"""
-    print("6️⃣  Kernel Recovery After Server Timeout")
+    """Test that new workspace works after previous workspace was destroyed by timeout"""
+    print("6️⃣  Workspace Recovery After Timeout Cleanup")
     
-    # First, cause a server timeout with infinite loop
+    # Create new workspace since previous timeout test destroyed the original
+    print("   Creating new workspace for recovery test...")
+    test_workspace_id = await create_test_workspace(client)
+    
+    # First, cause a server timeout that destroys the workspace
     timeout_code = """
 print("About to cause server timeout with infinite loop...")
 while True:
-    pass  # This will be interrupted by server at 30s
+    pass  # This will timeout at 30s and destroy workspace
 """
     
-    print(f"   Step 1: Causing server timeout (will take ~{SERVER_DEFAULT_TIMEOUT_SECONDS}s)...")
+    print(f"   Step 1: Causing server timeout (will take ~{ACTUAL_TOTAL_TIMEOUT_SECONDS}s and destroy workspace)...")
     start_timeout = time.time()
-    # ✅ NO timeout parameter - use server's default (30s)
+    # ✅ NO timeout parameter - server always uses configured default
     response = await client.post(
-        f"{BASE_URL}/workspace/{workspace_id}/execute",
+        f"{BASE_URL}/workspace/{test_workspace_id}/execute",
         data={"code": timeout_code}
     )
     timeout_duration = time.time() - start_timeout
     
     exec_result = response.json()
     results.assert_equals(exec_result['status'], 'timeout', "First execution should timeout")
+    results.assert_true('workspace has been destroyed' in exec_result['stderr'].lower(), "Should contain cleanup message")
     
-    # CPU-intensive infinite loop should take 35s (30s + 5s final reply)
-    expected_timeout = SERVER_DEFAULT_TIMEOUT_SECONDS + 5  # 35s total
-    results.assert_close(timeout_duration, expected_timeout, 2.0,
-                        f"Should timeout at {expected_timeout}s (30s + 5s final reply)")
+    # Verify workspace was destroyed
+    status_code, status_desc = await check_workspace_status(client, test_workspace_id)
+    results.assert_equals(status_code, 404, f"Original workspace should be destroyed (got: {status_desc})")
     
-    # Wait a moment for kernel interrupt to complete
-    print("   Step 2: Waiting for kernel interrupt to complete...")
-    await asyncio.sleep(3)
+    # Timeout should take exactly 30s
+    results.assert_close(timeout_duration, ACTUAL_TOTAL_TIMEOUT_SECONDS, 1.0,
+                        f"Should timeout at {ACTUAL_TOTAL_TIMEOUT_SECONDS}s")
     
-    # Now try to execute normal code - kernel should be recovered
+    print("   Step 2: Creating new workspace for recovery test...")
+    new_workspace_id = await create_test_workspace(client)
+    
+    # Now try to execute normal code in new workspace
     recovery_code = """
-print("Kernel recovery test after server timeout")
+print("New workspace test after cleanup")
 result = 2 + 2
-print(f"Simple calculation: 2 + 2 = {result}")
+print(f"Simple calculation: 2 + 2 = {result}")  
 import time
 current_time = time.time()
 print(f"Current timestamp: {current_time}")
-print("✅ Kernel is working normally after server timeout!")
+print("✅ New workspace is working normally!")
 """
     
-    print("   Step 3: Testing kernel recovery with simple code...")
+    print("   Step 3: Testing new workspace with simple code...")
     start_recovery = time.time()
-    # ✅ NO timeout parameter - use server's default (30s)
+    # ✅ NO timeout parameter - server always uses configured default
     response = await client.post(
-        f"{BASE_URL}/workspace/{workspace_id}/execute",
+        f"{BASE_URL}/workspace/{new_workspace_id}/execute",
         data={"code": recovery_code}
     )
     recovery_duration = time.time() - start_recovery
     
-    results.assert_equals(response.status_code, 200, "Recovery execution HTTP status should be 200")
+    results.assert_equals(response.status_code, 200, "New workspace execution HTTP status should be 200")
     
     exec_result = response.json()
+    results.assert_equals(exec_result['status'], 'completed', "New workspace execution should complete")
+    results.assert_true('New workspace is working normally' in exec_result['stdout'], "Should show success message")
+    results.assert_true('2 + 2 = 4' in exec_result['stdout'], "Should perform calculation correctly")
+    results.assert_true(recovery_duration < 10, f"New workspace should be fast (took {recovery_duration:.1f}s)")
     
-    # 🚨 KNOWN ISSUE: Kernel recovery currently fails after CPU-intensive timeouts
-    # This is a server-side issue that needs to be fixed
-    if exec_result['status'] == 'timeout':
-        print("   ⚠️  KNOWN ISSUE: Kernel becomes unresponsive after CPU-intensive timeout")
-        print("   ⚠️  This is a server-side bug that needs kernel restart logic")
-        results.assert_equals(exec_result['status'], 'timeout', "Kernel recovery currently fails (known issue)")
-        results.assert_close(recovery_duration, expected_timeout, 2.0, "Recovery times out due to unresponsive kernel")
-    else:
-        # If recovery works (future fix), test normal behavior
-        results.assert_equals(exec_result['status'], 'completed', "Recovery execution should complete")
-        results.assert_true('Kernel is working normally' in exec_result['stdout'], "Should show recovery message")
-        results.assert_true('2 + 2 = 4' in exec_result['stdout'], "Should perform calculation correctly")
-        results.assert_true(recovery_duration < 10, f"Recovery should be fast (took {recovery_duration:.1f}s)")
+    print("   Step 4: Verifying old workspace was cleaned up...")
+    old_status_code, old_status_desc = await check_workspace_status(client, test_workspace_id)
+    results.assert_equals(old_status_code, 404, f"Old workspace should be deleted (got: {old_status_desc})")
     
-    print(f"   📊 Timeout duration: {timeout_duration:.1f}s")
-    print(f"   📊 Recovery duration: {recovery_duration:.1f}s") 
-    print(f"   📝 Recovery output: '{exec_result['stdout']}'")
-    print(f"   📝 Recovery status: {exec_result['status']}")
+    print(f"   📊 Cleanup duration: {timeout_duration:.1f}s")
+    print(f"   📊 New workspace duration: {recovery_duration:.1f}s") 
+    print(f"   📝 New workspace output: {exec_result['stdout'].strip()}")
+    print(f"   📝 Old workspace status: {old_status_desc}")
     print()
 
 
 async def test_server_timeout_with_outputs(client: httpx.AsyncClient, workspace_id: str, results: TimeoutTestResults):
     """Test server timeout with partial outputs and file generation"""
-    print("7️⃣  Server Timeout with Partial Outputs")
+    print("7️⃣  Server Timeout with Partial Outputs (30s)")
+    
+    # Create new workspace since previous timeout tests destroyed the original
+    print("   Creating new workspace for outputs test...")
+    new_workspace_id = await create_test_workspace(client)
     
     code = """
 import matplotlib.pyplot as plt
@@ -398,15 +447,15 @@ plt.close()
 print("Plot saved successfully!")
 print("Now starting long operation that will exceed server timeout...")
 
-# This should be interrupted by server at 30s
+# This will timeout at 30s
 time.sleep(45)  # Exceeds server's 30s default
 print("This should not be printed - server should timeout")
 """
     
     start_time = time.time()
-    # ✅ NO timeout parameter - use server's default (30s)
+    # ✅ NO timeout parameter - server always uses configured default
     response = await client.post(
-        f"{BASE_URL}/workspace/{workspace_id}/execute",
+        f"{BASE_URL}/workspace/{new_workspace_id}/execute",
         data={"code": code}
     )
     execution_time = time.time() - start_time
@@ -415,9 +464,8 @@ print("This should not be printed - server should timeout")
     
     exec_result = response.json()
     results.assert_equals(exec_result['status'], 'timeout', "Execution should timeout")
+    results.assert_true('workspace has been destroyed' in exec_result['stderr'].lower(), "Should contain cleanup message")
     results.assert_true('This should not be printed' not in exec_result['stdout'], "Should not complete full execution")
-    
-    # ✅ Server correctly returns empty stdout on timeout - don't expect partial output
     results.assert_equals(exec_result['stdout'].strip(), "", "Server should return empty stdout on timeout")
     
     # Check if file was generated before timeout (may or may not exist depending on timing)
@@ -430,14 +478,19 @@ print("This should not be printed - server should timeout")
     else:
         print(f"   📁 No files generated before timeout")
     
-    # ⭐ KEY TEST: Plot + sleep should timeout at ~35s (file creation + sleep timeout + 5s final reply)
-    expected_timeout = SERVER_DEFAULT_TIMEOUT_SECONDS + 5  # 35s total
-    results.assert_close(execution_time, expected_timeout, 3.0,
-                        f"Should timeout at ~{expected_timeout}s (including plot creation time)")
+    # ⭐ KEY TEST: Plot + sleep timeout at exactly 30s
+    results.assert_close(execution_time, ACTUAL_TOTAL_TIMEOUT_SECONDS, 2.0,
+                        f"Should timeout at ~{ACTUAL_TOTAL_TIMEOUT_SECONDS}s (including plot creation time)")
+    
+    # ⭐ VERIFY WORKSPACE CLEANUP
+    print("   Verifying workspace cleanup...")
+    status_code, status_desc = await check_workspace_status(client, new_workspace_id)
+    results.assert_equals(status_code, 404, f"Workspace should be destroyed after timeout (got: {status_desc})")
     
     print(f"   📊 Execution time: {execution_time:.1f}s")
-    print(f"   📊 Expected server timeout: ~{expected_timeout}s (30s + processing + 5s final reply)")
+    print(f"   📊 Expected timeout: ~{ACTUAL_TOTAL_TIMEOUT_SECONDS}s")
     print(f"   📝 Stdout: '{exec_result['stdout']}' (empty - correct)")
+    print(f"   🗑️  Workspace status: {status_desc}")
     print()
 
 
@@ -465,9 +518,10 @@ async def test_server_default_timeout_api():
     async with httpx.AsyncClient(timeout=client_timeout) as client:
         print("🧪 Testing CodeSandbox SERVER DEFAULT Timeout Behavior")
         print("=" * 70)
-        print(f"🎯 Testing server's actual default timeout: {SERVER_DEFAULT_TIMEOUT_SECONDS} seconds")
+        print(f"🎯 Testing server's actual timeout: {SERVER_DEFAULT_TIMEOUT_SECONDS}s")
         print(f"🚫 NO artificial timeout overrides from client")
         print(f"✅ Testing real production behavior")
+        print("🗑️  Verifying workspace cleanup after timeouts")
         print("=" * 70)
         
         results = TimeoutTestResults()
@@ -509,17 +563,19 @@ async def test_server_default_timeout_api():
             print("=" * 70)
             print("✅ Fast execution (under 30s default)")
             print("✅ Medium execution (under 30s default)")
-            print("✅ Sleep timeout (server 30s default)")
-            print("✅ Infinite loop timeout + kernel interrupt (server 30s default)")
-            print("✅ CPU intensive timeout (server 30s default)")
-            print("✅ Kernel recovery after server timeout")
-            print("✅ Server timeout with partial outputs")
+            print(f"✅ Sleep timeout (30s exact)")
+            print(f"✅ Infinite loop timeout (30s exact)")
+            print(f"✅ CPU intensive timeout (30s exact)")  
+            print("✅ Workspace recovery after timeout cleanup")
+            print(f"✅ Server timeout with partial outputs (30s exact)")
             print("✅ Server configuration validation")
-            print(f"\n🔧 Server's {SERVER_DEFAULT_TIMEOUT_SECONDS}s default timeout is working correctly!")
+            print("✅ Workspace cleanup verification after timeouts")
+            print(f"\n🔧 Server's {SERVER_DEFAULT_TIMEOUT_SECONDS}s timeout is working correctly!")
         else:
             print(f"\n❌ {results.failed} SERVER TIMEOUT TESTS FAILED!")
             print("🔧 Server's default timeout implementation needs attention.")
-            print(f"💡 Expected behavior: Server should timeout at {SERVER_DEFAULT_TIMEOUT_SECONDS}s")
+            print(f"💡 Expected behavior: Server should timeout at {ACTUAL_TOTAL_TIMEOUT_SECONDS}s")
+            print("💡 Expected behavior: Workspaces should be destroyed after timeout")
         
         print(f"\n🗂️  Test Workspace ID: {workspace_id}")
         print(f"🌐 View workspace: http://localhost:8080/api/v1/workspace/{workspace_id}/files")
@@ -530,8 +586,9 @@ async def test_server_default_timeout_api():
 if __name__ == "__main__":
     print("⏳ Starting SERVER DEFAULT timeout tests...")
     print("💡 Make sure the server is running: python run_server.py")
-    print(f"🎯 Testing server's actual {SERVER_DEFAULT_TIMEOUT_SECONDS}s default timeout")
+    print(f"🎯 Testing server's actual timeout: {SERVER_DEFAULT_TIMEOUT_SECONDS}s")
     print("⚠️  These tests will take several minutes (waiting for real 30s timeouts)")
+    print("🗑️  Tests verify workspace cleanup after timeouts")
     print()
     
     try:

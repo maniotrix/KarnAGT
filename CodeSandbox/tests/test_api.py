@@ -120,7 +120,7 @@ print(f"Analysis complete: {result}")
         
         response = await client.post(
             f"{BASE_URL}/workspace/{workspace_id}/execute",
-            data={"code": code1, "timeout": 30}
+            data={"code": code1}
         )
         print(f"   Status: {response.status_code}")
         exec_result = response.json()
@@ -211,7 +211,7 @@ result = {
         
         response = await client.post(
             f"{BASE_URL}/workspace/{workspace_id}/execute",
-            data={"code": code2, "timeout": 45}
+            data={"code": code2}
         )
         print(f"   Status: {response.status_code}")
         exec_result = response.json()

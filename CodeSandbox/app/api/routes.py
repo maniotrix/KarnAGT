@@ -154,15 +154,17 @@ async def extend_workspace_ttl(
 async def execute_code(
     workspace_id: str,
     code: str = Form(..., description="Python code to execute"),
-    timeout: int = Form(30, description="Execution timeout in seconds"),
     execution_service: ExecutionService = Depends(get_execution_service)
 ):
-    """Execute code in workspace - RETURNS COMPLEX OBJECTS (numpy, pandas, etc.)"""
+    """Execute code in workspace using server's configured timeout"""
     try:
+        # Always use server's configured default timeout
+        settings = get_settings_cached()
+        
         request = ExecutionRequest(
             workspace_id=workspace_id,
             code=code,
-            timeout=timeout
+            timeout=settings.default_execution_timeout
         )
         result = await execution_service.execute_code(request)
         
