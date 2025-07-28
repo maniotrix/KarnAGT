@@ -485,7 +485,7 @@ def safe_serialize_execution_result(result_data: Dict[str, Any]) -> Dict[str, An
                     safe_result[key] = make_serializable(value)
                 elif key in ('stdout', 'stderr'):
                     # Handle potentially large text output - keep limit small for LLM context
-                    if isinstance(value, str) and len(value) > OUTPUT_TRUNCATION_LIMIT:  # Reduced from 50000 to 5000
+                    if isinstance(value, str) and len(value) > OUTPUT_TRUNCATION_LIMIT:
                         safe_result[key] = value[:OUTPUT_TRUNCATION_LIMIT] + "\n... (output truncated)"
                         safe_result[f"{key}_truncated"] = True
                     else:
