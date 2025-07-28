@@ -130,12 +130,20 @@ ADVANCED_TEST_PROMPTS = [
 
 
 
+
 test_agent = Agent(
     name="test_agent",
-    # instructions="""
-    # **DATA VISUALIZATION INSTRUCTIONS:**
-    # 1. DO NOT use plt.show() as it will cause errors in the execution environment.
-    # """,
+    model="gpt-4o-mini-2024-07-18",
+    instructions="""
+    **CODE EXECUTION WORKFLOW:**
+    1. ALWAYS call create_workspace() FIRST before any code execution
+    2. Use the returned workspace_id for ALL subsequent execute_code() calls
+    3. NEVER use arbitrary workspace IDs like "1", "test", etc.
+    
+    **DATA VISUALIZATION INSTRUCTIONS:**
+    1. DO NOT use plt.show() as it will cause errors in the execution environment.
+    2. Use plt.savefig() to save plots, then plt.close() to free memory
+    """,
     tools=[create_workspace, upload_file, execute_code],
 )
 
@@ -165,7 +173,7 @@ async def test_with_prompt(prompt, agent: Agent):
 async def main():
     results = TestResults()
     await check_sandbox_health(results)
-    filtered_prompts = ADVANCED_TEST_PROMPTS[16:17]  # File operations test
+    filtered_prompts = ADVANCED_TEST_PROMPTS[0:10]  # File operations test
     for i, prompt in enumerate(filtered_prompts):
         print(f"--- Running test {i+1} ---")
         await test_with_prompt(prompt, test_agent)

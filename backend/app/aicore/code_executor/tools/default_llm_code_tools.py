@@ -101,7 +101,13 @@ async def upload_file(
 @function_tool(
     name_override="execute_code",
     description_override="""
-    Execute Python code in a given workspace with a workspace_id with persistent state and file generation capabilities.
+    Execute Python code in a workspace with a valid workspace_id with persistent state and file generation capabilities.
+    
+    **CRITICAL REQUIREMENT**: 
+    - You MUST have a valid workspace_id before calling this function
+    - If you don't have one, call create_workspace() FIRST to get a workspace_id
+    - NEVER use arbitrary workspace IDs like "1", "test", etc.
+    - ALWAYS use the exact workspace_id returned by create_workspace()
     
     ## EXECUTION ENVIRONMENT:
     - Jupyter kernel with persistent variables/imports across calls
@@ -145,7 +151,6 @@ async def upload_file(
     ```
     
     ## BEST PRACTICES:
-    - Always use the workspace_id provided by create_workspace to execute code in the same workspace.
     - DO NOT use plt.show() as it will cause errors in the execution environment.
     - Always close plt figures: plt.close() after plt.savefig()
     - Use descriptive filenames with extensions

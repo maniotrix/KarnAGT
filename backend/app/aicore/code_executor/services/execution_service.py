@@ -67,7 +67,12 @@ class ExecutionService:
         # Input validation - prevent server call for invalid inputs
         if not workspace_id or not workspace_id.strip():
             logger.warning("Attempted to execute code with empty workspace ID")
-            return ExecutionOperationResult.error_result("Workspace ID cannot be empty")
+            return ExecutionOperationResult.error_result("Workspace ID cannot be empty. Call create_workspace() first to get a valid workspace_id.")
+            
+        # Validate workspace ID format - should start with "ws_" (workspace IDs from create_workspace)
+        if not workspace_id.startswith("ws_"):
+            logger.warning(f"Invalid workspace ID format: {workspace_id}. Expected format: ws_xxxxxxxx")
+            return ExecutionOperationResult.error_result(f"Invalid workspace ID '{workspace_id}'. Use create_workspace() to get a valid workspace_id.")
             
         if not code or not code.strip():
             logger.warning("Attempted to execute empty code")
