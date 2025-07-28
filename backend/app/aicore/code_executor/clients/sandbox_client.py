@@ -35,10 +35,13 @@ from ..models import (
 # Get logger
 logger = get_logger(__name__)
 
-# Configuration
-DEFAULT_BASE_URL = os.getenv("CODESANDBOX_URL", "http://localhost:8080/api/v1")
-DEFAULT_TIMEOUT = int(os.getenv("CODESANDBOX_TIMEOUT", "60"))
-MAX_RETRIES = int(os.getenv("CODESANDBOX_MAX_RETRIES", "3"))
+# Configuration from centralized server config
+from ..config import get_server_config
+
+_config = get_server_config()
+DEFAULT_BASE_URL = _config.base_url
+DEFAULT_TIMEOUT = _config.timeout
+MAX_RETRIES = _config.max_retries
 
 
 # Models are now imported from centralized location
