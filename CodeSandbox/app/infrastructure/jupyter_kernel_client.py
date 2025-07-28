@@ -302,8 +302,8 @@ print("Kernel ready for code execution!")
                 elif msg_type in ['execute_result', 'display_data']:
                     outputs.append({
                         'type': msg_type,  # Fixed: use 'type' not 'output_type'
-                        'data': content.get('data', {}),
-                        'metadata': content.get('metadata', {})
+                        'content': content.get('data', {}),  # Use 'content' field as expected by ExecutionOutput model
+                        # Note: metadata is not stored separately but could be included in content if needed
                     })
                     self.logger.debug("🎯 Captured output",
                                     workspace_id=workspace_id,
