@@ -101,30 +101,56 @@ async def upload_file(
 @function_tool(
     name_override="execute_code",
     description_override="""
-    Execute Python code in a given workspace with a workspace_id with persistent state.
+    Execute Python code in a given workspace with a workspace_id with persistent state and file generation capabilities.
     
-    HOW IT WORKS:
-    - Runs Python code in a Jupyter kernel environment
-    - Variables and imports persist across multiple executions
-    - Working directory is the workspace root (where uploaded files are)
-    - Standard output and errors are captured
-    - Any new files created are tracked and returned with download URLs
+    ## EXECUTION ENVIRONMENT:
+    - Jupyter kernel with persistent variables/imports across calls
+    - Working directory: workspace root (contains uploaded files)
+    - Full Python standard library + common packages (numpy, pandas, matplotlib, etc.)
+    - Output capture: stdout, stderr, and execution results
     
-    FILE HANDLING:
-    - Read uploaded files directly: open('filename.txt', 'r')
-    - Create output files anywhere in workspace: open('output.txt', 'w')
+    ## FILE OPERATIONS:
+    - **Read files**: open('filename.txt', 'r') - access uploaded files directly
+    - **Create files**: open('output.csv', 'w') - any file you create gets tracked
+    - **Generate plots**: plt.savefig('chart.png') - saved plots are automatically detected
     
-    WHEN TO USE:
-    - Run data analysis, create visualizations, process files
-    - Install packages, import libraries, define functions
-    - Generate plots, reports, or any output files
-    - Any Python computation or data manipulation task
+    ## RETURN VALUE STRUCTURE:
+    The tool returns an ExecutionOperationResult containing:
+    - **success**: boolean indicating if execution completed
+    - **execution_result.stdout**: text printed during execution  
+    - **execution_result.stderr**: any error messages
+    - **execution_result.generated_files**: list of FileInfo objects for created files with full HTTP Download URLs
+    - **execution_result.result_data**: final result value (if any)
     
-    WHAT YOU GET BACK:
-    - Execution status (success/failure)
-    - Standard output and error messages
-    - List of generated files with download URLs (metadata only)
-    - Execution time and result data if available
+    ## CRITICAL: DOWNLOAD URL HANDLING
+    **IMPORTANT**: Generated files include download_url fields with FULL HTTP URLs.
+    - Use these URLs EXACTLY as provided - do not modify or transform them
+    - Example: "http://localhost:8080/api/v1/workspace/ws_abc123/files/plot.png"
+    - Do NOT convert to sandbox:// or any other format
+    - These URLs are fully functional and ready for user access
+    
+    ## COMMON USE CASES:
+    ```python
+    # Data analysis with CSV output
+    df.to_csv('analysis_results.csv', index=False)
+    
+    # Visualization with plot file
+    plt.figure(figsize=(10,6))
+    plt.plot(data)
+    plt.savefig('visualization.png', dpi=300, bbox_inches='tight')
+    
+    # Generate reports or documents  
+    with open('report.txt', 'w') as f:
+        f.write(f"Analysis completed: {results}")
+    ```
+    
+    ## BEST PRACTICES:
+    - Always use the workspace_id provided by create_workspace to execute code in the same workspace.
+    - DO NOT use plt.show() as it will cause errors in the execution environment.
+    - Always close plt figures: plt.close() after plt.savefig()
+    - Use descriptive filenames with extensions
+    - Save files you want users to access (they get download URLs automatically)
+    - Use result = your_final_value to return computed results
     """,
     strict_mode=True,
 )
