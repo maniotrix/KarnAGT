@@ -23,6 +23,7 @@ from app.aicore.code_executor.models import (
     ExecutionSummary,
     ExecutionHistoryResult
 )
+from app.aicore.code_executor.config import enhance_execution_result_with_full_urls
 
 # Get logger
 logger = get_logger(__name__)
@@ -33,7 +34,7 @@ class ExecutionService:
     Service class for code execution in workspaces.
     
     Provides clean methods that can be used directly or wrapped with decorators.
-    All methods return proper Pydantic result models.
+    All methods return proper Pydantic result models with full download URLs.
     """
     
     def __init__(self, sandbox_client: Optional[SandboxClient] = None):
@@ -60,7 +61,8 @@ class ExecutionService:
             timeout: Execution timeout in seconds (default: 60)
             
         Returns:
-            ExecutionOperationResult with success/error status and execution details
+            ExecutionOperationResult with success/error status and execution details.
+            Generated files will have full HTTP download URLs.
         """
         # Input validation - prevent server call for invalid inputs
         if not workspace_id or not workspace_id.strip():
@@ -85,9 +87,12 @@ class ExecutionService:
                 async with SandboxClient() as client:
                     client_execution_result = await client.execute_code(workspace_id, code, timeout)
             
+            # Enhance execution result with full download URLs
+            enhance_execution_result_with_full_urls(client_execution_result, workspace_id)
+            
             logger.info(f"Code execution completed successfully in {client_execution_result.execution_time_ms}ms")
             if client_execution_result.generated_files:
-                logger.info(f"Generated {len(client_execution_result.generated_files)} files")
+                logger.info(f"Generated {len(client_execution_result.generated_files)} files with full download URLs")
             if client_execution_result.status != "completed":
                 logger.warning(f"Code execution failed with status: {client_execution_result.status}")
                 
@@ -117,7 +122,8 @@ class ExecutionService:
             execution_id: Unique execution identifier
             
         Returns:
-            ExecutionGetResult with success/error status and execution details
+            ExecutionGetResult with success/error status and execution details.
+            Generated files will have full HTTP download URLs.
         """
         # Input validation
         if not execution_id or not execution_id.strip():
@@ -132,6 +138,9 @@ class ExecutionService:
             else:
                 async with SandboxClient() as client:
                     client_execution_result = await client.get_execution_result(execution_id)
+            
+            # Enhance execution result with full download URLs
+            enhance_execution_result_with_full_urls(client_execution_result, client_execution_result.workspace_id)
             
             logger.info(f"Successfully retrieved execution result {execution_id}")
             return ExecutionGetResult.success_result(client_execution_result)
@@ -159,7 +168,8 @@ class ExecutionService:
             limit: Maximum number of executions to return (default: 10)
             
         Returns:
-            ExecutionHistoryResult with success/error status and execution list
+            ExecutionHistoryResult with success/error status and execution list.
+            Generated files in execution summaries will have full HTTP download URLs.
         """
         # Input validation
         if not workspace_id or not workspace_id.strip():
@@ -181,6 +191,10 @@ class ExecutionService:
             else:
                 async with SandboxClient() as client:
                     client_executions = await client.list_workspace_executions(workspace_id, limit)
+            
+            # Enhance all execution results with full download URLs
+            for client_execution in client_executions:
+                enhance_execution_result_with_full_urls(client_execution, workspace_id)
             
             # Convert to our models with safe handling
             executions = []

@@ -59,7 +59,7 @@ class ExecutionResult(BaseModel):
     result_data: Optional[Any] = None
     
     # Generated files (server formats these for HTTP)
-    generated_files: List[Dict[str, Any]] = Field(default_factory=list)
+    generated_files: List[FileInfo] = Field(default_factory=list)
     
     # Execution metadata
     execution_time_ms: Optional[int] = None
@@ -117,7 +117,7 @@ class ExecutionOperationResult(BaseModel):
                 self.execution_result is not None and 
                 bool(self.execution_result.stderr.strip()))
     
-    def get_generated_files_safe(self) -> List[Dict[str, Any]]:
+    def get_generated_files_safe(self) -> List[FileInfo]:
         """Get generated files with safe defaults"""
         if self.success and self.execution_result and self.execution_result.generated_files:
             return self.execution_result.generated_files

@@ -23,6 +23,10 @@ from app.aicore.code_executor.models import (
     FileDownloadResult,
     FileListResult
 )
+from app.aicore.code_executor.config import (
+    enhance_file_info_with_full_url,
+    enhance_file_list_with_full_urls
+)
 
 # Get logger
 logger = get_logger(__name__)
@@ -89,6 +93,9 @@ class FileService:
             else:
                 async with SandboxClient() as client:
                     client_file_info = await client.upload_file(workspace_id, filename, content_bytes)
+            
+            # Enhance file info with full download URL
+            enhance_file_info_with_full_url(client_file_info, workspace_id)
             
             logger.info(f"Successfully uploaded {filename} to workspace {workspace_id} ({client_file_info.size} bytes)")
             return FileUploadResult.success_result(client_file_info)
@@ -187,6 +194,9 @@ class FileService:
             else:
                 async with SandboxClient() as client:
                     client_files = await client.list_workspace_files(workspace_id)
+            
+            # Enhance all file info objects with full download URLs
+            enhance_file_list_with_full_urls(client_files.files, workspace_id)
             
             # Convert to our models
             # Client and service now use same models - no conversion needed
