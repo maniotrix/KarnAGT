@@ -20,77 +20,51 @@ class AdmissionController(Generic[T]):
     """
     Controls admission of requests into the system
     
-    Prevents memory explosion by limiting queue size and
-    providing fast-fail behavior when overwhelmed.
+    Uses counter-based admission control to prevent system overload
+    without the complexity and bugs of request queuing.
     """
     
-    def __init__(self, max_queue_size: int = 100):
-        self.max_queue_size = max_queue_size
-        self._queue = asyncio.Queue(maxsize=max_queue_size)
+    def __init__(self, max_concurrent_requests: int = 100):
+        self.max_concurrent_requests = max_concurrent_requests
+        self._current_requests = 0
+        self._requests_lock = asyncio.Lock()
         self.logger = Loggers.execution_service
         
         # Metrics
         self._total_requests = 0
         self._rejected_requests = 0
-        self._queue_wait_times = []
+        self._request_start_times = []
         
         self.logger.info("Admission controller initialized", 
-                        max_queue_size=max_queue_size)
+                        max_concurrent_requests=max_concurrent_requests)
     
-    async def admit_request(self, request: T, timeout: float = 1.0) -> bool:
+    async def acquire_admission(self) -> bool:
         """
-        Try to admit a request into the queue
+        Try to acquire admission for a request
         
-        Args:
-            request: Request to admit
-            timeout: Maximum time to wait for queue space
-            
         Returns:
             True if admitted, False if rejected
         """
-        self._total_requests += 1
-        start_time = datetime.utcnow()
-        
-        try:
-            # Try to put request in queue with timeout
-            await asyncio.wait_for(
-                self._queue.put(request), 
-                timeout=timeout
-            )
+        async with self._requests_lock:
+            if self._current_requests >= self.max_concurrent_requests:
+                return False
             
-            # Track wait time
-            wait_time = (datetime.utcnow() - start_time).total_seconds()
-            self._queue_wait_times.append(wait_time)
-            
-            self.logger.debug("Request admitted to queue",
-                            queue_size=self._queue.qsize(),
-                            wait_time_ms=int(wait_time * 1000))
+            self._current_requests += 1
+            self._request_start_times.append(datetime.utcnow())
             return True
-            
-        except asyncio.TimeoutError:
-            # Queue is full, reject request
-            self._rejected_requests += 1
-            self.logger.warning("Request rejected - queue full",
-                              queue_size=self._queue.qsize(),
-                              rejection_rate=self.get_rejection_rate())
-            return False
     
-    async def get_next_request(self) -> T:
-        """
-        Get next request from queue (blocks if empty)
-        
-        Returns:
-            Next request in queue
-        """
-        return await self._queue.get()
+    async def release_admission(self):
+        """Release admission slot when request completes"""
+        async with self._requests_lock:
+            self._current_requests = max(0, self._current_requests - 1)
     
-    def queue_size(self) -> int:
-        """Get current queue size"""
-        return self._queue.qsize()
+    def current_requests(self) -> int:
+        """Get current number of admitted requests"""
+        return self._current_requests
     
-    def is_queue_full(self) -> bool:
-        """Check if queue is at capacity"""
-        return self._queue.qsize() >= self.max_queue_size
+    def is_at_capacity(self) -> bool:
+        """Check if admission controller is at capacity"""
+        return self._current_requests >= self.max_concurrent_requests
     
     def get_rejection_rate(self) -> float:
         """Get current rejection rate (0.0 to 1.0)"""
@@ -100,15 +74,20 @@ class AdmissionController(Generic[T]):
     
     def get_stats(self) -> dict:
         """Get admission controller statistics"""
-        avg_wait_time = 0.0
-        if self._queue_wait_times:
-            avg_wait_time = sum(self._queue_wait_times) / len(self._queue_wait_times)
+        avg_processing_time = 0.0
+        current_time = datetime.utcnow()
+        
+        if self._request_start_times:
+            active_times = [(current_time - start).total_seconds() 
+                          for start in self._request_start_times[-self._current_requests:]]
+            if active_times:
+                avg_processing_time = sum(active_times) / len(active_times)
         
         return {
             "total_requests": self._total_requests,
             "rejected_requests": self._rejected_requests,
             "rejection_rate": self.get_rejection_rate(),
-            "current_queue_size": self._queue.qsize(),
-            "max_queue_size": self.max_queue_size,
-            "average_wait_time_seconds": round(avg_wait_time, 3)
+            "current_requests": self._current_requests,
+            "max_concurrent_requests": self.max_concurrent_requests,
+            "average_processing_time_seconds": round(avg_processing_time, 3)
         } 

@@ -73,6 +73,7 @@ class Settings(BaseModel):
     max_queued_requests: int = 100
     circuit_breaker_failure_threshold: int = 5
     circuit_breaker_recovery_timeout: int = 60
+    request_timeout_seconds: int = 300  # 5 minutes - timeout for individual requests
     
     # === Cleanup Configuration ===
     workspace_idle_timeout_minutes: int = 120  # 2 hours - clean locks and kernels after 2 hours idle
@@ -185,6 +186,7 @@ class Settings(BaseModel):
             "max_queued_requests": int(os.getenv("MAX_QUEUED_REQUESTS", "100")),
             "circuit_breaker_failure_threshold": int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5")),
             "circuit_breaker_recovery_timeout": int(os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT", "60")),
+            "request_timeout_seconds": int(os.getenv("REQUEST_TIMEOUT_SECONDS", "300")),
             
             # Cleanup Configuration
             "workspace_idle_timeout_minutes": int(os.getenv("WORKSPACE_IDLE_TIMEOUT_MINUTES", "120")),

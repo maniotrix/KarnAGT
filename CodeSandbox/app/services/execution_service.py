@@ -67,9 +67,10 @@ class ExecutionService:
         # Initialize concurrency manager for layered concurrency control
         self._concurrency_manager = ConcurrencyManager(
             max_concurrent_executions=settings.max_concurrent_executions,
-            max_queue_size=settings.max_queued_requests,
+            max_concurrent_requests=settings.max_queued_requests,
             circuit_breaker_threshold=settings.circuit_breaker_failure_threshold,
-            circuit_recovery_timeout=settings.circuit_breaker_recovery_timeout
+            circuit_recovery_timeout=settings.circuit_breaker_recovery_timeout,
+            request_timeout_seconds=settings.request_timeout_seconds
         )
         
         # Event bus for clean service communication

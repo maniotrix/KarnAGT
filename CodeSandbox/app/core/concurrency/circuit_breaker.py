@@ -11,9 +11,12 @@ when failure rate exceeds threshold.
 import asyncio
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, TypeVar, Any, Optional
+from typing import Callable, TypeVar, Any, Optional, TYPE_CHECKING
 
 from app.utils.logger import Loggers
+
+if TYPE_CHECKING:
+    from .resource_manager import ResourceManager
 
 T = TypeVar('T')
 
@@ -32,18 +35,20 @@ class CircuitBreaker:
     Circuit breaker for protecting against cascade failures
     
     Monitors failure rate and temporarily blocks requests
-    when system is unhealthy.
+    when system is unhealthy. Now also cancels pending work.
     """
     
     def __init__(
         self,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        test_requests: int = 3
+        test_requests: int = 3,
+        resource_manager: Optional["ResourceManager"] = None
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.test_requests = test_requests
+        self.resource_manager = resource_manager
         
         # State tracking
         self.state = CircuitState.CLOSED
@@ -57,6 +62,10 @@ class CircuitBreaker:
         self.logger.info("Circuit breaker initialized",
                         failure_threshold=failure_threshold,
                         recovery_timeout=recovery_timeout)
+    
+    def set_resource_manager(self, resource_manager: "ResourceManager"):
+        """Set resource manager reference after initialization"""
+        self.resource_manager = resource_manager
     
     async def call(self, func: Callable[..., T], *args, **kwargs) -> T:
         """
@@ -140,6 +149,24 @@ class CircuitBreaker:
         self.logger.warning("Circuit breaker OPENED",
                           failure_count=self.failure_count,
                           threshold=self.failure_threshold)
+        
+        # Cancel all pending work to prevent cascade failures
+        if self.resource_manager:
+            try:
+                # Schedule task cancellation without awaiting
+                # (since this method is not async)
+                loop = asyncio.get_event_loop()
+                task = loop.create_task(self._cancel_pending_work())
+                # Don't await - let it run in background
+            except Exception as e:
+                self.logger.error("Failed to cancel pending work", exc=e)
+    
+    async def _cancel_pending_work(self):
+        """Cancel pending work when circuit opens"""
+        if self.resource_manager:
+            cancelled = await self.resource_manager.cancel_all_pending_tasks()
+            self.logger.info("Circuit breaker cancelled pending work",
+                           cancelled_tasks=cancelled)
     
     def _transition_to_half_open(self):
         """Transition to HALF_OPEN state"""

@@ -38,32 +38,38 @@ class ConcurrencyManager:
     def __init__(
         self,
         max_concurrent_executions: Optional[int] = None,
-        max_queue_size: int = 100,
+        max_concurrent_requests: int = 100,
         circuit_breaker_threshold: int = 5,
-        circuit_recovery_timeout: int = 60
+        circuit_recovery_timeout: int = 60,
+        request_timeout_seconds: int = 300  # 5 minutes default
     ):
         # Initialize all concurrency components
         self.admission_controller = AdmissionController[ExecutionRequest](
-            max_queue_size=max_queue_size
-        )
-        
-        self.circuit_breaker = CircuitBreaker(
-            failure_threshold=circuit_breaker_threshold,
-            recovery_timeout=circuit_recovery_timeout
+            max_concurrent_requests=max_concurrent_requests
         )
         
         self.resource_manager = ResourceManager(
             max_concurrent_executions=max_concurrent_executions
         )
         
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=circuit_breaker_threshold,
+            recovery_timeout=circuit_recovery_timeout,
+            resource_manager=self.resource_manager
+        )
+        
         self.workspace_lock_manager = WorkspaceLockManager()
+        
+        # Timeout configuration
+        self.request_timeout_seconds = request_timeout_seconds
         
         self.logger = Loggers.concurrency_manager
         
         self.logger.info("Concurrency manager initialized",
                         max_concurrent=max_concurrent_executions,
-                        max_queue_size=max_queue_size,
-                        circuit_threshold=circuit_breaker_threshold)
+                        max_concurrent_requests=max_concurrent_requests,
+                        circuit_threshold=circuit_breaker_threshold,
+                        request_timeout=request_timeout_seconds)
     
     async def execute_with_concurrency_control(
         self,
@@ -83,33 +89,44 @@ class ConcurrencyManager:
         Raises:
             ServiceUnavailableError: If system is overloaded
             CircuitBreakerError: If circuit breaker is open
+            asyncio.TimeoutError: If request times out
         """
-        # LAYER 3: Admission Control
-        admitted = await self.admission_controller.admit_request(
-            request, timeout=1.0
-        )
-        
-        if not admitted:
+        # LAYER 3: Admission Control - Check if system can accept request
+        if not await self.admission_controller.acquire_admission():
+            self.admission_controller._rejected_requests += 1
             raise ServiceUnavailableError(
-                "System overloaded - request queue is full"
+                "System overloaded - too many concurrent requests"
             )
         
-        # Get request from queue (will be immediate since we just added it)
-        queued_request = await self.admission_controller.get_next_request()
+        # Track admission
+        self.admission_controller._total_requests += 1
         
-        # LAYER 4: Circuit Breaker Protection
         try:
-            result = await self.circuit_breaker.call(  # type: ignore[misc]
-                self._execute_with_resources,
-                queued_request,
-                execution_func
+            # Apply timeout to the entire execution
+            result = await asyncio.wait_for(
+                self.circuit_breaker.call(  # type: ignore[misc]
+                    self._execute_with_resources,
+                    request,  # Pass the original request, not a queued one
+                    execution_func
+                ),
+                timeout=self.request_timeout_seconds
             )
             return result  # type: ignore[return-value]
-            
+                
+        except asyncio.TimeoutError:
+            self.logger.warning("Request timed out",
+                              workspace_id=request.workspace_id,
+                              timeout_seconds=self.request_timeout_seconds)
+            raise ServiceUnavailableError(
+                f"Request timed out after {self.request_timeout_seconds} seconds"
+            )
         except CircuitBreakerError:
             raise ServiceUnavailableError(
                 "Service temporarily unavailable - circuit breaker is open"
             )
+        finally:
+            # Always release admission slot
+            await self.admission_controller.release_admission()
     
     async def _execute_with_resources(
         self,
@@ -147,9 +164,9 @@ class ConcurrencyManager:
             "admission_controller": self.admission_controller.get_stats(),
             "circuit_breaker": self.circuit_breaker.get_stats(),
             "system_health": {
-                "queue_utilization": (
-                    self.admission_controller.queue_size() / 
-                    self.admission_controller.max_queue_size * 100
+                "request_utilization": (
+                    self.admission_controller.current_requests() / 
+                    self.admission_controller.max_concurrent_requests * 100
                 ),
                 "resource_utilization": self.resource_manager.utilization_percentage(),
                 "circuit_healthy": self.circuit_breaker.state.value == "closed"
@@ -159,7 +176,7 @@ class ConcurrencyManager:
     def is_system_healthy(self) -> bool:
         """Check if system is healthy and can accept requests"""
         return (
-            not self.admission_controller.is_queue_full() and
+            not self.admission_controller.is_at_capacity() and
             self.circuit_breaker.state.value != "open" and
             not self.resource_manager.is_at_capacity()
         )
@@ -210,9 +227,9 @@ class ConcurrencyManager:
         
         try:
             # 2. Clean up old admission controller metrics (prevent memory growth)
-            if len(self.admission_controller._queue_wait_times) > 1000:
-                # Keep only last 1000 wait time measurements
-                self.admission_controller._queue_wait_times = self.admission_controller._queue_wait_times[-1000:]
+            if len(self.admission_controller._request_start_times) > 1000:
+                # Keep only last 1000 start time measurements
+                self.admission_controller._request_start_times = self.admission_controller._request_start_times[-1000:]
                 self.logger.debug("Trimmed admission controller metrics")
         except Exception as e:
             self.logger.error("Error trimming admission controller metrics", exc=e)

@@ -11,6 +11,7 @@ Prevents system overload by limiting concurrent operations.
 import asyncio
 import os
 from typing import Optional
+from weakref import WeakSet
 
 from app.utils.logger import Loggers
 
@@ -19,6 +20,7 @@ class ResourceManager:
     Manages global system resources with semaphore-based limits
     
     Provides system-wide throttling to prevent CPU/memory exhaustion.
+    Now tracks pending tasks so circuit breaker can cancel them.
     """
     
     def __init__(self, max_concurrent_executions: Optional[int] = None):
@@ -29,6 +31,10 @@ class ResourceManager:
         
         self.max_concurrent_executions = max_concurrent_executions
         self._semaphore = asyncio.Semaphore(max_concurrent_executions)
+        
+        # Track pending tasks for circuit breaker cancellation
+        self._pending_tasks = WeakSet()
+        self._tasks_lock = asyncio.Lock()
         
         # Metrics
         self._total_acquisitions = 0
@@ -45,7 +51,24 @@ class ResourceManager:
         """
         Acquire a resource slot (blocks if limit reached)
         """
-        await self._semaphore.acquire()
+        current_task = asyncio.current_task()
+        if current_task:
+            async with self._tasks_lock:
+                self._pending_tasks.add(current_task)
+        
+        try:
+            await self._semaphore.acquire()
+        except asyncio.CancelledError:
+            # Remove from pending if cancelled while waiting
+            if current_task:
+                async with self._tasks_lock:
+                    self._pending_tasks.discard(current_task)
+            raise
+        finally:
+            # Remove from pending once we get past the semaphore
+            if current_task:
+                async with self._tasks_lock:
+                    self._pending_tasks.discard(current_task)
         
         self._total_acquisitions += 1
         self._current_active += 1
@@ -86,6 +109,35 @@ class ResourceManager:
         """Check if resource manager is at full capacity"""
         return self._current_active >= self.max_concurrent_executions
     
+    async def cancel_all_pending_tasks(self) -> int:
+        """
+        Cancel all tasks waiting for resource slots
+        
+        Used by circuit breaker when opening to prevent
+        failing requests from continuing to execute.
+        
+        Returns:
+            Number of tasks cancelled
+        """
+        cancelled_count = 0
+        
+        async with self._tasks_lock:
+            tasks_to_cancel = list(self._pending_tasks)
+        
+        for task in tasks_to_cancel:
+            if not task.done():
+                task.cancel("Circuit breaker opened - cancelling pending execution")
+                cancelled_count += 1
+        
+        self.logger.info("Cancelled pending resource tasks",
+                        cancelled_count=cancelled_count)
+        
+        return cancelled_count
+    
+    def get_pending_task_count(self) -> int:
+        """Get current number of tasks waiting for resources"""
+        return len(self._pending_tasks)
+    
     def get_stats(self) -> dict:
         """Get resource manager statistics"""
         return {
@@ -94,5 +146,6 @@ class ResourceManager:
             "available_slots": self.available_slots(),
             "utilization_percentage": round(self.utilization_percentage(), 1),
             "peak_active": self._peak_active,
-            "total_acquisitions": self._total_acquisitions
+            "total_acquisitions": self._total_acquisitions,
+            "pending_tasks": self.get_pending_task_count()
         } 
