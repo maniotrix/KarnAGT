@@ -375,6 +375,11 @@ class LoggerNames:
     WORKSPACE_SERVICE = "app.services.workspace"
     EXECUTION_SERVICE = "app.services.execution"
     FILE_SERVICE = "app.services.file"
+    CLEANUP_SERVICE = "app.services.cleanup"
+    
+    # Management loggers
+    CONCURRENCY_MANAGER = "app.core.concurrency.concurrency_manager"
+    EVENT_BUS = "app.core.events.event_bus"
     
     # API-specific  
     API_ROUTES = "app.api.routes"

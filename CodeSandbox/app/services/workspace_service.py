@@ -22,6 +22,7 @@ from app.domain.models import (
 from app.infrastructure.jupyter_kernel_client import (
     JupyterServerClient, JupyterClientError, WorkspaceNotFoundError
 )
+from app.core.events import get_event_bus, WorkspaceDeletedEvent
 from app.utils.logger import Loggers
 
 
@@ -41,9 +42,11 @@ class WorkspaceService:
         # Track active workspaces
         self._workspaces: Dict[str, WorkspaceInfo] = {}
         
-        # Background cleanup task
-        self._cleanup_task: Optional[asyncio.Task] = None
-        self._should_stop_cleanup = False
+        # NOTE: Cleanup now handled by centralized CleanupService
+        # (removed individual cleanup task)
+        
+        # Event bus for clean service communication
+        self.event_bus = get_event_bus()
         
         self.logger.info("Workspace service initialized",
                         cleanup_interval_minutes=settings.workspace_cleanup_interval_minutes,
@@ -51,19 +54,8 @@ class WorkspaceService:
     
     async def start(self):
         """Start the workspace service and background tasks"""
-        # Start cleanup task
-        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-    
-    async def stop(self):
-        """Stop the workspace service and cleanup background tasks"""
-        self._should_stop_cleanup = True
-        
-        if self._cleanup_task:
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
+        # NOTE: Cleanup now handled by centralized CleanupService
+        # (removed start/stop cleanup task methods)
     
     async def create_workspace(self, request: WorkspaceCreateRequest) -> WorkspaceInfo:
         """
@@ -177,7 +169,7 @@ class WorkspaceService:
         
         return workspaces
     
-    async def delete_workspace(self, workspace_id: str) -> bool:
+    async def delete_workspace(self, workspace_id: str, reason: str = "manual") -> bool:
         """
         Delete workspace and all its resources
         
@@ -199,6 +191,9 @@ class WorkspaceService:
             # Remove from memory tracking
             del self._workspaces[workspace_id]
             
+            # ✅ CLEAN: Publish event for other services to handle
+            await self.event_bus.publish(WorkspaceDeletedEvent(workspace_id, reason))
+            
             self.logger.info("Workspace deleted successfully", workspace_id=workspace_id)
             return True
             
@@ -207,6 +202,9 @@ class WorkspaceService:
             self.logger.error("Error deleting workspace", workspace_id=workspace_id, error=str(e))
             if workspace_id in self._workspaces:
                 del self._workspaces[workspace_id]
+                
+                # Still publish event even if deletion failed
+                await self.event_bus.publish(WorkspaceDeletedEvent(workspace_id, f"failed_{reason}"))
             return True
     
     async def extend_workspace_ttl(self, workspace_id: str, additional_hours: int) -> Optional[WorkspaceInfo]:
@@ -281,24 +279,7 @@ class WorkspaceService:
         """Check if workspace has expired"""
         return datetime.utcnow() > workspace_info.expires_at
     
-    async def _cleanup_loop(self):
-        """Background task to clean up expired workspaces"""
-        cleanup_interval = self.settings.workspace_cleanup_interval_minutes * 60
-        
-        self.logger.info("Starting workspace cleanup loop",
-                        cleanup_interval_minutes=self.settings.workspace_cleanup_interval_minutes)
-        
-        while not self._should_stop_cleanup:
-            try:
-                await self._cleanup_expired_workspaces()
-                await asyncio.sleep(cleanup_interval)
-                
-            except asyncio.CancelledError:
-                self.logger.info("Cleanup loop cancelled")
-                break
-            except Exception as e:
-                self.logger.error("Error in workspace cleanup loop", exc=e)
-                await asyncio.sleep(60)  # Retry after 1 minute
+    # NOTE: _cleanup_loop removed - now handled by centralized CleanupService
     
     async def _cleanup_expired_workspaces(self):
         """Clean up expired workspaces"""
@@ -315,11 +296,12 @@ class WorkspaceService:
                            expired_count=len(expired_workspace_ids),
                            total_workspaces=len(self._workspaces))
         
-        # Delete expired workspaces
+        # Delete expired workspaces  
         cleaned_count = 0
         for workspace_id in expired_workspace_ids:
             try:
-                await self.delete_workspace(workspace_id)
+                # Delete the workspace with proper reason (will publish WorkspaceDeletedEvent)
+                await self.delete_workspace(workspace_id, reason="expired")
                 cleaned_count += 1
                 self.logger.debug("Cleaned up expired workspace", workspace_id=workspace_id)
             except Exception as e:
@@ -332,11 +314,13 @@ class WorkspaceService:
                            cleaned_count=cleaned_count,
                            remaining_workspaces=len(self._workspaces))
         
-        # Also cleanup idle kernels in Jupyter client
+        # Also cleanup idle kernels in Jupyter client (use consistent timeout)
         try:
-            await self.jupyter_client.cleanup_expired_kernels()
+            await self.jupyter_client.cleanup_expired_kernels(
+                max_idle_minutes=self.settings.workspace_idle_timeout_minutes
+            )
         except Exception as e:
-            print(f"Error cleaning up Jupyter kernels: {e}")
+            self.logger.error("Error cleaning up Jupyter kernels", exc=e)
     
     def get_stats(self) -> Dict[str, Any]:
         """Get workspace service statistics"""

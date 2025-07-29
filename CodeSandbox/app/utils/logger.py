@@ -275,7 +275,11 @@ class Loggers:
     workspace_service = AppLogger(LoggerNames.WORKSPACE_SERVICE)
     execution_service = AppLogger(LoggerNames.EXECUTION_SERVICE)
     file_service = AppLogger(LoggerNames.FILE_SERVICE)
+    cleanup_service = AppLogger(LoggerNames.CLEANUP_SERVICE)
     
+    # Management loggers
+    concurrency_manager = AppLogger(LoggerNames.CONCURRENCY_MANAGER)
+    event_bus = AppLogger(LoggerNames.EVENT_BUS)
     # API-specific loggers
     api_routes = AppLogger(LoggerNames.API_ROUTES)
     api_dependencies = AppLogger(LoggerNames.API_DEPENDENCIES)

@@ -55,7 +55,7 @@ class Settings(BaseModel):
     user_temp_base_path: str = "/tmp/code_sandbox"
     workspace_default_ttl_hours: int = 2
     workspace_max_ttl_hours: int = 24
-    workspace_cleanup_interval_minutes: int = 15
+    workspace_cleanup_interval_minutes: int = 30  # Run cleanup every 30 minutes (more efficient)
     
     # === File Management ===
     max_file_size_mb: int = 100
@@ -67,6 +67,16 @@ class Settings(BaseModel):
     max_execution_timeout: int = 300
     # No blocked imports for MVP - relying on container isolation for security
     blocked_imports: List[str] = []
+    
+    # === Concurrency Control Configuration ===
+    max_concurrent_executions: Optional[int] = None  # Default: 2x CPU cores, max 20
+    max_queued_requests: int = 100
+    circuit_breaker_failure_threshold: int = 5
+    circuit_breaker_recovery_timeout: int = 60
+    
+    # === Cleanup Configuration ===
+    workspace_idle_timeout_minutes: int = 120  # 2 hours - clean locks and kernels after 2 hours idle
+    execution_results_max_age_hours: int = 2   # 2 hours - clean execution results after 2 hours
     
     # === Logging Configuration ===
     log_level: str = "INFO"
@@ -169,6 +179,16 @@ class Settings(BaseModel):
             "default_execution_timeout": int(os.getenv("DEFAULT_EXECUTION_TIMEOUT", "30")),
             "max_execution_timeout": int(os.getenv("MAX_EXECUTION_TIMEOUT", "300")),
             "blocked_imports": os.getenv("BLOCKED_IMPORTS", "").split(",") if os.getenv("BLOCKED_IMPORTS") else [],
+            
+            # Concurrency Configuration
+            "max_concurrent_executions": int(os.getenv("MAX_CONCURRENT_EXECUTIONS")) if os.getenv("MAX_CONCURRENT_EXECUTIONS") else None,
+            "max_queued_requests": int(os.getenv("MAX_QUEUED_REQUESTS", "100")),
+            "circuit_breaker_failure_threshold": int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5")),
+            "circuit_breaker_recovery_timeout": int(os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT", "60")),
+            
+            # Cleanup Configuration
+            "workspace_idle_timeout_minutes": int(os.getenv("WORKSPACE_IDLE_TIMEOUT_MINUTES", "120")),
+            "execution_results_max_age_hours": int(os.getenv("EXECUTION_RESULTS_MAX_AGE_HOURS", "2")),
             
             # Logging
             "log_level": os.getenv("LOG_LEVEL", "INFO"),

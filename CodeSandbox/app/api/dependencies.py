@@ -15,6 +15,7 @@ from app.infrastructure.jupyter_kernel_client import JupyterServerClient
 from app.services.workspace_service import WorkspaceService
 from app.services.execution_service import ExecutionService
 from app.services.file_service import FileService
+from app.services.cleanup_service import CleanupService
 from app.utils.logger import Loggers
 
 
@@ -23,6 +24,7 @@ _jupyter_client = None
 _workspace_service = None
 _execution_service = None
 _file_service = None
+_cleanup_service = None
 
 
 @lru_cache()
@@ -52,8 +54,7 @@ async def get_workspace_service() -> WorkspaceService:
         settings = get_settings_cached()
         jupyter_client = await get_jupyter_client()
         _workspace_service = WorkspaceService(settings, jupyter_client)
-        await _workspace_service.start()
-        Loggers.api_dependencies.info("Workspace service started")
+        Loggers.api_dependencies.info("Workspace service created (cleanup managed by CleanupService)")
     return _workspace_service
 
 
@@ -65,6 +66,9 @@ async def get_execution_service() -> ExecutionService:
         jupyter_client = await get_jupyter_client()
         workspace_service = await get_workspace_service()
         _execution_service = ExecutionService(settings, jupyter_client, workspace_service)
+        
+        # ✅ CLEAN: No manual service coordination needed - event bus handles it
+        Loggers.api_dependencies.info("Execution service initialized (cleanup managed by CleanupService)")
     return _execution_service
 
 
@@ -79,18 +83,48 @@ async def get_file_service() -> FileService:
     return _file_service
 
 
+async def get_cleanup_service() -> CleanupService:
+    """Get centralized cleanup service instance (singleton)"""
+    global _cleanup_service
+    if _cleanup_service is None:
+        settings = get_settings_cached()
+        
+        # Get all services that need cleanup
+        workspace_service = await get_workspace_service()
+        execution_service = await get_execution_service()
+        jupyter_client = await get_jupyter_client()
+        
+        # Create and register cleanup service
+        _cleanup_service = CleanupService(settings)
+        _cleanup_service.register_components(
+            workspace_service=workspace_service,
+            execution_service=execution_service,
+            jupyter_client=jupyter_client,
+            concurrency_manager=execution_service._concurrency_manager
+        )
+        
+        # Start the centralized cleanup
+        await _cleanup_service.start()
+        
+        Loggers.api_dependencies.info("✅ Centralized cleanup service started")
+    return _cleanup_service
+
+
 async def cleanup_services():
-    """Cleanup all services on shutdown"""
-    global _jupyter_client, _workspace_service, _execution_service, _file_service
+    """Cleanup all services on shutdown using centralized CleanupService"""
+    global _jupyter_client, _workspace_service, _execution_service, _file_service, _cleanup_service
     
-    if _workspace_service:
-        await _workspace_service.stop()
-    
-    if _jupyter_client:
-        await _jupyter_client.close()
+    # Use centralized cleanup service if available
+    if _cleanup_service:
+        await _cleanup_service.stop()  # This handles all cleanup
+    else:
+        # Fallback to direct cleanup if cleanup service wasn't initialized
+        if _jupyter_client:
+            await _jupyter_client.close()
     
     # Reset instances
     _jupyter_client = None
     _workspace_service = None
     _execution_service = None
-    _file_service = None 
+    _file_service = None
+    _cleanup_service = None 

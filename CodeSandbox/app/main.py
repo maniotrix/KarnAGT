@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.api.routes import router
-from app.api.dependencies import cleanup_services
+from app.api.dependencies import cleanup_services, get_cleanup_service
 from app.middleware.logging_middleware import RequestLoggingMiddleware, PerformanceLoggingMiddleware
 from app.utils.logger import Loggers
 
@@ -44,6 +44,14 @@ async def lifespan(app: FastAPI):
                     environment=settings.environment,
                     jupyter_url=settings.jupyter_url,
                     log_level=settings.log_level)
+    
+    # ✅ Initialize centralized cleanup service early
+    try:
+        cleanup_service = await get_cleanup_service()
+        Loggers.app.info("✅ Application startup complete with centralized cleanup")
+    except Exception as e:
+        Loggers.app.error("Failed to initialize cleanup service", exc=e)
+        raise
     
     yield
     

@@ -95,10 +95,22 @@ class ExecutionService:
             logger.info(f"Code execution completed successfully in {client_execution_result.execution_time_ms}ms")
             if client_execution_result.generated_files:
                 logger.info(f"Generated {len(client_execution_result.generated_files)} files with full download URLs")
-            if client_execution_result.status != "completed":
-                logger.warning(f"Code execution failed with status: {client_execution_result.status}")
-                
-            return ExecutionOperationResult.success_result(client_execution_result)
+            # Determine success based on server status – only the *completed* state is a true success.
+            if client_execution_result.status == "completed":
+                return ExecutionOperationResult.success_result(client_execution_result)
+
+            # Treat anything else (timeout / failed / running / pending) as an error so that the LLM
+            # can react appropriately and **not** assume the execution was successful.
+            logger.warning(
+                f"Code execution did not complete successfully (status: {client_execution_result.status})"
+            )
+
+            # Provide stderr/details if available so the agent can decide next steps.
+            combined_error_msg = (
+                f"Code execution {client_execution_result.status}: "
+                f"{client_execution_result.stderr.strip() if client_execution_result.stderr else 'No stderr'}"
+            )
+            return ExecutionOperationResult.error_result(combined_error_msg)
             
         except WorkspaceNotFoundError as e:
             logger.warning(f"Workspace {workspace_id} not found for code execution: {e}")
