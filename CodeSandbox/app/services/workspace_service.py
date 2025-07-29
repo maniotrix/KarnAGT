@@ -283,46 +283,71 @@ class WorkspaceService:
     
     async def cleanup_expired_workspaces(self) -> int:
         """Clean up expired workspaces and return count"""
-        now = datetime.utcnow()
-        expired_workspace_ids = []
-        
-        # Find expired workspaces
-        for workspace_id, workspace_info in self._workspaces.items():
-            if now > workspace_info.expires_at:
-                expired_workspace_ids.append(workspace_id)
-        
-        if expired_workspace_ids:
-            self.logger.info("Found expired workspaces for cleanup",
-                           expired_count=len(expired_workspace_ids),
-                           total_workspaces=len(self._workspaces))
-        
-        # Delete expired workspaces  
-        cleaned_count = 0
-        for workspace_id in expired_workspace_ids:
-            try:
-                # Delete the workspace with proper reason (will publish WorkspaceDeletedEvent)
-                await self.delete_workspace(workspace_id, reason="expired")
-                cleaned_count += 1
-                self.logger.debug("Cleaned up expired workspace", workspace_id=workspace_id)
-            except Exception as e:
-                self.logger.error("Error cleaning up workspace", 
-                                exc=e, 
-                                workspace_id=workspace_id)
-        
-        if cleaned_count > 0:
-            self.logger.info("Workspace cleanup completed",
-                           cleaned_count=cleaned_count,
-                           remaining_workspaces=len(self._workspaces))
-        
-        # Also cleanup idle kernels in Jupyter client (use consistent timeout)
         try:
-            await self.jupyter_client.cleanup_expired_kernels(
-                max_idle_minutes=self.settings.workspace_idle_timeout_minutes
-            )
-        except Exception as e:
-            self.logger.error("Error cleaning up Jupyter kernels", exc=e)
+            now = datetime.utcnow()
+            expired_workspace_ids = []
             
-        return cleaned_count
+            # Find expired workspaces (thread-safe approach)
+            try:
+                for workspace_id, workspace_info in self._workspaces.items():
+                    if now > workspace_info.expires_at:
+                        expired_workspace_ids.append(workspace_id)
+            except RuntimeError as e:
+                # Handle "dictionary changed size during iteration"
+                self.logger.warning("Dictionary changed during workspace cleanup iteration",
+                                  error=str(e))
+                # Retry with snapshot approach
+                workspace_items = list(self._workspaces.items())
+                for workspace_id, workspace_info in workspace_items:
+                    if workspace_id in self._workspaces and now > workspace_info.expires_at:
+                        expired_workspace_ids.append(workspace_id)
+            
+            if expired_workspace_ids:
+                self.logger.info("Found expired workspaces for cleanup",
+                               expired_count=len(expired_workspace_ids),
+                               total_workspaces=len(self._workspaces))
+            
+            # Delete expired workspaces  
+            cleaned_count = 0
+            for workspace_id in expired_workspace_ids:
+                try:
+                    # Double-check workspace still exists and is expired
+                    if workspace_id in self._workspaces and now > self._workspaces[workspace_id].expires_at:
+                        # Delete the workspace with proper reason (will publish WorkspaceDeletedEvent)
+                        success = await self.delete_workspace(workspace_id, reason="expired")
+                        if success:
+                            cleaned_count += 1
+                        self.logger.debug("Cleaned up expired workspace", 
+                                        workspace_id=workspace_id,
+                                        success=success)
+                    else:
+                        self.logger.debug("Workspace already cleaned up or no longer expired",
+                                        workspace_id=workspace_id)
+                except Exception as e:
+                    self.logger.error("Error cleaning up workspace", 
+                                    exc=e, 
+                                    workspace_id=workspace_id)
+            
+            if cleaned_count > 0:
+                self.logger.info("Workspace cleanup completed",
+                               cleaned_count=cleaned_count,
+                               remaining_workspaces=len(self._workspaces))
+            
+            # Also cleanup idle kernels in Jupyter client (use consistent timeout)
+            try:
+                await self.jupyter_client.cleanup_expired_kernels(
+                    max_idle_minutes=self.settings.workspace_idle_timeout_minutes
+                )
+            except Exception as e:
+                self.logger.error("Error cleaning up Jupyter kernels", exc=e)
+                
+            return cleaned_count
+            
+        except Exception as e:
+            self.logger.error("Error during workspace cleanup",
+                            error=str(e),
+                            exc=e)
+            return 0
     
     def get_stats(self) -> Dict[str, Any]:
         """Get workspace service statistics"""

@@ -87,26 +87,41 @@ async def get_cleanup_service() -> CleanupService:
     """Get centralized cleanup service instance (singleton)"""
     global _cleanup_service
     if _cleanup_service is None:
-        settings = get_settings_cached()
-        
-        # Get all services that need cleanup
-        workspace_service = await get_workspace_service()
-        execution_service = await get_execution_service()
-        jupyter_client = await get_jupyter_client()
-        
-        # Create and register cleanup service
-        _cleanup_service = CleanupService(settings)
-        _cleanup_service.register_components(
-            workspace_service=workspace_service,
-            execution_service=execution_service,
-            jupyter_client=jupyter_client,
-            concurrency_manager=execution_service._concurrency_manager
-        )
-        
-        # Start the centralized cleanup
-        await _cleanup_service.start()
-        
-        Loggers.api_dependencies.info("✅ Centralized cleanup service started")
+        cleanup_service = None
+        try:
+            settings = get_settings_cached()
+            
+            # Get all services that need cleanup
+            workspace_service = await get_workspace_service()
+            execution_service = await get_execution_service()
+            jupyter_client = await get_jupyter_client()
+            
+            # Create and register cleanup service
+            cleanup_service = CleanupService(settings)
+            cleanup_service.register_components(
+                workspace_service=workspace_service,
+                execution_service=execution_service,
+                jupyter_client=jupyter_client,
+                concurrency_manager=execution_service._concurrency_manager
+            )
+            
+            # Start the centralized cleanup
+            await cleanup_service.start()
+            
+            _cleanup_service = cleanup_service  # Only set if successful
+            Loggers.api_dependencies.info("✅ Centralized cleanup service started")
+            
+        except Exception as e:
+            Loggers.api_dependencies.error("Failed to initialize cleanup service", exc=e)
+            # Clean shutdown of partially initialized service
+            if cleanup_service:
+                try:
+                    await cleanup_service.stop()
+                except Exception as cleanup_error:
+                    Loggers.api_dependencies.error("Error during cleanup service shutdown",
+                                                  cleanup_error=str(cleanup_error))
+            raise
+            
     return _cleanup_service
 
 
@@ -116,15 +131,30 @@ async def cleanup_services():
     
     # Use centralized cleanup service if available
     if _cleanup_service:
-        await _cleanup_service.stop()  # This handles all cleanup
+        try:
+            await _cleanup_service.stop()  # This handles all cleanup
+            Loggers.api_dependencies.info("✅ Centralized cleanup completed successfully")
+        except Exception as e:
+            Loggers.api_dependencies.error("Error during centralized cleanup", exc=e)
+            # Continue with fallback cleanup
     else:
-        # Fallback to direct cleanup if cleanup service wasn't initialized
-        if _jupyter_client:
+        Loggers.api_dependencies.warning("No cleanup service available, using fallback cleanup")
+    
+    # Fallback cleanup if cleanup service wasn't available or failed
+    if _jupyter_client:
+        try:
             await _jupyter_client.close()
+            Loggers.api_dependencies.info("Jupyter client closed successfully")
+        except Exception as e:
+            Loggers.api_dependencies.error("Error closing Jupyter client", exc=e)
     
     # Reset instances
-    _jupyter_client = None
-    _workspace_service = None
-    _execution_service = None
-    _file_service = None
-    _cleanup_service = None 
+    try:
+        _jupyter_client = None
+        _workspace_service = None
+        _execution_service = None
+        _file_service = None
+        _cleanup_service = None
+        Loggers.api_dependencies.info("Service instances reset successfully")
+    except Exception as e:
+        Loggers.api_dependencies.error("Error resetting service instances", exc=e) 

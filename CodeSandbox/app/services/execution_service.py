@@ -169,8 +169,15 @@ class ExecutionService:
                 timeout=request.timeout
             )
             
-            # Store execution result
-            self._executions[result.execution_id] = result
+            # Store execution result safely
+            try:
+                self._executions[result.execution_id] = result
+            except Exception as e:
+                self.logger.error("Error storing execution result",
+                                execution_id=result.execution_id,
+                                workspace_id=request.workspace_id,
+                                error=str(e))
+                # Continue without storing - the result is still returned
             
             # Handle timeout status - cleanup workspace
             if result.status == ExecutionStatus.TIMEOUT:
@@ -198,8 +205,14 @@ class ExecutionService:
                     completed_at=result.completed_at
                 )
                 
-                # Store updated result
-                self._executions[result.execution_id] = result
+                # Store updated result safely
+                try:
+                    self._executions[result.execution_id] = result
+                except Exception as e:
+                    self.logger.error("Error storing updated execution result",
+                                    execution_id=result.execution_id,
+                                    workspace_id=request.workspace_id,
+                                    error=str(e))
             
             # Update workspace activity again after successful execution
             await self.workspace_service.update_workspace_activity(request.workspace_id)
@@ -261,8 +274,15 @@ class ExecutionService:
                 completed_at=datetime.utcnow()
             )
             
-            # Store error result
-            self._executions[error_result.execution_id] = error_result
+            # Store error result safely
+            try:
+                self._executions[error_result.execution_id] = error_result
+            except Exception as storage_error:
+                self.logger.error("Error storing failed execution result",
+                                execution_id=error_result.execution_id,
+                                workspace_id=request.workspace_id,
+                                storage_error=str(storage_error))
+                # Continue - we still return the error result
             
             return error_result
     
@@ -401,22 +421,49 @@ class ExecutionService:
         Returns:
             Number of executions cleaned up
         """
-        cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
-        old_execution_ids = []
-        
-        for execution_id, result in self._executions.items():
-            if result.started_at < cutoff_time:
-                old_execution_ids.append(execution_id)
-        
-        # Remove old executions
-        for execution_id in old_execution_ids:
-            del self._executions[execution_id]
-        
-        if old_execution_ids:
-            self.logger.info("Time-based execution cleanup completed",
-                           cleaned_executions=len(old_execution_ids))
-        
-        return len(old_execution_ids)
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
+            old_execution_ids = []
+            
+            # Find old executions (thread-safe approach)
+            try:
+                for execution_id, result in self._executions.items():
+                    if result.started_at < cutoff_time:
+                        old_execution_ids.append(execution_id)
+            except RuntimeError as e:
+                # Handle "dictionary changed size during iteration"
+                self.logger.warning("Dictionary changed during old execution cleanup iteration",
+                                  error=str(e))
+                # Retry with snapshot approach
+                execution_items = list(self._executions.items())
+                for execution_id, result in execution_items:
+                    if execution_id in self._executions and result.started_at < cutoff_time:
+                        old_execution_ids.append(execution_id)
+            
+            # Remove old executions safely
+            cleaned_count = 0
+            for execution_id in old_execution_ids:
+                try:
+                    if execution_id in self._executions:  # Double-check existence
+                        del self._executions[execution_id]
+                        cleaned_count += 1
+                except KeyError:
+                    # Already removed - this is fine
+                    self.logger.debug("Old execution already cleaned up",
+                                    execution_id=execution_id)
+            
+            if cleaned_count > 0:
+                self.logger.info("Time-based execution cleanup completed",
+                               cleaned_executions=cleaned_count)
+            
+            return cleaned_count
+            
+        except Exception as e:
+            self.logger.error("Error during old execution cleanup",
+                            max_age_hours=max_age_hours,
+                            error=str(e),
+                            exc=e)
+            return 0
     
     def cleanup_workspace_executions(self, workspace_id: str) -> int:
         """
@@ -428,23 +475,51 @@ class ExecutionService:
         Returns:
             Number of executions cleaned up
         """
-        execution_ids_to_remove = []
-        
-        # Find all executions for this workspace
-        for execution_id, result in self._executions.items():
-            if result.workspace_id == workspace_id:
-                execution_ids_to_remove.append(execution_id)
-        
-        # Remove them
-        for execution_id in execution_ids_to_remove:
-            del self._executions[execution_id]
-        
-        if execution_ids_to_remove:
-            self.logger.info("Cleaned up workspace executions (event-driven)",
-                           workspace_id=workspace_id,
-                           execution_count=len(execution_ids_to_remove))
-        
-        return len(execution_ids_to_remove)
+        try:
+            execution_ids_to_remove = []
+            
+            # Find all executions for this workspace (thread-safe approach)
+            try:
+                for execution_id, result in self._executions.items():
+                    if result.workspace_id == workspace_id:
+                        execution_ids_to_remove.append(execution_id)
+            except RuntimeError as e:
+                # Handle "dictionary changed size during iteration"
+                self.logger.warning("Dictionary changed during execution cleanup iteration",
+                                  workspace_id=workspace_id,
+                                  error=str(e))
+                # Retry with snapshot approach
+                execution_items = list(self._executions.items())
+                for execution_id, result in execution_items:
+                    if result.workspace_id == workspace_id:
+                        execution_ids_to_remove.append(execution_id)
+            
+            # Remove them safely
+            cleaned_count = 0
+            for execution_id in execution_ids_to_remove:
+                try:
+                    if execution_id in self._executions:  # Double-check existence
+                        del self._executions[execution_id]
+                        cleaned_count += 1
+                except KeyError:
+                    # Already removed by another cleanup - this is fine
+                    self.logger.debug("Execution already cleaned up",
+                                    execution_id=execution_id,
+                                    workspace_id=workspace_id)
+            
+            if cleaned_count > 0:
+                self.logger.info("Cleaned up workspace executions (event-driven)",
+                               workspace_id=workspace_id,
+                               execution_count=cleaned_count)
+            
+            return cleaned_count
+            
+        except Exception as e:
+            self.logger.error("Error during workspace execution cleanup",
+                            workspace_id=workspace_id,
+                            error=str(e),
+                            exc=e)
+            return 0
 
 
     
@@ -455,7 +530,6 @@ class ExecutionService:
         Args:
             event: WorkspaceDeletedEvent containing workspace_id and reason
         """
-        
         try:
             # 1. Clean up local execution service state
             self._warmed_workspaces.discard(event.workspace_id)
@@ -467,11 +541,12 @@ class ExecutionService:
             self._concurrency_manager.notify_workspace_deleted(event.workspace_id)
             
             self.logger.debug("Handled workspace deletion event",
-                            workspace_id=event.workspace_id,
-                            reason=event.reason,
-                            cleaned_executions=cleaned_executions)
-        
+                             workspace_id=event.workspace_id,
+                             reason=event.reason,
+                             cleaned_executions=cleaned_executions)
         except Exception as e:
             self.logger.error("Error handling workspace deletion event",
-                            exc=e,
-                            workspace_id=event.workspace_id)
+                            workspace_id=event.workspace_id,
+                            reason=event.reason,
+                            error=str(e),
+                            exc=e)

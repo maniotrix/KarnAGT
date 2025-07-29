@@ -156,15 +156,22 @@ class CleanupService:
         ✅ CENTRALIZED EVENT-DRIVEN CLEANUP
         Single handler for workspace deletion - cleans ALL related data
         """
-        self.logger.info("Handling workspace deletion (centralized)",
-                        workspace_id=event.workspace_id,
-                        reason=event.reason)
-        
-        cleanup_results = await self._cleanup_workspace_data(event.workspace_id)
-        
-        self.logger.info("Workspace deletion cleanup completed",
-                        workspace_id=event.workspace_id,
-                        **cleanup_results)
+        try:
+            self.logger.info("Handling workspace deletion (centralized)",
+                            workspace_id=event.workspace_id,
+                            reason=event.reason)
+            
+            cleanup_results = await self._cleanup_workspace_data(event.workspace_id)
+            
+            self.logger.info("Workspace deletion cleanup completed",
+                            workspace_id=event.workspace_id,
+                            **cleanup_results)
+        except Exception as e:
+            self.logger.error("Error in centralized workspace deletion handler",
+                            workspace_id=event.workspace_id,
+                            reason=event.reason,
+                            error=str(e),
+                            exc=e)
     
     async def _cleanup_workspace_data(self, workspace_id: str) -> Dict[str, int]:
         """Clean ALL data related to a specific workspace"""
@@ -177,15 +184,25 @@ class CleanupService:
         try:
             # 1. Clean execution results for this workspace
             if self._execution_service:
-                results["executions_cleaned"] = self._execution_service.cleanup_workspace_executions(workspace_id)
-                # Clean warmed workspace state
-                self._execution_service._warmed_workspaces.discard(workspace_id)
-                results["warmed_state_cleaned"] = 1
+                try:
+                    results["executions_cleaned"] = self._execution_service.cleanup_workspace_executions(workspace_id)
+                    # Clean warmed workspace state
+                    self._execution_service._warmed_workspaces.discard(workspace_id)
+                    results["warmed_state_cleaned"] = 1
+                except Exception as e:
+                    self.logger.error("Error cleaning execution service data",
+                                    workspace_id=workspace_id,
+                                    error=str(e))
             
             # 2. Clean concurrency locks for this workspace
             if self._concurrency_manager:
-                self._concurrency_manager.notify_workspace_deleted(workspace_id)
-                results["locks_cleaned"] = 1
+                try:
+                    self._concurrency_manager.notify_workspace_deleted(workspace_id)
+                    results["locks_cleaned"] = 1
+                except Exception as e:
+                    self.logger.error("Error cleaning concurrency manager data",
+                                    workspace_id=workspace_id,
+                                    error=str(e))
             
             self._cleanup_stats["workspace_cleanups"] += 1
             
