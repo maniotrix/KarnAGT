@@ -455,16 +455,23 @@ class ExecutionService:
         Args:
             event: WorkspaceDeletedEvent containing workspace_id and reason
         """
-        # 1. Clean up local execution service state
-        self._warmed_workspaces.discard(event.workspace_id)
         
-        # 2. ✅ EVENT-DRIVEN: Clean up ALL executions for this workspace immediately
-        cleaned_executions = self.cleanup_workspace_executions(event.workspace_id)
+        try:
+            # 1. Clean up local execution service state
+            self._warmed_workspaces.discard(event.workspace_id)
+            
+            # 2. ✅ EVENT-DRIVEN: Clean up ALL executions for this workspace immediately
+            cleaned_executions = self.cleanup_workspace_executions(event.workspace_id)
+            
+            # 3. Clean up concurrency manager state
+            self._concurrency_manager.notify_workspace_deleted(event.workspace_id)
+            
+            self.logger.debug("Handled workspace deletion event",
+                            workspace_id=event.workspace_id,
+                            reason=event.reason,
+                            cleaned_executions=cleaned_executions)
         
-        # 3. Clean up concurrency manager state
-        self._concurrency_manager.notify_workspace_deleted(event.workspace_id)
-        
-        self.logger.debug("Handled workspace deletion event",
-                         workspace_id=event.workspace_id,
-                         reason=event.reason,
-                         cleaned_executions=cleaned_executions) 
+        except Exception as e:
+            self.logger.error("Error handling workspace deletion event",
+                            exc=e,
+                            workspace_id=event.workspace_id)

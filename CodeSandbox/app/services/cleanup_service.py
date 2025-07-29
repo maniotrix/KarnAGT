@@ -16,6 +16,10 @@ from enum import Enum
 from app.core.config import Settings
 from app.core.events import get_event_bus, WorkspaceDeletedEvent
 from app.utils.logger import Loggers
+from app.services.workspace_service import WorkspaceService
+from app.services.execution_service import ExecutionService
+from app.core.concurrency.concurrency_manager import ConcurrencyManager
+from app.infrastructure.jupyter_kernel_client import JupyterServerClient
 
 class CleanupReason(str, Enum):
     """Reasons for cleanup operations"""
@@ -39,10 +43,10 @@ class CleanupService:
         self.event_bus = get_event_bus()
         
         # References to all components that need cleanup
-        self._workspace_service = None
-        self._execution_service = None
-        self._jupyter_client = None
-        self._concurrency_manager = None
+        self._workspace_service : Optional[WorkspaceService] = None
+        self._execution_service : Optional[ExecutionService] = None
+        self._jupyter_client : Optional[JupyterServerClient] = None
+        self._concurrency_manager : Optional[ConcurrencyManager] = None
         
         # Cleanup state tracking
         self._cleanup_task: Optional[asyncio.Task] = None
@@ -193,22 +197,18 @@ class CleanupService:
         return results
     
     async def _cleanup_expired_workspaces(self) -> int:
-        """Clean expired workspaces - delegates to WorkspaceService"""
+        """Clean expired workspaces - calls WorkspaceService public method"""
         if not self._workspace_service:
             return 0
             
         try:
-            # Find expired workspaces
-            now = datetime.utcnow()
-            expired_count = 0
+            # Call the public cleanup method that returns proper count
+            cleaned_count = await self._workspace_service.cleanup_expired_workspaces()
             
-            for workspace_id, workspace_info in self._workspace_service._workspaces.items():
-                if now > workspace_info.expires_at:
-                    await self._workspace_service.delete_workspace(workspace_id, "expired")
-                    expired_count += 1
+            # Update our stats
+            self._cleanup_stats["workspace_cleanups"] += cleaned_count
             
-            self._cleanup_stats["workspace_cleanups"] += expired_count
-            return expired_count
+            return cleaned_count
             
         except Exception as e:
             self.logger.error("Error cleaning expired workspaces", exc=e)
@@ -274,13 +274,7 @@ class CleanupService:
         self.logger.info("Performing complete system cleanup", reason=reason)
         
         try:
-            # Stop all background tasks first
-            if self._workspace_service:
-                await self._workspace_service.stop()
-            if self._execution_service:
-                await self._execution_service.stop()
-            
-            # Close all kernels
+            # Close all kernels (this is the only service that actually has a cleanup method)
             if self._jupyter_client:
                 await self._jupyter_client.close()
                 

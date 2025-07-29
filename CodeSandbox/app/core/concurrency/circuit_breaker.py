@@ -42,7 +42,7 @@ class CircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        test_requests: int = 3,
+        test_requests: int = 1,  # Industry standard: 1 successful request to close
         resource_manager: Optional["ResourceManager"] = None
     ):
         self.failure_threshold = failure_threshold
@@ -121,8 +121,11 @@ class CircuitBreaker:
                 self._transition_to_closed()
         
         elif self.state == CircuitState.CLOSED:
-            # Reset failure count on success
-            self.failure_count = max(0, self.failure_count - 1)
+            # Reset failure count completely on success (consecutive failures only)
+            if self.failure_count > 0:
+                self.logger.debug("Circuit breaker: Success reset failure count",
+                                prev_count=self.failure_count)
+                self.failure_count = 0
     
     def _on_failure(self, exception: Exception):
         """Handle failed execution"""
@@ -132,6 +135,7 @@ class CircuitBreaker:
         self.logger.warning("Circuit breaker recorded failure",
                           failure_count=self.failure_count,
                           threshold=self.failure_threshold,
+                          current_state=self.state.value,
                           exception=str(exception))
         
         # Open circuit if threshold exceeded

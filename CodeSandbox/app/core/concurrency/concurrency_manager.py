@@ -120,7 +120,10 @@ class ConcurrencyManager:
             raise ServiceUnavailableError(
                 f"Request timed out after {self.request_timeout_seconds} seconds"
             )
-        except CircuitBreakerError:
+        except CircuitBreakerError as e:
+            self.logger.warning("Circuit breaker blocked request", 
+                              workspace_id=request.workspace_id,
+                              circuit_error=str(e))
             raise ServiceUnavailableError(
                 "Service temporarily unavailable - circuit breaker is open"
             )

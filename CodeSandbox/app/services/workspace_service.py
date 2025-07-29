@@ -281,8 +281,8 @@ class WorkspaceService:
     
     # NOTE: _cleanup_loop removed - now handled by centralized CleanupService
     
-    async def _cleanup_expired_workspaces(self):
-        """Clean up expired workspaces"""
+    async def cleanup_expired_workspaces(self) -> int:
+        """Clean up expired workspaces and return count"""
         now = datetime.utcnow()
         expired_workspace_ids = []
         
@@ -321,6 +321,8 @@ class WorkspaceService:
             )
         except Exception as e:
             self.logger.error("Error cleaning up Jupyter kernels", exc=e)
+            
+        return cleaned_count
     
     def get_stats(self) -> Dict[str, Any]:
         """Get workspace service statistics"""
