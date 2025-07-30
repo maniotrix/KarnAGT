@@ -75,13 +75,12 @@ async def create_workspace() -> WorkspaceCreateResult:
     
     ## CRITICAL FILE UPLOAD INSTRUCTIONS:
     File must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
-    You can provide a file_name to be used for the file in the workspace.
-    If no file_name is provided, the file name will be extracted from the URL.
+    You must provide a file_name to be used for the file in the workspace.
     
     ## REQUIRED PARAMETERS:
     - workspace_id: Valid workspace ID from create_workspace()
     - file_url: Valid Full HTTP URL
-    - file_name: Name of the file (optional)
+    - file_name: Name of the file
     
     ## RETURN VALUE STRUCTURE:
     The tool returns a FileUploadResult containing:
@@ -108,14 +107,14 @@ async def create_workspace() -> WorkspaceCreateResult:
 async def upload_file(
     workspace_id: str,
     file_url: str,
-    file_name: Optional[str] = None,
+    file_name: str,
 ) -> FileUploadResult:
     """Upload a file to a workspace for code execution access.
     
     Args:
         workspace_id: Target workspace identifier
         file_url: Valid Full HTTP URL
-        file_name: Name of the file (optional)
+        file_name: Name of the file
         
     Returns:
         FileUploadResult with success/error status and file info
