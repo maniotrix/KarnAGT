@@ -100,7 +100,12 @@ class CircuitBreaker:
             return result
             
         except Exception as e:
-            self._on_failure(e)
+            # Don't count validation errors as circuit breaker failures
+            # ValidationError and subclasses are user input issues, not system failures
+            from .exceptions import ValidationError
+            if not isinstance(e, ValidationError):
+                self._on_failure(e)
+            # Always re-raise the exception regardless of whether it counts as failure
             raise
     
     def _should_attempt_reset(self) -> bool:

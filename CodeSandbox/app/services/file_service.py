@@ -17,16 +17,14 @@ from app.core.config import Settings
 from app.domain.models import (
     FileInfo, WorkspaceStatus, FileRequest, FileOperationType, WorkspaceFilesResponse
 )
-from app.infrastructure.jupyter_kernel_client import (
-    JupyterServerClient, WorkspaceNotFoundError
-)
+from app.infrastructure.jupyter_kernel_client import JupyterServerClient
 from app.services.workspace_service import WorkspaceService
-from app.core.concurrency import FileConcurrencyManager, FileServiceUnavailableError
+from app.core.concurrency import FileConcurrencyManager, FileServiceUnavailableError, ValidationError, WorkspaceNotFoundError
 from app.utils.logger import Loggers
 
 
-class FileServiceError(Exception):
-    """Base exception for file service errors"""
+class FileServiceError(ValidationError):
+    """Base exception for file service errors - inherits from ValidationError to avoid circuit breaker triggers"""
     pass
 
 

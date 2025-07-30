@@ -15,6 +15,7 @@ from .workspace_lock_manager import WorkspaceLockManager
 from .file_lock_manager import FileLockManager
 from .concurrency_manager import ConcurrencyManager, ServiceUnavailableError
 from .file_concurrency_manager import FileConcurrencyManager, FileServiceUnavailableError
+from .exceptions import ValidationError, ExecutionValidationError, WorkspaceValidationError, WorkspaceNotFoundError
 
 __all__ = [
     "AdmissionController",
@@ -26,5 +27,9 @@ __all__ = [
     "ConcurrencyManager",
     "ServiceUnavailableError",
     "FileConcurrencyManager",
-    "FileServiceUnavailableError"
+    "FileServiceUnavailableError",
+    "ValidationError",
+    "ExecutionValidationError",
+    "WorkspaceValidationError",
+    "WorkspaceNotFoundError"
 ] 

@@ -4,8 +4,11 @@
 """
 File Concurrency Manager
 
-Main orchestrator for file operation concurrency control.
-Provides a unified interface for layered file concurrency control.
+Coordinates all 4 layers of concurrency control for file operations:
+1. File-Level Isolation (FileLockManager) 
+2. Resource Management (ResourceManager)
+3. Admission Control (AdmissionController) 
+4. Circuit Breaker (CircuitBreaker)
 """
 
 import asyncio
@@ -15,6 +18,7 @@ from .admission_controller import AdmissionController
 from .circuit_breaker import CircuitBreaker, CircuitBreakerError
 from .resource_manager import ResourceManager
 from .file_lock_manager import FileLockManager
+from .exceptions import ValidationError
 from app.domain.models import FileRequest
 from app.utils.logger import Loggers
 

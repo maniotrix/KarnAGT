@@ -20,8 +20,9 @@ from app.domain.models import (
     FileInfo, WorkspaceFilesResponse
 )
 from app.infrastructure.jupyter_kernel_client import (
-    JupyterServerClient, JupyterClientError, WorkspaceNotFoundError
+    JupyterServerClient, JupyterClientError
 )
+from app.core.concurrency import WorkspaceNotFoundError, WorkspaceValidationError
 from app.core.events import get_event_bus, WorkspaceDeletedEvent
 from app.utils.logger import Loggers
 
@@ -227,7 +228,7 @@ class WorkspaceService:
         new_ttl_hours = current_ttl_hours + additional_hours
         
         if new_ttl_hours > self.settings.workspace_max_ttl_hours:
-            raise ValueError(f"Maximum TTL of {self.settings.workspace_max_ttl_hours} hours exceeded")
+            raise WorkspaceValidationError(f"Maximum TTL of {self.settings.workspace_max_ttl_hours} hours exceeded")
         
         # Extend expiration
         workspace_info.expires_at += timedelta(hours=additional_hours)

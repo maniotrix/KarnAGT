@@ -23,6 +23,7 @@ from app.domain.models import (
     FileInfo, ExecutionOutput
 )
 from app.utils.logger import Loggers
+from app.core.concurrency import WorkspaceNotFoundError
 
 
 class JupyterClientError(Exception):
@@ -32,11 +33,6 @@ class JupyterClientError(Exception):
 
 class KernelNotFoundError(JupyterClientError):
     """Kernel not found error"""
-    pass
-
-
-class WorkspaceNotFoundError(JupyterClientError):
-    """Workspace directory not found error"""
     pass
 
 

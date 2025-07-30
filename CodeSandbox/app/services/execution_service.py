@@ -18,11 +18,11 @@ from app.domain.models import (
     WorkspaceStatus
 )
 from app.infrastructure.jupyter_kernel_client import (
-    JupyterServerClient, WorkspaceNotFoundError, KernelNotFoundError
+    JupyterServerClient, KernelNotFoundError
 )
 from app.services.workspace_service import WorkspaceService
 from app.utils.logger import Loggers
-from app.core.concurrency import ConcurrencyManager, ServiceUnavailableError
+from app.core.concurrency import ConcurrencyManager, ServiceUnavailableError, ExecutionValidationError, WorkspaceValidationError, WorkspaceNotFoundError
 from app.core.events import get_event_bus, WorkspaceDeletedEvent
 
 
@@ -138,7 +138,7 @@ class ExecutionService:
             raise WorkspaceNotFoundError(f"Workspace {request.workspace_id} has expired")
         
         if workspace_info.status != WorkspaceStatus.READY:
-            raise ValueError(f"Workspace {request.workspace_id} is not ready (status: {workspace_info.status})")
+            raise WorkspaceValidationError(f"Workspace {request.workspace_id} is not ready (status: {workspace_info.status})")
         
         # Update workspace activity
         await self.workspace_service.update_workspace_activity(request.workspace_id)
@@ -323,11 +323,11 @@ class ExecutionService:
         """
         # Check code length
         if len(request.code) > 50000:  # 50KB limit
-            raise ValueError("Code too long (max 50KB)")
+            raise ExecutionValidationError("Code too long (max 50KB)")
         
         # Check timeout limits
         if request.timeout > self.settings.max_execution_timeout:
-            raise ValueError(f"Timeout too long (max {self.settings.max_execution_timeout}s)")
+            raise ExecutionValidationError(f"Timeout too long (max {self.settings.max_execution_timeout}s)")
         
         # No code pattern restrictions for MVP - container isolation provides security
         # For production security patterns, see SECURITY_ROADMAP.md 

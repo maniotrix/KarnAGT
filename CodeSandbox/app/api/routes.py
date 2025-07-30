@@ -18,7 +18,8 @@ from app.domain.models import (
 from app.services.workspace_service import WorkspaceService
 from app.services.execution_service import ExecutionService
 from app.services.file_service import FileService, FileServiceError
-from app.infrastructure.jupyter_kernel_client import WorkspaceNotFoundError, JupyterClientError
+from app.infrastructure.jupyter_kernel_client import JupyterClientError
+from app.core.concurrency import WorkspaceNotFoundError, ExecutionValidationError, WorkspaceValidationError
 from app.api.dependencies import (
     get_workspace_service, get_execution_service, get_file_service, get_settings_cached
 )
@@ -142,7 +143,7 @@ async def extend_workspace_ttl(
         if not workspace_info:
             raise HTTPException(status_code=404, detail="Workspace not found")
         return workspace_info
-    except ValueError as e:
+    except (ExecutionValidationError, WorkspaceValidationError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -206,7 +207,7 @@ async def execute_code(
         
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
+    except (ExecutionValidationError, WorkspaceValidationError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Execution failed: {e}")
