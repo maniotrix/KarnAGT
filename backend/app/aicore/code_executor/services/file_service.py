@@ -9,10 +9,13 @@ Separated from tool decorators for flexibility and reusability.
 """
 
 import base64
+from pathlib import Path
 from typing import Union, Optional
 from pathvalidate import ValidationError as PathValidationError, validate_filename, Platform
 from pydantic import ValidationError
 from app.logging.logger import get_logger
+from app.utils.async_http_client import AsyncHTTPClient, DownloadError, FileTooLargeError, HTTPClientError
+from app.utils.file_utils import get_file_content
 from app.aicore.code_executor.clients import (
     SandboxClient, 
     WorkspaceNotFoundError, 
@@ -30,6 +33,8 @@ from app.aicore.code_executor.config import (
 
 # Get logger
 logger = get_logger(__name__)
+
+MAX_FILE_SIZE_MB = 20
 
 
 class FileService:
@@ -49,23 +54,68 @@ class FileService:
         """
         self.sandbox_client = sandbox_client
         
-    async def upload_file_with_url(
+    async def download_and_upload_file_to_workspace(
         self,
         workspace_id: str,
-        url: str
+        source: str, 
+        file_name: Optional[str] = None,
+        max_size_mb: int = MAX_FILE_SIZE_MB
     ) -> FileUploadResult:
-        """
-        Upload a file to a workspace from a URL.
+        """Download from local path or URL and upload to workspace
         
         Args:
+            source: File path or URL
             workspace_id: Target workspace identifier
-            url: URL of the file to upload
+            filename: Name of the file
+            max_size_mb: Maximum file size in MB
+            
+        Returns:
+            FileUploadResult with success/error status and file info
         """
-        # extract filename from url
-        # download file from url and get content
-        # upload file to workspace
-        # return FileUploadResult
-        pass
+        
+        # Input validation
+        if not source or not source.strip():
+            return FileUploadResult.error_result("Source URL cannot be empty")
+        
+        if not workspace_id or not workspace_id.strip():
+            return FileUploadResult.error_result("Workspace ID cannot be empty")
+        
+        try:
+            if source.startswith(('http://', 'https://')):
+                # Handle remote file using async HTTP client
+                try:
+                    async with AsyncHTTPClient() as http_client:
+                        content, extracted_filename = await http_client.download_file(
+                            url=source,
+                            max_size_mb=max_size_mb,
+                            filename=file_name
+                        )
+                except (DownloadError, FileTooLargeError, HTTPClientError) as e:
+                    return FileUploadResult.error_result(f"Failed to download from URL {source}: {e}")
+                    
+                final_filename = file_name or extracted_filename
+            
+            else:
+                # Handle local file
+                try:
+                    content, extracted_filename = await get_file_content(source, max_size_mb, file_name)
+                    if not content:
+                        return FileUploadResult.error_result(f"File content is empty: {source}")
+                except FileNotFoundError as e:
+                    return FileUploadResult.error_result(f"Local file not found: {source}")
+                except ValueError as e:
+                    return FileUploadResult.error_result(f"File validation error: {e}")
+                except Exception as e:
+                    return FileUploadResult.error_result(f"Failed to read local file {source}: {e}")
+
+                final_filename = file_name or extracted_filename
+            
+            # Upload to workspace - this already returns FileUploadResult
+            return await self.upload_file(workspace_id, final_filename, content)
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in download_and_upload_file_to_workspace: {e}")
+            return FileUploadResult.error_result(f"Unexpected error processing file {source}: {e}")
     
     async def upload_file(
         self, 
@@ -244,7 +294,7 @@ class FileService:
         CRITICAL SECURITY CHECKS (restored from original logic):
         1. No empty filenames
         2. No hidden files (.) - prevents access to .env, .git, .ssh, etc.
-        3. No path separators (/ or \) - prevents directory traversal attacks
+        3. No path separators (/ or \\) - prevents directory traversal attacks
         4. Additional pathvalidate checks for cross-platform compatibility
         
         Args:
@@ -268,7 +318,7 @@ class FileService:
             return "Forward slashes (/) are not allowed in filenames - no subdirectories permitted for security"
         
         if '\\' in filename:
-            return "Backslashes (\\) are not allowed in filenames - no subdirectories permitted for security"
+            return "Backslashes (\\\\) are not allowed in filenames - no subdirectories permitted for security"
         
         try:
             # Use pathvalidate for additional cross-platform validation

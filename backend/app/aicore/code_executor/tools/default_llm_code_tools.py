@@ -20,7 +20,7 @@ Implementation details:
 • Uses the same @function_tool decorator interface as memory tools so the
   agent framework can auto-register them with rich metadata.
 """
-
+from typing import Optional
 from agents import function_tool
 
 from app.aicore.code_executor.services import (
@@ -73,6 +73,22 @@ async def create_workspace() -> WorkspaceCreateResult:
     description_override="""
     Upload a file to a a given workspace with a workspace_id so it can be accessed by Python code.
     
+    ## CRITICAL FILE UPLOAD INSTRUCTIONS:
+    File must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
+    You can provide a file_name to be used for the file in the workspace.
+    If no file_name is provided, the file name will be extracted from the URL.
+    
+    ## REQUIRED PARAMETERS:
+    - workspace_id: Valid workspace ID from create_workspace()
+    - file_url: Valid Full HTTP URL
+    - file_name: Name of the file (optional)
+    
+    ## RETURN VALUE STRUCTURE:
+    The tool returns a FileUploadResult containing:
+    - **success**: boolean indicating if upload completed successfully
+    - **file_info**: FileInfo object with details about the uploaded file
+    - **error**: Optional error message if upload failed
+    
     HOW IT WORKS:
     - Uploads file to the workspace's root directory
     - Files become immediately available for code execution
@@ -91,11 +107,20 @@ async def create_workspace() -> WorkspaceCreateResult:
 )
 async def upload_file(
     workspace_id: str,
-    filename: str,
-    content: str,
+    file_url: str,
+    file_name: Optional[str] = None,
 ) -> FileUploadResult:
-    """Upload a file to a workspace for code execution access."""
-    return await _file_service.upload_file(workspace_id, filename, content)
+    """Upload a file to a workspace for code execution access.
+    
+    Args:
+        workspace_id: Target workspace identifier
+        file_url: Valid Full HTTP URL
+        file_name: Name of the file (optional)
+        
+    Returns:
+        FileUploadResult with success/error status and file info
+    """
+    return await _file_service.download_and_upload_file_to_workspace(workspace_id, file_url, file_name)
 
 
 @function_tool(
