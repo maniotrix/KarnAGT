@@ -95,6 +95,7 @@ async def get_cleanup_service() -> CleanupService:
             workspace_service = await get_workspace_service()
             execution_service = await get_execution_service()
             jupyter_client = await get_jupyter_client()
+            file_service = await get_file_service()
             
             # Create and register cleanup service
             cleanup_service = CleanupService(settings)
@@ -102,7 +103,8 @@ async def get_cleanup_service() -> CleanupService:
                 workspace_service=workspace_service,
                 execution_service=execution_service,
                 jupyter_client=jupyter_client,
-                concurrency_manager=execution_service._concurrency_manager
+                concurrency_manager=execution_service._concurrency_manager,
+                file_service=file_service
             )
             
             # Start the centralized cleanup

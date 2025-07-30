@@ -48,6 +48,24 @@ class FileService:
             sandbox_client: Optional pre-configured client. If None, creates new clients per operation.
         """
         self.sandbox_client = sandbox_client
+        
+    async def upload_file_with_url(
+        self,
+        workspace_id: str,
+        url: str
+    ) -> FileUploadResult:
+        """
+        Upload a file to a workspace from a URL.
+        
+        Args:
+            workspace_id: Target workspace identifier
+            url: URL of the file to upload
+        """
+        # extract filename from url
+        # download file from url and get content
+        # upload file to workspace
+        # return FileUploadResult
+        pass
     
     async def upload_file(
         self, 

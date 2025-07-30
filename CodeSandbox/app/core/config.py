@@ -75,6 +75,13 @@ class Settings(BaseModel):
     circuit_breaker_recovery_timeout: int = 60
     request_timeout_seconds: int = 300  # 5 minutes - timeout for individual requests
     
+    # === File Concurrency Control Configuration ===
+    max_concurrent_file_operations: int = 15  # Lower than code executions
+    max_queued_file_requests: int = 40         # Lower than code execution queue
+    file_circuit_breaker_threshold: int = 8   # Higher tolerance for file errors
+    file_circuit_recovery_timeout: int = 20   # Faster recovery than executions
+    file_timeout_seconds: int = 180            # 3 minutes for large files
+    
     # === Cleanup Configuration ===
     workspace_idle_timeout_minutes: int = 120  # 2 hours - clean locks and kernels after 2 hours idle
     execution_results_max_age_hours: int = 2   # 2 hours - clean execution results after 2 hours
@@ -97,6 +104,11 @@ class Settings(BaseModel):
     def logs_base_path(self) -> str:
         """Logs base path derived from user temp base path (cross-platform)."""
         return str(Path(self.user_temp_base_path) / "logs")
+    
+    @property
+    def max_file_size_bytes(self) -> int:
+        """Maximum file size in bytes (converted from MB setting)."""
+        return self.max_file_size_mb * 1024 * 1024
     
     def _parse_cors_origins(self, origins_str: str) -> List[str]:
         """Parse CORS origins from environment variable with proper validation"""
@@ -188,6 +200,13 @@ class Settings(BaseModel):
             "circuit_breaker_recovery_timeout": int(os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT", "60")),
             "request_timeout_seconds": int(os.getenv("REQUEST_TIMEOUT_SECONDS", "300")),
             
+            # File Concurrency Configuration
+            "max_concurrent_file_operations": int(os.getenv("MAX_CONCURRENT_FILE_OPERATIONS", "15")),
+            "max_queued_file_requests": int(os.getenv("MAX_QUEUED_FILE_REQUESTS", "40")),
+            "file_circuit_breaker_threshold": int(os.getenv("FILE_CIRCUIT_BREAKER_THRESHOLD", "8")),
+            "file_circuit_recovery_timeout": int(os.getenv("FILE_CIRCUIT_RECOVERY_TIMEOUT", "20")),
+            "file_timeout_seconds": int(os.getenv("FILE_TIMEOUT_SECONDS", "180")),
+            
             # Cleanup Configuration
             "workspace_idle_timeout_minutes": int(os.getenv("WORKSPACE_IDLE_TIMEOUT_MINUTES", "120")),
             "execution_results_max_age_hours": int(os.getenv("EXECUTION_RESULTS_MAX_AGE_HOURS", "2")),
@@ -209,11 +228,6 @@ class Settings(BaseModel):
     def jupyter_url(self) -> str:
         """Complete Jupyter server URL"""
         return f"http://{self.jupyter_host}:{self.jupyter_port}"
-    
-    @property 
-    def max_file_size_bytes(self) -> int:
-        """Max file size in bytes"""
-        return self.max_file_size_mb * 1024 * 1024
     
     @property
     def max_workspace_size_bytes(self) -> int:

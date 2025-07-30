@@ -20,6 +20,7 @@ from app.services.workspace_service import WorkspaceService
 from app.services.execution_service import ExecutionService
 from app.core.concurrency.concurrency_manager import ConcurrencyManager
 from app.infrastructure.jupyter_kernel_client import JupyterServerClient
+from app.services.file_service import FileService
 
 class CleanupReason(str, Enum):
     """Reasons for cleanup operations"""
@@ -47,6 +48,7 @@ class CleanupService:
         self._execution_service : Optional[ExecutionService] = None
         self._jupyter_client : Optional[JupyterServerClient] = None
         self._concurrency_manager : Optional[ConcurrencyManager] = None
+        self._file_service : Optional[FileService] = None
         
         # Cleanup state tracking
         self._cleanup_task: Optional[asyncio.Task] = None
@@ -58,7 +60,8 @@ class CleanupService:
             "workspace_cleanups": 0,
             "execution_cleanups": 0,
             "concurrency_cleanups": 0,
-            "kernel_cleanups": 0
+            "kernel_cleanups": 0,
+            "file_service_cleanups": 0
         }
         
         # Subscribe to workspace deletion events
@@ -66,14 +69,16 @@ class CleanupService:
         
         self.logger.info("Centralized cleanup service initialized")
     
-    def register_components(self, workspace_service, execution_service, jupyter_client, concurrency_manager):
+    def register_components(self, workspace_service, execution_service, jupyter_client, concurrency_manager, file_service=None):
         """Register all components that need cleanup"""
         self._workspace_service = workspace_service
         self._execution_service = execution_service
         self._jupyter_client = jupyter_client
         self._concurrency_manager = concurrency_manager
+        self._file_service = file_service
         
-        self.logger.info("All cleanup components registered")
+        self.logger.info("All cleanup components registered", 
+                        has_file_service=file_service is not None)
     
     async def start(self):
         """Start the centralized cleanup loop"""
@@ -124,7 +129,8 @@ class CleanupService:
             "expired_workspaces": 0,
             "old_executions": 0,
             "expired_locks": 0,
-            "idle_kernels": 0
+            "idle_kernels": 0,
+            "file_service_locks": 0
         }
         
         try:
@@ -139,6 +145,9 @@ class CleanupService:
             
             # 4. Clean idle kernels (safety net)
             cleanup_results["idle_kernels"] = await self._cleanup_idle_kernels()
+            
+            # 5. Clean file service locks and resources
+            cleanup_results["file_service_locks"] = await self._cleanup_file_service()
             
             total_cleaned = sum(cleanup_results.values())
             self._cleanup_stats["total_cleanups"] += total_cleaned
@@ -178,7 +187,8 @@ class CleanupService:
         results = {
             "executions_cleaned": 0,
             "locks_cleaned": 0,
-            "warmed_state_cleaned": 0
+            "warmed_state_cleaned": 0,
+            "file_locks_cleaned": 0
         }
         
         try:
@@ -201,6 +211,16 @@ class CleanupService:
                     results["locks_cleaned"] = 1
                 except Exception as e:
                     self.logger.error("Error cleaning concurrency manager data",
+                                    workspace_id=workspace_id,
+                                    error=str(e))
+            
+            # 3. Clean file service locks for this workspace
+            if self._file_service:
+                try:
+                    self._file_service.notify_workspace_deleted(workspace_id)
+                    results["file_locks_cleaned"] = 1
+                except Exception as e:
+                    self.logger.error("Error cleaning file service data",
                                     workspace_id=workspace_id,
                                     error=str(e))
             
@@ -286,6 +306,23 @@ class CleanupService:
             self.logger.error("Error cleaning idle kernels", exc=e)
             return 0
     
+    async def _cleanup_file_service(self) -> int:
+        """Clean up file service locks and resources"""
+        if not self._file_service:
+            return 0
+        
+        try:
+            cleaned = await self._file_service.periodic_cleanup(
+                max_idle_minutes=self.settings.workspace_idle_timeout_minutes
+            )
+            
+            self._cleanup_stats["file_service_cleanups"] += cleaned
+            return cleaned
+            
+        except Exception as e:
+            self.logger.error("Error cleaning file service resources", exc=e)
+            return 0
+    
     async def _cleanup_all(self, reason: CleanupReason):
         """Emergency cleanup of everything (shutdown, etc.)"""
         self.logger.info("Performing complete system cleanup", reason=reason)
@@ -309,6 +346,7 @@ class CleanupService:
                 "workspace_service": self._workspace_service is not None,
                 "execution_service": self._execution_service is not None,
                 "jupyter_client": self._jupyter_client is not None,
-                "concurrency_manager": self._concurrency_manager is not None
+                "concurrency_manager": self._concurrency_manager is not None,
+                "file_service": self._file_service is not None
             }
         } 

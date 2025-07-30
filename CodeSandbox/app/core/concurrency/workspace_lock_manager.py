@@ -98,11 +98,14 @@ class WorkspaceLockManager:
         workspace_lock = await self.acquire_workspace_lock(workspace_id)
         
         try:
-            # Execute the function
-            if asyncio.iscoroutinefunction(func):
-                return await func(*args, **kwargs)
+            # Execute the function and handle both sync functions and coroutine-returning functions
+            result = func(*args, **kwargs)
+            
+            # Check if the result is a coroutine (handles lambdas that return coroutines)
+            if asyncio.iscoroutine(result):
+                return await result
             else:
-                return func(*args, **kwargs)
+                return result
         finally:
             # Always release the lock
             self.release_workspace_lock(workspace_id, workspace_lock)

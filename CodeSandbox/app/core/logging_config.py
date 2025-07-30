@@ -379,6 +379,8 @@ class LoggerNames:
     
     # Management loggers
     CONCURRENCY_MANAGER = "app.core.concurrency.concurrency_manager"
+    FILE_CONCURRENCY_MANAGER = "app.core.concurrency.file_concurrency_manager"
+    FILE_LOCK_MANAGER = "app.core.concurrency.file_lock_manager"
     EVENT_BUS = "app.core.events.event_bus"
     
     # API-specific  

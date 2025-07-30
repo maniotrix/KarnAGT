@@ -33,6 +33,14 @@ class ExecutionStatus(str, Enum):
     TIMEOUT = "timeout"
 
 
+class FileOperationType(str, Enum):
+    """File operation types"""
+    UPLOAD = "upload"
+    DOWNLOAD = "download"
+    LIST = "list"
+    DELETE = "delete"
+
+
 class FileInfo(BaseModel):
     """Information about a file in workspace"""
     filename: str
@@ -62,6 +70,16 @@ class ExecutionRequest(BaseModel):
     workspace_id: str = Field(..., min_length=1)
     code: str = Field(..., min_length=1, description="Python code to execute")
     timeout: int = Field(30, ge=1, le=300, description="Execution timeout in seconds")
+
+
+class FileRequest(BaseModel):
+    """Request for file operations"""
+    workspace_id: str = Field(..., min_length=1)
+    filename: str = Field(..., min_length=1, description="Target filename")
+    operation: FileOperationType
+    content_size: Optional[int] = Field(None, ge=0, description="File size for resource planning")
+    timeout: int = Field(60, ge=1, le=600, description="File operation timeout in seconds")
+    content: Optional[bytes] = Field(None, description="File content for upload operations")
 
 
 class ExecutionOutput(BaseModel):

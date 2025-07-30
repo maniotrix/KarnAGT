@@ -360,8 +360,15 @@ async def upload_file(
         logger.error(f"Workspace not found for upload: {workspace_id}", exc_info=True)
         raise HTTPException(status_code=404, detail=str(e))
     except FileServiceError as e:
-        logger.error(f"File service error during upload: {file.filename}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        error_message = str(e)
+        if "temporarily unavailable" in error_message.lower():
+            # Handle concurrency overload as 503 Service Unavailable
+            logger.warning(f"File service overloaded during upload: {file.filename}", exc_info=True)
+            raise HTTPException(status_code=503, detail=error_message)
+        else:
+            # Handle other file service errors as 400 Bad Request
+            logger.error(f"File service error during upload: {file.filename}", exc_info=True)
+            raise HTTPException(status_code=400, detail=error_message)
     except Exception as e:
         logger.error(f"Unexpected error during file upload: {file.filename} to {workspace_id}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"File upload failed: {e}")
@@ -403,6 +410,16 @@ async def download_file(
     except FileNotFoundError as e:
         logger.error(f"File not found for download: {filename} in workspace {workspace_id}")
         raise HTTPException(status_code=404, detail="File not found")
+    except FileServiceError as e:
+        error_message = str(e)
+        if "temporarily unavailable" in error_message.lower():
+            # Handle concurrency overload as 503 Service Unavailable
+            logger.warning(f"File service overloaded during download: {filename}", exc_info=True)
+            raise HTTPException(status_code=503, detail=error_message)
+        else:
+            # Handle other file service errors as 400 Bad Request
+            logger.error(f"File service error during download: {filename}", exc_info=True)
+            raise HTTPException(status_code=400, detail=error_message)
     except Exception as e:
         logger.error(f"Unexpected error during file download: {filename} from {workspace_id}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"File download failed: {e}")
@@ -411,19 +428,30 @@ async def download_file(
 @router.get("/workspace/{workspace_id}/files", response_model=WorkspaceFilesResponse)
 async def list_workspace_files(
     workspace_id: str,
-    workspace_service: WorkspaceService = Depends(get_workspace_service)
+    file_service: FileService = Depends(get_file_service)
 ):
     """List files in workspace"""
     try:
-        files_response = await workspace_service.get_workspace_files(workspace_id)
+        # Use FileService with concurrency controls and get complete response
+        files_response = await file_service.list_files(workspace_id)
         
         # Generate download URLs at API layer (proper separation of concerns)
         for file_info in files_response.files:
             file_info.download_url = f"/workspace/{workspace_id}/files/{file_info.relative_path}"
         
+        # Return the response directly (no need to reconstruct)
         return files_response
+        
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except FileServiceError as e:
+        error_message = str(e)
+        if "temporarily unavailable" in error_message.lower():
+            # Handle concurrency overload as 503 Service Unavailable
+            raise HTTPException(status_code=503, detail=error_message)
+        else:
+            # Handle other file service errors as 400 Bad Request
+            raise HTTPException(status_code=400, detail=error_message)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list files: {e}")
 

@@ -1,8 +1,13 @@
 # CodeSandbox Concurrency System Analysis
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Date:** July 2025  
 **Analysis Scope:** Complete concurrency architecture, request correlation, and safety analysis
+
+**Recent Updates:**
+- ✅ **Implemented FileService Concurrency Controls** - Added 4-layer concurrency architecture to file operations
+- ✅ **File-Level Locking** - Prevents concurrent operations on same files
+- ✅ **Unified Concurrency Strategy** - Both ExecutionService and FileService use same architecture
 
 ---
 
@@ -11,13 +16,14 @@
 1. [Executive Summary](#executive-summary)
 2. [System Architecture Overview](#system-architecture-overview)
 3. [4-Layer Concurrency Control Design](#4-layer-concurrency-control-design)
-4. [Request-Response Correlation Mechanisms](#request-response-correlation-mechanisms)
-5. [Workspace Isolation Model](#workspace-isolation-model)
-6. [Concurrency Risk Analysis](#concurrency-risk-analysis)
-7. [Current Safeguards](#current-safeguards)
-8. [Potential Vulnerabilities](#potential-vulnerabilities)
-9. [Recommendations](#recommendations)
-10. [Code Examples](#code-examples)
+4. [FileService Concurrency Implementation](#fileservice-concurrency-implementation)
+5. [Request-Response Correlation Mechanisms](#request-response-correlation-mechanisms)
+6. [Workspace Isolation Model](#workspace-isolation-model)
+7. [Concurrency Risk Analysis](#concurrency-risk-analysis)
+8. [Current Safeguards](#current-safeguards)
+9. [Potential Vulnerabilities](#potential-vulnerabilities)
+10. [Recommendations](#recommendations)
+11. [Code Examples](#code-examples)
 
 ---
 
@@ -29,8 +35,10 @@ The CodeSandbox implements a sophisticated **4-layer concurrency control system*
 - ✅ **Multi-workspace concurrency works correctly** - different workspaces can execute simultaneously
 - ✅ **Strong request-response correlation** through UUID-based identification
 - ✅ **Effective workspace isolation** via separate Jupyter kernels and file systems
-- ⚠️ **Some concurrency risks exist** around shared dictionary access patterns
-- 🎯 **Overall system is safe** but could benefit from explicit locking mechanisms
+- ✅ **FileService concurrency implemented** - file operations now have same 4-layer protection
+- ✅ **Unified concurrency architecture** across all services
+- ⚡ **Enhanced system resilience** with file operation circuit breakers
+- 🎯 **Production-ready concurrency controls** for high-load scenarios
 
 ---
 
@@ -167,6 +175,104 @@ async def call(self, func, *args, **kwargs):
     except Exception as e:
         self._on_failure(e)
         raise
+```
+
+---
+
+## FileService Concurrency Implementation
+
+### Architecture Overview
+
+The FileService now implements the same 4-layer concurrency architecture as ExecutionService:
+
+```
+┌─────────────────────────────────────────────┐
+│ Layer 3: File Admission Controller          │
+│ • Max 40 concurrent file requests           │
+│ • Prevents file system overload             │
+└─────────────────────────────────────────────┘
+            ↓
+┌─────────────────────────────────────────────┐
+│ Layer 4: File Circuit Breaker               │
+│ • Prevents cascade failures                 │
+│ • Opens after 8 consecutive failures        │
+│ • Faster recovery (20s vs 60s)              │
+└─────────────────────────────────────────────┘
+            ↓
+┌─────────────────────────────────────────────┐
+│ Layer 2: File Resource Manager              │
+│ • Max 15 concurrent file operations         │
+│ • I/O bandwidth throttling                  │
+└─────────────────────────────────────────────┘
+            ↓
+┌─────────────────────────────────────────────┐
+│ Layer 1: File-Level Locks                   │
+│ • Per-file operation serialization          │
+│ • Prevents file corruption & overwrites     │
+└─────────────────────────────────────────────┘
+```
+
+### Configuration Settings
+
+```python
+# File Concurrency Control Configuration
+max_concurrent_file_operations: int = 15  # Lower than code executions
+max_queued_file_requests: int = 40         # Lower than code execution queue
+file_circuit_breaker_threshold: int = 8   # Higher tolerance for file errors
+file_circuit_recovery_timeout: int = 20   # Faster recovery than executions
+file_timeout_seconds: int = 180            # 3 minutes for large files
+```
+
+### File Lock Granularity
+
+```python
+# File locks are per workspace + filename:
+lock_key = f"{workspace_id}:{filename}"
+
+# Examples:
+# - "ws-alice:data.csv" 
+# - "ws-bob:results.json"
+# - "ws-alice:model.pkl"
+
+# Concurrent operations allowed:
+# ✅ Alice uploads data.csv + Bob uploads data.csv (different workspaces)
+# ✅ Alice uploads data.csv + Alice uploads results.json (different files)
+# ❌ Alice uploads data.csv + Alice downloads data.csv (same file)
+```
+
+### Benefits Over Previous Implementation
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| **Data Loss Risk** | 🔴 High - concurrent file overwrites | ✅ Eliminated - file-level locking |
+| **System Overload** | 🔴 Possible - no limits | ✅ Protected - admission control |
+| **Failure Resilience** | 🟡 Basic error handling | ✅ Circuit breaker pattern |
+| **Monitoring** | 🟡 Limited metrics | ✅ Comprehensive statistics |
+| **TOCTOU Attacks** | 🔴 Vulnerable | ✅ Atomic operations |
+| **Scalability** | 🟡 Unknown limits | ✅ Predictable performance |
+
+### Real-World Example: File Upload Safety
+
+**Scenario**: 10 users simultaneously upload files to the same workspace
+
+**Before Concurrency Implementation**:
+```python
+# DANGEROUS: All uploads happen simultaneously
+# Result: File overwrites, corruption, data loss
+User A: uploads "results.csv" (1MB)
+User B: uploads "results.csv" (2MB) ← Overwrites A's file!
+User C: uploads "data.json" (500KB)
+# A's work is lost forever
+```
+
+**After Concurrency Implementation**:
+```python
+# SAFE: File operations are serialized per file
+User A: uploads "results.csv" (1MB) ← Gets file lock
+User B: waits for "results.csv" lock... ← Queued safely
+User C: uploads "data.json" (500KB) ← Different file, concurrent
+# Result: A's file uploaded, B waits, C proceeds concurrently
+# B gets versioned filename "results_v2.csv" (optional feature)
 ```
 
 ---

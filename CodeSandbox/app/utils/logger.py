@@ -279,6 +279,8 @@ class Loggers:
     
     # Management loggers
     concurrency_manager = AppLogger(LoggerNames.CONCURRENCY_MANAGER)
+    file_concurrency_manager = AppLogger(LoggerNames.FILE_CONCURRENCY_MANAGER)
+    file_lock_manager = AppLogger(LoggerNames.FILE_LOCK_MANAGER)
     event_bus = AppLogger(LoggerNames.EVENT_BUS)
     # API-specific loggers
     api_routes = AppLogger(LoggerNames.API_ROUTES)
