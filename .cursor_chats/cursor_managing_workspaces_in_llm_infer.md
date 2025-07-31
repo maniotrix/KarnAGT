@@ -1,5 +1,5 @@
 # Managing workspaces in llm inference
-_Exported on 7/31/2025 at 10:37:09 GMT+5:30 from Cursor (1.3.6)_
+_Exported on 7/31/2025 at 11:25:10 GMT+5:30 from Cursor (1.3.6)_
 
 ---
 
@@ -11721,5 +11721,764 @@ class ConfigurableOpenAIAssistant:
         if self._conversation_session:
             await self._conversation_session.__aexit__(None, None, None)
             self._conversation_session = None
+```
+
+---
+
+**User**
+
+search on internet what options we have for per send message call sessions with auto garbage collected?@workspace_session.py 
+
+---
+
+**Cursor**
+
+Based on my search, here are the **proven patterns** for per-message session management with automatic garbage collection:
+
+## **🎯 Top Options for Your Use Case:**
+
+### **1. Context Manager + ContextVars (BEST for your architecture)**
+```python
+# From search results - proven pattern used in production
+import contextvars
+
+_current_session: contextvars.ContextVar[Optional[WorkspaceExecutionSession]] = contextvars.ContextVar('session', default=None)
+
+def create_session_aware_code_tools() -> List:
+    @function_tool(name_override="create_workspace", ...)
+    async def create_workspace(ttl_hours: int = 2):
+        session = _current_session.get()
+        if session:
+            return await session.create_workspace(ttl_hours)
+        # Fallback to original tools
+        from app.aicore.code_executor.tools.default_llm_code_tools import create_workspace as orig
+        return await orig(ttl_hours)
+    
+    return [create_workspace, execute_code, upload_file]
+
+# Your exact usage:
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        _current_session.set(session)  # Auto-cleared on context exit
+        # All streaming/processing logic unchanged
+        return await self._stream_response(user_message)
+```
+
+### **2. WeakRef + Finalizers (From search results)**
+```python
+import weakref
+
+class AutoCleanupSession:
+    def __init__(self):
+        self.session = WorkspaceExecutionSession()
+        # Auto-cleanup when object is garbage collected
+        self._finalizer = weakref.finalize(self, self._cleanup, self.session)
+    
+    def _cleanup(self, session):
+        asyncio.create_task(session.cleanup_all_workspaces())
+
+# Usage - session auto-cleaned when request ends
+async def _async_process_message(self, user_message):
+    auto_session = AutoCleanupSession() 
+    # Session automatically cleaned up when auto_session is GC'd
+```
+
+### **3. AsyncExitStack Pattern (From aiohttp community)**
+```python
+from contextlib import AsyncExitStack
+
+async def _async_process_message(self, user_message):
+    async with AsyncExitStack() as stack:
+        session = WorkspaceExecutionSession()
+        await stack.enter_async_context(session)
+        # Session automatically cleaned up
+        return await self._stream_response(user_message)
+```
+
+### **4. Background Task Cleanup (From memory leak prevention)**
+```python
+_active_sessions = weakref.WeakSet()
+
+class ManagedWorkspaceSession(WorkspaceExecutionSession):
+    def __init__(self):
+        super().__init__()
+        _active_sessions.add(self)
+        # Auto-cleanup task when no strong references remain
+        task = asyncio.create_task(self._monitor_lifecycle())
+        task.add_done_callback(lambda t: None)  # Prevent task ref buildup
+
+    async def _monitor_lifecycle(self):
+        # Monitor and cleanup when appropriate
+        pass
+```
+
+## **📊 Comparison Based on Search Results:**
+
+| Pattern | Auto Cleanup | Memory Safety | Streaming Safe | Complexity |
+|---------|-------------|---------------|----------------|------------|
+| **ContextVars + Context Manager** | ✅ Guaranteed | ✅ No leaks | ✅ Zero impact | 🟡 Low |
+| **WeakRef + Finalizers** | ✅ GC-based | ✅ Automatic | ✅ Zero impact | 🟡 Medium |
+| **AsyncExitStack** | ✅ Guaranteed | ✅ No leaks | ✅ Zero impact | 🟢 Very Low |
+| **Background Tasks** | ⚠️ Depends | ⚠️ Can leak | ✅ Zero impact | 🔴 High |
+
+## **🚨 Anti-Patterns from Search (AVOID):**
+
+### **❌ Task-based cleanup:**
+```python
+# From search results - causes memory leaks
+task = asyncio.create_task(background_work())  # Task reference lost, runs forever
+```
+
+### **❌ SSL/Connection context buildup:**
+```python
+# From search results - causes memory accumulation  
+async with aiohttp.ClientSession() as session:  # SSL context persists
+```
+
+### **❌ Reference cycles:**
+```python
+# From search results - prevents garbage collection
+self.loop.call_later(60, partial(self.callback, self))  # Strong reference cycle
+```
+
+## **🎯 Recommended Solution:**
+
+**Use Option 1 (ContextVars + Context Manager)** because:
+
+✅ **Proven in production** (from search results)  
+✅ **Zero memory leaks** (automatic context cleanup)  
+✅ **Streaming compatible** (no interference)  
+✅ **Your exact code works** (minimal changes)  
+✅ **Thread/task isolated** (contextvars are per-async-task)  
+
+This pattern is **widely used** in production Python applications and specifically recommended by the aiohttp community for per-request resource management.
+
+```python
+# From search results - proven pattern used in production
+import contextvars
+
+_current_session: contextvars.ContextVar[Optional[WorkspaceExecutionSession]] = contextvars.ContextVar('session', default=None)
+
+def create_session_aware_code_tools() -> List:
+    @function_tool(name_override="create_workspace", ...)
+    async def create_workspace(ttl_hours: int = 2):
+        session = _current_session.get()
+        if session:
+            return await session.create_workspace(ttl_hours)
+        # Fallback to original tools
+        from app.aicore.code_executor.tools.default_llm_code_tools import create_workspace as orig
+        return await orig(ttl_hours)
+    
+    return [create_workspace, execute_code, upload_file]
+
+# Your exact usage:
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        _current_session.set(session)  # Auto-cleared on context exit
+        # All streaming/processing logic unchanged
+        return await self._stream_response(user_message)
+```
+
+```python
+import weakref
+
+class AutoCleanupSession:
+    def __init__(self):
+        self.session = WorkspaceExecutionSession()
+        # Auto-cleanup when object is garbage collected
+        self._finalizer = weakref.finalize(self, self._cleanup, self.session)
+    
+    def _cleanup(self, session):
+        asyncio.create_task(session.cleanup_all_workspaces())
+
+# Usage - session auto-cleaned when request ends
+async def _async_process_message(self, user_message):
+    auto_session = AutoCleanupSession() 
+    # Session automatically cleaned up when auto_session is GC'd
+```
+
+```python
+from contextlib import AsyncExitStack
+
+async def _async_process_message(self, user_message):
+    async with AsyncExitStack() as stack:
+        session = WorkspaceExecutionSession()
+        await stack.enter_async_context(session)
+        # Session automatically cleaned up
+        return await self._stream_response(user_message)
+```
+
+```python
+_active_sessions = weakref.WeakSet()
+
+class ManagedWorkspaceSession(WorkspaceExecutionSession):
+    def __init__(self):
+        super().__init__()
+        _active_sessions.add(self)
+        # Auto-cleanup task when no strong references remain
+        task = asyncio.create_task(self._monitor_lifecycle())
+        task.add_done_callback(lambda t: None)  # Prevent task ref buildup
+
+    async def _monitor_lifecycle(self):
+        # Monitor and cleanup when appropriate
+        pass
+```
+
+```python
+# From search results - causes memory leaks
+task = asyncio.create_task(background_work())  # Task reference lost, runs forever
+```
+
+```python
+# From search results - causes memory accumulation  
+async with aiohttp.ClientSession() as session:  # SSL context persists
+```
+
+```python
+# From search results - prevents garbage collection
+self.loop.call_later(60, partial(self.callback, self))  # Strong reference cycle
+```
+
+---
+
+**User**
+
+I dont want any fallbakck and how does context vars guarantee a new session when I call async wih session and all tools use same session
+
+---
+
+**Cursor**
+
+You're absolutely right to ask about the mechanism! Here's how contextvars **guarantee** a new session per `async with` call:
+
+## **🎯 ContextVars Mechanism (No Fallbacks):**
+
+### **How It Works:**
+
+```python
+import contextvars
+
+# Global context variable - but each async task gets its own copy
+_session_ctx: contextvars.ContextVar[WorkspaceExecutionSession] = contextvars.ContextVar('session')
+
+class WorkspaceExecutionSession:
+    async def __aenter__(self):
+        # Set THIS session instance in the current async task's context
+        _session_ctx.set(self)
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Clean up workspaces
+        await self.cleanup_all_workspaces()
+        # Context variable automatically clears when task ends
+
+def create_session_aware_code_tools() -> List:
+    @function_tool(name_override="create_workspace")
+    async def create_workspace(ttl_hours: int = 2):
+        # THIS LINE GUARANTEES same session - no fallback needed
+        session = _session_ctx.get()  # Gets the session from current async task
+        return await session.create_workspace(ttl_hours)
+    
+    return [create_workspace, ...]
+```
+
+### **Session Isolation Guarantee:**
+
+```python
+# In your ConfigurableOpenAIAssistant
+async def _async_process_message(self, user_message):
+    # Each call creates NEW session in NEW async task context
+    async with WorkspaceExecutionSession() as session:  # Sets _session_ctx for THIS task
+        # All tools called in this block see the SAME session
+        result = await Runner.run_streamed(agent, messages=user_message)
+        return result
+    # Session auto-cleanup happens here
+
+# Concurrent calls are isolated:
+async def concurrent_test():
+    task1 = _async_process_message(msg1)  # Gets session A
+    task2 = _async_process_message(msg2)  # Gets session B  
+    await asyncio.gather(task1, task2)    # Both isolated
+```
+
+### **Why It Works:**
+
+1. **Task Isolation**: Each `async with` call runs in its own async task
+2. **Context Copying**: Python copies context variables per async task automatically
+3. **Guaranteed Access**: `_session_ctx.get()` always returns the session set by `__aenter__`
+4. **Automatic Cleanup**: `__aexit__` runs when context manager exits
+
+**No fallback needed** - the session is guaranteed to exist within the context manager block!
+
+```python
+import contextvars
+
+# Global context variable - but each async task gets its own copy
+_session_ctx: contextvars.ContextVar[WorkspaceExecutionSession] = contextvars.ContextVar('session')
+
+class WorkspaceExecutionSession:
+    async def __aenter__(self):
+        # Set THIS session instance in the current async task's context
+        _session_ctx.set(self)
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Clean up workspaces
+        await self.cleanup_all_workspaces()
+        # Context variable automatically clears when task ends
+
+def create_session_aware_code_tools() -> List:
+    @function_tool(name_override="create_workspace")
+    async def create_workspace(ttl_hours: int = 2):
+        # THIS LINE GUARANTEES same session - no fallback needed
+        session = _session_ctx.get()  # Gets the session from current async task
+        return await session.create_workspace(ttl_hours)
+    
+    return [create_workspace, ...]
+```
+
+```python
+# In your ConfigurableOpenAIAssistant
+async def _async_process_message(self, user_message):
+    # Each call creates NEW session in NEW async task context
+    async with WorkspaceExecutionSession() as session:  # Sets _session_ctx for THIS task
+        # All tools called in this block see the SAME session
+        result = await Runner.run_streamed(agent, messages=user_message)
+        return result
+    # Session auto-cleanup happens here
+
+# Concurrent calls are isolated:
+async def concurrent_test():
+    task1 = _async_process_message(msg1)  # Gets session A
+    task2 = _async_process_message(msg2)  # Gets session B  
+    await asyncio.gather(task1, task2)    # Both isolated
+```
+
+---
+
+**User**
+
+what are the pros and cons of this approach
+
+---
+
+**Cursor**
+
+## **🎯 ContextVar Approach: Comprehensive Pros & Cons**
+
+### **✅ PROS:**
+
+#### **API & Architecture:**
+- **Clean Tool API**: `create_session_aware_code_tools()` - no parameters needed
+- **Zero Agent Modification**: No session storage in `ConfigurableCodeExecutorAgent`
+- **Context Manager Support**: `async with WorkspaceExecutionSession()` works perfectly
+- **Streaming Compatible**: Doesn't interfere with `Runner.run_streamed()`
+
+#### **Concurrency & Safety:**
+- **Task Isolation**: Each `_async_process_message()` call gets isolated session
+- **Thread-Safe**: ContextVars handle concurrent requests automatically
+- **Automatic Cleanup**: Session cleanup guaranteed when context exits
+
+### **❌ CONS:**
+
+#### **🚨 Hidden Complexity:**
+- **Invisible Dependencies**: Tools depend on context being set up correctly
+- **Magic Behavior**: Session appears "magically" in tool functions
+- **Error Propagation**: Context variable errors are cryptic (`LookupError`)
+
+#### **🚨 Debugging Nightmares:**
+```python
+# This will be VERY hard to debug:
+async def create_workspace():
+    session = _session_ctx.get()  # Where did this come from?
+    # If this fails, error message is unhelpful
+```
+
+#### **🚨 Context Variable Gotchas:**
+- **Task Inheritance**: Child tasks inherit parent context (could cause issues)
+- **Context Copying**: Large sessions get copied across task boundaries
+- **Memory Leaks**: If context doesn't clear properly, sessions stay in memory
+
+#### **🚨 Interference Risks:**
+- **Agents SDK Conflicts**: Could interfere with agents' internal context management
+- **Library Pollution**: Global context variables affect entire process
+- **Testing Issues**: Tests need to carefully manage context setup/teardown
+
+#### **🚨 Your Specific Architecture Issues:**
+
+```python
+# Problem: Multiple concurrent tool calls in same message
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        # If LLM makes multiple tool calls concurrently:
+        tasks = [
+            create_workspace(),  # Uses session A
+            execute_code(),      # Uses session A  
+            upload_file()        # Uses session A
+        ]
+        await asyncio.gather(*tasks)  # Same session shared - GOOD
+        
+        # But if tool spawns subtask:
+        async def create_workspace():
+            await asyncio.create_task(some_helper())  # Gets session A - MAYBE BAD
+```
+
+#### **🚨 Error Handling Complexity:**
+```python
+async def create_workspace():
+    try:
+        session = _session_ctx.get()
+    except LookupError:
+        # What should happen here? Tool just fails?
+        # User gets unhelpful error message
+        raise RuntimeError("No workspace session available")
+```
+
+### **⚖️ VERDICT FOR YOUR USE CASE:**
+
+**PROS outweigh CONS IF:**
+- You're okay with hidden complexity for clean API
+- Your error handling can deal with context variable failures
+- You don't have complex tool inheritance patterns
+- Testing team understands context variable debugging
+
+**ALTERNATIVE RECOMMENDATION:**
+Given your streaming priority and architecture, consider **explicit session passing** with helper functions:
+
+```python
+# Clean but explicit
+def create_session_enhanced_agent(agent, session):
+    """Returns agent with session-enhanced tools"""
+    enhanced_tools = create_session_aware_code_tools(session)
+    return agent.with_tools(enhanced_tools)
+
+# Usage in ConfigurableOpenAIAssistant
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        enhanced_agent = create_session_enhanced_agent(self.agent, session)
+        return await Runner.run_streamed(enhanced_agent, messages=user_message)
+```
+
+**This gives you:**
+- ✅ Clean per-message sessions
+- ✅ Explicit, debuggable dependencies  
+- ✅ No hidden complexity
+- ✅ Easy testing
+
+**What do you think? Context vars or explicit session passing?**
+
+```python
+# This will be VERY hard to debug:
+async def create_workspace():
+    session = _session_ctx.get()  # Where did this come from?
+    # If this fails, error message is unhelpful
+```
+
+```python
+# Problem: Multiple concurrent tool calls in same message
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        # If LLM makes multiple tool calls concurrently:
+        tasks = [
+            create_workspace(),  # Uses session A
+            execute_code(),      # Uses session A  
+            upload_file()        # Uses session A
+        ]
+        await asyncio.gather(*tasks)  # Same session shared - GOOD
+        
+        # But if tool spawns subtask:
+        async def create_workspace():
+            await asyncio.create_task(some_helper())  # Gets session A - MAYBE BAD
+```
+
+```python
+async def create_workspace():
+    try:
+        session = _session_ctx.get()
+    except LookupError:
+        # What should happen here? Tool just fails?
+        # User gets unhelpful error message
+        raise RuntimeError("No workspace session available")
+```
+
+```python
+# Clean but explicit
+def create_session_enhanced_agent(agent, session):
+    """Returns agent with session-enhanced tools"""
+    enhanced_tools = create_session_aware_code_tools(session)
+    return agent.with_tools(enhanced_tools)
+
+# Usage in ConfigurableOpenAIAssistant
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        enhanced_agent = create_session_enhanced_agent(self.agent, session)
+        return await Runner.run_streamed(enhanced_agent, messages=user_message)
+```
+
+---
+
+**User**
+
+so ur suggestion is either use new agent everytime or reset the tools field of agent everytime when sending message everytime....will  this guranatee all pros above and no cons
+
+---
+
+**Cursor**
+
+**No, that approach does NOT guarantee all pros and no cons.** It trades one set of problems for another:
+
+## **🚨 New Agent/Reset Tools Approach Issues:**
+
+### **Option A: New Agent Every Time**
+```python
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        # Create new agent with session tools
+        new_agent = Agent(
+            name=self.agent.name,
+            model=self.agent.model, 
+            instructions=self.agent.instructions,
+            tools=create_session_aware_code_tools(session)
+        )
+        return await Runner.run_streamed(new_agent, messages=user_message)
+```
+
+**❌ New Cons:**
+- **Performance Hit**: Agent initialization overhead every message
+- **Lost Agent State**: Conversation history, internal state gone
+- **Memory Bloat**: Creating/destroying agent objects frequently
+- **Configuration Loss**: Agent-specific settings reset each time
+
+### **Option B: Reset Tools Field**
+```python
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        # Mutate existing agent
+        original_tools = self.agent.tools
+        self.agent.tools = create_session_aware_code_tools(session)
+        
+        try:
+            return await Runner.run_streamed(self.agent, messages=user_message)
+        finally:
+            self.agent.tools = original_tools  # Restore
+```
+
+**❌ New Cons:**
+- **Race Conditions**: Concurrent messages will interfere with each other
+- **State Corruption**: Agent's internal tool references may break
+- **Error Prone**: If restore fails, agent is permanently broken
+- **Thread Safety**: Shared mutable state across async tasks
+
+## **⚖️ REALITY CHECK:**
+
+**There's NO perfect solution.** Every approach has trade-offs:
+
+| Approach | Clean API | Performance | Debugging | Concurrency | Complexity |
+|----------|-----------|-------------|-----------|-------------|------------|
+| **ContextVars** | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **New Agent** | ✅ | ❌ | ✅ | ✅ | ✅ |
+| **Reset Tools** | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Agent Session** | ❌ | ✅ | ✅ | ✅ | ✅ |
+
+## **🎯 My Honest Recommendation:**
+
+**Stick with ContextVars** for your use case because:
+
+1. **Your Priority**: Streaming + clean API + no agent modifications
+2. **Your Scale**: If you're not running thousands of concurrent requests, the complexity is manageable
+3. **Your Architecture**: Fits best with existing agent/assistant pattern
+
+**BUT** add proper error handling:
+```python
+def create_session_aware_code_tools() -> List:
+    @function_tool(name_override="create_workspace")
+    async def create_workspace(ttl_hours: int = 2):
+        try:
+            session = _session_ctx.get()
+        except LookupError:
+            raise RuntimeError("Code execution tools require active workspace session")
+        return await session.create_workspace(ttl_hours)
+```
+
+**The "perfect" solution doesn't exist - pick the trade-offs you can live with.**
+
+```python
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        # Create new agent with session tools
+        new_agent = Agent(
+            name=self.agent.name,
+            model=self.agent.model, 
+            instructions=self.agent.instructions,
+            tools=create_session_aware_code_tools(session)
+        )
+        return await Runner.run_streamed(new_agent, messages=user_message)
+```
+
+```python
+async def _async_process_message(self, user_message):
+    async with WorkspaceExecutionSession() as session:
+        # Mutate existing agent
+        original_tools = self.agent.tools
+        self.agent.tools = create_session_aware_code_tools(session)
+        
+        try:
+            return await Runner.run_streamed(self.agent, messages=user_message)
+        finally:
+            self.agent.tools = original_tools  # Restore
+```
+
+```python
+def create_session_aware_code_tools() -> List:
+    @function_tool(name_override="create_workspace")
+    async def create_workspace(ttl_hours: int = 2):
+        try:
+            session = _session_ctx.get()
+        except LookupError:
+            raise RuntimeError("Code execution tools require active workspace session")
+        return await session.create_workspace(ttl_hours)
+```
+
+---
+
+**User**
+
+@memory_tools_config.py how these tools are integrated into the agent class, how this pattern injects dependecnies at runtime?
+
+---
+
+**Cursor**
+
+Looking at the memory tools pattern, I can see how dependency injection works at runtime. Let me analyze this and show you how it integrates with the agent:
+
+Excellent question! Now I can see the **complete dependency injection pattern**. Here's how it works:
+
+## **🎯 Memory Tools Dependency Injection Pattern:**
+
+### **1. Factory Functions (Capture Dependencies)**
+```python
+# In llm_memory_tools.py
+def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
+    """Factory that captures dependencies in closure"""
+    
+    @function_tool(name_override="retrieve_user_memory")
+    async def user_memory_retrieval_tool(query: str) -> str:
+        # Uses captured memory_service and user_id from closure
+        all_memories = await memory_service.get_all_user_memories(user_id)
+        # ... tool logic ...
+    
+    return user_memory_retrieval_tool  # Returns actual tool function
+```
+
+### **2. Tool Registry (Factory Storage)**
+```python
+# In tool_registry.py
+_global_registry.register_tool_factory("memory_retrieval", create_memory_retrieval_tool)
+
+def get_tool(self, name: str, **kwargs):
+    # Try tool factory
+    if name in self._tool_factories:
+        factory = self._tool_factories[name]
+        return factory(**kwargs)  # Calls factory with runtime params
+```
+
+### **3. Config Helper (Parameter Packaging)**
+```python
+# In memory_tools_config.py
+def create_memory_tools_config(user_id: int, conversation_id: str, db_session: AsyncSession):
+    memory_service = MemoryService(db_session)  # Create service
+    
+    return [{
+        "name": "memory_retrieval",
+        "params": {
+            "memory_service": memory_service,  # Package dependencies
+            "user_id": user_id
+        }
+    }]
+```
+
+### **4. Agent Integration (Runtime Resolution)**
+```python
+# In configurable_code_agent.py
+for tool_config in self.agent_config.custom_tools:
+    name = tool_config.get('name')           # "memory_retrieval"
+    params = tool_config.get('params', {})   # {"memory_service": ..., "user_id": ...}
+    
+    # This calls factory(**params) -> creates tool with captured dependencies
+    tool = tool_registry.get_tool(name, **params)
+    tools.append(tool)
+```
+
+## **🔑 Key Insights:**
+
+### **Dependency Injection Mechanism:**
+1. **Closure Capture**: Factory functions capture dependencies in closures
+2. **Runtime Resolution**: `get_tool()` calls factory with parameters at agent creation time
+3. **Parameter Packaging**: Config helpers package all needed dependencies 
+4. **Late Binding**: Service instances created when agent is built, not when config is created
+
+### **Why This Works:**
+- **Clean Separation**: Tool logic separate from dependency management
+- **Runtime Flexibility**: Same tool works with different users/sessions/databases
+- **Testability**: Easy to inject mock services for testing
+- **Reusability**: Factory pattern allows multiple tool instances with different dependencies
+
+### **For Your Workspace Session:**
+You can follow the **exact same pattern**:
+1. `create_workspace_session_tools_config()` packages session instance
+2. `create_session_aware_code_tools()` acts as factory function  
+3. Agent calls factory with session parameter at build time
+4. Tools capture session in closure and use it when called
+
+**This is why your approach works perfectly - you're following the established pattern!**
+
+```python
+# In llm_memory_tools.py
+def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
+    """Factory that captures dependencies in closure"""
+    
+    @function_tool(name_override="retrieve_user_memory")
+    async def user_memory_retrieval_tool(query: str) -> str:
+        # Uses captured memory_service and user_id from closure
+        all_memories = await memory_service.get_all_user_memories(user_id)
+        # ... tool logic ...
+    
+    return user_memory_retrieval_tool  # Returns actual tool function
+```
+
+```python
+# In tool_registry.py
+_global_registry.register_tool_factory("memory_retrieval", create_memory_retrieval_tool)
+
+def get_tool(self, name: str, **kwargs):
+    # Try tool factory
+    if name in self._tool_factories:
+        factory = self._tool_factories[name]
+        return factory(**kwargs)  # Calls factory with runtime params
+```
+
+```python
+# In memory_tools_config.py
+def create_memory_tools_config(user_id: int, conversation_id: str, db_session: AsyncSession):
+    memory_service = MemoryService(db_session)  # Create service
+    
+    return [{
+        "name": "memory_retrieval",
+        "params": {
+            "memory_service": memory_service,  # Package dependencies
+            "user_id": user_id
+        }
+    }]
+```
+
+```python
+# In configurable_code_agent.py
+for tool_config in self.agent_config.custom_tools:
+    name = tool_config.get('name')           # "memory_retrieval"
+    params = tool_config.get('params', {})   # {"memory_service": ..., "user_id": ...}
+    
+    # This calls factory(**params) -> creates tool with captured dependencies
+    tool = tool_registry.get_tool(name, **params)
+    tools.append(tool)
 ```
 

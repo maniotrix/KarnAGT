@@ -17,6 +17,7 @@ Features:
 
 import uuid
 import asyncio
+import contextvars
 from typing import Set, Optional, List, Dict, Any
 from agents import function_tool
 
@@ -33,6 +34,53 @@ from app.aicore.code_executor.models import (
 )
 
 logger = get_logger(__name__)
+
+# =============================================================================
+# CONTEXT VARIABLE FOR SESSION MANAGEMENT
+# =============================================================================
+
+# PRIVATE: Context variable to store the current workspace session (internal use only)
+_current_session: contextvars.ContextVar[Optional['WorkspaceExecutionSession']] = contextvars.ContextVar(
+    'workspace_session_internal', 
+    default=None
+)
+
+def _get_current_workspace_session() -> 'WorkspaceExecutionSession':
+    """
+    PRIVATE: Get the current workspace session from context variables.
+    
+    This is an internal function used by the workspace tools. External code
+    should NOT call this directly. Instead, use the WorkspaceExecutionSession
+    context manager and let the tools handle session access automatically.
+    
+    Returns:
+        WorkspaceExecutionSession: The currently active session
+        
+    Raises:
+        RuntimeError: If no workspace session is active in current context
+    """
+    try:
+        session = _current_session.get()
+    except LookupError:
+        # This happens when context variable was never set
+        raise RuntimeError(
+            "No workspace session found in context. "
+            "Make sure you're calling this within an 'async with WorkspaceExecutionSession()' block. "
+            "Example usage:\n"
+            "    async with WorkspaceExecutionSession() as session:\n"
+            "        # Your tool calls here\n"
+            "        result = await create_workspace()\n"
+        )
+    
+    if session is None:
+        # This happens when context variable was explicitly set to None
+        raise RuntimeError(
+            "Workspace session is None in current context. "
+            "This might indicate a session cleanup issue or invalid context state. "
+            "Make sure you're calling this within an active 'async with WorkspaceExecutionSession()' block."
+        )
+    
+    return session
 
 
 class WorkspaceExecutionSession:
@@ -90,13 +138,24 @@ class WorkspaceExecutionSession:
         logger.info(f"Initialized workspace session {self.session_id}")
     
     async def __aenter__(self) -> 'WorkspaceExecutionSession':
-        """Enter context manager"""
+        """Enter context manager and set session in context"""
         logger.info(f"Starting workspace session {self.session_id}")
+        
+        # Set this session as the current session in context variables
+        self._context_token = _current_session.set(self)
+        logger.debug(f"Session {self.session_id}: Set as current session in context")
+        
         return self
         
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Exit context manager with automatic cleanup"""
-        await self.cleanup_all_workspaces()
+        """Exit context manager with automatic cleanup and context reset"""
+        try:
+            await self.cleanup_all_workspaces()
+        finally:
+            # Always reset the context variable, even if cleanup fails
+            if hasattr(self, '_context_token'):
+                _current_session.reset(self._context_token)
+                logger.debug(f"Session {self.session_id}: Cleared from context")
         
         # Log session summary
         if exc_type:
@@ -344,18 +403,20 @@ class WorkspaceExecutionSession:
 # AGENT TOOL INTEGRATION FUNCTIONS
 # =============================================================================
 
-def create_session_aware_code_tools(session: WorkspaceExecutionSession) -> List:
+def create_session_aware_code_tools() -> List:
     """
-    Create agent tools that use the session for automatic workspace tracking.
+    Create agent tools that automatically use the current session from context.
     
-    This follows the same pattern as memory and knowledge tools configuration,
-    allowing the session to be injected into agent tools.
+    These tools will automatically access the active WorkspaceExecutionSession
+    from context variables, eliminating the need to pass session parameters.
     
-    Args:
-        session: WorkspaceExecutionSession to use for tool operations
-        
+    The tools can only be used within an 'async with WorkspaceExecutionSession()' block.
+    
     Returns:
         List of function tools ready for agent use
+        
+    Raises:
+        RuntimeError: If tools are called outside of an active session context
     """
     
     @function_tool(
@@ -384,8 +445,29 @@ def create_session_aware_code_tools(session: WorkspaceExecutionSession) -> List:
         strict_mode=True,
     )
     async def create_workspace(ttl_hours: int = 2) -> WorkspaceCreateResult:
-        """Create workspace using session (automatically tracked)"""
-        return await session.create_workspace(ttl_hours)
+        """Create workspace using current session from context (automatically tracked)"""
+        try:
+            session = _get_current_workspace_session()
+            return await session.create_workspace(ttl_hours)
+        except RuntimeError as e:
+            # Handle context variable issues
+            error_msg = (
+                "Cannot create workspace: No active workspace session found. "
+                "Make sure you're calling this tool within an 'async with WorkspaceExecutionSession()' context. "
+                f"Original error: {str(e)}"
+            )
+            logger.error(f"create_workspace tool error: {error_msg}")
+            
+            # Return a failed result instead of raising
+            return WorkspaceCreateResult.error_result(error_msg)
+        except Exception as e:
+            # Handle any other unexpected errors
+            error_msg = (
+                f"Unexpected error during workspace creation: {str(e)}. "
+                "This might be a service issue or configuration problem."
+            )
+            logger.error(f"create_workspace tool unexpected error: {error_msg}", exc_info=True)
+            return WorkspaceCreateResult.error_result(error_msg)
     
     @function_tool(
         name_override="upload_file", 
@@ -428,8 +510,30 @@ def create_session_aware_code_tools(session: WorkspaceExecutionSession) -> List:
         file_url: str, 
         file_name: str
     ) -> FileUploadResult:
-        """Upload file using session services"""
-        return await session.download_and_upload_file(workspace_id, file_url, file_name)
+        """Upload file using current session from context"""
+        try:
+            session = _get_current_workspace_session()
+            return await session.download_and_upload_file(workspace_id, file_url, file_name)
+        except RuntimeError as e:
+            # Handle context variable issues
+            error_msg = (
+                f"Cannot upload file '{file_name}': No active workspace session found. "
+                "Make sure you're calling this tool within an 'async with WorkspaceExecutionSession()' context. "
+                f"Original error: {str(e)}"
+            )
+            logger.error(f"upload_file tool error: {error_msg}")
+            
+            # Return a failed result instead of raising
+            return FileUploadResult.error_result(error_msg)
+        except Exception as e:
+            # Handle any other unexpected errors (network issues, validation errors, etc.)
+            error_msg = (
+                f"Unexpected error during file upload '{file_name}' to workspace '{workspace_id}': {str(e)}. "
+                "This might be a network issue, invalid URL, or service problem."
+            )
+            logger.error(f"upload_file tool unexpected error: {error_msg}", exc_info=True)
+            
+            return FileUploadResult.error_result(error_msg)
     
     @function_tool(
         name_override="execute_code",
@@ -494,8 +598,30 @@ def create_session_aware_code_tools(session: WorkspaceExecutionSession) -> List:
         strict_mode=True,
     )
     async def execute_code(workspace_id: str, code: str) -> ExecutionOperationResult:
-        """Execute code using session services"""
-        return await session.execute_code(workspace_id, code)
+        """Execute code using current session from context"""
+        try:
+            session = _get_current_workspace_session()
+            return await session.execute_code(workspace_id, code)
+        except RuntimeError as e:
+            # Create a more specific error message for this tool
+            error_msg = (
+                f"Cannot execute code in workspace '{workspace_id}': No active workspace session found. "
+                "Make sure you're calling this tool within an 'async with WorkspaceExecutionSession()' context. "
+                f"Original error: {str(e)}"
+            )
+            logger.error(f"execute_code tool error: {error_msg}")
+            
+            # Return a failed result instead of raising
+            return ExecutionOperationResult.error_result(error_msg)
+        except Exception as e:
+            # Handle any other unexpected errors
+            error_msg = (
+                f"Unexpected error during code execution: {str(e)}. "
+                "This might be a service issue or configuration problem."
+            )
+            logger.error(f"execute_code tool unexpected error: {error_msg}", exc_info=True)
+            
+            return ExecutionOperationResult.error_result(error_msg)
     
     return [create_workspace, upload_file, execute_code]
 
@@ -507,4 +633,5 @@ def create_session_aware_code_tools(session: WorkspaceExecutionSession) -> List:
 __all__ = [
     "WorkspaceExecutionSession",
     "create_session_aware_code_tools",
+    # Note: _get_current_workspace_session is private and not exported
 ]

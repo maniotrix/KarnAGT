@@ -14,7 +14,8 @@ sys.path.append(backend_dir)
 
 from agents import Agent, Runner
 from app.aicore.code_executor.services.health_service import HealthService
-from app.aicore.code_executor.workspace_session import WorkspaceExecutionSession, create_session_aware_code_tools
+from app.aicore.code_executor.workspace_session import WorkspaceExecutionSession
+from app.aicore.code_executor.workspace_session_config import create_auto_session_code_tools
 from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -129,8 +130,8 @@ ADVANCED_TEST_PROMPTS = [
 
 
 
-def create_test_agent(workspace_session: WorkspaceExecutionSession) -> Agent:
-    """Create test agent with session-aware tools"""
+def create_test_agent() -> Agent:
+    """Create test agent with contextvars-based tools (no session parameter needed!)"""
     return Agent(
         name="test_agent",
         model="gpt-4o-mini-2024-07-18",
@@ -203,11 +204,11 @@ def create_test_agent(workspace_session: WorkspaceExecutionSession) -> Agent:
         - Save files you want users to access (they get full HTTP download URLs automatically)
         - Use result = your_final_value to return computed results
         """,
-        tools=create_session_aware_code_tools(workspace_session),
+        tools=create_auto_session_code_tools(),  # Uses contextvars - no session parameter!
     )
 
 health_service = HealthService()
-
+agent = create_test_agent()
 
 async def check_sandbox_health(results: TestResults):
     print("\n2. Testing CodeSandbox health check...")
@@ -219,13 +220,10 @@ async def check_sandbox_health(results: TestResults):
 async def test_with_prompt(prompt: str):
     """Run a test with the given prompt using workspace session for automatic cleanup."""
     print(f"\n--- Testing agent with prompt: {prompt} ---")
-    
+        
     # Use workspace session as context manager for automatic cleanup
     async with WorkspaceExecutionSession() as session:
         print(f"Created workspace session: {session.session_id}")
-        
-        # Create agent with session-aware tools
-        agent = create_test_agent(session)
         
         # Run the agent
         result = await Runner.run(agent, input=prompt)
@@ -261,10 +259,10 @@ async def test_agent_with_upload_file():
 async def main():
     results = TestResults()
     await check_sandbox_health(results)
-    # filtered_prompts = ADVANCED_TEST_PROMPTS[14:15]  # Simple timeout test
-    # for i, prompt in enumerate(filtered_prompts):
-    #     print(f"--- Running test {i+1} ---")
-    #     await test_with_prompt(prompt)
+    filtered_prompts = ADVANCED_TEST_PROMPTS[0:1]  # Simple timeout test
+    for i, prompt in enumerate(filtered_prompts):
+        print(f"--- Running test {i+1} ---")
+        await test_with_prompt(prompt)
     
     await test_agent_with_upload_file()
     

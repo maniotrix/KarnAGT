@@ -18,25 +18,51 @@ from app.logging.logger import get_logger
 logger = get_logger(__name__)
 
 
-def create_workspace_session_tools_config(
-    workspace_session: WorkspaceExecutionSession
-) -> List[Dict[str, Any]]:
+# =============================================================================
+# CONTEXTVARS-BASED FUNCTIONS (NEW APPROACH)
+# =============================================================================
+
+def create_auto_session_code_tools() -> List:
     """
-    Create workspace session tools configuration for an agent.
+    Create workspace session tools that automatically use the current session from context.
     
-    This function returns the configuration that should be added to the 
-    agent's custom_tools configuration, following the same pattern as
-    memory and knowledge tools.
+    This is the new contextvars-based approach that doesn't require passing a session.
+    The tools automatically get the session from context variables.
     
-    Args:
-        workspace_session: WorkspaceExecutionSession instance to use for tools
+    Usage:
+        async with WorkspaceExecutionSession() as session:
+            agent = Agent(
+                name="code_agent",
+                tools=create_auto_session_code_tools(),  # No session parameter needed!
+                # ... other config
+            )
+            result = await Runner.run(agent, input="Create a plot")
+            
+        # All workspaces automatically cleaned up
+    
+    Returns:
+        List of function tools that work with context variables
         
+    Raises:
+        RuntimeError: If tools are called outside of session context
+    """
+    tools = create_session_aware_code_tools()  # Now uses contextvars internally
+    logger.info(f"Created {len(tools)} auto-session code tools (contextvars-based)")
+    return tools
+
+
+def create_auto_session_tools_config() -> List[Dict[str, Any]]:
+    """
+    Create workspace session tools configuration using contextvars approach.
+    
+    This creates tool configurations that automatically use the current session
+    from context variables, eliminating the need to pass session instances.
+    
     Returns:
         List of tool configurations ready for agent config
     """
-    
-    # Get the session-aware tools
-    session_tools = create_session_aware_code_tools(workspace_session)
+    # Get the context-aware tools
+    session_tools = create_auto_session_code_tools()
     
     # Convert to configuration format expected by tool registry
     tool_configs = []
@@ -46,11 +72,120 @@ def create_workspace_session_tools_config(
             "name": tool_name,
             "params": {
                 "tool_function": tool,
-                "workspace_session": workspace_session
+                "uses_context_vars": True  # Flag to indicate context variable usage
             }
         })
     
-    logger.info(f"Created workspace session tools config with {len(tool_configs)} tools for session {workspace_session.session_id}")
+    logger.info(f"Created contextvars-based tools config with {len(tool_configs)} tools")
+    return tool_configs
+
+
+def get_auto_session_enhanced_agent_config(
+    base_config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Enhance an agent configuration with workspace session tools using contextvars.
+    
+    This uses the new contextvars approach that doesn't require passing a session instance.
+    The tools will automatically use the session from context when called within
+    an 'async with WorkspaceExecutionSession()' block.
+    
+    Args:
+        base_config: Base agent configuration
+        
+    Returns:
+        Enhanced configuration with contextvars-based workspace session tools added
+    """
+    
+    # Make a copy of the base config
+    enhanced_config = base_config.copy()
+    
+    # Get workspace session tools configuration using contextvars approach
+    session_tools = create_auto_session_tools_config()
+    
+    # Add to custom_tools in agent section
+    if "agent" not in enhanced_config:
+        enhanced_config["agent"] = {}
+    
+    if "custom_tools" not in enhanced_config["agent"]:
+        enhanced_config["agent"]["custom_tools"] = []
+    
+    # Add session tools to existing custom tools
+    enhanced_config["agent"]["custom_tools"].extend(session_tools)
+    
+    logger.info(f"Enhanced agent config with {len(session_tools)} contextvars-based workspace session tools")
+    
+    return enhanced_config
+
+
+def get_auto_session_override_config() -> Dict[str, Any]:
+    """
+    Get a configuration override that adds contextvars-based workspace session tools.
+    
+    This can be used as the config_overrides parameter when creating
+    an assistant client. Uses the new contextvars approach.
+    
+    Returns:
+        Configuration override dict with contextvars-based tools
+    """
+    
+    session_tools = create_auto_session_tools_config()
+    
+    return {
+        "agent": {
+            "custom_tools": session_tools
+        }
+    }
+
+
+# =============================================================================
+# LEGACY FUNCTIONS (DEPRECATED - Use contextvars approach above)
+# =============================================================================
+
+def create_workspace_session_tools_config(
+    workspace_session: WorkspaceExecutionSession
+) -> List[Dict[str, Any]]:
+    """
+    Create workspace session tools configuration for an agent.
+    
+    ⚠️  DEPRECATED: Use create_auto_session_tools_config() instead.
+    This function is maintained for backward compatibility but requires
+    manual session management.
+    
+    The new contextvars approach with create_auto_session_tools_config()
+    eliminates the need to pass session instances.
+    
+    Args:
+        workspace_session: WorkspaceExecutionSession instance to use for tools
+        
+    Returns:
+        List of tool configurations ready for agent config
+    """
+    import warnings
+    warnings.warn(
+        "create_workspace_session_tools_config is deprecated. "
+        "Use create_auto_session_tools_config() with contextvars approach instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
+    # Get the session-aware tools (now uses contextvars internally)
+    session_tools = create_session_aware_code_tools()
+    
+    # Convert to configuration format expected by tool registry
+    tool_configs = []
+    for tool in session_tools:
+        tool_name = getattr(tool, 'name', str(tool))
+        tool_configs.append({
+            "name": tool_name,
+            "params": {
+                "tool_function": tool,
+                "workspace_session": workspace_session,  # Kept for compatibility
+                "uses_context_vars": True
+            }
+        })
+    
+    logger.warning(f"Using deprecated function - created tools config with {len(tool_configs)} tools for session {workspace_session.session_id}")
     
     return tool_configs
 
@@ -61,9 +196,12 @@ def create_workspace_session_tools_config_simple(
     """
     Create workspace session tools as a simple list (for direct use).
     
-    This is a simpler version that returns the tools directly without
-    the configuration wrapper, useful when you want to add them
-    directly to an agent's tools list.
+    ⚠️  DEPRECATED: Use create_auto_session_code_tools() instead.
+    This function is maintained for backward compatibility but requires
+    manual session management.
+    
+    The new contextvars approach with create_auto_session_code_tools()
+    eliminates the need to pass session instances.
     
     Args:
         workspace_session: WorkspaceExecutionSession instance to use for tools
@@ -71,9 +209,17 @@ def create_workspace_session_tools_config_simple(
     Returns:
         List of function tools ready for agent use
     """
-    session_tools = create_session_aware_code_tools(workspace_session)
+    import warnings
+    warnings.warn(
+        "create_workspace_session_tools_config_simple is deprecated. "
+        "Use create_auto_session_code_tools() with contextvars approach instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     
-    logger.info(f"Created {len(session_tools)} workspace session tools for session {workspace_session.session_id}")
+    session_tools = create_session_aware_code_tools()  # Now uses contextvars internally
+    
+    logger.warning(f"Using deprecated function - created {len(session_tools)} workspace session tools for session {workspace_session.session_id}")
     
     return session_tools
 
@@ -291,11 +437,20 @@ def get_session_info_from_config(tools_config: List[Dict[str, Any]]) -> Optional
 # =============================================================================
 
 __all__ = [
+    # New contextvars-based functions (RECOMMENDED)
+    "create_auto_session_code_tools",
+    "create_auto_session_tools_config", 
+    "get_auto_session_enhanced_agent_config",
+    "get_auto_session_override_config",
+    
+    # Legacy functions (DEPRECATED - kept for backward compatibility)
     "create_workspace_session_tools_config",
     "create_workspace_session_tools_config_simple", 
     "get_workspace_session_enhanced_agent_config",
     "get_workspace_session_override_config",
     "get_unified_tools_with_session_config",
+    
+    # Utility functions  
     "create_managed_workspace_session",
     "validate_workspace_session_config",
     "get_session_info_from_config",
