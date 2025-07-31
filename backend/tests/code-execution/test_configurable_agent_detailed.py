@@ -14,30 +14,29 @@ import pprint
 from typing import Dict, Any, List
 from dataclasses import asdict
 from pathlib import Path
+import asyncio
 
-# Add backend to path for imports
-# Add the backend directory to Python path
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
+# Add backend to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(os.path.dirname(current_dir))
+sys.path.append(backend_dir)
 
 # Import configuration classes
-from aicore.config.agent_config import (
+from app.aicore.config.agent_config import (
     AgentConfig, WebSearchConfig, CodeExecutionConfig, 
     GuardrailConfig, ToolUseStrategy
 )
-from aicore.config.model_config import (
+from app.aicore.config.model_config import (
     ModelConfig, ModelProvider, ModelParameters, 
     ProviderSettings, ModelCapabilities, CostSettings, ModelFamily
 )
 
 # Import the configurable agent
-from aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
+from app.aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
 
 # Import instruction classes
-from aicore.instructions.instruction_builder import InstructionBuilder, InstructionContext
+from app.aicore.instructions.instruction_builder import InstructionBuilder, InstructionContext
 
-# Import path config
-from aicore.path_config import PLOTS_DIR
 
 # Pretty printer setup
 pp = pprint.PrettyPrinter(indent=2, width=120, depth=10)
@@ -99,7 +98,6 @@ def inspect_agent_detailed(agent: ConfigurableCodeExecutorAgent, stage_name: str
         "Agent ID": hex(id(agent)),
         "Current Message ID": agent.current_message_id,
         "HTTP Execution Mode": True,
-        "File Download Enabled": agent.should_download_files,
     }
     pp.pprint(basic_info)
     
@@ -158,7 +156,7 @@ def inspect_agent_detailed(agent: ConfigurableCodeExecutorAgent, stage_name: str
     except Exception as e:
         print(f"Error getting configuration summary: {e}")
 
-def test_instruction_generation(agent: ConfigurableCodeExecutorAgent):
+async def test_instruction_generation(agent: ConfigurableCodeExecutorAgent):
     """Test instruction generation"""
     print_header("Instruction Generation Test", 1)
     
@@ -177,7 +175,7 @@ def test_instruction_generation(agent: ConfigurableCodeExecutorAgent):
     # Generate instructions using the instruction builder
     print_header("Generated Instructions", 2)
     try:
-        instructions = agent.instruction_builder.build_instructions(test_context)
+        instructions = await agent.instruction_builder.build_instructions(test_context)
         print(f"Instructions Length: {len(instructions)} characters")
         print(f"First 500 characters:")
         print("-" * 60)
@@ -393,10 +391,6 @@ def main():
     # Set dummy API key for testing (not making real calls)
     os.environ['OPENAI_API_KEY'] = 'sk-test-dummy-key-for-inspection-only'
     
-    # Ensure plots directory exists
-    os.makedirs(PLOTS_DIR, exist_ok=True)
-    print(f"Using plots directory: {PLOTS_DIR}")
-    
     try:
         # Step 1: Create initial configurations
         initial_agent_config, initial_model_config = create_initial_configs()
@@ -413,7 +407,7 @@ def main():
         inspect_agent_detailed(agent, "Initial State")
         
         # Step 4: Test instruction generation
-        test_instruction_generation(agent)
+        asyncio.run(test_instruction_generation(agent))
         
         # Step 5: Test message ID update
         print_header("STEP 2: Message ID Update", 1)
@@ -444,13 +438,12 @@ def main():
         inspect_agent_detailed(agent, "After Configuration Update")
         
         # Step 8: Test instruction generation with updated config
-        test_instruction_generation(agent)
+        asyncio.run(test_instruction_generation(agent))
         
         # Step 9: Test HTTP file tracking functionality
         print_header("STEP 4: HTTP File Tracking Testing", 1)
         file_tracking_info = {
             "execution_mode": "HTTP-based",
-            "file_download_enabled": agent.should_download_files,
             "file_tracking_stats": agent.get_stats(),
             "plots_with_message_id": agent.get_all_plots_with_message_id()
         }

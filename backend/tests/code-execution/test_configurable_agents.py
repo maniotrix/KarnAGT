@@ -12,16 +12,12 @@ from dotenv import load_dotenv
 import argparse
 from pathlib import Path
 
-# Add the project root to Python path to ensure imports work
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
-
 # Load environment variables for testing
 load_dotenv()
 
+#Add backend to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(os.path.dirname(current_dir))
-
 sys.path.append(backend_dir)
 
 from app.logging.logger import get_logger
