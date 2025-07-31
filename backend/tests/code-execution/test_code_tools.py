@@ -251,6 +251,9 @@ async def test_agent_with_upload_file():
     http_file_url = 'https://raw.githubusercontent.com/orangetw/Tiny-URL-Fuzzer/master/samples.txt'
     
     prompt = f"Here is the file link: {http_file_url}. Please analyze the file details, metadata and show me the top 10 lines."
+    additional_prompt = f"After that, also solve this {ADVANCED_TEST_PROMPTS[14]} in a different workspace."
+    final_prompt = f"Critical: Must run both tasks in different workspaces."
+    prompt = f"{prompt}\n{additional_prompt}\n{final_prompt}"
     
     await test_with_prompt(prompt)
         
