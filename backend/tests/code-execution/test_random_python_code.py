@@ -28,7 +28,7 @@ print(f"Prompt 1: \n{ADVANCED_TEST_PROMPTS[1]}")
 
 print()
 
-start_prompt = f"Here is the file link: {http_file_url}. Please analyze the file details, metadata and show me the top 10 lines."
+start_prompt = f"Here is the file link: {http_file_url}. Please analyze the file details, metadata and show me the top 10 lines after uploading it to the workspace."
 additional_prompt = f"After that, also solve this, {ADVANCED_TEST_PROMPTS[1]}, in a different workspace."
 final_prompt = f"Critical: Must run both tasks in different workspaces."
 full_prompt = f"{start_prompt}{additional_prompt}{final_prompt}"
