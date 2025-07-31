@@ -19,6 +19,7 @@ from openai.types.responses import ResponseTextDeltaEvent
 # Import configuration classes
 from app.aicore.config import AIConfig, config_manager
 from app.aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
+from app.aicore.code_executor import WorkspaceExecutionSession
 from app.logging.logger import get_logger
 
 # Set up logger
@@ -104,7 +105,19 @@ class ConfigurableOpenAIAssistant:
         logger.info(f"ConfigurableOpenAIAssistant initialized with configuration: {config_manager.get_config_summary(config)}")
     
     async def _async_process_message(self, user_message: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Process a user message asynchronously and return the agent's response"""
+        """
+        Process a user message asynchronously and return the agent's response.
+        
+        This method integrates workspace session management for automatic cleanup
+        of any workspaces created during agent execution. The session context manager
+        guarantees cleanup even if exceptions occur during agent execution.
+        
+        Exception Safety:
+        - Workspace session cleanup is guaranteed via context manager
+        - All workspaces created during execution are automatically cleaned up
+        - Context variables are properly reset even on exceptions
+        - Session objects are released for garbage collection
+        """
         logger.info(f"Processing user message context with {len(user_message)} messages")
         
         try:
@@ -114,14 +127,23 @@ class ConfigurableOpenAIAssistant:
                 self._manage_conversation_history()
             
             logger.info(f"ConfigurableOpenAIAssistant: Agent model: {self.agent.model}")
-            # Check if streaming is enabled
-            if self.config.runner.is_streaming_enabled():
-                return await self._stream_response(user_message)
-            else:
-                return await self._standard_response(user_message)
+            
+            # 🚀 WORKSPACE SESSION INTEGRATION - INSIDE TRY-CATCH FOR GUARANTEED CLEANUP
+            async with WorkspaceExecutionSession() as session:
+                logger.info(f"Created workspace session {session.session_id} for message processing")
+                
+                # Check if streaming is enabled
+                if self.config.runner.is_streaming_enabled():
+                    return await self._stream_response(user_message)
+                else:
+                    return await self._standard_response(user_message)
+            
+            # Session automatically cleaned up here (even if there are exceptions)
+            # You'll see logs like: "Session {session_id}: Cleanup completed - X/X workspaces cleaned"
                 
         except Exception as e:
             logger.error(f"Error during agent execution: {e}")
+            # Session cleanup happens automatically even with exceptions
             raise
     
     async def _standard_response(self, user_message: List[Dict[str, Any]]) -> Dict[str, Any]:

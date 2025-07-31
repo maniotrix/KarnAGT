@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Configurable Code Executor Agent - Uses centralized configuration system
+Configurable Code Executor Agent - Uses centralized configuration system with workspace session management
 """
 
 import uuid
@@ -14,8 +14,9 @@ from app.aicore.config import AgentConfig, ModelConfig
 from app.aicore.instructions import InstructionBuilder, InstructionContext
 from app.logging.logger import get_logger
 
-# Import HTTP code execution functionality
-from app.aicore.code_executor.new_code_tool import execute_code_func, execute_system_command_func, CodeExecutionResult, SystemCommandResult, DEFAULT_TIMEOUT
+# Import workspace session functionality (replaces deprecated new_code_tool)
+from app.aicore.code_executor.workspace_session_config import create_auto_session_code_tools
+from app.aicore.code_executor.models import ExecutionOperationResult, FileInfo
 from app.aicore.ai_agents.agent_models import DownloadedFilesTracker
 
 
@@ -25,13 +26,22 @@ logger = get_logger(__name__)
 
 class ConfigurableCodeExecutorAgent(Agent):
     """
-    A configurable Agent subclass for executing code with centralized configuration.
+    A configurable Agent subclass for executing code with centralized configuration and workspace session management.
     
     This agent uses the centralized configuration system to determine:
     - Model selection and parameters
     - Tool availability and settings
     - Instruction generation
     - Execution behavior
+    
+    Code execution is handled through workspace session tools that provide:
+    - Automatic workspace creation and cleanup (via context manager at higher level)
+    - File tracking and download URL generation
+    - Isolated execution environments
+    - Persistent state across multiple code executions within the same workspace
+    
+    The agent automatically tracks generated files from code execution and makes them
+    available through the file tracker for downstream processing.
     """
     
     def __init__(
@@ -60,9 +70,6 @@ class ConfigurableCodeExecutorAgent(Agent):
         # Current message ID for the agent
         self.current_message_id = str(uuid.uuid4())[:8]
         
-        # Determine if we should download files from configuration
-        self.should_download_files = agent_config.should_download_files
-        
         # Track downloaded files with metadata from HTTP executions by message ID
         self.file_tracker = DownloadedFilesTracker()
         
@@ -89,14 +96,16 @@ class ConfigurableCodeExecutorAgent(Agent):
         """Build tools list based on agent configuration"""
         tools = []
         
-        # Add code execution tools if enabled (use wrapped tools with file tracking)
+        # Add workspace session tools if enabled (with automatic file tracking)
         if self.agent_config.code_execution.enabled:
-            execute_code_wrapper = self._create_execute_code_wrapper()
-            tools.append(execute_code_wrapper)
+            # Get workspace session tools with contextvars support
+            session_tools = create_auto_session_code_tools()
             
-            if self.agent_config.code_execution.system_commands_enabled:
-                execute_system_command_wrapper = self._create_execute_system_command_wrapper()
-                tools.append(execute_system_command_wrapper)
+            # Wrap tools with file tracking for the agent
+            wrapped_tools = self._wrap_session_tools_with_tracking(session_tools)
+            tools.extend(wrapped_tools)
+            
+            logger.info(f"Added {len(wrapped_tools)} workspace session tools with file tracking")
         
         # Add web search tool if enabled
         if self.agent_config.web_search.enabled:
@@ -133,54 +142,96 @@ class ConfigurableCodeExecutorAgent(Agent):
         logger.debug(f"Tool names: {[getattr(tool, 'name', str(tool)) for tool in tools]}")
         return tools
     
-    def _create_execute_code_wrapper(self):
-        """Create a wrapper function for execute_code that captures downloaded files with metadata."""
+    def _wrap_session_tools_with_tracking(self, session_tools: List) -> List:
+        """
+        Wrap workspace session tools with file tracking functionality.
+        
+        This maintains the same file tracking behavior as the deprecated new_code_tool
+        approach, but works with the new workspace session tools.
+        
+        Args:
+            session_tools: List of workspace session tools from create_auto_session_code_tools()
+            
+        Returns:
+            List of wrapped tools with file tracking
+        """
+        wrapped_tools = []
+        
+        for tool in session_tools:
+            tool_name = getattr(tool, 'name', str(tool))
+            
+            # Only wrap execute_code tool for file tracking
+            if tool_name == 'execute_code':
+                wrapped_tool = self._create_execute_code_session_wrapper(tool)
+                wrapped_tools.append(wrapped_tool)
+                logger.debug(f"Wrapped {tool_name} with file tracking")
+            else:
+                # Other tools (create_workspace, upload_file) don't need file tracking
+                wrapped_tools.append(tool)
+                logger.debug(f"Added {tool_name} without wrapping")
+        
+        return wrapped_tools
+    
+    def _create_execute_code_session_wrapper(self, original_execute_code):
+        """
+        Create a wrapper for the workspace session execute_code tool that captures files.
+        
+        This replaces the deprecated _create_execute_code_wrapper method and works
+        with ExecutionOperationResult instead of CodeExecutionResult.
+        """
+        
+        # Get the raw callable function from the workspace tools registry
+        from app.aicore.code_executor.workspace_session import get_workspace_callables
+        workspace_callables = get_workspace_callables()
+        execute_code_func = workspace_callables['execute_code']
         
         # Capture reference to self for the closure
         _agent = self
-        _download_files = _agent.should_download_files
         
-        @function_tool(strict_mode=False)
+        @function_tool(
+            name_override="execute_code",
+            description_override=getattr(original_execute_code, 'description', None),
+            strict_mode=getattr(original_execute_code, 'strict_mode', False)
+        )
         async def execute_code_with_tracking(
-            code: str, 
-            files: Optional[List[tuple]] = None, 
-            timeout: int = DEFAULT_TIMEOUT,  # Agent explicitly enables file downloading for tracking
-            *args: Any, 
-            **kwargs: Any
-        ) -> CodeExecutionResult:
+            workspace_id: str,
+            code: str
+        ) -> ExecutionOperationResult:
             """
-            Execute Python code via secure HTTP FastAPI server with automatic file tracking.
+            Execute Python code in workspace with automatic file tracking.
             
-            This tool automatically captures any downloaded files and adds them to the
-            agent's tracking system using the current message ID, preserving full metadata
-            including download URLs.
+            This tool automatically captures any generated files and adds them to the
+            agent's tracking system using the current message ID.
             
             Args:
+                workspace_id: Valid workspace ID from create_workspace()
                 code: Python code to execute
-                files: Optional list of (filename, content) tuples to upload
-                timeout: Execution timeout in seconds
-                download_files: Whether to download generated files (default: True for agent tracking)
-                *args: Additional args passed to execute_code
-                **kwargs: Additional kwargs passed to execute_code
                 
             Returns:
-                CodeExecutionResult with execution results and downloaded files
+                ExecutionOperationResult with execution results and file tracking
             """
             logger.info(f"Agent executing code with auto file tracking (message: {_agent.current_message_id})")
-            logger.info(f"Download mode: {'ENABLED' if _download_files else 'DISABLED'} (URLs only)")
             
-            # Call the original execute_code tool from new_code_tool with explicit download_files=True
-            result = await execute_code_func(code, files, timeout, _download_files, *args, **kwargs)
+            # Call the underlying function directly (uses context variables internally)
+            result: ExecutionOperationResult = await execute_code_func(workspace_id, code)
             
             # Handle file tracking based on what we got back
-            if result.downloaded_files:
-                # Files were downloaded with content
-                _agent.file_tracker.add_message_files(_agent.current_message_id, result.downloaded_files)
-                logger.info(f"Auto-captured {len(result.downloaded_files)} files with content for message {_agent.current_message_id}")
-            elif result.output_files:
-                # Files exist but weren't downloaded (URLs only)
-                _agent.file_tracker.add_output_files(_agent.current_message_id, result.output_files)
-                logger.info(f"Auto-captured {len(result.output_files)} files (URLs only) for message {_agent.current_message_id}")
+            if result.success and result.execution_result and result.execution_result.generated_files:
+                # Convert FileInfo objects to the format expected by file_tracker
+                output_files : list[dict[str, Any]] = []
+                for file_info in result.execution_result.generated_files:
+                    if isinstance(file_info, FileInfo):
+                        output_files.append({
+                            "name": file_info.filename,
+                            "download_url": file_info.download_url or "",
+                            "size": file_info.size,
+                            "mime_type": file_info.mime_type,
+                            "created_at": ""  # FileInfo doesn't have created_at, use empty string
+                        })
+                
+                if output_files:
+                    _agent.file_tracker.add_output_files(_agent.current_message_id, output_files)
+                    logger.info(f"Auto-captured {len(output_files)} files for message {_agent.current_message_id}")
             else:
                 logger.info(f"No files generated for message {_agent.current_message_id}")
             
@@ -188,35 +239,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         
         return execute_code_with_tracking
     
-    def _create_execute_system_command_wrapper(self):
-        """Create a wrapper function for execute_system_command for consistency."""
-        
-        @function_tool(strict_mode=False)
-        async def execute_system_command_with_tracking(
-            command: str, 
-            allowed_prefixes: Optional[List[str]] = None
-        ) -> SystemCommandResult:
-            """
-            Execute system command via secure HTTP FastAPI server.
-            
-            Args:
-                command: System command to execute
-                allowed_prefixes: List of allowed command prefixes for security
-                
-            Returns:
-                SystemCommandResult with command execution results
-            """
-            logger.info(f"Agent executing system command: {command}")
-            
-            # Call the original execute_system_command tool from new_code_tool
-            result = await execute_system_command_func(command, allowed_prefixes)
-            
-            # System commands don't generate downloadable files, but log for completeness
-            logger.info(f"System command completed with status: {result.status}")
-            
-            return result
-        
-        return execute_system_command_with_tracking
+
     
     async def _get_dynamic_instructions(self) -> str:
         """
@@ -410,6 +433,5 @@ class ConfigurableCodeExecutorAgent(Agent):
             "code_execution_enabled": self.agent_config.code_execution.enabled,
             "web_search_enabled": self.agent_config.web_search.enabled,
             "tool_use_strategy": self.agent_config.tool_use_strategy.value,
-            "should_download_files": self.should_download_files,
             "file_tracking_stats": self.file_tracker.get_overall_stats(),
         } 
