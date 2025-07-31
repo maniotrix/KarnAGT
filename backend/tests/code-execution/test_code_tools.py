@@ -13,9 +13,8 @@ backend_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(backend_dir)
 
 from agents import Agent, Runner
-from app.aicore.code_executor.tools.default_llm_code_tools import create_workspace, upload_file, execute_code
 from app.aicore.code_executor.services.health_service import HealthService
-
+from app.aicore.code_executor.workspace_session import WorkspaceExecutionSession, create_session_aware_code_tools
 from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -130,81 +129,82 @@ ADVANCED_TEST_PROMPTS = [
 
 
 
+def create_test_agent(workspace_session: WorkspaceExecutionSession) -> Agent:
+    """Create test agent with session-aware tools"""
+    return Agent(
+        name="test_agent",
+        model="gpt-4o-mini-2024-07-18",
+        instructions="""
+        # CODE EXECUTION INSTRUCTIONS:
+        Execute Python code in a isolated workspace with a valid workspace_id with persistent state and file generation capabilities.
+        
+        Make sure to strictly follow all the code execution instructions and requirements below.
+        
+        ## CRITICAL REQUIREMENT FOR CODE EXECUTION: 
+        - You MUST have a valid workspace_id before calling this function
+        - If you don't have one, call create_workspace() FIRST to get a workspace_id
+        - NEVER use arbitrary workspace IDs like "1", "test", etc.
+        - ALWAYS use the exact workspace_id returned by create_workspace()
+        - ALWAYS check if the execution succeeded before using any outputs
+        
+        ## CRITICAL TIMEOUT HANDLING:
+        - If a piece of code times-out, do not execute **the same timed-out code** again.
+        - DO NOT make up or estimate results for failed or timed out code executions
+        - If you receive a timeout error, you MUST:
+            1. Analyze why the code timed out
+            2. Optimize the code (e.g., use more efficient algorithms)
+            3. Reduce computational complexity
+            4. Only then try to execute the OPTIMIZED code
+        - NEVER retry the exact same code after a timeout
 
-test_agent = Agent(
-    name="test_agent",
-    model="gpt-4o-mini-2024-07-18",
-    instructions="""
-    # CODE EXECUTION INSTRUCTIONS:
-    Execute Python code in a isolated workspace with a valid workspace_id with persistent state and file generation capabilities.
-    
-    Make sure to strictly follow all the code execution instructions and requirements below.
-    
-    ## CRITICAL REQUIREMENT FOR CODE EXECUTION: 
-    - You MUST have a valid workspace_id before calling this function
-    - If you don't have one, call create_workspace() FIRST to get a workspace_id
-    - NEVER use arbitrary workspace IDs like "1", "test", etc.
-    - ALWAYS use the exact workspace_id returned by create_workspace()
-    - ALWAYS check if the execution succeeded before using any outputs
-    
-    ## CRITICAL TIMEOUT HANDLING:
-    - If a piece of code times-out, do not execute **the same timed-out code** again.
-    - DO NOT make up or estimate results for failed or timed out code executions
-    - If you receive a timeout error, you MUST:
-        1. Analyze why the code timed out
-        2. Optimize the code (e.g., use more efficient algorithms)
-        3. Reduce computational complexity
-        4. Only then try to execute the OPTIMIZED code
-    - NEVER retry the exact same code after a timeout
+        ## REQUIRED PARAMETERS:
+        - workspace_id: Valid workspace ID from create_workspace()
+        - code: Python code string
 
-    ## REQUIRED PARAMETERS:
-    - workspace_id: Valid workspace ID from create_workspace()
-    - code: Python code string
+        ## RETURN VALUE STRUCTURE:
+        The tool returns an ExecutionOperationResult containing:
+        - **success**: boolean indicating if execution completed successfully
+        - **standard output**: text that was printed during execution  
+        - **error messages**: any error messages that occurred
+        - **generated files**: list of files created during execution with full HTTP download URLs
+        - **result data**: the final computed result (if any)
+        
+        ## CODE EXECUTION ENVIRONMENT:
+        - Jupyter kernel with persistent variables/imports across calls
+        - Working directory: workspace root (contains uploaded files)
+        - Full Python standard library + common packages (numpy, pandas, matplotlib, etc.)
+        - Output capture: stdout, stderr, and execution results
+        - Your code will be executed with a timeout of 30 seconds.
+        
+        ## FILE OPERATIONS:
+        - **Read files**: open('filename.txt', 'r') - access uploaded files directly
+        - **Create files**: open('output.csv', 'w') - any file you create gets tracked
+        - **Generate plots**: plt.savefig('chart.png') - saved plots are automatically detected
 
-    ## RETURN VALUE STRUCTURE:
-    The tool returns an ExecutionOperationResult containing:
-    - **success**: boolean indicating if execution completed successfully
-    - **standard output**: text that was printed during execution  
-    - **error messages**: any error messages that occurred
-    - **generated files**: list of files created during execution with full HTTP download URLs
-    - **result data**: the final computed result (if any)
-    
-    ## CODE EXECUTION ENVIRONMENT:
-    - Jupyter kernel with persistent variables/imports across calls
-    - Working directory: workspace root (contains uploaded files)
-    - Full Python standard library + common packages (numpy, pandas, matplotlib, etc.)
-    - Output capture: stdout, stderr, and execution results
-    - Your code will be executed with a timeout of 30 seconds.
-    
-    ## FILE OPERATIONS:
-    - **Read files**: open('filename.txt', 'r') - access uploaded files directly
-    - **Create files**: open('output.csv', 'w') - any file you create gets tracked
-    - **Generate plots**: plt.savefig('chart.png') - saved plots are automatically detected
+        ## EXAMPLES:
+        ```python
+        # Data analysis with CSV output
+        df.to_csv('analysis_results.csv', index=False)
+        
+        # Visualization with plot file
+        plt.figure(figsize=(10,6))
+        plt.plot(data)
+        plt.savefig('visualization.png', dpi=300, bbox_inches='tight')
+        
+        # Generate reports or documents  
+        with open('report.txt', 'w') as f:
+            f.write(f"Analysis completed: {results}")
+        ```
 
-    ## EXAMPLES:
-    ```python
-    # Data analysis with CSV output
-    df.to_csv('analysis_results.csv', index=False)
-    
-    # Visualization with plot file
-    plt.figure(figsize=(10,6))
-    plt.plot(data)
-    plt.savefig('visualization.png', dpi=300, bbox_inches='tight')
-    
-    # Generate reports or documents  
-    with open('report.txt', 'w') as f:
-        f.write(f"Analysis completed: {results}")
-    ```
-
-    ## BEST PRACTICES and DATA VISUALIZATION INSTRUCTIONS:
-    - DO NOT use plt.show() as it will cause errors in the execution environment.
-    - Always close plt figures: plt.close() after plt.savefig()
-    - Use descriptive filenames with extensions
-    - Save files you want users to access (they get full HTTP download URLs automatically)
-    - Use result = your_final_value to return computed results
-    """,
-    tools=[create_workspace, execute_code],
-)
+        ## BEST PRACTICES and DATA VISUALIZATION INSTRUCTIONS:
+        - DO NOT use plt.show() as it will cause errors in the execution environment.
+        - Always close plt figures: plt.close() after plt.savefig()
+        - Use descriptive filenames with extensions
+        - Save files you want users to access (they get full HTTP download URLs automatically)
+        - Use result = your_final_value to return computed results
+        """,
+        tools=create_session_aware_code_tools(workspace_session),
+    )
 
 health_service = HealthService()
 
@@ -216,18 +216,32 @@ async def check_sandbox_health(results: TestResults):
     results.assert_true('healthy' in codesandbox_health, "CodeSandbox health includes 'healthy' field")
     results.assert_true('status' in codesandbox_health, "CodeSandbox health includes 'status' field")
 
-async def test_with_prompt(prompt, agent: Agent):
-    """Run a test with the given prompt and return the result."""
+async def test_with_prompt(prompt: str):
+    """Run a test with the given prompt using workspace session for automatic cleanup."""
     print(f"\n--- Testing agent with prompt: {prompt} ---")
     
-    result = await Runner.run(
-            agent, 
-            input=prompt
-        )
-    print("-"*100)
-    print("\033[1;32mAgent response:\033[0m")
-    print(result.final_output)
-    print("-"*100)
+    # Use workspace session as context manager for automatic cleanup
+    async with WorkspaceExecutionSession() as session:
+        print(f"Created workspace session: {session.session_id}")
+        
+        # Create agent with session-aware tools
+        agent = create_test_agent(session)
+        
+        # Run the agent
+        result = await Runner.run(agent, input=prompt)
+        
+        print("-"*100)
+        print("\033[1;32mAgent response:\033[0m")
+        print(result.final_output)
+        print("-"*100)
+        
+        # Show session info
+        session_info = session.get_session_info()
+        print(f"Session {session.session_id} created {session_info['tracked_workspaces']} workspaces")
+        
+    # Workspaces are automatically cleaned up when exiting the context manager
+    print(f"Session {session.session_id} cleanup completed")
+    print(f"Session Info: {session.get_session_info()}")
 
 async def main():
     results = TestResults()
@@ -235,7 +249,7 @@ async def main():
     filtered_prompts = ADVANCED_TEST_PROMPTS[14:15]  # Simple timeout test
     for i, prompt in enumerate(filtered_prompts):
         print(f"--- Running test {i+1} ---")
-        await test_with_prompt(prompt, test_agent)
+        await test_with_prompt(prompt)
     results.summary()
 
 if __name__ == "__main__":

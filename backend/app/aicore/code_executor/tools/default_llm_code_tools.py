@@ -74,7 +74,7 @@ async def create_workspace() -> WorkspaceCreateResult:
     Upload a file to a a given workspace with a workspace_id so it can be accessed by Python code.
     
     ## CRITICAL FILE UPLOAD INSTRUCTIONS:
-    File must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
+    File URL must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
     You must provide a file_name to be used for the file in the workspace.
     
     ## REQUIRED PARAMETERS:
