@@ -243,13 +243,28 @@ async def test_with_prompt(prompt: str):
     print(f"Session {session.session_id} cleanup completed")
     print(f"Session Info: {session.get_session_info()}")
 
+async def test_agent_with_upload_file():
+    """Run a test with the given prompt using workspace session for automatic cleanup."""
+    print(f"\n--- Testing agent with upload file ---")
+    
+    # HTTP URL
+    http_file_url = 'https://raw.githubusercontent.com/orangetw/Tiny-URL-Fuzzer/master/samples.txt'
+    
+    prompt = f"Here is the file link: {http_file_url}. Please analyze the file details, metadata and show me the top 10 lines."
+    
+    await test_with_prompt(prompt)
+        
+
 async def main():
     results = TestResults()
     await check_sandbox_health(results)
-    filtered_prompts = ADVANCED_TEST_PROMPTS[14:15]  # Simple timeout test
-    for i, prompt in enumerate(filtered_prompts):
-        print(f"--- Running test {i+1} ---")
-        await test_with_prompt(prompt)
+    # filtered_prompts = ADVANCED_TEST_PROMPTS[14:15]  # Simple timeout test
+    # for i, prompt in enumerate(filtered_prompts):
+    #     print(f"--- Running test {i+1} ---")
+    #     await test_with_prompt(prompt)
+    
+    await test_agent_with_upload_file()
+    
     results.summary()
 
 if __name__ == "__main__":
