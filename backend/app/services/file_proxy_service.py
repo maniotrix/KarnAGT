@@ -103,7 +103,7 @@ class FileProxyService:
         logger.debug(f"Generated knowledge proxy URL: {knowledge_file_id} -> {url}")
         return url
     
-    def build_image_context_with_proxy_urls(
+    def build_image_attachments_with_proxy_urls(
         self,
         request: Request,
         attachments: List[Dict[str, Any]]
@@ -159,7 +159,7 @@ class FileProxyService:
         logger.info(f"Enhanced {len(enhanced_attachments)} image attachments with proxy URLs")
         return enhanced_attachments
     
-    def build_knowledge_context_with_proxy_urls(
+    def build_knowledge_attachments_with_proxy_urls(
         self,
         request: Request,
         vector_file_references: Optional[Dict[str, Any]]
@@ -221,7 +221,7 @@ class FileProxyService:
         logger.info(f"Enhanced {len(enhanced_files)} knowledge files with proxy URLs")
         return enhanced_files
     
-    def build_complete_file_context(
+    def build_both_image_and_knowledge_attachments_with_proxy_urls(
         self,
         request: Request,
         attachments: Optional[List[Dict[str, Any]]] = None,
@@ -242,13 +242,13 @@ class FileProxyService:
         
         # Process images
         if attachments:
-            enhanced_images = self.build_image_context_with_proxy_urls(request, attachments)
+            enhanced_images = self.build_image_attachments_with_proxy_urls(request, attachments)
             if enhanced_images:
                 context["images"] = enhanced_images
         
         # Process knowledge files
         if vector_file_references:
-            enhanced_knowledge = self.build_knowledge_context_with_proxy_urls(request, vector_file_references)
+            enhanced_knowledge = self.build_knowledge_attachments_with_proxy_urls(request, vector_file_references)
             if enhanced_knowledge:
                 context["knowledge_files"] = enhanced_knowledge
         
