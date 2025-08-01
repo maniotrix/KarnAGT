@@ -44,20 +44,24 @@ class FileProxyService:
         Returns:
             Complete proxy URL for image file
         """
-        query_params = {}
-        
-        if download is not None:
-            query_params['download'] = str(download).lower()
-        
-        if filename:
-            query_params['filename'] = filename
+        try:
+            query_params = {}
             
-        if cache_duration is not None:
-            query_params['cache'] = str(cache_duration)
-        
-        url = build_image_proxy_url(file_id, **query_params)
-        logger.debug(f"Generated image proxy URL: {file_id} -> {url}")
-        return url
+            if download is not None:
+                query_params['download'] = str(download).lower()
+            
+            if filename:
+                query_params['filename'] = filename
+                
+            if cache_duration is not None:
+                query_params['cache'] = str(cache_duration)
+            
+            url = build_image_proxy_url(file_id, **query_params)
+            logger.debug(f"Generated image proxy URL: {file_id} -> {url}")
+            return url
+        except Exception as e:
+            logger.error(f"Error generating image proxy URL: {e}")
+            return ""
     
     def generate_knowledge_proxy_url(
         self,
@@ -78,20 +82,24 @@ class FileProxyService:
         Returns:
             Complete proxy URL for knowledge file
         """
-        query_params = {}
-        
-        if download is not None:
-            query_params['download'] = str(download).lower()
-        
-        if filename:
-            query_params['filename'] = filename
+        try:
+            query_params = {}
             
-        if cache_duration is not None:
-            query_params['cache'] = str(cache_duration)
-        
-        url = build_knowledge_proxy_url(knowledge_file_id, **query_params)
-        logger.debug(f"Generated knowledge proxy URL: {knowledge_file_id} -> {url}")
-        return url
+            if download is not None:
+                query_params['download'] = str(download).lower()
+            
+            if filename:
+                query_params['filename'] = filename
+                
+            if cache_duration is not None:
+                query_params['cache'] = str(cache_duration)
+            
+            url = build_knowledge_proxy_url(knowledge_file_id, **query_params)
+            logger.debug(f"Generated knowledge proxy URL: {knowledge_file_id} -> {url}")
+            return url
+        except Exception as e:
+            logger.error(f"Error generating knowledge proxy URL: {e}")
+            return ""
     
     def build_image_attachments_with_proxy_urls(
         self,

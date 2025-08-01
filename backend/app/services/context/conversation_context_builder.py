@@ -8,6 +8,7 @@ from app.models.database.conversation import Conversation
 from app.models.database.message import Message
 from app.logging.logger import get_logger
 import json
+from app.services.file_proxy_service import FileProxyService
 
 logger = get_logger(__name__)
 
@@ -52,6 +53,7 @@ class ConversationContextBuilder:
         self.db_session = db_session
         self.conversation_id = conversation_id
         self.summarizer = ConversationSummarizerAgent()
+        self.file_proxy_service = FileProxyService()
         
 
     async def build_context(self, latest_user_message: str, openai_file_ids: Optional[List[str]] = None, vector_file_references: Optional[Dict[str, Any]] = None, last_user_message_saved_in_db: bool = True) -> List[Dict[str, Any]]:
@@ -396,9 +398,8 @@ class ConversationContextBuilder:
         image_contexts : List[ImageDataContext] = []
         for attachment in attachments:
             if isinstance(attachment, dict) and attachment.get('openai_file_id'):
-                # Construct placeholder proxy URL (should be replaced with proper URL when Request is available)
                 file_id = attachment.get('file_id', '')
-                image_file_url = ""
+                image_file_url = self.file_proxy_service.generate_image_proxy_url(file_id)
                 
                 image_context = ImageDataContext(
                     image_file_id=file_id,
@@ -426,8 +427,7 @@ class ConversationContextBuilder:
         for file_info in processed_files:
             if isinstance(file_info, dict) and 'knowledge_file_id' in file_info:
                 knowledge_file_id = file_info['knowledge_file_id']
-                # Construct placeholder proxy URL (should be replaced with proper URL when Request is available)
-                knowledge_file_url = ""
+                knowledge_file_url = self.file_proxy_service.generate_knowledge_proxy_url(knowledge_file_id)
                 
                 knowledge_context = KnowledgeDataContext(
                     knowledge_file_id=str(knowledge_file_id),  # Convert to string for consistency
@@ -479,7 +479,7 @@ class ConversationContextBuilder:
                         image_file_id=attachment.get('file_id', ''),
                         openai_file_id=openai_file_id,
                         filename=attachment.get('filename', ''),
-                        image_file_url=""  # Will be populated when base_url is available
+                        image_file_url=self.file_proxy_service.generate_image_proxy_url(attachment.get('file_id', ''))
                     )
                 else:
                     # Fallback to minimal context if attachment not found
@@ -513,7 +513,7 @@ class ConversationContextBuilder:
         """
         for img_ctx in image_contexts:
             if img_ctx.image_file_id:
-                img_ctx.image_file_url = f"{base_url.rstrip('/')}/api/v1/files/proxy/image/{img_ctx.image_file_id}"
+                img_ctx.image_file_url = self.file_proxy_service.generate_image_proxy_url(img_ctx.image_file_id)
 
     def _update_knowledge_context_urls(self, knowledge_contexts: List[KnowledgeDataContext], base_url: str) -> None:
         """
@@ -525,31 +525,75 @@ class ConversationContextBuilder:
         """
         for kf_ctx in knowledge_contexts:
             if kf_ctx.knowledge_file_id:
-                kf_ctx.knowledge_file_url = f"{base_url.rstrip('/')}/api/v1/files/proxy/knowledge/{kf_ctx.knowledge_file_id}"
+                kf_ctx.knowledge_file_url = self.file_proxy_service.generate_knowledge_proxy_url(kf_ctx.knowledge_file_id)
 
-    def _build_message_with_attachment_and_knowledge_contexts(
+    def _build_knowledge_files_data(self, knowledge_contexts: List[KnowledgeDataContext]) -> List[Dict[str, Any]]:
+        """Build structured data for knowledge files."""
+        knowledge_files : List[Dict[str, Any]] = []
+        for idx, kf_ctx in enumerate(knowledge_contexts, start=1):
+            knowledge_file = {
+                "index": idx,
+                "knowledge_file_id": kf_ctx.knowledge_file_id,
+                "knowledge_file_name": kf_ctx.filename,
+                "knowledge_file_url": kf_ctx.knowledge_file_url
+            }
+            knowledge_files.append(knowledge_file)
+        return knowledge_files
+
+    def _build_image_files_data(self, image_contexts: List[ImageDataContext]) -> List[Dict[str, Any]]:
+        """Build structured data for image files."""
+        image_files : List[Dict[str, Any]] = []
+        for idx, img_ctx in enumerate(image_contexts, start=1):
+            image_file = {
+                "index": idx,
+                "image_file_id": img_ctx.image_file_id,
+                "image_file_name": img_ctx.filename,
+                "image_file_url": img_ctx.image_file_url,
+                "openai_file_id": img_ctx.openai_file_id
+            }
+            image_files.append(image_file)
+        return image_files
+
+    def _create_structured_context_data(
+        self, 
+        content: str, 
+        image_contexts: List[ImageDataContext], 
+        knowledge_contexts: List[KnowledgeDataContext]
+    ) -> Dict[str, Any]:
+        """Create structured data object for user context."""
+        structured_data: Dict[str, Any] = {
+            "user_query": content,
+            "uploaded_files": {}
+        }
+        
+        if knowledge_contexts:
+            structured_data["uploaded_files"]["knowledge_files"] = self._build_knowledge_files_data(knowledge_contexts)
+        
+        if image_contexts:
+            structured_data["uploaded_files"]["image_files"] = self._build_image_files_data(image_contexts)
+        
+        return structured_data
+
+    def _build_enhanced_content(
         self, 
         role: str, 
         content: str, 
         image_contexts: List[ImageDataContext], 
         knowledge_contexts: List[KnowledgeDataContext]
-    ) -> Dict[str, Any]:
-        """Build message with optional image and knowledge file contexts for conversation history."""
-        # Enhance content with knowledge file IDs if present
-        enhanced_content = content
-        if knowledge_contexts and role == "user":
-            knowledge_file_ids = [kf_ctx.knowledge_file_id for kf_ctx in knowledge_contexts]
-            enhanced_content = f"Query: {content}\n\nUser has uploaded files with IDs: {knowledge_file_ids}"
-        
-        if not image_contexts:
-            # Text-only message (possibly with knowledge file context)
-            return {
-                "role": role,
-                "content": enhanced_content
-            }
-        
-        # Multimodal message with images
-        content_parts = []
+    ) -> str:
+        """Build enhanced content with structured context data."""
+        if (knowledge_contexts or image_contexts) and role == "user":
+            structured_data = self._create_structured_context_data(content, image_contexts, knowledge_contexts)
+            return f"User Request Context:\n{json.dumps(structured_data, indent=2)}"
+        return content
+
+    def _build_multimodal_content_parts(
+        self, 
+        enhanced_content: str, 
+        image_contexts: List[ImageDataContext]
+    ) -> List[Dict[str, Any]]:
+        """Build content parts for multimodal messages."""
+        content_parts: List[Dict[str, Any]] = []
         
         # Add text content only if it's not empty
         if enhanced_content and enhanced_content.strip():
@@ -561,6 +605,28 @@ class ConversationContextBuilder:
                 "type": "input_image", 
                 "file_id": img_ctx.openai_file_id
             })
+        
+        return content_parts
+
+    def _build_message_with_attachment_and_knowledge_contexts(
+        self, 
+        role: str, 
+        content: str, 
+        image_contexts: List[ImageDataContext], 
+        knowledge_contexts: List[KnowledgeDataContext]
+    ) -> Dict[str, Any]:
+        """Build message with optional image and knowledge file contexts for conversation history."""
+        enhanced_content = self._build_enhanced_content(role, content, image_contexts, knowledge_contexts)
+        
+        if not image_contexts:
+            # Text-only message (possibly with knowledge file context)
+            return {
+                "role": role,
+                "content": enhanced_content
+            }
+        
+        # Multimodal message with images
+        content_parts = self._build_multimodal_content_parts(enhanced_content, image_contexts)
         
         logger.info(f"Built multimodal {role} message with {len(image_contexts)} images and {len(knowledge_contexts)} knowledge files and {'text' if enhanced_content.strip() else 'no text'}")
         return {

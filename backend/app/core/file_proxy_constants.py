@@ -71,6 +71,9 @@ def build_image_proxy_url(file_id: str, **query_params) -> str:
     Returns:
         Complete proxy URL
     """
+    if not file_id:
+        raise ValueError("File ID is required")
+    
     url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/image/{file_id}"
     
     if query_params:
@@ -92,6 +95,9 @@ def build_knowledge_proxy_url(knowledge_file_id: str, **query_params) -> str:
     Returns:
         Complete proxy URL
     """
+    if not knowledge_file_id:
+        raise ValueError("Knowledge file ID is required")
+    
     url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/knowledge/{knowledge_file_id}"
     
     if query_params:
