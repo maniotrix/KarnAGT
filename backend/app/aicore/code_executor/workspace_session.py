@@ -444,10 +444,10 @@ class WorkspaceExecutionSession:
                     continue
                 
                 # Generate storage key for permanent storage using date-based organization
-                # Pattern: generated/YYYY/MM/DD/unique_id_filename
+                # Pattern: code_sandbox_generated/YYYY/MM/DD/unique_id_filename
                 date_prefix = datetime.now().strftime("%Y/%m/%d")
                 unique_id = uuid.uuid4().hex[:8]
-                storage_key = f"generated/{date_prefix}/{unique_id}_{file_info.filename}"
+                storage_key = f"code_sandbox_generated/{date_prefix}/{unique_id}_{file_info.filename}"
                 
                 # Upload to permanent storage using the standard S3 storage backend
                 uploaded_key = await storage_backend.upload_file(
