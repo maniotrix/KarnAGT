@@ -16,7 +16,6 @@ Features:
 """
 
 import uuid
-import asyncio
 import contextvars
 from typing import Set, Optional, List, Dict, Any, Callable
 from agents import function_tool
@@ -30,7 +29,8 @@ from app.aicore.code_executor.services import (
 from app.aicore.code_executor.models import (
     WorkspaceCreateResult,
     FileUploadResult,
-    ExecutionOperationResult
+    ExecutionOperationResult,
+    FileInfo
 )
 from app.aicore.code_executor.prompts.tools_prompts import (
     CREATE_WORKSPACE_TOOL_DESCRIPTION,
@@ -210,7 +210,14 @@ class WorkspaceExecutionSession:
             logger.warning(f"Session {self.session_id}: Executing code in untracked workspace {workspace_id}")
         
         logger.info(f"Session {self.session_id}: Executing code in workspace {workspace_id}")
-        return await self.execution_service.execute_code(workspace_id, code)
+        result: ExecutionOperationResult = await self.execution_service.execute_code(workspace_id, code)
+        
+        # If code execution succeeded and generated files, persist them to permanent storage
+        if result.success and result.execution_result and result.execution_result.generated_files:
+            logger.info(f"Session {self.session_id}: Code execution generated {len(result.execution_result.generated_files)} files - starting persistence")
+            await self._persist_generated_files_to_storage(workspace_id, result.execution_result.generated_files)
+        
+        return result
     
     async def upload_file(self, workspace_id: str, filename: str, content: str | bytes) -> FileUploadResult:
         """
@@ -392,6 +399,96 @@ class WorkspaceExecutionSession:
         except Exception as e:
             logger.error(f"Session {self.session_id}: Exception cleaning up workspace {workspace_id}: {e}")
             return False
+    
+    async def _persist_generated_files_to_storage(self, workspace_id: str, generated_files: List[FileInfo]) -> None:
+        """
+        Persist generated files from sandbox workspace to permanent S3/MinIO storage.
+        
+        This method downloads files from the ephemeral sandbox and uploads them to
+        permanent storage, replacing sandbox URLs with permanent storage URLs.
+        
+        Args:
+            workspace_id: Sandbox workspace containing the files
+            generated_files: List of FileInfo objects with generated files
+        """
+        # Import here to avoid circular imports
+        from app.services.storage.storage import S3StorageBackend
+        
+        persist_count = 0
+        total_files = len(generated_files)
+        
+        logger.info(
+            f"Session {self.session_id}: Starting persistence of {total_files} generated files "
+            f"from workspace {workspace_id} to permanent storage"
+        )
+        
+        # Initialize S3 storage backend directly
+        storage_backend = S3StorageBackend()
+        
+        for i, file_info in enumerate(generated_files, 1):
+            try:
+                logger.debug(
+                    f"Session {self.session_id}: Persisting file {i}/{total_files}: "
+                    f"{file_info.filename} ({file_info.size} bytes)"
+                )
+                
+                # Download file content from sandbox
+                download_result = await self.file_service.download_file(workspace_id, file_info.relative_path)
+                
+                if not download_result.success or download_result.content is None:
+                    logger.error(
+                        f"Session {self.session_id}: Failed to download {file_info.filename} "
+                        f"from workspace {workspace_id}: {download_result.error or 'No content returned'}"
+                    )
+                    continue
+                
+                # Generate storage key for permanent storage
+                # Use pattern: generated/{session_id}/{workspace_id}/{filename}
+                storage_key = f"generated/{self.session_id}/{workspace_id}/{file_info.filename}"
+                
+                # Upload to permanent storage using the standard S3 storage backend
+                uploaded_key = await storage_backend.upload_file(
+                    file_data=download_result.content,
+                    key=storage_key,
+                    content_type=file_info.mime_type or "application/octet-stream"
+                )
+                
+                # Generate presigned URL for user access (7 days expiration)
+                permanent_url = await storage_backend.generate_presigned_url(
+                    key=uploaded_key,
+                    expire_seconds=7 * 24 * 3600  # 7 days
+                )
+                
+                # Replace sandbox URL with permanent storage URL
+                original_url = file_info.download_url
+                file_info.download_url = permanent_url
+                
+                persist_count += 1
+                
+                logger.info(
+                    f"Session {self.session_id}: Successfully persisted {file_info.filename} "
+                    f"({file_info.size} bytes) to permanent storage. "
+                    f"URL updated: {original_url} -> {permanent_url[:100]}..."
+                )
+                
+            except Exception as e:
+                # Log error but continue with other files - don't fail entire execution
+                logger.error(
+                    f"Session {self.session_id}: Failed to persist {file_info.filename} "
+                    f"from workspace {workspace_id}: {type(e).__name__}: {e}",
+                    exc_info=True
+                )
+        
+        if persist_count > 0:
+            logger.info(
+                f"Session {self.session_id}: File persistence completed - "
+                f"{persist_count}/{total_files} files successfully persisted to permanent storage"
+            )
+        else:
+            logger.warning(
+                f"Session {self.session_id}: File persistence failed - "
+                f"0/{total_files} files were persisted. Generated files may become unavailable after workspace cleanup."
+            )
     
     def get_session_info(self) -> Dict[str, Any]:
         """Get information about the current session"""
