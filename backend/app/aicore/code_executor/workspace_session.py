@@ -17,6 +17,7 @@ Features:
 
 import uuid
 import contextvars
+from datetime import datetime
 from typing import Set, Optional, List, Dict, Any, Callable
 from agents import function_tool
 
@@ -442,9 +443,11 @@ class WorkspaceExecutionSession:
                     )
                     continue
                 
-                # Generate storage key for permanent storage
-                # Use pattern: generated/{session_id}/{workspace_id}/{filename}
-                storage_key = f"generated/{self.session_id}/{workspace_id}/{file_info.filename}"
+                # Generate storage key for permanent storage using date-based organization
+                # Pattern: generated/YYYY/MM/DD/unique_id_filename
+                date_prefix = datetime.now().strftime("%Y/%m/%d")
+                unique_id = uuid.uuid4().hex[:8]
+                storage_key = f"generated/{date_prefix}/{unique_id}_{file_info.filename}"
                 
                 # Upload to permanent storage using the standard S3 storage backend
                 uploaded_key = await storage_backend.upload_file(
@@ -467,7 +470,7 @@ class WorkspaceExecutionSession:
                 
                 logger.info(
                     f"Session {self.session_id}: Successfully persisted {file_info.filename} "
-                    f"({file_info.size} bytes) to permanent storage. "
+                    f"({file_info.size} bytes) to permanent storage at {storage_key}. "
                     f"URL updated: {original_url} -> {permanent_url[:100]}..."
                 )
                 
