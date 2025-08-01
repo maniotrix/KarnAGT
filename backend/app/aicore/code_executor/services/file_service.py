@@ -53,6 +53,39 @@ class FileService:
             sandbox_client: Optional pre-configured client. If None, creates new clients per operation.
         """
         self.sandbox_client = sandbox_client
+    
+    def _get_auth_headers_for_url(self, url: str) -> dict:
+        """
+        Get authentication headers for URL if it's an internal proxy endpoint
+        
+        Args:
+            url: The URL to check
+            
+        Returns:
+            Dictionary of headers to include in the request
+        """
+        from app.core.config import get_settings
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        settings = get_settings()
+        
+        # Debug logging
+        is_internal = settings.is_internal_proxy_url(url)
+        token_available = bool(settings.CODE_EXECUTOR_TOKEN)
+        
+        logger.info(f"[AUTH-DEBUG] URL: {url}")
+        logger.info(f"[AUTH-DEBUG] Is internal: {is_internal}")
+        logger.info(f"[AUTH-DEBUG] Token available: {token_available}")
+        logger.info(f"[AUTH-DEBUG] Server base URL: {settings.server_base_url}")
+        
+        if is_internal:
+            auth_header = {"Authorization": f"Bearer {settings.CODE_EXECUTOR_TOKEN}"}
+            logger.info(f"[AUTH-DEBUG] Adding auth header: Bearer {settings.CODE_EXECUTOR_TOKEN[:10]}...")
+            return auth_header
+        
+        logger.info(f"[AUTH-DEBUG] No auth header needed for external URL")
+        return {}
         
     async def download_and_upload_file_to_workspace(
         self,
@@ -84,11 +117,15 @@ class FileService:
             if source.startswith(('http://', 'https://')):
                 # Handle remote file using async HTTP client
                 try:
+                    # Get authentication headers for internal URLs
+                    auth_headers = self._get_auth_headers_for_url(source)
+                    
                     async with AsyncHTTPClient() as http_client:
                         content, extracted_filename = await http_client.download_file(
                             url=source,
                             max_size_mb=max_size_mb,
-                            filename=file_name
+                            filename=file_name,
+                            headers=auth_headers
                         )
                 except (DownloadError, FileTooLargeError, HTTPClientError) as e:
                     return FileUploadResult.error_result(f"Failed to download from URL {source}: {e}")

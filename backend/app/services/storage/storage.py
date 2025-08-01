@@ -829,6 +829,28 @@ class ImageStorageService:
         else:
             raise ValueError(f"Invalid url_type: {url_type}. Must be 's3_path', 'direct', or 'presigned'")
     
+    async def get_file_record_by_id(self, file_id: str, db: AsyncSession) -> Optional[UploadedImage]:
+        """
+        Get file record by file_id without ownership validation
+        
+        WARNING: This bypasses ownership validation - use only for service-to-service access
+        """
+        try:
+            query = select(UploadedImage).where(UploadedImage.file_id == file_id)
+            result = await db.execute(query)
+            image_record = result.scalar_one_or_none()
+            
+            if image_record:
+                logger.info(f"File record found: {file_id}")
+                return image_record
+            else:
+                logger.warning(f"File record not found: {file_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting file record {file_id}: {e}")
+            return None
+    
     async def validate_file_ownership(self, file_id: str, user_id: str, db: AsyncSession) -> Optional[UploadedImage]:
         """
         Validate that user owns the file - SECURITY CRITICAL

@@ -20,16 +20,16 @@ class FileProxyType(str, Enum):
 class FileProxyEndpoints:
     """File proxy endpoint path constants"""
     
-    # Base proxy path
-    BASE_PATH = "/api/v1/files/proxy"
+    # Base proxy path for URL generation (full API path)
+    BASE_PATH = "/api/v1/proxy"
     
-    # Specific endpoint patterns
-    IMAGE_PROXY = f"{BASE_PATH}/image/{{file_id}}"
-    KNOWLEDGE_PROXY = f"{BASE_PATH}/knowledge/{{knowledge_file_id}}"
+    # Specific endpoint patterns for URL generation
+    IMAGE_PROXY = f"{BASE_PATH}/images/{{file_id}}"
+    KNOWLEDGE_PROXY = f"{BASE_PATH}/files/{{knowledge_file_id}}"
     
-    # Router patterns (for FastAPI route decoration)
-    IMAGE_PROXY_ROUTE = f"{BASE_PATH}/image/{{file_id}}"
-    KNOWLEDGE_PROXY_ROUTE = f"{BASE_PATH}/knowledge/{{knowledge_file_id}}"
+    # Router patterns (simple paths for FastAPI route decoration)
+    IMAGE_PROXY_ROUTE = "/images/{file_id}"
+    KNOWLEDGE_PROXY_ROUTE = "/files/{knowledge_file_id}"
 
 class FileProxyParams:
     """Parameter names used in file proxy endpoints"""
@@ -74,7 +74,7 @@ def build_image_proxy_url(file_id: str, **query_params) -> str:
     if not file_id:
         raise ValueError("File ID is required")
     
-    url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/image/{file_id}"
+    url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.IMAGE_PROXY.format(file_id=file_id)}"
     
     if query_params:
         query_string = "&".join([f"{k}={v}" for k, v in query_params.items() if v is not None])
@@ -98,7 +98,7 @@ def build_knowledge_proxy_url(knowledge_file_id: str, **query_params) -> str:
     if not knowledge_file_id:
         raise ValueError("Knowledge file ID is required")
     
-    url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/knowledge/{knowledge_file_id}"
+    url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.KNOWLEDGE_PROXY.format(knowledge_file_id=knowledge_file_id)}"
     
     if query_params:
         query_string = "&".join([f"{k}={v}" for k, v in query_params.items() if v is not None])

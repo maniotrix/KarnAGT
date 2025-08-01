@@ -1,7 +1,7 @@
 """
 Authentication Dependencies for FastAPI
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,15 @@ from app.core.exceptions import (
     PermissionDeniedException
 )
 from app.models.database.user import User
+
+
+class ServiceAuth:
+    """Service authentication for internal service-to-service calls"""
+    def __init__(self, service_name: str, has_full_access: bool = True):
+        self.service_name = service_name
+        self.has_full_access = has_full_access
+        self.user_id = None  # Services don't have user_id
+        self.is_service = True
 
 # HTTP Bearer token scheme
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -104,6 +113,36 @@ async def get_current_user_optional(
         return user
     except Exception:
         return None
+
+
+async def get_current_user_or_service(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Union[User, ServiceAuth]:
+    """Get current user or service authentication"""
+    if not credentials:
+        raise AuthenticationException("Authentication required")
+    
+    token = credentials.credentials
+    settings = get_settings()
+    
+    # Check if it's the service token
+    if token == settings.CODE_EXECUTOR_TOKEN:
+        return ServiceAuth(service_name="code_executor", has_full_access=True)
+    
+    # Regular user authentication
+    user_id = security.get_subject_from_token(token)
+    if not user_id:
+        raise InvalidTokenException("Invalid or expired token")
+    
+    query = select(User).where(User.user_id == user_id)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise AuthenticationException("User not found")
+    
+    return user
 
 class RequireRole:
     """Dependency class for role-based access control"""

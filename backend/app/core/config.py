@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days
     
+    # Service-to-Service Authentication
+    CODE_EXECUTOR_TOKEN: str = "code-executor-service-token-change-in-production"
+    TRUSTED_INTERNAL_DOMAINS: str = "localhost,127.0.0.1,0.0.0.0"
+    
     # Email Verification
     REQUIRE_EMAIL_VERIFICATION: bool = False  # Set to True to require email verification
     
@@ -172,6 +176,47 @@ class Settings(BaseSettings):
                     sizes.append((int(width), int(height)))
             return sizes
         return self.THUMBNAIL_SIZES
+    
+    def get_trusted_internal_domains(self) -> List[str]:
+        """Get trusted internal domains as a list"""
+        if isinstance(self.TRUSTED_INTERNAL_DOMAINS, str):
+            return [i.strip() for i in self.TRUSTED_INTERNAL_DOMAINS.split(",") if i.strip()]
+        return self.TRUSTED_INTERNAL_DOMAINS
+    
+    def is_internal_proxy_url(self, url: str) -> bool:
+        """
+        Check if URL is an internal file proxy endpoint
+        Uses server base URL and file proxy constants for accurate detection
+        """
+        from urllib.parse import urlparse
+        
+        try:
+            parsed = urlparse(url)
+            
+            # Check if domain is in trusted list
+            trusted_domains = self.get_trusted_internal_domains()
+            domain_with_port = f"{parsed.hostname}:{parsed.port}" if parsed.port else parsed.hostname
+            
+            is_trusted_domain = (
+                parsed.hostname in trusted_domains or 
+                domain_with_port in trusted_domains
+            )
+            
+            if not is_trusted_domain:
+                return False
+            
+            # Check if URL matches our server base URL and has proxy endpoints
+            server_base = self.server_base_url
+            if url.startswith(server_base):
+                # Import here to avoid circular imports
+                from app.core.file_proxy_constants import FileProxyEndpoints
+                return FileProxyEndpoints.BASE_PATH in parsed.path
+                
+            return False
+            
+        except Exception:
+            # If parsing fails, assume it's external
+            return False
     
     @validator("DATABASE_URL", pre=True)
     def validate_database_url(cls, v: str) -> str:

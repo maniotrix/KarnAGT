@@ -5,7 +5,7 @@ Secure proxy endpoints for serving files to code execution sessions
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_403_FORBIDDEN, HTTP_400_BAD_REQUEST
 
 from app.core.database import get_db
-from app.api.v1.dependencies.auth import get_current_user
+from app.api.v1.dependencies.auth import get_current_user, get_current_user_or_service, ServiceAuth
 from app.core.file_proxy_constants import (
     FileProxyEndpoints,
     FileProxyParams,
@@ -51,7 +51,7 @@ async def proxy_image_file(
     request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: Union[User, ServiceAuth] = Depends(get_current_user_or_service),
     download: Optional[bool] = Query(False, description="Force download vs inline display"),
     filename: Optional[str] = Query(None, description="Override filename for download"),
     cache: Optional[int] = Query(FileProxyConfig.DEFAULT_CACHE_DURATION, description="Cache duration in seconds")
@@ -71,6 +71,8 @@ async def proxy_image_file(
     Returns:
         Redirect to presigned URL for file access
     """
+    # Service-to-service authentication working! Debug completed.
+    
     start_time = datetime.utcnow()
     
     try:
@@ -83,19 +85,34 @@ async def proxy_image_file(
             cache=cache
         )
         
-        logger.info(f"Image proxy request: file_id={file_id}, user={current_user.user_id}")
-        
-        # Validate file ownership using existing service
-        image_record = await image_storage_service.validate_file_ownership(
-            file_id, str(current_user.user_id), db
-        )
-        
-        if not image_record:
-            logger.warning(f"Image access denied: file_id={file_id}, user={current_user.user_id}")
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND,
-                detail=FileProxyErrors.FILE_NOT_FOUND
+        # Handle service vs user authentication differently
+        if isinstance(auth, ServiceAuth):
+            # Service token - skip ownership validation, direct file access
+            logger.info(f"[PROXY-DEBUG] Image proxy request: file_id={file_id}, service={auth.service_name}")
+            
+            # Get file record directly without ownership check (service access)
+            image_record = await image_storage_service.get_file_record_by_id(file_id, db)
+            
+            if not image_record:
+                logger.warning(f"Image not found: file_id={file_id}, service={auth.service_name}")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND,
+                    detail=FileProxyErrors.FILE_NOT_FOUND
+                )
+        else:
+            # User token - validate ownership as before
+            logger.info(f"Image proxy request: file_id={file_id}, user={auth.user_id}")
+            
+            image_record = await image_storage_service.validate_file_ownership(
+                file_id, str(auth.user_id), db
             )
+            
+            if not image_record:
+                logger.warning(f"Image access denied: file_id={file_id}, user={auth.user_id}")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND,
+                    detail=FileProxyErrors.FILE_NOT_FOUND
+                )
         
         # Generate short-lived presigned URL for proxy access
         try:
@@ -114,12 +131,20 @@ async def proxy_image_file(
         # Set response headers for tracking and caching
         response.headers[FileProxyHeaders.X_FILE_ID] = str(file_id)
         response.headers[FileProxyHeaders.X_FILE_TYPE] = FileProxyType.IMAGE.value
-        response.headers[FileProxyHeaders.X_USER_ID] = str(current_user.user_id)
+        
+        if isinstance(auth, ServiceAuth):
+            response.headers[FileProxyHeaders.X_USER_ID] = f"service:{auth.service_name}"
+        else:
+            response.headers[FileProxyHeaders.X_USER_ID] = str(auth.user_id)
+            
         response.headers[FileProxyHeaders.CACHE_CONTROL] = f"private, max-age={min(cache or FileProxyConfig.DEFAULT_CACHE_DURATION, FileProxyConfig.MAX_CACHE_DURATION)}"
         
         # Log successful access
         processing_time = (datetime.utcnow() - start_time).total_seconds()
-        logger.info(f"Image proxy success: file_id={file_id}, user={current_user.user_id}, time={processing_time:.3f}s")
+        if isinstance(auth, ServiceAuth):
+            logger.info(f"Image proxy success: file_id={file_id}, service={auth.service_name}, time={processing_time:.3f}s")
+        else:
+            logger.info(f"Image proxy success: file_id={file_id}, user={auth.user_id}, time={processing_time:.3f}s")
         
         # Return redirect to presigned URL
         return RedirectResponse(
@@ -152,7 +177,7 @@ async def proxy_knowledge_file(
     request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: Union[User, ServiceAuth] = Depends(get_current_user_or_service),
     download: Optional[bool] = Query(False, description="Force download vs inline display"),
     filename: Optional[str] = Query(None, description="Override filename for download"),
     cache: Optional[int] = Query(FileProxyConfig.DEFAULT_CACHE_DURATION, description="Cache duration in seconds")
@@ -184,27 +209,43 @@ async def proxy_knowledge_file(
             cache=cache
         )
         
-        logger.info(f"Knowledge proxy request: knowledge_file_id={knowledge_file_id}, user={current_user.user_id}")
-        
-        # Get knowledge file and validate access using DIRECT user relationship
+        # Handle service vs user authentication differently
         from sqlalchemy import select
         from app.models.database.knowledge_file import KnowledgeFile
         
-        # Query knowledge file directly using user_id (no need for vector collection join!)
-        query = select(KnowledgeFile).where(
-            KnowledgeFile.id == knowledge_file_id,
-            KnowledgeFile.user_id == current_user.user_id  # Use UUID user_id field
-        )
-        
-        result = await db.execute(query)
-        knowledge_file = result.scalar_one_or_none()
-        
-        if not knowledge_file:
-            logger.warning(f"Knowledge file access denied: knowledge_file_id={knowledge_file_id}, user={current_user.user_id}")
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND,
-                detail=FileProxyErrors.FILE_NOT_FOUND
+        if isinstance(auth, ServiceAuth):
+            # Service token - skip ownership validation, direct file access
+            logger.info(f"Knowledge proxy request: knowledge_file_id={knowledge_file_id}, service={auth.service_name}")
+            
+            # Get knowledge file record directly without ownership check (service access)
+            query = select(KnowledgeFile).where(KnowledgeFile.id == knowledge_file_id)
+            result = await db.execute(query)
+            knowledge_file = result.scalar_one_or_none()
+            
+            if not knowledge_file:
+                logger.warning(f"Knowledge file not found: knowledge_file_id={knowledge_file_id}, service={auth.service_name}")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND,
+                    detail=FileProxyErrors.FILE_NOT_FOUND
+                )
+        else:
+            # User token - validate ownership as before
+            logger.info(f"Knowledge proxy request: knowledge_file_id={knowledge_file_id}, user={auth.user_id}")
+            
+            # Query knowledge file directly using user_id (ownership validation)
+            query = select(KnowledgeFile).where(
+                KnowledgeFile.id == knowledge_file_id,
+                KnowledgeFile.user_id == auth.user_id  # Use UUID user_id field
             )
+            result = await db.execute(query)
+            knowledge_file = result.scalar_one_or_none()
+            
+            if not knowledge_file:
+                logger.warning(f"Knowledge file access denied: knowledge_file_id={knowledge_file_id}, user={auth.user_id}")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND,
+                    detail=FileProxyErrors.FILE_NOT_FOUND
+                )
         
         # Generate presigned URL using storage service
         try:
@@ -227,12 +268,20 @@ async def proxy_knowledge_file(
         # Set response headers for tracking and caching
         response.headers[FileProxyHeaders.X_FILE_ID] = str(knowledge_file_id)
         response.headers[FileProxyHeaders.X_FILE_TYPE] = FileProxyType.KNOWLEDGE.value
-        response.headers[FileProxyHeaders.X_USER_ID] = str(current_user.user_id)
+        
+        if isinstance(auth, ServiceAuth):
+            response.headers[FileProxyHeaders.X_USER_ID] = f"service:{auth.service_name}"
+        else:
+            response.headers[FileProxyHeaders.X_USER_ID] = str(auth.user_id)
+            
         response.headers[FileProxyHeaders.CACHE_CONTROL] = f"private, max-age={min(cache or FileProxyConfig.DEFAULT_CACHE_DURATION, FileProxyConfig.MAX_CACHE_DURATION)}"
         
         # Log successful access
         processing_time = (datetime.utcnow() - start_time).total_seconds()
-        logger.info(f"Knowledge proxy success: knowledge_file_id={knowledge_file_id}, user={current_user.user_id}, time={processing_time:.3f}s")
+        if isinstance(auth, ServiceAuth):
+            logger.info(f"Knowledge proxy success: knowledge_file_id={knowledge_file_id}, service={auth.service_name}, time={processing_time:.3f}s")
+        else:
+            logger.info(f"Knowledge proxy success: knowledge_file_id={knowledge_file_id}, user={auth.user_id}, time={processing_time:.3f}s")
         
         # Return redirect to presigned URL
         return RedirectResponse(
