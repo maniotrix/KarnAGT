@@ -4,7 +4,6 @@ Utility service for generating and managing file proxy URLs
 """
 
 from typing import Optional, Dict, Any, List
-from fastapi import Request
 from app.core.file_proxy_constants import (
     build_image_proxy_url,
     build_knowledge_proxy_url,
@@ -24,12 +23,10 @@ class FileProxyService:
     that can be consumed by code execution sessions while maintaining
     security through the proxy endpoints.
     
-    Uses FastAPI Request object to dynamically determine base URL.
     """
     
     def generate_image_proxy_url(
         self,
-        request: Request,
         file_id: str, 
         download: Optional[bool] = None,
         filename: Optional[str] = None,
@@ -39,7 +36,6 @@ class FileProxyService:
         Generate proxy URL for image file
         
         Args:
-            request: FastAPI Request object for dynamic base URL
             file_id: Image file ID (e.g., img_abc123)
             download: Force download vs inline display
             filename: Override filename for download
@@ -59,15 +55,12 @@ class FileProxyService:
         if cache_duration is not None:
             query_params['cache'] = str(cache_duration)
         
-        # Get base URL dynamically from request (handles proxies, different ports, etc.)
-        base_url = str(request.base_url).rstrip('/')
-        url = build_image_proxy_url(base_url, file_id, **query_params)
+        url = build_image_proxy_url(file_id, **query_params)
         logger.debug(f"Generated image proxy URL: {file_id} -> {url}")
         return url
     
     def generate_knowledge_proxy_url(
         self,
-        request: Request,
         knowledge_file_id: str,
         download: Optional[bool] = None,
         filename: Optional[str] = None,
@@ -77,7 +70,6 @@ class FileProxyService:
         Generate proxy URL for knowledge file
         
         Args:
-            request: FastAPI Request object for dynamic base URL
             knowledge_file_id: Knowledge file database ID
             download: Force download vs inline display
             filename: Override filename for download
@@ -97,22 +89,18 @@ class FileProxyService:
         if cache_duration is not None:
             query_params['cache'] = str(cache_duration)
         
-        # Get base URL dynamically from request
-        base_url = str(request.base_url).rstrip('/')
-        url = build_knowledge_proxy_url(base_url, knowledge_file_id, **query_params)
+        url = build_knowledge_proxy_url(knowledge_file_id, **query_params)
         logger.debug(f"Generated knowledge proxy URL: {knowledge_file_id} -> {url}")
         return url
     
     def build_image_attachments_with_proxy_urls(
         self,
-        request: Request,
         attachments: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Build image context with proxy URLs for code execution
         
         Args:
-            request: FastAPI Request object for dynamic base URL
             attachments: List of image attachment dictionaries
             
         Returns:
@@ -133,7 +121,6 @@ class FileProxyService:
             
             # Generate proxy URL for this image
             proxy_url = self.generate_image_proxy_url(
-                request=request,
                 file_id=file_id,
                 filename=filename,
                 cache_duration=FileProxyConfig.DEFAULT_CACHE_DURATION
@@ -161,14 +148,12 @@ class FileProxyService:
     
     def build_knowledge_attachments_with_proxy_urls(
         self,
-        request: Request,
         vector_file_references: Optional[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Build knowledge file context with proxy URLs for code execution
         
         Args:
-            request: FastAPI Request object for dynamic base URL
             vector_file_references: Vector file references from attachment service
             
         Returns:
@@ -193,7 +178,6 @@ class FileProxyService:
             
             # Generate proxy URL for this knowledge file
             proxy_url = self.generate_knowledge_proxy_url(
-                request=request,
                 knowledge_file_id=knowledge_file_id,
                 filename=filename,
                 cache_duration=FileProxyConfig.DEFAULT_CACHE_DURATION
@@ -223,7 +207,6 @@ class FileProxyService:
     
     def build_both_image_and_knowledge_attachments_with_proxy_urls(
         self,
-        request: Request,
         attachments: Optional[List[Dict[str, Any]]] = None,
         vector_file_references: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -231,7 +214,6 @@ class FileProxyService:
         Build complete file context with proxy URLs for both images and knowledge files
         
         Args:
-            request: FastAPI Request object for dynamic base URL
             attachments: Image attachments from message
             vector_file_references: Vector file references from attachment service
             
@@ -242,21 +224,19 @@ class FileProxyService:
         
         # Process images
         if attachments:
-            enhanced_images = self.build_image_attachments_with_proxy_urls(request, attachments)
+            enhanced_images = self.build_image_attachments_with_proxy_urls(attachments)
             if enhanced_images:
                 context["images"] = enhanced_images
         
         # Process knowledge files
         if vector_file_references:
-            enhanced_knowledge = self.build_knowledge_attachments_with_proxy_urls(request, vector_file_references)
+            enhanced_knowledge = self.build_knowledge_attachments_with_proxy_urls(vector_file_references)
             if enhanced_knowledge:
                 context["knowledge_files"] = enhanced_knowledge
         
         # Add metadata
-        base_url = str(request.base_url).rstrip('/')
         context["proxy_metadata"] = {
             "service_version": "1.0",
-            "api_base_url": base_url,
             "total_images": len(context.get("images", [])),
             "total_knowledge_files": len(context.get("knowledge_files", [])),
             "cache_duration": FileProxyConfig.DEFAULT_CACHE_DURATION

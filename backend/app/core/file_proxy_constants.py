@@ -3,8 +3,10 @@ File Proxy Constants
 Centralized constants for file proxy endpoints and URL generation
 """
 
+import os
 from enum import Enum
 from typing import Dict, Any
+from app.core.config import settings
 
 # =============================================================================
 # FILE PROXY ENDPOINT CONSTANTS
@@ -54,8 +56,10 @@ class FileProxyHeaders:
 # =============================================================================
 # URL GENERATION HELPERS
 # =============================================================================
+    
+BASE_URL = settings.server_base_url
 
-def build_image_proxy_url(base_url: str, file_id: str, **query_params) -> str:
+def build_image_proxy_url(file_id: str, **query_params) -> str:
     """
     Build image proxy URL with optional query parameters
     
@@ -67,7 +71,7 @@ def build_image_proxy_url(base_url: str, file_id: str, **query_params) -> str:
     Returns:
         Complete proxy URL
     """
-    url = f"{base_url.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/image/{file_id}"
+    url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/image/{file_id}"
     
     if query_params:
         query_string = "&".join([f"{k}={v}" for k, v in query_params.items() if v is not None])
@@ -76,7 +80,7 @@ def build_image_proxy_url(base_url: str, file_id: str, **query_params) -> str:
     
     return url
 
-def build_knowledge_proxy_url(base_url: str, knowledge_file_id: str, **query_params) -> str:
+def build_knowledge_proxy_url(knowledge_file_id: str, **query_params) -> str:
     """
     Build knowledge file proxy URL with optional query parameters
     
@@ -88,7 +92,7 @@ def build_knowledge_proxy_url(base_url: str, knowledge_file_id: str, **query_par
     Returns:
         Complete proxy URL
     """
-    url = f"{base_url.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/knowledge/{knowledge_file_id}"
+    url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.BASE_PATH}/knowledge/{knowledge_file_id}"
     
     if query_params:
         query_string = "&".join([f"{k}={v}" for k, v in query_params.items() if v is not None])

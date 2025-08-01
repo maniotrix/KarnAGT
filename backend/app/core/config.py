@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # API Configuration
     API_V1_PREFIX: str = "/api/v1"
     
+    # Base URL Configuration
+    BASE_URL: Optional[str] = None  # Override via BASE_URL env var
+    DOMAIN: Optional[str] = None    # Set via DOMAIN env var for production
+    
     # Security
     SECRET_KEY: str = "your-super-secret-key-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
@@ -186,6 +190,44 @@ class Settings(BaseSettings):
     def get_upload_path(self) -> Path:
         """Get upload directory path"""
         return Path(self.UPLOAD_DIR)
+    
+    @property
+    def server_scheme(self) -> str:
+        """Get the appropriate scheme based on environment"""
+        return "https" if self.ENVIRONMENT == "production" else "http"
+    
+    @property
+    def server_host(self) -> str:
+        """Get the appropriate host for external access"""
+        if self.ENVIRONMENT == "development":
+            return "localhost"
+        elif self.DOMAIN:
+            return self.DOMAIN
+        elif self.HOST == "0.0.0.0":
+            # In production, you should set DOMAIN env var
+            return "localhost"  # fallback
+        return self.HOST
+    
+    @property
+    def server_port_suffix(self) -> str:
+        """Get port suffix if needed"""
+        standard_ports = {80, 443}
+        if self.PORT in standard_ports:
+            return ""
+        return f":{self.PORT}"
+    
+    @property
+    def server_base_url(self) -> str:
+        """Get the base URL of the FastAPI server"""
+        if self.BASE_URL:
+            return self.BASE_URL.rstrip('/')
+        
+        return f"{self.server_scheme}://{self.server_host}{self.server_port_suffix}"
+    
+    def get_full_url(self, path: str = "") -> str:
+        """Get a full URL for a given path"""
+        path = path.lstrip('/')
+        return f"{self.server_base_url}/{path}" if path else self.server_base_url
     
     class Config:
         env_file = ".env"
