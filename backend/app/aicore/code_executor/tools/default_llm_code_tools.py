@@ -33,6 +33,10 @@ from app.aicore.code_executor.models import (
     FileUploadResult,
     ExecutionOperationResult,
 )
+from app.aicore.code_executor.prompts.tools_prompts import CREATE_WORKSPACE_TOOL_DESCRIPTION
+from app.aicore.code_executor.prompts.tools_prompts import UPLOAD_FILE_TOOL_DESCRIPTION
+from app.aicore.code_executor.prompts.tools_prompts import EXECUTE_CODE_TOOL_DESCRIPTION
+
 
 # Single shared service instances (no state kept between calls except
 # what the backend sandbox server maintains for each workspace).
@@ -43,24 +47,7 @@ _execution_service = ExecutionService()
 
 @function_tool(
     name_override="create_workspace",
-    description_override="""
-    Create a new isolated workspace for Python code execution.
-    
-    HOW IT WORKS:
-    - Creates a fresh Python environment with Jupyter kernel
-    - Workspace automatically expires after 2 hours (system managed)
-    - Variables and imports persist across multiple code executions
-    
-    WHEN TO USE:
-    - At the start of any coding task or data analysis
-    - When you need a clean environment for Python execution
-    - Before uploading files or running any code
-    
-    WHAT YOU GET BACK:
-    - workspace_id: Use this for all subsequent upload_file and execute_code calls
-    - status: "ready" when workspace is available for use
-    - expires_at: When the workspace will be automatically cleaned up
-    """,
+    description_override=CREATE_WORKSPACE_TOOL_DESCRIPTION,
     strict_mode=True,
 )
 async def create_workspace() -> WorkspaceCreateResult:
@@ -70,38 +57,7 @@ async def create_workspace() -> WorkspaceCreateResult:
 
 @function_tool(
     name_override="upload_file",
-    description_override="""
-    Upload a file to a a given workspace with a workspace_id so it can be accessed by Python code.
-    
-    ## CRITICAL FILE UPLOAD INSTRUCTIONS:
-    File URL must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
-    You must provide a file_name to be used for the file in the workspace.
-    
-    ## REQUIRED PARAMETERS:
-    - workspace_id: Valid workspace ID from create_workspace()
-    - file_url: Valid Full HTTP URL
-    - file_name: Name of the file
-    
-    ## RETURN VALUE STRUCTURE:
-    The tool returns a FileUploadResult containing:
-    - **success**: boolean indicating if upload completed successfully
-    - **file_info**: FileInfo object with details about the uploaded file
-    - **error**: Optional error message if upload failed
-    
-    HOW IT WORKS:
-    - Uploads file to the workspace's root directory
-    - Files become immediately available for code execution
-    
-    WHEN TO USE:
-    - Upload datasets, images, or any input files needed for analysis
-    - Provide configuration files, scripts, or resources
-    - Before running code that needs to read specific files
-    
-    WHAT YOU GET BACK:
-    - Confirmation of successful upload or specific error message
-    - File size and location information along with a download URL
-    - Ready for use in execute_code calls with the workspace_id
-    """,
+    description_override=UPLOAD_FILE_TOOL_DESCRIPTION,
     strict_mode=True,
 )
 async def upload_file(
@@ -124,65 +80,7 @@ async def upload_file(
 
 @function_tool(
     name_override="execute_code",
-    description_override="""
-    Execute Python code in a isolated workspace with a valid workspace_id with persistent state and file generation capabilities.
-    
-    ## REQUIRED PARAMETERS:
-    - workspace_id: Valid workspace ID from create_workspace()
-    - code: Python code string
-
-    ## RETURN VALUE STRUCTURE:
-    The tool returns an ExecutionOperationResult containing:
-    - **success**: boolean indicating if execution completed successfully
-    - **standard output**: text that was printed during execution  
-    - **error messages**: any error messages that occurred
-    - **generated files**: list of files created during execution with full HTTP download URLs
-    - **result data**: the final computed result (if any)
-    
-    ## CRITICAL REQUIREMENT FOR CODE EXECUTION: 
-    - You MUST have a valid workspace_id before calling this function
-    - If you don't have one, call create_workspace() FIRST to get a workspace_id
-    - NEVER use arbitrary workspace IDs like "1", "test", etc.
-    - ALWAYS use the exact workspace_id returned by create_workspace()
-    - If a piece of code times-out, do not run **the same code** again.
-    - DO NOT make up or estimate results for failed or timed out code executions
-    - ALWAYS check if the execution succeeded before using any outputs
-    
-    
-    ## CODE EXECUTION ENVIRONMENT:
-    - Jupyter kernel with persistent variables/imports across calls
-    - Working directory: workspace root (contains uploaded files)
-    - Full Python standard library + common packages (numpy, pandas, matplotlib, etc.)
-    - Output capture: stdout, stderr, and execution results
-    - Your code will be executed with a timeout of 30 seconds.
-    
-    ## FILE OPERATIONS:
-    - **Read files**: open('filename.txt', 'r') - access uploaded files directly
-    - **Create files**: open('output.csv', 'w') - any file you create gets tracked
-    - **Generate plots**: plt.savefig('chart.png') - saved plots are automatically detected
-
-    ## EXAMPLES:
-    ```python
-    # Data analysis with CSV output
-    df.to_csv('analysis_results.csv', index=False)
-    
-    # Visualization with plot file
-    plt.figure(figsize=(10,6))
-    plt.plot(data)
-    plt.savefig('visualization.png', dpi=300, bbox_inches='tight')
-    
-    # Generate reports or documents  
-    with open('report.txt', 'w') as f:
-        f.write(f"Analysis completed: {results}")
-    ```
-
-    ## BEST PRACTICES and DATA VISUALIZATION INSTRUCTIONS:
-    - DO NOT use plt.show() as it will cause errors in the execution environment.
-    - Always close plt figures: plt.close() after plt.savefig()
-    - Use descriptive filenames with extensions
-    - Save files you want users to access (they get full HTTP download URLs automatically)
-    - Use result = your_final_value to return computed results
-    """,
+    description_override=EXECUTE_CODE_TOOL_DESCRIPTION,
     strict_mode=True,
 )
 async def execute_code(

@@ -15,7 +15,7 @@ from pathlib import Path
 # Load environment variables for testing
 load_dotenv()
 
-#Add backend to path
+# Add backend to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(backend_dir)
