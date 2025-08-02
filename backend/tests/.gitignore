@@ -4,3 +4,4 @@ cache/
 **/cache/
 
 server_logs*
+temp_outputs_logs/

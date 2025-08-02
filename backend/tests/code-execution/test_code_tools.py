@@ -133,11 +133,23 @@ ADVANCED_TEST_PROMPTS = [
 
 def create_test_agent() -> Agent:
     """Create test agent with contextvars-based tools (no session parameter needed!)"""
+    from agents.tool import WebSearchTool, Tool
+    from typing import List
+    from app.aicore.config.agent_config import WebSearchConfig
+    web_search_config = WebSearchConfig()
+    websearch_tool = WebSearchTool(
+        user_location=web_search_config.location
+    )
+    tools: List[Tool] = []
+    tools.extend(create_auto_session_code_tools()) # Uses contextvars - no session parameter!
+    tools.append(websearch_tool)
     return Agent(
         name="test_agent",
         model="gpt-4o-mini-2024-07-18",
-        instructions=EXECUTE_CODE_TOOL_DESCRIPTION,
-        tools=create_auto_session_code_tools(),  # Uses contextvars - no session parameter!
+        instructions="""
+        You are a helpful assistant that can search the web for latest information.
+        """,
+        tools=tools,  
     )
 
 health_service = HealthService()
@@ -174,7 +186,7 @@ async def test_with_prompt(prompt: str):
     print(f"Session {session.session_id} cleanup completed")
     print(f"Session Info: {session.get_session_info()}")
 
-async def test_agent_with_upload_file():
+async def test_agent_with_upload_file(advanced_test_prompt: str):
     """Run a test with the given prompt using workspace session for automatic cleanup."""
     print(f"\n--- Testing agent with upload file ---")
     
@@ -182,7 +194,7 @@ async def test_agent_with_upload_file():
     http_file_url = 'https://raw.githubusercontent.com/orangetw/Tiny-URL-Fuzzer/master/samples.txt'
     
     prompt = f"Here is the file link: {http_file_url}. Please analyze the file details, metadata and show me the top 10 lines."
-    additional_prompt = f"After that, also solve this {ADVANCED_TEST_PROMPTS[14]} in a different workspace."
+    additional_prompt = f"After that, also solve this {advanced_test_prompt} in a different workspace."
     final_prompt = f"Critical: Must run both tasks in different workspaces."
     prompt = f"{prompt}\n{additional_prompt}\n{final_prompt}"
     
@@ -192,12 +204,20 @@ async def test_agent_with_upload_file():
 async def main():
     results = TestResults()
     await check_sandbox_health(results)
-    filtered_prompts = ADVANCED_TEST_PROMPTS[0:1]  # Simple timeout test
-    for i, prompt in enumerate(filtered_prompts):
-        print(f"--- Running test {i+1} ---")
-        await test_with_prompt(prompt)
+    # filtered_prompts = ADVANCED_TEST_PROMPTS[0:1]  # Simple timeout test
+    # for i, prompt in enumerate(filtered_prompts):
+    #     print(f"--- Running test {i+1} ---")
+    #     await test_with_prompt(prompt)
     
-    await test_agent_with_upload_file()
+    # await test_agent_with_upload_file(ADVANCED_TEST_PROMPTS[14])
+    
+    # test upload with file generation
+    file_generation_prompt = "Create a visualization of weather of Goa in last 7 days."
+    
+    # await test_agent_with_upload_file(file_generation_prompt)
+    
+    # test only file generation
+    await test_with_prompt(file_generation_prompt)
     
     results.summary()
 

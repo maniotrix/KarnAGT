@@ -16,6 +16,7 @@ class FileProxyType(str, Enum):
     """File types supported by proxy system"""
     IMAGE = "image"
     KNOWLEDGE = "knowledge"
+    CODE_GENERATED = "code_generated"
 
 class FileProxyEndpoints:
     """File proxy endpoint path constants"""
@@ -26,10 +27,12 @@ class FileProxyEndpoints:
     # Specific endpoint patterns for URL generation
     IMAGE_PROXY = f"{BASE_PATH}/images/{{file_id}}"
     KNOWLEDGE_PROXY = f"{BASE_PATH}/files/{{knowledge_file_id}}"
+    CODE_GENERATED_PROXY = f"{BASE_PATH}/code-files/{{file_id}}"
     
     # Router patterns (simple paths for FastAPI route decoration)
     IMAGE_PROXY_ROUTE = "/images/{file_id}"
     KNOWLEDGE_PROXY_ROUTE = "/files/{knowledge_file_id}"
+    CODE_GENERATED_PROXY_ROUTE = "/code-files/{file_id}"
 
 class FileProxyParams:
     """Parameter names used in file proxy endpoints"""
@@ -107,6 +110,22 @@ def build_knowledge_proxy_url(knowledge_file_id: str, **query_params) -> str:
     
     return url
 
+def build_code_generated_proxy_url(file_id: str) -> str:
+    """
+    Build code-generated file proxy URL
+    
+    Args:
+        file_id: Code-generated file ID with CODE_GENERATED_FILE_PREFIX (e.g., "code_generated_2024_01_15_abc12345_myfile.png")
+        
+    Returns:
+        Complete proxy URL
+    """
+    if not file_id:
+        raise ValueError("File ID is required")
+    
+    url = f"{BASE_URL.rstrip('/')}{FileProxyEndpoints.CODE_GENERATED_PROXY.format(file_id=file_id)}"
+    return url
+
 # =============================================================================
 # CONFIGURATION CONSTANTS
 # =============================================================================
@@ -125,6 +144,10 @@ class FileProxyConfig:
     # File handling
     MAX_FILE_SIZE_MB = 100          # Maximum file size for proxy
     CHUNK_SIZE = 8192               # Streaming chunk size
+    
+    # Storage paths
+    CODE_SANDBOX_GENERATED_PREFIX = "code_sandbox_generated"
+    CODE_GENERATED_FILE_PREFIX = "code_generated"
     
     # Rate limiting (requests per minute per user)
     RATE_LIMIT_PER_USER = 100

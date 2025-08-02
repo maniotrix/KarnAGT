@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any, List
 from app.core.file_proxy_constants import (
     build_image_proxy_url,
     build_knowledge_proxy_url,
+    build_code_generated_proxy_url,
     FileProxyType,
     ContextFileKeys,
     FileProxyConfig
@@ -99,6 +100,24 @@ class FileProxyService:
             return url
         except Exception as e:
             logger.error(f"Error generating knowledge proxy URL: {e}")
+            return ""
+    
+    def generate_code_generated_proxy_url(self, file_id: str) -> str:
+        """
+        Generate proxy URL for code-generated file
+        
+        Args:
+            file_id: Code-generated file ID with CODE_GENERATED_FILE_PREFIX (e.g., "code_generated_2024_01_15_abc12345_myfile.png")
+            
+        Returns:
+            Complete proxy URL for code-generated file
+        """
+        try:
+            url = build_code_generated_proxy_url(file_id)
+            logger.debug(f"Generated code-generated proxy URL: {file_id} -> {url}")
+            return url
+        except Exception as e:
+            logger.error(f"Error generating code-generated proxy URL: {e}")
             return ""
     
     def build_image_attachments_with_proxy_urls(

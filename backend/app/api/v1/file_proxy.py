@@ -305,6 +305,91 @@ async def proxy_knowledge_file(
         )
 
 # =============================================================================
+# CODE GENERATED FILE PROXY ENDPOINT
+# =============================================================================
+
+@router.get(FileProxyEndpoints.CODE_GENERATED_PROXY_ROUTE)
+async def proxy_code_generated_file(
+    file_id: str,
+    request: Request,
+    response: Response,
+    auth: Union[User, ServiceAuth] = Depends(get_current_user_or_service)
+) -> RedirectResponse:
+    """
+    Proxy endpoint for code-generated files - simple auth check, no ownership validation
+    
+    Validates user authentication and returns a redirect to presigned S3/MinIO URL
+    for secure file access.
+    
+    Args:
+        file_id: Code-generated file ID with CODE_GENERATED_FILE_PREFIX (e.g., "code_generated_2024_01_15_abc12345_myfile.png")
+        
+    Returns:
+        Redirect to presigned URL for file access
+    """
+    start_time = datetime.utcnow()
+    
+    try:
+        # Validate file ID format
+        expected_prefix = f"{FileProxyConfig.CODE_GENERATED_FILE_PREFIX}_"
+        
+        if not file_id.startswith(expected_prefix):
+            logger.warning(f"Invalid code-generated file ID format: {file_id}")
+            raise HTTPException(
+                status_code=HTTP_400_BAD_REQUEST,
+                detail="Invalid file ID format"
+            )
+        
+        # Construct S3 key from file ID
+        s3_key = f"{FileProxyConfig.CODE_SANDBOX_GENERATED_PREFIX}/{file_id}"
+        
+        # Generate presigned URL directly (no ownership checks for code-generated files)
+        try:
+            presigned_url = await image_storage_service.get_presigned_url(
+                s3_key,
+                expire_seconds=FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL for code-generated file {file_id}: {e}")
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail=FileProxyErrors.FILE_NOT_FOUND
+            )
+        
+        # Set response headers for tracking and caching
+        response.headers[FileProxyHeaders.X_FILE_ID] = str(file_id)
+        response.headers[FileProxyHeaders.X_FILE_TYPE] = FileProxyType.CODE_GENERATED.value
+        
+        if isinstance(auth, ServiceAuth):
+            response.headers[FileProxyHeaders.X_USER_ID] = f"service:{auth.service_name}"
+        else:
+            response.headers[FileProxyHeaders.X_USER_ID] = str(auth.user_id)
+            
+        response.headers[FileProxyHeaders.CACHE_CONTROL] = f"private, max-age={FileProxyConfig.DEFAULT_CACHE_DURATION}"
+        
+        # Log successful access
+        processing_time = (datetime.utcnow() - start_time).total_seconds()
+        if isinstance(auth, ServiceAuth):
+            logger.info(f"Code-generated file proxy success: file_id={file_id}, service={auth.service_name}, time={processing_time:.3f}s")
+        else:
+            logger.info(f"Code-generated file proxy success: file_id={file_id}, user={auth.user_id}, time={processing_time:.3f}s")
+        
+        # Return redirect to presigned URL
+        return RedirectResponse(
+            url=presigned_url,
+            status_code=302  # Temporary redirect
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in code-generated file proxy: file_id={file_id}, error={e}")
+        raise HTTPException(
+            status_code=500,
+            detail=FileProxyErrors.PROCESSING_ERROR
+        )
+
+# =============================================================================
 # HEALTH CHECK ENDPOINT
 # =============================================================================
 
@@ -323,7 +408,8 @@ async def file_proxy_health() -> Dict[str, Any]:
         "timestamp": datetime.utcnow().isoformat(),
         "endpoints": {
             "image_proxy": FileProxyEndpoints.IMAGE_PROXY,
-            "knowledge_proxy": FileProxyEndpoints.KNOWLEDGE_PROXY
+            "knowledge_proxy": FileProxyEndpoints.KNOWLEDGE_PROXY,
+            "code_generated_proxy": FileProxyEndpoints.CODE_GENERATED_PROXY
         },
         "config": {
             "max_file_size_mb": FileProxyConfig.MAX_FILE_SIZE_MB,

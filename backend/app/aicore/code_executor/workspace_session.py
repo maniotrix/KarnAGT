@@ -38,6 +38,8 @@ from app.aicore.code_executor.prompts.tools_prompts import (
     UPLOAD_FILE_TOOL_DESCRIPTION,
     EXECUTE_CODE_TOOL_DESCRIPTION
 )
+from app.services.file_proxy_service import FileProxyService
+from app.core.file_proxy_constants import FileProxyConfig
 
 logger = get_logger(__name__)
 
@@ -443,24 +445,23 @@ class WorkspaceExecutionSession:
                     )
                     continue
                 
-                # Generate storage key for permanent storage using date-based organization
-                # Pattern: code_sandbox_generated/YYYY/MM/DD/unique_id_filename
-                date_prefix = datetime.now().strftime("%Y/%m/%d")
+                # Generate storage key for permanent storage with code_generated prefix
+                date_prefix = datetime.now().strftime("%Y_%m_%d")
                 unique_id = uuid.uuid4().hex[:8]
-                storage_key = f"code_sandbox_generated/{date_prefix}/{unique_id}_{file_info.filename}"
+                
+                proxy_filename = f"{FileProxyConfig.CODE_GENERATED_FILE_PREFIX}_{date_prefix}_{unique_id}_{file_info.filename}"
+                storage_key = f"{FileProxyConfig.CODE_SANDBOX_GENERATED_PREFIX}/{proxy_filename}"
                 
                 # Upload to permanent storage using the standard S3 storage backend
-                uploaded_key = await storage_backend.upload_file(
+                await storage_backend.upload_file(
                     file_data=download_result.content,
                     key=storage_key,
                     content_type=file_info.mime_type or "application/octet-stream"
                 )
                 
-                # Generate presigned URL for user access (7 days expiration)
-                permanent_url = await storage_backend.generate_presigned_url(
-                    key=uploaded_key,
-                    expire_seconds=7 * 24 * 3600  # 7 days
-                )
+                # Generate proxy URL instead of direct presigned URL
+                file_proxy_service = FileProxyService()
+                permanent_url = file_proxy_service.generate_code_generated_proxy_url(proxy_filename)
                 
                 # Replace sandbox URL with permanent storage URL
                 original_url = file_info.download_url
@@ -471,7 +472,7 @@ class WorkspaceExecutionSession:
                 logger.info(
                     f"Session {self.session_id}: Successfully persisted {file_info.filename} "
                     f"({file_info.size} bytes) to permanent storage at {storage_key}. "
-                    f"URL updated: {original_url} -> {permanent_url[:100]}..."
+                    f"Proxy URL generated: {original_url} -> {permanent_url}"
                 )
                 
             except Exception as e:
