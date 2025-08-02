@@ -40,6 +40,8 @@ class UniversalUploadService {
       'application/xml',                                                                      // .xml
       'text/xml',                                                                             // .xml
       'text/html',                                                                            // .html
+      // JSON files
+      'application/json',                                                                     // .json
       // Rich text and other formats
       'application/rtf',                                                                      // .rtf
       'application/epub+zip'                                                                  // .epub
@@ -187,6 +189,8 @@ class UniversalUploadService {
       'application/xml',                                                                      // .xml
       'text/xml',                                                                             // .xml
       'text/html',                                                                            // .html
+      // JSON files
+      'application/json',                                                                     // .json
       // Rich text and other formats
       'application/rtf',                                                                      // .rtf
       'application/epub+zip'                                                                  // .epub
@@ -195,7 +199,7 @@ class UniversalUploadService {
     if (!allowedTypes.includes(file.type)) {
       return { 
         valid: false, 
-        error: 'Invalid document type. Supported formats: PDF, Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx), text files (.txt/.csv/.md), markup files (.html/.xml), RTF, and EPUB.' 
+        error: 'Invalid document type. Supported formats: PDF, Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx), text files (.txt/.csv/.md), markup files (.html/.xml), JSON (.json), RTF, and EPUB.' 
       };
     }
 

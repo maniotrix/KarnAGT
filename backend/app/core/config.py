@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     # File Storage
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
-    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.doc,.txt,.md,.pptx,.ppt,.csv,.xlsx,.xls,.rtf,.html,.xml,.epub"
+    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.doc,.txt,.md,.pptx,.ppt,.csv,.xlsx,.xls,.rtf,.html,.xml,.epub,.json"
     
     # Document MIME types for content-type validation (matches ALLOWED_FILE_TYPES)
     ALLOWED_DOCUMENT_MIME_TYPES: str = (
@@ -97,7 +97,8 @@ class Settings(BaseSettings):
         "text/xml,"
         "text/html,"
         "application/rtf,"
-        "application/epub+zip"
+        "application/epub+zip,"
+        "application/json"
     )
     
     # Image Storage (MinIO/S3 compatible)
@@ -121,7 +122,7 @@ class Settings(BaseSettings):
         # Vision purposes
         ".png,.jpg,.jpeg,.gif,.webp,"
         # Assistant purposes  
-        ".txt,.md,.pdf,.docx,.pptx,.xlsx,"
+        ".txt,.md,.pdf,.docx,.pptx,.xlsx,.json,"
         # Fine-tuning purposes
         ".jsonl"
     )
