@@ -110,7 +110,7 @@ class Settings(BaseSettings):
     
     # Image Processing
     MAX_IMAGE_SIZE: int = 20 * 1024 * 1024  # 20MB (OpenAI limit)
-    ALLOWED_IMAGE_TYPES: str = ".png,.jpg,.jpeg,.gif,.webp"
+    ALLOWED_IMAGE_TYPES: str = ".png,.jpg,.jpeg,.gif,.webp,.bmp"
     IMAGE_QUALITY: int = 85
     IMAGE_BASE_URL: str = "http://localhost:8000/api/images"
     PRESIGNED_URL_EXPIRE_SECONDS: int = 3600

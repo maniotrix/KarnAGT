@@ -405,13 +405,21 @@ class StagingStorageService:
             StagingMetadata object if found and owned by user, None otherwise
         """
         try:
-            # We need to check common extensions since we don't know the exact extension
-            # Check both image and document extensions
-            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
-            document_extensions = ['.pdf', '.doc', '.docx', '.txt', '.md']
-            all_extensions = image_extensions + document_extensions
+            # Determine file type based on file_id prefix and get appropriate extensions
+            if file_id.startswith('img_'):
+                # Image file - use image extensions only
+                test_extensions = settings.get_allowed_image_types()
+                logger.debug(f"Searching for image file {file_id} with extensions: {test_extensions}")
+            elif file_id.startswith('file_'):
+                # Document file - use document extensions only
+                test_extensions = settings.get_allowed_file_types()
+                logger.debug(f"Searching for document file {file_id} with extensions: {test_extensions}")
+            else:
+                # Unknown file ID format - try both (backward compatibility)
+                test_extensions = settings.get_allowed_image_types() + settings.get_allowed_file_types()
+                logger.warning(f"Unknown file_id format {file_id}, trying all extensions: {test_extensions}")
             
-            for ext in all_extensions:
+            for ext in test_extensions:
                 # Generate potential S3 key with this extension (type-based)
                 test_filename = f"test{ext}"
                 s3_key = self._generate_storage_key_for_type(file_id, test_filename)
@@ -424,11 +432,14 @@ class StagingStorageService:
                             logger.warning(f"Access denied: file {file_id} doesn't belong to user {user_id}")
                             return None
                         
+                        logger.info(f"Found staging metadata for {file_id} at key: {s3_key}")
                         # Convert back to StagingMetadata object
                         return StagingMetadata.from_dict(metadata_dict)
-                except:
+                except Exception as lookup_error:
+                    logger.debug(f"Extension {ext} not found for {file_id}: {lookup_error}")
                     continue
             
+            logger.warning(f"Staging file {file_id} not found with any extension for user {user_id}")
             return None
             
         except Exception as e:
