@@ -246,11 +246,11 @@ async def main():
 #     await test_with_prompt(ppt_prompt.strip())
     
     # test with excel file
-#     excel_prompt = f"""
-# Analyze this Excel file: {test_excel_file}
-# Extract and summarize:
-# 1. All worksheet names
-# 2. what kind of data is present in each sheet
+    excel_prompt = f"""
+Analyze this Excel file: {test_excel_file}
+Extract and summarize:
+1. All worksheet names
+2. what kind of data is present in each sheet
 
 # Even if this is not an HTTP URL, upload the file to workspace - it will work.
 #     """
