@@ -3,7 +3,6 @@
 
 import { useEffect, useRef } from 'react';
 import { handleAuthenticatedDownload, isProxyUrl, extractFileIdFromProxyUrl } from '../utils/authenticatedDownload';
-import { useToast } from '../app/stores/uiStore';
 
 export interface ProxyLinkInterceptionOptions {
   /** Enable debug logging */
@@ -43,7 +42,6 @@ export function useProxyLinkInterception(options: ProxyLinkInterceptionOptions =
     onDownloadError
   } = options;
 
-  const toast = useToast();
   const isHandlingRef = useRef(false); // Prevent concurrent handling
 
   useEffect(() => {
@@ -101,9 +99,6 @@ export function useProxyLinkInterception(options: ProxyLinkInterceptionOptions =
         // Set handling flag
         isHandlingRef.current = true;
 
-        // Show loading toast
-        const loadingToastId = toast.info('Downloading file...', 'Please wait while we prepare your download.');
-
         try {
           // Handle the authenticated download
           const result = await handleAuthenticatedDownload(href);
@@ -113,16 +108,12 @@ export function useProxyLinkInterception(options: ProxyLinkInterceptionOptions =
               console.log('✅ [ProxyInterception] Download successful:', href);
             }
             
-            // Show success toast
-            toast.success('Download started', 'Your file download has been initiated.');
             onDownloadSuccess?.(href);
           } else {
             if (debug) {
               console.error('❌ [ProxyInterception] Download failed:', href, result.error);
             }
             
-            // Show error toast
-            toast.error('Download failed', result.error || 'Unable to download file.');
             onDownloadError?.(href, result.error || 'Unknown error');
           }
         } catch (error) {
@@ -132,7 +123,6 @@ export function useProxyLinkInterception(options: ProxyLinkInterceptionOptions =
             console.error('❌ [ProxyInterception] Exception during download:', error);
           }
           
-          toast.error('Download error', errorMessage);
           onDownloadError?.(href, errorMessage);
         } finally {
           // Clear handling flag
@@ -162,7 +152,7 @@ export function useProxyLinkInterception(options: ProxyLinkInterceptionOptions =
       document.removeEventListener('click', handleGlobalClick, true);
       isHandlingRef.current = false;
     };
-  }, [debug, customPatterns, onInterception, onDownloadSuccess, onDownloadError, toast]);
+  }, [debug, customPatterns, onInterception, onDownloadSuccess, onDownloadError]);
 
   // Return some useful utilities
   return {
