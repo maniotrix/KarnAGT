@@ -111,7 +111,7 @@ class FileService:
             return FileUploadResult.error_result("Source URL cannot be empty")
         
         if not workspace_id or not workspace_id.strip():
-            return FileUploadResult.error_result("Workspace ID cannot be empty")
+            return FileUploadResult.error_result("Workspace ID cannot be empty. Provide a valid workspace ID or create a new workspace before uploading file.")
         
         try:
             if source.startswith(('http://', 'https://')):
