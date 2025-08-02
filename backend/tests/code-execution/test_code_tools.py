@@ -131,6 +131,11 @@ ADVANCED_TEST_PROMPTS = [
 
 test_docs_dir = os.path.join(backend_dir, "test_docs")
 test_pdf_with_images_only = os.path.join(test_docs_dir, "abhilasha_6_april_ticket.pdf")
+test_ppt_file = os.path.join(test_docs_dir, "Copy of Trykaa_ Transforming the Future of Online Fashion Retail.pptx")
+test_excel_file = os.path.join(test_docs_dir, "Cell Phone Plans compared.xlsx")
+test_zip_file = os.path.join(test_docs_dir, "karna_readmes.zip")
+test_docx_file = os.path.join(test_docs_dir, "Solar System Designer Documentation.docx")
+
 
 def create_test_agent() -> Agent:
     """Create test agent with contextvars-based tools (no session parameter needed!)"""
@@ -146,7 +151,7 @@ def create_test_agent() -> Agent:
     tools.append(websearch_tool)
     return Agent(
         name="test_agent",
-        model="gpt-4o-mini-2024-07-18",
+        # model="gpt-4o-mini-2024-07-18",
         instructions="""
         You are a helpful assistant that can execute python code and search the web for latest information.
         """,
@@ -213,16 +218,69 @@ async def main():
     # await test_agent_with_upload_file(ADVANCED_TEST_PROMPTS[14])
     
     # test upload with file generation
-    file_generation_prompt = "Create a visualization of weather of Goa in last 7 days."
+    # file_generation_prompt = "Create a visualization of weather of Goa in last 7 days."
     
     # await test_agent_with_upload_file(file_generation_prompt)
     
     # test only file generation
-    await test_with_prompt(file_generation_prompt)
+    # await test_with_prompt(file_generation_prompt)
     
     
     # test with images only pdf file to test ocr capabilities
-    image_only_pdf_prompt = f"Please read the pdf file {test_pdf_with_images_only} and extract the text from the images."
+    # image_only_pdf_prompt = f"""analyse this pdf file (pages have only images), file url: {test_pdf_with_images_only} and provide all the details of the ticket.
+    # Even if this is not http url, still try to upload the file in workspace, it will work.
+    # """
+    # await test_with_prompt(image_only_pdf_prompt)
+    
+#     # test with ppt file
+#     ppt_prompt = f"""
+# Analyze this PowerPoint file: {test_ppt_file}
+# Extract and organize:
+# 1. Main topics from slide titles
+# 2. Subtopics from bullet points
+# 3. Any text from images using OCR if needed
+# 4. Present as a structured outline
+
+# Even if this is not an HTTP URL, upload the file to workspace - it will work.
+#     """
+#     await test_with_prompt(ppt_prompt.strip())
+    
+    # test with excel file
+    excel_prompt = f"""
+Analyze this Excel file: {test_excel_file}
+Extract and summarize:
+1. All worksheet names
+2. what kind of data is present in each sheet
+
+Even if this is not an HTTP URL, upload the file to workspace - it will work.
+    """
+    await test_with_prompt(excel_prompt.strip())
+    
+#     # test with docx file
+#     docx_prompt = f"""
+# Analyze this Word document: {test_docx_file}
+# Extract and organize:
+# 1. Document title and main headings
+# 2. Section structure and content
+# 3. Any tables, lists, or formatted content
+# 4. Key information and summary
+
+# Even if this is not an HTTP URL, upload the file to workspace - it will work.
+#     """
+#     await test_with_prompt(docx_prompt.strip())
+    
+#     # test with zip file
+#     zip_prompt = f"""
+# Analyze this ZIP archive: {test_zip_file}
+# Extract and examine:
+# 1. List all files and folders in the archive
+# 2. Extract and analyze text files
+# 3. Identify file types and structure
+# 4. Provide a summary of the archive contents
+
+# Even if this is not an HTTP URL, upload the file to workspace - it will work.
+#     """
+#     await test_with_prompt(zip_prompt.strip())
     
     results.summary()
 
