@@ -50,7 +50,7 @@ class StagingFileInfo:
         vector_extensions = {
             '.pdf', '.doc', '.docx', '.txt', '.md', '.rtf',
             '.ppt', '.pptx', '.xls', '.xlsx', '.csv',
-            '.odt', '.ods', '.odp', '.epub'
+            '.odt', '.ods', '.odp', '.epub', '.md'
         }
         
         if extension in vector_extensions:
