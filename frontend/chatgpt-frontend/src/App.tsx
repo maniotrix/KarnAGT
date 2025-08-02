@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryProvider } from './providers/QueryProvider';
 import { AppRoutes } from './routes';
 import { useUiStore, useIsDarkMode } from './app/stores/uiStore';
+import { useProxyLinkInterceptionSimple } from './hooks/useProxyLinkInterception';
 import { X, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -122,6 +123,9 @@ const ToastNotifications: React.FC = () => {
 
 // Main App Component with Providers and Router
 const App: React.FC = () => {
+  // Enable global proxy link interception with authentication
+  useProxyLinkInterceptionSimple();
+
   return (
     <QueryProvider>
       <BrowserRouter>
