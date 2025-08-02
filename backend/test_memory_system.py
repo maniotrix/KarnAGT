@@ -15,7 +15,7 @@ from app.services.memory.memory_service import MemoryService
 from app.services.memory.memory_setup import setup_user_memory_system
 from app.services.memory.memory_extractor import MemoryExtractor
 from app.services.context.memory_aware_context_builder import get_memory_enhanced_llm_context
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

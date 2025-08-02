@@ -18,7 +18,7 @@ from app.models.database.user import User
 from app.models.schemas.chat_schemas import MessageCreate, MessageUpdate
 from app.core.exceptions import MessageNotFoundException
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)
@@ -77,6 +77,7 @@ class MessageService:
             
             # Get attachments from message_data
             attachments = getattr(message_data, 'attachments', []) or []
+            vector_file_references = getattr(message_data, 'vector_file_references', None)
             
             # Create message instance
             message = Message(
@@ -87,6 +88,7 @@ class MessageService:
                 message_type=getattr(message_data, 'message_type', 'text'),
                 status=getattr(message_data, 'status', 'completed'),
                 attachments=attachments,  # Use the dedicated attachments column
+                vector_file_references=vector_file_references,  # RAG document references
                 extra_metadata=getattr(message_data, 'metadata', {})
             )
             
@@ -394,6 +396,30 @@ class MessageService:
                 logger.warning(f"Message {message_id} not found, no messages to delete")
                 return 0
             
+            # Get messages to be deleted to extract document IDs
+            messages_to_delete_query = select(Message).where(
+                Message.conversation_id == target_message.conversation_id,
+                Message.created_at > target_message.created_at
+            )
+            
+            messages_result = await self.db.execute(messages_to_delete_query)
+            messages_to_delete = messages_result.scalars().all()
+            
+            # Extract document IDs from vector_file_references in messages to be deleted
+            doc_ids_to_deactivate = []
+            for message in messages_to_delete:
+                if message.vector_file_references is not None:
+                    logger.debug(f"Processing message {message.message_id} with vector_file_references: {type(message.vector_file_references)}")
+                    # Current format: dict with processed_files array
+                    if isinstance(message.vector_file_references, dict):
+                        processed_files = message.vector_file_references.get('processed_files', [])
+                        logger.debug(f"Found {len(processed_files)} processed files in message {message.message_id}")
+                        for file_info in processed_files:
+                            if isinstance(file_info, dict) and 'ref_doc_ids' in file_info:
+                                ref_doc_ids = file_info['ref_doc_ids']
+                                logger.debug(f"Extracting {len(ref_doc_ids)} ref_doc_ids from file {file_info.get('filename', 'unknown')}")
+                                doc_ids_to_deactivate.extend(ref_doc_ids)
+            
             # Delete messages in the same conversation created after this message
             query = delete(Message).where(
                 Message.conversation_id == target_message.conversation_id,
@@ -405,6 +431,19 @@ class MessageService:
             
             deleted_count = result.rowcount
             logger.info(f"Deleted {deleted_count} messages after message {message_id}")
+            
+            # Log extracted document IDs
+            if doc_ids_to_deactivate:
+                logger.info(f"Extracted {len(doc_ids_to_deactivate)} document IDs to deactivate: {doc_ids_to_deactivate}")
+            
+            # Mark documents as inactive using LlamaIndex
+            if doc_ids_to_deactivate:
+                await self._mark_documents_inactive_for_conversation(
+                    target_message.conversation_id, 
+                    doc_ids_to_deactivate
+                )
+            else:
+                logger.info(f"No document IDs to deactivate for message {message_id}")
             
             return deleted_count
             
@@ -560,6 +599,58 @@ class MessageService:
         except Exception as e:
             logger.error(f"Error searching messages with query '{query}': {e}")
             raise
+    
+    async def _mark_documents_inactive_for_conversation(
+        self, 
+        conversation_id: int, 
+        doc_ids: List[str]
+    ) -> None:
+        """Mark documents as inactive for a conversation."""
+        
+        if not doc_ids:
+            return
+            
+        try:
+            # Get conversation UUID from int ID
+            conv_query = select(Conversation).where(Conversation.id == conversation_id)
+            conv_result = await self.db.execute(conv_query)
+            conversation = conv_result.scalar_one_or_none()
+            
+            if not conversation:
+                logger.warning(f"Conversation with ID {conversation_id} not found")
+                return
+                
+            # Import here to avoid circular imports
+            from app.services.knowledge.production_rag_service import ProductionRAGService
+            from app.services.knowledge.vector_collection_service import VectorCollectionService
+            from app.services.knowledge.config import RAGConfig
+            
+            # Get the collection service
+            collection_service = VectorCollectionService()
+            collection = await collection_service.get_conversation_collection(
+                user_id=self.user_uuid,
+                conversation_id=conversation.conversation_id,
+                db=self.db
+            )
+            
+            if not collection:
+                logger.warning(f"No collection found for conversation {conversation.conversation_id}")
+                return
+                
+            # Use ProductionRAGService to mark documents inactive
+            rag_config = RAGConfig.for_chat_application()
+            rag_service = ProductionRAGService(rag_config)
+            await rag_service.mark_documents_inactive(
+                collection_id=collection.id,
+                doc_ids=doc_ids,
+                db=self.db
+            )
+            
+            logger.info(f"Marked {len(doc_ids)} documents as inactive for conversation {conversation.conversation_id}")
+            
+        except Exception as e:
+            logger.error(f"Error marking documents inactive: {e}")
+            # Don't re-raise since this is a cleanup operation
     
     async def get_conversation_context(
         self,

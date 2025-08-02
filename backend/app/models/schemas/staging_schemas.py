@@ -47,30 +47,16 @@ class StagingFileInfo:
         
         # Check by file extension for vector documents
         extension = Path(self.filename).suffix.lower()
-        vector_extensions = {
-            '.pdf', '.doc', '.docx', '.txt', '.md', '.rtf',
-            '.ppt', '.pptx', '.xls', '.xlsx', '.csv',
-            '.odt', '.ods', '.odp', '.epub'
-        }
+        from app.core.config import settings
+        allowed_extensions = set(settings.get_allowed_file_types())
         
-        if extension in vector_extensions:
+        if extension in allowed_extensions:
             return FileType.VECTOR
         
-        # Check content type for vector documents
-        vector_content_types = {
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.ms-powerpoint',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'text/plain',
-            'text/markdown',
-            'text/csv'
-        }
+        # Check content type for vector documents using centralized settings
+        allowed_mime_types = set(settings.get_allowed_document_mime_types())
         
-        if self.content_type in vector_content_types:
+        if self.content_type in allowed_mime_types:
             return FileType.VECTOR
         
         return FileType.UNKNOWN

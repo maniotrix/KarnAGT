@@ -19,7 +19,7 @@ sys.path.append('.')
 from app.core.database import AsyncSessionLocal, engine
 from app.services.storage.openai_storage import openai_storage_service
 from app.models.database.openai_file import OpenAIFile
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from openai import OpenAI
 
 # Import from our project
-from aicore.core.configurable_openai_assistant import ConfigurableOpenAIAssistant
-from aicore.config import AIConfig, config_manager
-from aicore.logger import get_logger
+from app.aicore.core.configurable_openai_assistant import ConfigurableOpenAIAssistant
+from app.aicore.config import AIConfig, config_manager
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -359,7 +359,7 @@ async def main():
         print("❌ No valid images found")
         return
     
-    from aicore.ai_config import validate_api_keys
+    from tests.ai_config import validate_api_keys
     validate_api_keys()
 
     test_suite = ImageContextTestSuite()

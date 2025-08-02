@@ -16,7 +16,7 @@ import threading
 from fastapi import Request
 from sse_starlette.sse import EventSourceResponse
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)
@@ -74,6 +74,33 @@ class StreamingHandler:
         self.ai_message_id = ai_message_id
         logger.info(f"Set AI message ID {ai_message_id} for stream {self.stream_id}")
     
+    def _build_cancel_data(self, reason: str) -> Dict[str, Any]:
+        """
+        Build cancellation event data with consistent structure
+        
+        Args:
+            reason: Reason for cancellation
+            
+        Returns:
+            Dictionary with cancellation event data
+        """
+        cancel_data = {
+            "stream_id": self.stream_id,
+            "partial_content": self.accumulated_content,
+            "reason": reason,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Include user_message_id if available
+        if self.user_message_id:
+            cancel_data["user_message_id"] = self.user_message_id
+            logger.info(f"Including user_message_id {self.user_message_id} in {reason} cancellation event for stream {self.stream_id}")
+        
+        else:
+            logger.info(f"No user_message_id added to {reason} cancellation event data for stream {self.stream_id}")
+        
+        return cancel_data
+    
     def streaming_callback(self, token: str):
         """
         Callback function for receiving streaming tokens from aicore
@@ -125,24 +152,14 @@ class StreamingHandler:
                     # Check if we were cancelled while waiting
                     if self.is_cancelled:
                         logger.info(f"Stream {self.stream_id} was cancelled, stopping token processing")
-                        yield self._format_sse_event("cancelled", {
-                            "stream_id": self.stream_id,
-                            "partial_content": self.accumulated_content,
-                            "reason": "user_cancelled",
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
+                        yield self._format_sse_event("cancelled", self._build_cancel_data("user_cancelled"))
                         break
                     
                     # Check for client disconnection
                     if self.client_disconnected:
                         logger.info(f"Client disconnected for stream {self.stream_id}")
                         self.is_cancelled = True
-                        yield self._format_sse_event("cancelled", {
-                            "stream_id": self.stream_id,
-                            "partial_content": self.accumulated_content,
-                            "reason": "client_disconnected",
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
+                        yield self._format_sse_event("cancelled", self._build_cancel_data("client_disconnected"))
                         break
                     
                     # Format and yield the token
@@ -182,11 +199,7 @@ class StreamingHandler:
         finally:
             # Send appropriate end event
             if self.is_cancelled:
-                yield self._format_sse_event("stream_cancelled", {
-                    "stream_id": self.stream_id,
-                    "partial_content": self.accumulated_content,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                yield self._format_sse_event("stream_cancelled", self._build_cancel_data("stream_cancelled"))
             else:
                 # Include message IDs in stream_end event if available
                 stream_end_data = {
@@ -197,8 +210,10 @@ class StreamingHandler:
                 # Add message IDs if available
                 if self.user_message_id:
                     stream_end_data["user_message_id"] = self.user_message_id
+                    logger.info(f"Including user_message_id {self.user_message_id} in stream_end event for stream {self.stream_id}")
                 if self.ai_message_id:
                     stream_end_data["message_id"] = self.ai_message_id
+                    logger.info(f"Including ai_message_id {self.ai_message_id} in stream_end event for stream {self.stream_id}")
                 
                 yield self._format_sse_event("stream_end", stream_end_data)
             
@@ -219,9 +234,9 @@ class StreamingHandler:
         if self.assistant_client:
             try:
                 self.assistant_client.cancel_streaming()
-                logger.info(f"✅ Cancelled aicore streaming for stream {self.stream_id}")
+                logger.info(f"[SUCCESS] Cancelled aicore streaming for stream {self.stream_id}")
             except Exception as e:
-                logger.error(f"❌ Error cancelling aicore streaming: {e}")
+                logger.error(f"[ERROR] Error cancelling aicore streaming: {e}")
         else:
             logger.warning(f"No assistant client to cancel for stream {self.stream_id}")
     

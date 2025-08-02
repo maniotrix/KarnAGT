@@ -37,7 +37,7 @@ from app.api.v1.dependencies.auth import (
 from app.services.storage.storage import image_storage_service
 from app.services.storage.staging_storage import staging_service
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)

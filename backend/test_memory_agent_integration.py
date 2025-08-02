@@ -7,30 +7,24 @@ Tests the complete flow: User -> LLM Agent -> Memory Tools -> Database
 import asyncio
 import sys
 import uuid
-from typing import Dict, Any, List
-from datetime import datetime
 
 # Add backend to path
 sys.path.append('.')
 
-from app.core.database import AsyncSessionLocal, engine
+from app.core.database import AsyncSessionLocal
 from app.models.database.user import User
 from app.models.database.conversation import Conversation
 from app.models.database.user_memory import UserMemory
 from app.models.database.memory_preference import MemoryPreference
 from app.services.memory.memory_service import MemoryService
 from app.services.memory.llm_memory_tools import (
-    get_essential_user_context, 
-    create_memory_retrieval_tool,
-    create_memory_update_tool
+    get_essential_user_context
 )
 from app.services.memory.memory_setup import setup_user_memory_system
 
 # AI Agent imports
-from aicore.config import config_manager
-from aicore.core.configurable_assistant_client import ConfigurableAssistantClient
-from aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
-from aicore.logger import get_logger
+from app.aicore.core.configurable_assistant_client import ConfigurableAssistantClient
+from app.logging.logger import get_logger
 
 # SQLAlchemy cleanup
 from sqlalchemy import delete
@@ -513,10 +507,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    from aicore.logger import get_logger
+    from app.logging.logger import get_logger
     logger = get_logger(__name__)
     logger.info("Starting comprehensive conversation summarizer testing")
     
-    from aicore.ai_config import validate_api_keys
+    from tests.ai_config import validate_api_keys
     validate_api_keys()
     asyncio.run(main()) 

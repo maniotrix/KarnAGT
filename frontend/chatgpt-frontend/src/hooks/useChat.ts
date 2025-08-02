@@ -62,6 +62,7 @@ export function useChat(options: ChatOptions = {}) {
     cost_usd: msg.cost_usd,
     model_name: msg.model_name,
     attachments: msg.attachments,
+    vector_file_references: msg.vector_file_references,  // Add vector_file_references mapping
     metadata: msg.metadata,
   }), []);
 
@@ -229,7 +230,17 @@ export function useChat(options: ChatOptions = {}) {
     console.log('📤 Sending message with staging files:', stagingFiles);
     console.log('📤 Sending message with image data:', imageData);
     
-    // STEP 1: Create user message with actual image data for immediate display
+    // Extract document data from staging files for immediate display
+    const documentData = stagingFiles.vectors ? stagingFiles.vectors.map((doc: any) => ({
+      fileId: doc.file_id,
+      filename: doc.filename,
+      file: null, // Not available in staging files
+      s3Key: doc.s3_key,
+    })) : [];
+    
+    console.log('📤 Extracted document data:', documentData);
+    
+    // STEP 1: Create user message with actual image and document data for immediate display
     const userMessage: Message = {
       id: `temp_${Date.now()}`,
       message_id: `temp_${Date.now()}`,
@@ -238,6 +249,8 @@ export function useChat(options: ChatOptions = {}) {
       createdAt: new Date(),
       // Store actual image data for immediate display
       localImages: imageData.length > 0 ? imageData : undefined,
+      // Store actual document data for immediate display
+      localDocuments: documentData.length > 0 ? documentData : undefined,
     };
 
     // STEP 2: Add to UI immediately with actual image data
@@ -297,6 +310,7 @@ export function useChat(options: ChatOptions = {}) {
       
       let assistantMessage: Message | null = null;
       let assistantContent = '';
+      let streamIdCaptured = false;
       
       while (true) {
         const { done, value } = await reader.read();
@@ -324,6 +338,16 @@ export function useChat(options: ChatOptions = {}) {
             }
             
             if (data === '') continue;
+            
+            // Try to capture stream_id from this event (critical for stop button)
+            if (!streamIdCaptured) {
+              const extractedStreamId = extractStreamIdFromSSE(data);
+              if (extractedStreamId) {
+                setCurrentStreamId(extractedStreamId);
+                streamIdCaptured = true;
+                console.log('🎯 NORMAL STREAM_ID CAPTURED:', extractedStreamId);
+              }
+            }
             
             try {
               const parsed = JSON.parse(data);
@@ -430,8 +454,9 @@ export function useChat(options: ChatOptions = {}) {
       setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
     } finally {
       setIsLoading(false);
+      setCurrentStreamId(null);
     }
-  }, [options, setMessages, setInput, setError, setIsLoading]);
+  }, [options, setMessages, setInput, setError, setIsLoading, extractStreamIdFromSSE]);
 
   // Handle submit
   const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Record<string, any>; imageData?: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> })) => {

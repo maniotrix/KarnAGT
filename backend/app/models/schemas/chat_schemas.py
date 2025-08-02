@@ -87,6 +87,7 @@ class MessageCreate(BaseSchema):
     role: MessageRole = Field(MessageRole.USER, description="Message role")
     parent_message_id: Optional[int] = Field(None, description="Parent message for threading")
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="File attachments")
+    vector_file_references: Optional[Dict[str, Any]] = Field(None, description="References to knowledge files processed for RAG")
     
     # Status field (for internal use)
     status: Optional[str] = Field("completed", description="Message status")
@@ -137,6 +138,7 @@ class MessageResponse(BaseSchema):
     parent_message_id: Optional[int] = None
     has_children: bool = False
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="Message attachments")
+    vector_file_references: Optional[Dict[str, Any]] = Field(None, description="References to knowledge files processed for RAG")
     extra_metadata: Dict[str, Any] = {}  # Changed from metadata to match database field
     created_at: datetime
     

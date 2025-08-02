@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 from sqlalchemy.orm import selectinload
 
-from aicore.core.configurable_assistant_client import (
+from app.aicore.core.configurable_assistant_client import (
     configurable_assistant_manager as assistant_manager,
     ConfigurableAssistantClient
 )
@@ -35,8 +35,8 @@ from app.core.exceptions import (
     QuotaExceededException
 )
 from app.services.context.conversation_context_builder import get_context_for_conversation
-from app.services.memory.memory_tools_config import get_memory_enabled_override_config
-from aicore.logger import get_logger
+from app.services.knowledge.knowledge_tools_config import get_unified_tools_override_config
+from app.logging.logger import get_logger
 from app.models.schemas.staging_schemas import StagingFileCollection
 
 # Set up logger
@@ -94,9 +94,10 @@ class ChatService:
         client_key = f"{self.user_uuid}_{conversation_id}_default_default"
         
         if client_key not in assistant_manager.clients:
-            # Client doesn't exist yet, create with memory configuration
-            memory_config_override = get_memory_enabled_override_config(
+            # Client doesn't exist yet, create with unified tools configuration
+            unified_config_override = get_unified_tools_override_config(
                 user_id=self.user_id,
+                user_uuid=self.user_uuid,
                 conversation_id=conversation_id,
                 db_session=self.db
             )
@@ -104,7 +105,7 @@ class ChatService:
             return assistant_manager.get_client(
                 user_id=self.user_uuid,
                 conversation_id=conversation_id,
-                config_overrides=memory_config_override
+                config_overrides=unified_config_override
             )
         else:
             # Client already exists, just get it (memory config already applied)
@@ -234,7 +235,7 @@ class ChatService:
                 attachment_service = AttachmentService()
                 
                 message_attachments, openai_file_ids, vector_file_references = await attachment_service.process_staging_files(
-                    staging_files, self.user_uuid, self.db
+                    staging_files, self.user_uuid, conversation_id, self.db
                 )
             
             # Save user message
@@ -243,6 +244,7 @@ class ChatService:
                 role="user",
                 parent_message_id=None,
                 attachments=message_attachments,
+                vector_file_references=vector_file_references,
                 status="completed",
                 staging_files=staging_files.to_dict() if staging_files else None
             )
@@ -272,7 +274,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with AI
             ai_response_data = await assistant_client.send_message(
@@ -393,7 +396,7 @@ class ChatService:
                 attachment_service = AttachmentService()
                 
                 message_attachments, openai_file_ids, vector_file_references = await attachment_service.process_staging_files(
-                    staging_files, self.user_uuid, self.db
+                    staging_files, self.user_uuid, conversation_id, self.db
                 )
             
             # Save user message
@@ -402,6 +405,7 @@ class ChatService:
                 role="user",
                 parent_message_id=None,
                 attachments=message_attachments,
+                vector_file_references=vector_file_references,
                 status="completed",
                 staging_files=staging_files.to_dict() if staging_files else None
             )
@@ -435,7 +439,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with streaming
             ai_response_data = await assistant_client.send_message_streaming(
@@ -449,6 +454,9 @@ class ChatService:
                 }
             )
             
+            # Debug logging for stream cancellation issue
+            logger.info(f"[DEBUG] AI response data received: content_length={len(ai_response_data.get('content', ''))}, was_cancelled={ai_response_data.get('was_cancelled', False)}")
+            
             # Save AI response message with appropriate status based on cancellation
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
@@ -456,6 +464,7 @@ class ChatService:
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
+            logger.info(f"[DEBUG] About to create AI message with status: {ai_message_data.status}")
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
             # Capture all needed values immediately to avoid lazy loading later
             ai_message_db_id = ai_message.id
@@ -555,6 +564,7 @@ class ChatService:
                     model_name=msg.model_name,
                     finish_reason=None,  # Not stored in database
                     attachments=msg.attachments or [],
+                    vector_file_references=msg.vector_file_references,  # Include vector file references
                     extra_metadata=msg.extra_metadata or {},
                     created_at=msg.created_at
                 )
@@ -677,7 +687,8 @@ class ChatService:
         content: str,
         message_type: str = "text",
         model: Optional[str] = None,
-        openai_file_ids: Optional[List[str]] = None
+        openai_file_ids: Optional[List[str]] = None,
+        vector_file_references: Optional[Dict[str, Any]] = None
     ) -> MessageResponse:
         """
         Generate an AI response only (for message editing scenarios)
@@ -736,7 +747,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with AI (using the edited content)
             ai_response_data = await assistant_client.send_message(
@@ -815,7 +827,8 @@ class ChatService:
         streaming_callback: Callable[[str], None],
         message_type: str = "text",
         model: Optional[str] = None,
-        openai_file_ids: Optional[List[str]] = None
+        openai_file_ids: Optional[List[str]] = None,
+        vector_file_references: Optional[Dict[str, Any]] = None
     ) -> MessageResponse:
         """
         Generate an AI response only with streaming (for message editing scenarios with streaming)
@@ -874,7 +887,8 @@ class ChatService:
                 conversation_id, 
                 self.db, 
                 content,
-                openai_file_ids=openai_file_ids
+                openai_file_ids=openai_file_ids,
+                vector_file_references=vector_file_references
             )
             # Process message with AI using streaming (using the edited content)
             ai_response_data = await assistant_client.send_message_streaming(
@@ -888,6 +902,9 @@ class ChatService:
                 }
             )
             
+            # Debug logging for stream cancellation issue
+            logger.info(f"[DEBUG] Edit AI response data received: content_length={len(ai_response_data.get('content', ''))}, was_cancelled={ai_response_data.get('was_cancelled', False)}")
+            
             # Save AI response message only with appropriate status based on cancellation
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
@@ -895,6 +912,7 @@ class ChatService:
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
+            logger.info(f"[DEBUG] About to create edit AI message with status: {ai_message_data.status}")
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
             # Capture all needed values immediately to avoid lazy loading later
             ai_message_db_id = ai_message.id

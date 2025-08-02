@@ -10,19 +10,22 @@ import uvicorn
 from app.core.config import settings
 from app.api.router import api_router
 
+from app.utils import validate_api_keys
+validate_api_keys()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    print("🚀 ChatGPT Clone Backend starting up...")
-    print(f"🔧 Environment: {settings.ENVIRONMENT}")
-    print(f"🔒 Debug mode: {settings.DEBUG}")
+    print("[STARTUP] ChatGPT Clone Backend starting up...")
+    print(f"[CONFIG] Environment: {settings.ENVIRONMENT}")
+    print(f"[CONFIG] Debug mode: {settings.DEBUG}")
     
     yield
     
     # Shutdown
-    print("📴 ChatGPT Clone Backend shutting down...")
+    print("[SHUTDOWN] ChatGPT Clone Backend shutting down...")
 
 
 # Create FastAPI application

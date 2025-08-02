@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.memory.memory_service import MemoryService
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

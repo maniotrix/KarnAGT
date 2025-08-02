@@ -21,18 +21,28 @@ class UniversalUploadService {
   categorizeFile(file: File): FileCategory {
     const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
     const documentTypes = [
+      // PDF documents
       'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-      'text/csv',
-      'application/json',
-      'application/xml',
-      'text/xml'
+      // Word documents  
+      'application/msword',                                                                    // .doc
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',             // .docx
+      // Excel spreadsheets
+      'application/vnd.ms-excel',                                                             // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',                   // .xlsx
+      // PowerPoint presentations
+      'application/vnd.ms-powerpoint',                                                        // .ppt
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',           // .pptx
+      // Text files
+      'text/plain',                                                                           // .txt
+      'text/csv',                                                                             // .csv
+      'text/markdown',                                                                        // .md
+      // Markup files
+      'application/xml',                                                                      // .xml
+      'text/xml',                                                                             // .xml
+      'text/html',                                                                            // .html
+      // Rich text and other formats
+      'application/rtf',                                                                      // .rtf
+      'application/epub+zip'                                                                  // .epub
     ];
 
     if (imageTypes.includes(file.type)) {
@@ -158,24 +168,34 @@ class UniversalUploadService {
   private validateDocumentFile(file: File): { valid: boolean; error?: string } {
     const maxSize = 50 * 1024 * 1024; // 50MB for documents
     const allowedTypes = [
+      // PDF documents
       'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-      'text/csv',
-      'application/json',
-      'application/xml',
-      'text/xml'
+      // Word documents  
+      'application/msword',                                                                    // .doc
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',             // .docx
+      // Excel spreadsheets
+      'application/vnd.ms-excel',                                                             // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',                   // .xlsx
+      // PowerPoint presentations
+      'application/vnd.ms-powerpoint',                                                        // .ppt
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',           // .pptx
+      // Text files
+      'text/plain',                                                                           // .txt
+      'text/csv',                                                                             // .csv
+      'text/markdown',                                                                        // .md
+      // Markup files
+      'application/xml',                                                                      // .xml
+      'text/xml',                                                                             // .xml
+      'text/html',                                                                            // .html
+      // Rich text and other formats
+      'application/rtf',                                                                      // .rtf
+      'application/epub+zip'                                                                  // .epub
     ];
 
     if (!allowedTypes.includes(file.type)) {
       return { 
         valid: false, 
-        error: 'Invalid document type. Only PDF, Word, Excel, PowerPoint, and text files are supported.' 
+        error: 'Invalid document type. Supported formats: PDF, Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx), text files (.txt/.csv/.md), markup files (.html/.xml), RTF, and EPUB.' 
       };
     }
 

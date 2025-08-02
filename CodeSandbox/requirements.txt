@@ -1,0 +1,160 @@
+# Python Version: Python 3.10.11
+# ======================================
+# CORE WEB FRAMEWORK & API
+# ===================================
+fastapi==0.116.1
+uvicorn==0.35.0
+python-dotenv==1.1.1
+httpx==0.28.1
+websockets==15.0.1
+sse-starlette==2.4.1
+requests==2.32.4
+tqdm==4.67.1
+python-multipart==0.0.20
+pathvalidate==3.3.1
+# ===================================
+# JUPYTER & CODE EXECUTION ENVIRONMENT
+# ===================================
+jupyterlab==4.4.5
+ipywidgets==8.1.7
+
+# ===================================
+# DATA SCIENCE & ANALYSIS CORE
+# ===================================
+scikit-learn==1.7.1   # quick classical ML & preprocessing (depends on numpy, scipy)
+seaborn==0.13.2        # nicer statistical plots (depends on pandas, matplotlib)
+
+# ---------- Detection ----------
+filetype==1.2.0
+python-magic==0.4.27
+
+# ---------- Markup / text ----------
+markdown==3.8.2
+lxml==6.0.0
+ftfy==6.3.1
+unidecode==1.4.0
+python-slugify==8.0.4
+python-bidi==0.6.6
+
+# ---------- Spreadsheet ----------
+openpyxl==3.1.5
+xlsxwriter==3.2.5
+xlrd==2.0.2
+xlwt==1.3.0
+
+# ---------- Word / PPT / RTF ----------
+python-docx==1.2.0
+python-pptx==1.0.2
+striprtf==0.0.29
+
+# ---------- Columnar / scientific ----------
+pyarrow==21.0.0
+fastparquet==2024.11.0
+h5py==3.14.0
+tables==3.10.1
+
+# ---------- PDF core ----------
+pypdf==5.8.0
+pdfplumber==0.11.7
+PyMuPDF==1.26.3
+
+# ---------- PDF → image & OCR ----------
+pdf2image==1.17.0
+pytesseract==0.3.13
+
+# ===================================
+# IMAGE PROCESSING
+# ===================================
+opencv-python-headless==4.12.0.88
+imageio==2.37.0
+scikit-image==0.25.2
+imagehash==4.3.2          # perceptual hashing (dupes)
+
+# ========== SQLITE & LIGHT DB ==========
+sqlalchemy==2.0.41
+aiosqlite==0.21.0
+sqlite-utils==3.38
+
+# ========== ASYNC TOOLING ==========
+aiohttp==3.12.14
+aiofiles==24.1.0
+
+# ===================================
+# UTILITIES FOR CODE EXECUTION
+# ===================================
+loguru==0.7.3
+rich==14.0.0
+orjson==3.11.0
+wrapt==1.17.2
+more-itertools==10.7.0
+
+# ===================================
+# NATURAL LANGUAGE PROCESSING
+# ===================================
+nltk==3.9.1              # faster drop‑in for re
+langdetect==1.0.9
+textstat==0.7.8
+emoji==2.14.1
+
+# ===== WEB‑SCRAPING CORE =====
+requests-toolbelt==1.0.0   # small handy wrappers for requests (streaming uploads, etc.)
+mechanicalsoup==1.4.0   # headless form‑fill convenience (pure‑Python, tiny)
+
+# ===================================
+# TIME & DATE UTILITIES
+# ===================================
+pendulum==3.1.0
+tzlocal==5.3.1
+dateparser==1.2.2
+croniter==6.0.0
+
+# ===================================
+# SCIENTIFIC COMPUTING
+# ===================================
+sympy==1.14.0
+pint==0.24.4
+uncertainties==3.2.3
+
+# ===================================
+# CRYPTOGRAPHY & SECURITY
+# ===================================
+python-jose[cryptography]==3.3.0
+itsdangerous==2.2.0
+
+# ==== TEST & VALIDATION (light) ====
+validators==0.35.0
+email-validator==2.2.0
+
+# ==== CACHING (light) ====
+cachetools==6.1.0
+
+# ===== GEOSPATIAL (light) =====
+folium==0.20.0
+geopy==2.4.1
+
+# ===================================
+# FINANCIAL & ECONOMIC DATA
+# ===================================
+yfinance==0.2.65
+pandas-datareader==0.10.0
+fredapi==0.5.2
+alpha-vantage==3.0.0
+ta==0.11.0
+
+# ===================================
+# GRAPH & VISUALIZATION
+# ===================================
+graphviz==0.21
+pydot==4.0.1
+
+# ===== SYSTEM & PROCESS UTILITIES =====
+watchdog==6.0.0        # FS change events (pure‑py)
+portalocker==3.2.0     # cross‑platform file locks (tiny)
+schedule==1.2.2        # in‑process cron‑like jobs (pure‑py)
+
+# ===================================
+# FILE CONVERSION & GENERATION
+# ===================================
+fpdf2==2.8.3
+reportlab==4.4.3
+html2text==2025.4.15

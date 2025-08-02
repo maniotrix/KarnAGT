@@ -110,3 +110,7 @@ output/
 output_plots/
 
 node_modules/
+/workspaces
+
+# ignore kernel file
+kernel-*.json

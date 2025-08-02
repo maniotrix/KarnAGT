@@ -586,9 +586,7 @@ class RAGConfig:
     
     # File processing
     exclude_patterns: Optional[List[str]] = None
-    supported_extensions: List[str] = field(default_factory=lambda: [
-        ".pdf", ".docx", ".doc", ".txt", ".pptx", ".ppt", ".csv", ".xlsx", ".md"
-    ])
+    supported_extensions: List[str] = field(default_factory=lambda: settings.get_allowed_file_types())
     
     # Rate limiting and delays for custom pptx reader only
     enable_delay: bool = True
@@ -598,7 +596,7 @@ class RAGConfig:
     show_progress: bool = True
     
     # s3 settings
-    s3_bucket_name: str = "rag-files"
+    s3_bucket_name: str = settings.S3_BUCKET_NAME # same as staging service s3 backend service
 
     @classmethod
     def for_robust_retrieval(cls, **kwargs) -> "RAGConfig":

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.storage.staging_storage import staging_service
 from app.models.schemas.staging_schemas import StagingFileCollection, StagingFileInfo
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -20,6 +20,7 @@ class AttachmentService:
         self, 
         staging_collection: StagingFileCollection, 
         user_id: str, 
+        conversation_id: str,
         db: AsyncSession
     ) -> Tuple[List[Dict[str, Any]], List[str], Optional[Dict[str, Any]]]:
         """
@@ -28,6 +29,7 @@ class AttachmentService:
         Args:
             staging_collection: StagingFileCollection object
             user_id: User ID for validation
+            conversation_id: Conversation ID for vector collection
             db: Database session
             
         Returns:
@@ -50,10 +52,10 @@ class AttachmentService:
             message_attachments.extend(image_attachments)
             openai_file_ids.extend(image_openai_ids)
         
-        # Process vector files (placeholder for now)
+        # Process vector files
         if staging_collection.has_vectors:
             vector_file_references = await self._process_vector_files(
-                staging_collection.vectors, user_id, db
+                staging_collection.vectors, user_id, conversation_id, db
             )
         
         logger.info(f"Processing completed: {len(message_attachments)} images, vector_refs: {vector_file_references is not None}")
@@ -103,43 +105,120 @@ class AttachmentService:
         self,
         vector_files: List[StagingFileInfo],
         user_id: str,
+        conversation_id: str,
         db: AsyncSession
     ) -> Optional[Dict[str, Any]]:
         """
-        Process vector files (PLACEHOLDER - to be implemented)
+        Process vector files using ProductionRAGService
         
-        This will eventually:
-        1. Get/create conversation vector collection
-        2. Process S3 documents using ProductionRAGService
-        3. Update knowledge_files table
-        4. Return vector file references for message storage
+        This method:
+        1. Gets/creates conversation vector collection
+        2. Processes S3 documents using ProductionRAGService
+        3. Updates knowledge_files table automatically
+        4. Returns vector file references for message storage
         """
         if not vector_files:
             return None
         
-        logger.info(f"PLACEHOLDER: Would process {len(vector_files)} vector files")
+        logger.info(f"Processing {len(vector_files)} vector files for conversation {conversation_id}")
         
-        # Placeholder implementation - just log the files
-        processed_files = []
-        for vector_file in vector_files:
-            logger.info(f"  PLACEHOLDER: Vector file {vector_file.file_id} ({vector_file.filename})")
-            processed_files.append({
-                "file_id": vector_file.file_id,
-                "s3_key": vector_file.s3_key,
-                "filename": vector_file.filename,
-                "content_type": vector_file.content_type,
-                "file_size": vector_file.file_size,
-                "status": "placeholder_logged_only"
-            })
-        
-        vector_references = {
-            "total_files": len(vector_files),
-            "processed_files": processed_files,
-            "failed_files": [],
-            "processing_status": "placeholder_not_implemented"
-        }
-        
-        return vector_references
+        try:
+            # Import ProductionRAGService and config
+            from app.services.knowledge.production_rag_service import ProductionRAGService
+            from app.services.knowledge.config import RAGConfig
+            
+            # Create RAG service instance
+            rag_config = RAGConfig.for_chat_application()
+            rag_service = ProductionRAGService(rag_config)
+            
+            # Extract S3 keys from vector files
+            s3_keys = [vf.s3_key for vf in vector_files]
+            
+            # Process documents using RAG service (handles all DB operations)
+            collection, result = await rag_service.process_conversation_documents(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                s3_keys=s3_keys,
+                db=db
+            )
+            
+            # Query database to get KnowledgeFile records for linking
+            from sqlalchemy import select
+            from app.models.database.knowledge_file import KnowledgeFile
+            
+            knowledge_files_result = await db.execute(
+                select(KnowledgeFile).where(
+                    KnowledgeFile.collection_id == collection.id,
+                    KnowledgeFile.file_path.in_(s3_keys)
+                )
+            )
+            knowledge_files = {kf.file_path: kf for kf in knowledge_files_result.scalars().all()}
+            
+            # Build vector file references for message storage
+            processed_files = []
+            for vector_file in vector_files:
+                kf = knowledge_files.get(vector_file.s3_key)
+                if kf:
+                    # NEW: Get all ref_doc_ids for this file
+                    ref_doc_ids = kf.get_ref_doc_ids()
+                    processed_files.append({
+                        "file_id": vector_file.file_id,
+                        "knowledge_file_id": kf.id,  # Link to KnowledgeFile
+                        "ref_doc_ids": ref_doc_ids,  # All ref_doc_ids for file-specific queries
+                        "s3_key": vector_file.s3_key,
+                        "filename": vector_file.filename,
+                        "content_type": vector_file.content_type,
+                        "file_size": vector_file.file_size,
+                        "node_count": kf.node_count,
+                        "document_count": len(ref_doc_ids),  # Number of LlamaIndex documents
+                        "processing_status": "completed"
+                    })
+                else:
+                    # File failed to process
+                    processed_files.append({
+                        "file_id": vector_file.file_id,
+                        "s3_key": vector_file.s3_key,
+                        "filename": vector_file.filename,
+                        "content_type": vector_file.content_type,
+                        "file_size": vector_file.file_size,
+                        "processing_status": "failed"
+                    })
+            
+            vector_references = {
+                "collection_id": collection.id,
+                "conversation_id": conversation_id,
+                "total_files": len(vector_files),
+                "processed_files": processed_files,
+                "failed_files": [pf for pf in processed_files if pf["processing_status"] == "failed"],
+                "processing_status": "completed",
+                "processing_time": result.processing_time,
+                "total_document_chunks": result.total_document_chunks
+            }
+            
+            logger.info(f"Successfully processed {len(processed_files)} vector files")
+            logger.info(f"Created {result.total_document_chunks} document chunks in {result.processing_time:.2f}s")
+            
+            return vector_references
+            
+        except Exception as e:
+            logger.error(f"Error processing vector files: {e}")
+            # Return error status but don't fail the entire operation
+            return {
+                "total_files": len(vector_files),
+                "processed_files": [],
+                "failed_files": [
+                    {
+                        "file_id": vf.file_id,
+                        "s3_key": vf.s3_key,
+                        "filename": vf.filename,
+                        "processing_status": "failed",
+                        "error_message": str(e)
+                    }
+                    for vf in vector_files
+                ],
+                "processing_status": "failed",
+                "error_message": str(e)
+            }
     
     async def get_openai_file_ids_from_attachments(
         self, 

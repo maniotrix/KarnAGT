@@ -17,7 +17,8 @@ import {
   Copy,
   Check,
   Edit3,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -162,6 +163,23 @@ export const UserMessage: React.FC<UserMessageProps> = ({
 
   const displayImages = getDisplayImages();
 
+  // Get document filenames from local data first, then backend data
+  const getDocumentFilenames = () => {
+    // FIRST: Use local documents if available (fresh uploads before backend processing)
+    if (message.localDocuments?.length) {
+      return message.localDocuments.map(doc => doc.filename);
+    }
+    
+    // SECOND: Use backend vector_file_references after processing is complete
+    if (message.vector_file_references?.processed_files) {
+      return message.vector_file_references.processed_files.map((file: any) => file.filename).filter(Boolean);
+    }
+    
+    return [];
+  };
+
+  const documentFilenames = getDocumentFilenames();
+
   // Render images with loading states
   const renderImages = () => {
     if (!displayImages.length) return null;
@@ -286,6 +304,27 @@ export const UserMessage: React.FC<UserMessageProps> = ({
 
           {/* Images Display */}
           {renderImages()}
+
+          {/* Document Files Display */}
+          {documentFilenames.length > 0 && (
+            <div className="flex w-[70%] flex-col items-end mb-2">
+              <div className="bg-gray-100 rounded-lg p-3 max-w-72">
+                <div className="flex items-center gap-2 text-sm text-gray-700 mb-2">
+                  <FileText className="w-4 h-4" />
+                  <span className="font-medium">
+                    {documentFilenames.length} document{documentFilenames.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {documentFilenames.map((filename: string, index: number) => (
+                    <div key={index} className="text-xs text-gray-600 truncate">
+                      📄 {filename}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Message Bubble */}
           <div className="px-4 py-3 rounded-2xl max-w-none bg-blue-600 text-white ml-8">

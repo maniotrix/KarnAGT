@@ -48,6 +48,7 @@ export interface MessageResponse {
   cost_usd?: number;
   model_name?: string;
   attachments?: string[] | ImageAttachment[]; // Can be either string IDs or full attachment objects
+  vector_file_references?: Record<string, any>; // References to knowledge files processed for RAG
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -147,6 +148,7 @@ export interface Message {
   cost_usd?: number;
   model_name?: string;
   attachments?: string[] | ImageAttachment[]; // Can be either string IDs or full attachment objects
+  vector_file_references?: Record<string, any>; // References to knowledge files processed for RAG
   metadata?: Record<string, any>;
   // LOCAL IMAGE DATA: Keep actual image data for immediate display after send
   localImages?: Array<{
@@ -154,6 +156,13 @@ export interface Message {
     filename: string;
     file: File;
     blobUrl: string;
+    s3Key: string;
+  }>;
+  // LOCAL DOCUMENT DATA: Keep actual document data for immediate display after send
+  localDocuments?: Array<{
+    fileId: string;
+    filename: string;
+    file: File;
     s3Key: string;
   }>;
 }

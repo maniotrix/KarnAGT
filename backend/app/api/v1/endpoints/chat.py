@@ -46,7 +46,7 @@ from app.api.v1.dependencies.auth import (
 from app.services.chat.chat_service import ChatService
 from app.services.chat.streaming_service import StreamingService
 
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 # Set up logger
 logger = get_logger(__name__)
@@ -669,24 +669,29 @@ async def edit_and_resend_message(
         deleted_count = await message_service.delete_messages_after(message_id)
         logger.info(f"Deleted {deleted_count} subsequent messages")
         
-        # Step 3: Extract existing OpenAI file IDs from the edited message
+        # Step 3: Extract existing OpenAI file IDs and vector_file_references from the edited message
         openai_file_ids = []
-        if updated_message.attachments:
-            for attachment in updated_message.attachments:
+        attachments = getattr(updated_message, 'attachments', None)
+        if attachments:
+            for attachment in attachments:
                 if isinstance(attachment, dict) and 'openai_file_id' in attachment:
                     openai_file_ids.append(attachment['openai_file_id'])
+        
+        # Extract vector_file_references from the edited message
+        vector_file_references = updated_message.vector_file_references if hasattr(updated_message, 'vector_file_references') else None
                     
-        logger.info(f"Extracted {len(openai_file_ids)} existing OpenAI file IDs for message editing")
+        logger.info(f"Extracted {len(openai_file_ids)} existing OpenAI file IDs and vector_file_references for message editing")
         
         # Step 4: Generate new AI response
         chat_service = ChatService(db, current_user)
         
-        # Generate AI response with the edited content and existing file IDs
+        # Generate AI response with the edited content and existing file IDs + vector_file_references
         ai_response = await chat_service.generate_ai_response_only(
             conversation_id=conversation_id,
             content=update_data.content,
             message_type="text",
-            openai_file_ids=openai_file_ids  # Pass existing file IDs
+            openai_file_ids=openai_file_ids,  # Pass existing file IDs
+            vector_file_references=vector_file_references  # Pass existing vector_file_references
         )
         
         logger.info(f"Successfully edited message {message_id} and generated new AI response")

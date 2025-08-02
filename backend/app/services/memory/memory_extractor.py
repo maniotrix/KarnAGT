@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.services.memory.memory_service import MemoryService
 from app.models.database.user_memory import UserMemory, MEMORY_BUCKETS
-from aicore.logger import get_logger
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

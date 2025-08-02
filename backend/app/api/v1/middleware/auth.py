@@ -34,6 +34,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             "/api/v1/auth/forgot-password",
             "/api/v1/auth/reset-password",
         }
+        
+        # Routes that handle their own authentication (bypass middleware auth)
+        self.self_auth_routes = {
+            "/api/v1/proxy/",  # File proxy routes handle service-to-service auth
+        }
     
     async def dispatch(self, request: Request, call_next):
         """Process request and add authentication context"""
@@ -41,6 +46,12 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         
         # Skip authentication for public routes
         if request.url.path in self.public_routes:
+            response = await call_next(request)
+            self._add_timing_header(response, start_time)
+            return response
+        
+        # Skip middleware auth for routes that handle their own authentication
+        if any(request.url.path.startswith(route) for route in self.self_auth_routes):
             response = await call_next(request)
             self._add_timing_header(response, start_time)
             return response

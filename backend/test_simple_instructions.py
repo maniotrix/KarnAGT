@@ -5,24 +5,20 @@ Simple Instructions Test - Isolate the issue
 
 import asyncio
 import sys
-import tempfile
 
 # Add backend to path
 sys.path.append('.')
 
-from aicore.config import config_manager
-from aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
-from aicore.instructions import InstructionBuilder, InstructionContext
-from aicore.logger import get_logger
+from app.aicore.config import config_manager
+from app.aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
+from app.aicore.instructions import InstructionBuilder, InstructionContext
+from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 async def test_instruction_building():
     """Test instruction building step by step"""
-    
-    # Create temp plots directory
-    temp_plots_dir = tempfile.mkdtemp(prefix="simple_test_")
     
     print("=" * 60)
     print("SIMPLE INSTRUCTION BUILDING TEST")
@@ -38,7 +34,6 @@ async def test_instruction_building():
     
     context = InstructionContext(
         message_id="test_123",
-        plots_directory=temp_plots_dir,
         os_type="Windows",
         user_id=None,  # No user_id = no memory context
         session_id=None
@@ -65,7 +60,6 @@ async def test_instruction_building():
     
     context_with_user = InstructionContext(
         message_id="test_456",
-        plots_directory=temp_plots_dir,
         os_type="Windows",
         user_id="test_user_uuid",
         session_id=None

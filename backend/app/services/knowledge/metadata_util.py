@@ -32,6 +32,8 @@ class MetadataCleanerPostprocessor(BaseNodePostprocessor):
             'file_name',           # Original filename for citations
             's3_original_filename', # Original filename from S3 metadata
             'page_label',          # Page numbers for citations
+            'doc_id',              # Document ID for query filtering and response processing
+            'ref_doc_id',          # Reference document ID (backup for doc_id)
             'Header 1', 'Header 2', 'Header 3',  # Document structure
             'questions_this_excerpt_can_answer',  # Generated Q&A metadata
             'section_summary', 'prev_section_summary', 'next_section_summary'  # Generated summaries
