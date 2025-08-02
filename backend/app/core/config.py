@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     # File Storage
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
-    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.doc,.txt,.md,.pptx,.ppt,.csv,.xlsx,.xls,.rtf,.html,.xml,.epub"
+    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.doc,.txt,.md,.pptx,.ppt,.csv,.xlsx,.xls,.rtf,.html,.xml,.epub,.json,.tsv,.odt,.org,.rst,.msg,.eml,.ipynb,.mbox,.hwp"
     
     # Document MIME types for content-type validation (matches ALLOWED_FILE_TYPES)
     ALLOWED_DOCUMENT_MIME_TYPES: str = (
@@ -92,12 +92,22 @@ class Settings(BaseSettings):
         "application/vnd.openxmlformats-officedocument.presentationml.presentation,"
         "text/plain,"
         "text/csv,"
+        "text/tab-separated-values,"
         "text/markdown,"
         "application/xml,"
         "text/xml,"
         "text/html,"
         "application/rtf,"
-        "application/epub+zip"
+        "application/epub+zip,"
+        "application/json,"
+        "application/vnd.oasis.opendocument.text,"
+        "text/x-org,"
+        "text/x-rst,"
+        "application/vnd.ms-outlook,"
+        "message/rfc822,"
+        "application/x-ipynb+json,"
+        "application/mbox,"
+        "application/x-hwp"
     )
     
     # Image Storage (MinIO/S3 compatible)
@@ -121,7 +131,7 @@ class Settings(BaseSettings):
         # Vision purposes
         ".png,.jpg,.jpeg,.gif,.webp,"
         # Assistant purposes  
-        ".txt,.md,.pdf,.docx,.pptx,.xlsx,"
+        ".txt,.md,.pdf,.docx,.pptx,.xlsx,.json,.tsv,.odt,.org,.rst,.msg,.eml,.ipynb,.mbox,.hwp,"
         # Fine-tuning purposes
         ".jsonl"
     )
