@@ -87,6 +87,7 @@ The tool returns an ExecutionOperationResult containing:
   - Image & OCR: pillow, opencv, pytesseract, etc.
   - NLP / text utils: nltk, markdown, langdetect, etc.
   ...many other popular PyPI libraries are also available.
+- For OCR, use pdf2image and pytesseract to extract text from images for pdf files.
 - Output capture: stdout, stderr, and execution results
 - Your code will be executed with a timeout of 30 seconds.
 
