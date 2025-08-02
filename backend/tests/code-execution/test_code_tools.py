@@ -129,7 +129,8 @@ ADVANCED_TEST_PROMPTS = [
     "Create a function to check if two strings are anagrams of each other, ignoring spaces and case. Test with 'listen' and 'silent' as well as 'conversation' and 'voices rant on'.",
 ]
 
-
+test_docs_dir = os.path.join(backend_dir, "test_docs")
+test_pdf_with_images_only = os.path.join(test_docs_dir, "abhilasha_6_april_ticket.pdf")
 
 def create_test_agent() -> Agent:
     """Create test agent with contextvars-based tools (no session parameter needed!)"""
@@ -147,7 +148,7 @@ def create_test_agent() -> Agent:
         name="test_agent",
         model="gpt-4o-mini-2024-07-18",
         instructions="""
-        You are a helpful assistant that can search the web for latest information.
+        You are a helpful assistant that can execute python code and search the web for latest information.
         """,
         tools=tools,  
     )
@@ -218,6 +219,10 @@ async def main():
     
     # test only file generation
     await test_with_prompt(file_generation_prompt)
+    
+    
+    # test with images only pdf file to test ocr capabilities
+    image_only_pdf_prompt = f"Please read the pdf file {test_pdf_with_images_only} and extract the text from the images."
     
     results.summary()
 

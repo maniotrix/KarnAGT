@@ -81,7 +81,12 @@ The tool returns an ExecutionOperationResult containing:
 ## CODE EXECUTION ENVIRONMENT:
 - Jupyter kernel with persistent variables/imports across calls
 - Working directory: workspace root (contains uploaded files)
-- Full Python standard library + common packages (numpy, pandas, matplotlib, etc.)
+- Pre-installed 3rd-party packages (e.g., not exhaustive):
+  - Data / science: numpy, pandas, matplotlib, seaborn, scikit-learn, scipy, statsmodels, etc.
+  - File & doc I/O: openpyxl, python-docx, pypdf, pdfplumber, pdf2image, etc.
+  - Image & OCR: pillow, opencv, pytesseract, etc.
+  - NLP / text utils: nltk, markdown, langdetect, etc.
+  ...many other popular PyPI libraries are also available.
 - Output capture: stdout, stderr, and execution results
 - Your code will be executed with a timeout of 30 seconds.
 
