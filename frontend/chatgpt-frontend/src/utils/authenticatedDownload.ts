@@ -9,19 +9,19 @@ export interface DownloadResult {
 }
 
 /**
- * Handle authenticated download for proxy URLs
- * Supports both redirect-based and blob-based downloads
+ * Handle authenticated redirect for proxy URLs
+ * Gets presigned URL and opens it in a new tab - lets browser handle file naturally
  */
 export async function handleAuthenticatedDownload(url: string): Promise<DownloadResult> {
   try {
     const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
     
     if (!token) {
-      console.error('❌ No authentication token found for download');
+      console.error('❌ No authentication token found');
       return { success: false, error: 'Authentication required. Please log in.' };
     }
 
-    console.log('🔗 Attempting authenticated download:', url);
+    console.log('🔗 Getting presigned URL for:', url);
 
     // Build the full URL - handle both relative and absolute URLs
     let fullUrl: string;
@@ -40,67 +40,42 @@ export async function handleAuthenticatedDownload(url: string): Promise<Download
     console.log('🔗 Original URL:', url);
     console.log('🔗 Full URL for request:', fullUrl);
 
-    // Make authenticated request to proxy endpoint
-    // Use 'follow' to let browser handle the redirect automatically
+    // Make authenticated request and follow the redirect to get the presigned URL
     const response = await fetch(fullUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
-      redirect: 'follow' // Let browser follow redirects automatically
+      redirect: 'follow' // Follow redirects to get final presigned URL
     });
 
+    console.log('✅ Response status:', response.status);
+    console.log('✅ Final URL:', response.url);
+
     if (response.status === 401) {
-      console.error('❌ Authentication failed for download');
+      console.error('❌ Authentication failed');
       return { success: false, error: 'Authentication failed. Please log in again.' };
     }
 
     if (response.status === 404) {
-      console.error('❌ File not found for download');
+      console.error('❌ File not found');
       return { success: false, error: 'File not found or no longer available.' };
     }
 
     if (response.status === 403) {
-      console.error('❌ Access denied for download');
-      return { success: false, error: 'Access denied. You do not have permission to download this file.' };
+      console.error('❌ Access denied');
+      return { success: false, error: 'Access denied. You do not have permission to access this file.' };
     }
 
-    // Handle successful response (after redirect was followed automatically)
+    // If we get a successful response, the final URL is our presigned URL
     if (response.ok) {
-      console.log('✅ Got successful response from S3, downloading file');
-      console.log('🔗 Final URL after redirect:', response.url);
-      console.log('🔗 Content-Type:', response.headers.get('Content-Type'));
-      console.log('🔗 Content-Disposition:', response.headers.get('Content-Disposition'));
+      const presignedUrl = response.url; // This is the final URL after redirect
       
-      // Create blob from the file content
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
+      console.log('✅ Got presigned URL, opening in new tab');
+      console.log('🔗 Presigned URL:', presignedUrl);
       
-      // Extract filename from Content-Disposition header if available
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = 'download';
-      
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (filenameMatch && filenameMatch[1]) {
-          filename = filenameMatch[1].replace(/['"]/g, '');
-        }
-      }
-      
-      // Create download link
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = filename;
-      a.style.display = 'none';
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      // Clean up
-      window.URL.revokeObjectURL(downloadUrl);
-      
-      console.log('✅ File download initiated:', filename);
+      // Open the presigned URL in a new tab - browser handles the rest!
+      window.open(presignedUrl, '_blank');
       return { success: true };
     }
 
@@ -109,7 +84,7 @@ export async function handleAuthenticatedDownload(url: string): Promise<Download
 
   } catch (error) {
     const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    console.error('❌ Download failed with error:', error);
+    console.error('❌ Failed to get presigned URL:', error);
     console.error('❌ Original URL:', url);
     console.error('❌ Token available:', !!token);
     
@@ -127,13 +102,13 @@ export async function handleAuthenticatedDownload(url: string): Promise<Download
     
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred during download' 
+      error: error instanceof Error ? error.message : 'Unknown error occurred while accessing file' 
     };
   }
 }
 
-// Note: Manual filename extraction removed - S3 presigned URLs handle this automatically
-// through proper Content-Disposition headers set by the backend
+// Note: No download logic needed - we just open the presigned URL in a new tab
+// The browser handles file display/download naturally based on Content-Type
 
 /**
  * Check if a URL is a proxy URL that needs authentication
