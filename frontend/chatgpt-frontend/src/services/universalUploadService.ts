@@ -35,6 +35,7 @@ class UniversalUploadService {
       // Text files
       'text/plain',                                                                           // .txt
       'text/csv',                                                                             // .csv
+      'text/tab-separated-values',                                                            // .tsv
       'text/markdown',                                                                        // .md
       // Markup files
       'application/xml',                                                                      // .xml
@@ -42,6 +43,19 @@ class UniversalUploadService {
       'text/html',                                                                            // .html
       // JSON files
       'application/json',                                                                     // .json
+      // OpenDocument formats
+      'application/vnd.oasis.opendocument.text',                                             // .odt
+      // Org mode and reStructuredText
+      'text/x-org',                                                                          // .org
+      'text/x-rst',                                                                          // .rst
+      // Email formats
+      'application/vnd.ms-outlook',                                                          // .msg
+      'message/rfc822',                                                                      // .eml
+      'application/mbox',                                                                    // .mbox
+      // Jupyter notebooks
+      'application/x-ipynb+json',                                                            // .ipynb
+      // Korean word processor
+      'application/x-hwp',                                                                   // .hwp
       // Rich text and other formats
       'application/rtf',                                                                      // .rtf
       'application/epub+zip'                                                                  // .epub
@@ -184,6 +198,7 @@ class UniversalUploadService {
       // Text files
       'text/plain',                                                                           // .txt
       'text/csv',                                                                             // .csv
+      'text/tab-separated-values',                                                            // .tsv
       'text/markdown',                                                                        // .md
       // Markup files
       'application/xml',                                                                      // .xml
@@ -191,6 +206,19 @@ class UniversalUploadService {
       'text/html',                                                                            // .html
       // JSON files
       'application/json',                                                                     // .json
+      // OpenDocument formats
+      'application/vnd.oasis.opendocument.text',                                             // .odt
+      // Org mode and reStructuredText
+      'text/x-org',                                                                          // .org
+      'text/x-rst',                                                                          // .rst
+      // Email formats
+      'application/vnd.ms-outlook',                                                          // .msg
+      'message/rfc822',                                                                      // .eml
+      'application/mbox',                                                                    // .mbox
+      // Jupyter notebooks
+      'application/x-ipynb+json',                                                            // .ipynb
+      // Korean word processor
+      'application/x-hwp',                                                                   // .hwp
       // Rich text and other formats
       'application/rtf',                                                                      // .rtf
       'application/epub+zip'                                                                  // .epub
@@ -199,7 +227,7 @@ class UniversalUploadService {
     if (!allowedTypes.includes(file.type)) {
       return { 
         valid: false, 
-        error: 'Invalid document type. Supported formats: PDF, Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx), text files (.txt/.csv/.md), markup files (.html/.xml), JSON (.json), RTF, and EPUB.' 
+        error: 'Invalid document type. Supported formats: PDF, Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx), text files (.txt/.csv/.tsv/.md), markup files (.html/.xml), JSON (.json), OpenDocument (.odt), org-mode (.org), reStructuredText (.rst), email files (.eml/.msg/.mbox), Jupyter notebooks (.ipynb), Korean HWP (.hwp), RTF, and EPUB.' 
       };
     }
 
