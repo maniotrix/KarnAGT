@@ -257,32 +257,32 @@ async def main():
 #     await test_with_prompt(excel_prompt.strip())
     
 #     # test with docx file
-    docx_prompt = f"""
-Analyze this Word document: {test_docx_file}
-Extract and organize:
-1. Document title and main headings
-2. Section structure and content
-3. Any tables, lists, or formatted content
-4. Key information and summary
+#     docx_prompt = f"""
+# Analyze this Word document: {test_docx_file}
+# Extract and organize:
+# 1. Document title and main headings
+# 2. Section structure and content
+# 3. Any tables, lists, or formatted content
+# 4. Key information and summary
 
-Also,provide a md file with the same content.
-
-Even if this is not an HTTP URL, upload the file to workspace - it will work.
-    """
-    await test_with_prompt(docx_prompt.strip())
-    
-#     # test with zip file
-#     zip_prompt = f"""
-# Analyze this ZIP archive: {test_zip_file}
-# Extract and examine:
-# 1. List all files and folders in the archive
-# 2. Extract and analyze text files
-# 3. Identify file types and structure
-# 4. Provide a summary of the archive contents
+# Also,provide a md file with the same content.
 
 # Even if this is not an HTTP URL, upload the file to workspace - it will work.
 #     """
-#     await test_with_prompt(zip_prompt.strip())
+#     await test_with_prompt(docx_prompt.strip())
+    
+#     # test with zip file
+    zip_prompt = f"""
+Analyze this ZIP archive: {test_zip_file}
+Extract and examine:
+1. List all files and folders in the archive
+2. Extract and analyze text files
+3. Identify file types and structure
+4. Provide a summary of the archive contents
+
+Even if this is not an HTTP URL, upload the file to workspace - it will work.
+    """
+    await test_with_prompt(zip_prompt.strip())
     
     results.summary()
 
