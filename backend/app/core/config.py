@@ -79,7 +79,26 @@ class Settings(BaseSettings):
     # File Storage
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
-    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.txt,.md"
+    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.doc,.txt,.md,.pptx,.ppt,.csv,.xlsx,.xls,.rtf,.html,.xml,.epub"
+    
+    # Document MIME types for content-type validation (matches ALLOWED_FILE_TYPES)
+    ALLOWED_DOCUMENT_MIME_TYPES: str = (
+        "application/pdf,"
+        "application/msword,"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
+        "application/vnd.ms-excel,"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
+        "application/vnd.ms-powerpoint,"
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation,"
+        "text/plain,"
+        "text/csv,"
+        "text/markdown,"
+        "application/xml,"
+        "text/xml,"
+        "text/html,"
+        "application/rtf,"
+        "application/epub+zip"
+    )
     
     # Image Storage (MinIO/S3 compatible)
     STORAGE_BACKEND: str = "minio"
@@ -165,6 +184,12 @@ class Settings(BaseSettings):
         if isinstance(self.ALLOWED_IMAGE_TYPES, str):
             return [i.strip() for i in self.ALLOWED_IMAGE_TYPES.split(",") if i.strip()]
         return self.ALLOWED_IMAGE_TYPES
+    
+    def get_allowed_document_mime_types(self) -> List[str]:
+        """Get allowed document MIME types as a list"""
+        if isinstance(self.ALLOWED_DOCUMENT_MIME_TYPES, str):
+            return [i.strip() for i in self.ALLOWED_DOCUMENT_MIME_TYPES.split(",") if i.strip()]
+        return self.ALLOWED_DOCUMENT_MIME_TYPES
     
     def get_thumbnail_sizes(self) -> List[tuple]:
         """Get thumbnail sizes as a list of (width, height) tuples"""

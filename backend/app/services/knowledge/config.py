@@ -586,9 +586,7 @@ class RAGConfig:
     
     # File processing
     exclude_patterns: Optional[List[str]] = None
-    supported_extensions: List[str] = field(default_factory=lambda: [
-        ".pdf", ".docx", ".doc", ".txt", ".pptx", ".ppt", ".csv", ".xlsx", ".md"
-    ])
+    supported_extensions: List[str] = field(default_factory=lambda: settings.get_allowed_file_types())
     
     # Rate limiting and delays for custom pptx reader only
     enable_delay: bool = True
