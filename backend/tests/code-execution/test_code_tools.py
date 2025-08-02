@@ -246,28 +246,30 @@ async def main():
 #     await test_with_prompt(ppt_prompt.strip())
     
     # test with excel file
-    excel_prompt = f"""
-Analyze this Excel file: {test_excel_file}
-Extract and summarize:
-1. All worksheet names
-2. what kind of data is present in each sheet
-
-Even if this is not an HTTP URL, upload the file to workspace - it will work.
-    """
-    await test_with_prompt(excel_prompt.strip())
-    
-#     # test with docx file
-#     docx_prompt = f"""
-# Analyze this Word document: {test_docx_file}
-# Extract and organize:
-# 1. Document title and main headings
-# 2. Section structure and content
-# 3. Any tables, lists, or formatted content
-# 4. Key information and summary
+#     excel_prompt = f"""
+# Analyze this Excel file: {test_excel_file}
+# Extract and summarize:
+# 1. All worksheet names
+# 2. what kind of data is present in each sheet
 
 # Even if this is not an HTTP URL, upload the file to workspace - it will work.
 #     """
-#     await test_with_prompt(docx_prompt.strip())
+#     await test_with_prompt(excel_prompt.strip())
+    
+#     # test with docx file
+    docx_prompt = f"""
+Analyze this Word document: {test_docx_file}
+Extract and organize:
+1. Document title and main headings
+2. Section structure and content
+3. Any tables, lists, or formatted content
+4. Key information and summary
+
+Also,provide a md file with the same content.
+
+Even if this is not an HTTP URL, upload the file to workspace - it will work.
+    """
+    await test_with_prompt(docx_prompt.strip())
     
 #     # test with zip file
 #     zip_prompt = f"""

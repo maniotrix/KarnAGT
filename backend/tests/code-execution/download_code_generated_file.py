@@ -22,7 +22,7 @@ sys.path.append(backend_dir)
 from app.core.config import settings
 
 # Configuration
-PROXY_URL = "http://localhost:8000/api/v1/proxy/code-files/code_generated_2025_08_02_dedbb875_goa_weather_last_7_days.png"
+PROXY_URL = "http://localhost:8000/api/v1/proxy/code-files/code_generated_2025_08_02_b6b6073b_Solar_System_Designer_Documentation.md"
 AUTH_TOKEN = settings.CODE_EXECUTOR_TOKEN
 
 def download_file(url, token):
