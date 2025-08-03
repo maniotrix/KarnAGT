@@ -24,8 +24,9 @@ UPLOAD_FILE_TOOL_DESCRIPTION = """
 Upload a file to a workspace so it can be accessed by Python code.
         
 ## CRITICAL FILE UPLOAD INSTRUCTIONS:
-File URL must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
-You must provide a file_name to be used for the file in the workspace.
+- ALWAYS use the workspace_id returned by create_workspace() for the workspace_id parameter.
+- File URL must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
+- You must provide a file_name to be used for the file in the workspace.
 
 ## REQUIRED PARAMETERS:
 - workspace_id: Valid workspace ID from create_workspace()

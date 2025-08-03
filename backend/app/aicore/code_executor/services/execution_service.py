@@ -113,7 +113,7 @@ class ExecutionService:
             return ExecutionOperationResult.error_result(combined_error_msg)
             
         except WorkspaceNotFoundError as e:
-            logger.warning(f"Workspace {workspace_id} not found for code execution: {e}")
+            logger.warning(f"Workspace {workspace_id} not found for code execution: {e}. Please provide a valid workspace ID or create a new workspace before executing code.")
             return ExecutionOperationResult.error_result(f"Workspace not found: {e}")
         except ExecutionTimeoutError as e:
             logger.warning(f"Code execution timed out in workspace {workspace_id}: {e}")

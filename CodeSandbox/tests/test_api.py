@@ -58,11 +58,12 @@ async def test_api():
         files = {"file": ("test_data.csv", test_csv_content, "text/csv")}
         
         response = await client.post(
-            f"{BASE_URL}/workspace/{workspace_id}/upload",
+            f"{BASE_URL}/workspace/{workspace_id}_2/upload",
             files=files
         )
         print(f"   Status: {response.status_code}")
         upload_result = response.json()
+        print(f"   Upload Result: {upload_result}")
         print(f"   File: {upload_result['filename']} ({upload_result['size']} bytes)")
         print(f"   MIME Type: {upload_result['mime_type']}")
         print(f"   Download URL: {upload_result['download_url']}")
