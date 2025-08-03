@@ -58,7 +58,7 @@ async def test_api():
         files = {"file": ("test_data.csv", test_csv_content, "text/csv")}
         
         response = await client.post(
-            f"{BASE_URL}/workspace/{workspace_id}_2/upload",
+            f"{BASE_URL}/workspace/{workspace_id}/upload",
             files=files
         )
         print(f"   Status: {response.status_code}")
