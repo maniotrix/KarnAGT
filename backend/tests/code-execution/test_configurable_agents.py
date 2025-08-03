@@ -24,11 +24,11 @@ from app.logging.logger import get_logger
 
 from app.aicore.config import AIConfig, config_manager
 from app.aicore.core.configurable_assistant_client import ConfigurableAssistantClient
-
+from app.aicore.core.stream_events import StreamEventUnion, TextTokenEvent
 
 logger = get_logger(__name__)
 
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # ANSI color codes for terminal output
 COLORS = {
@@ -63,10 +63,11 @@ def display_welcome_message():
     print()
 
 
-def stream_callback(text_chunk):
+def stream_callback(stream_event: StreamEventUnion):
     """Callback function for streaming text chunks to the terminal"""
     # Print the text chunk without a newline to create a streaming effect
-    print(text_chunk, end="", flush=True)
+    if isinstance(stream_event, TextTokenEvent):
+        print(stream_event.token, end="", flush=True)
 
 
 def create_simple_config(model_name: str = None) -> AIConfig:
