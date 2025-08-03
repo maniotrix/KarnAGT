@@ -75,9 +75,21 @@ async def get_essential_user_context(
                 bucket_name = bucket.upper().replace("_", " ")
                 context_parts.append(f"{bucket_name}: {' | '.join(important_memories[:3])}")
         
-        # Format final context
+        # Format final context with clear scope and guidance
         if context_parts:
-            formatted_context = "\n## USER CONTEXT\n" + "\n".join(context_parts) + "\n"
+            header = (
+                "\n## BASIC USER PROFILE DATA (selected)\n"
+                "- The following are key user details from the full user memory and profile data.\n"
+                "- This is only basic profile information, not full user memory or details.\n\n"
+                "<user_profile_data>\n"
+            )
+            body = "\n".join(context_parts)
+            footer = (
+                "\n</user_profile_data>\n\n"
+                "Note: To access more data or info about user or its profile, use relevant memory tool to retrieve more user data.\n"
+            )
+            
+            formatted_context = f"{header}{body}{footer}"
             memory_log("success", f"Generated essential context with {len(context_parts)} sections", "ESSENTIAL")
             return formatted_context
         else:

@@ -34,3 +34,5 @@
     we might need to convert image inference into a tool for llm to search and understand previous images in the conversation.
     [Refer to this cursor chat](https://github.com/maniotrix/ChatGPT_Clone/blob/32defcbed44af17aacb0125263397eac004c6d26/.cursor_chats/cursor_debugging_delay_in_hello_user_re.md)
   * Also  I think the agent cant process using openai vision if provided just image url or in general any publicly available file download link in chat
+  
+* [PRIORITY] send stream events when we are processing vector documents or llm invoking tool calls...might also need to store this in ai message

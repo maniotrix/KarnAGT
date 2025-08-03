@@ -207,7 +207,7 @@ class FileService:
             
         except WorkspaceNotFoundError as e:
             logger.warning(f"Workspace {workspace_id} not found for file upload: {e}")
-            return FileUploadResult.error_result(f"Workspace {workspace_id} not found: {e}")
+            return FileUploadResult.error_result(f"Workspace {workspace_id} not found: {e} - Please provide a valid workspace ID or create a new workspace before uploading files.")
         except FileOperationError as e:
             logger.error(f"Failed to upload file {filename} to workspace {workspace_id}: {e}")
             return FileUploadResult.error_result(f"Failed to upload {filename} to workspace {workspace_id}: {e}")

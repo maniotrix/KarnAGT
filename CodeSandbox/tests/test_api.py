@@ -63,6 +63,7 @@ async def test_api():
         )
         print(f"   Status: {response.status_code}")
         upload_result = response.json()
+        print(f"   Upload Result: {upload_result}")
         print(f"   File: {upload_result['filename']} ({upload_result['size']} bytes)")
         print(f"   MIME Type: {upload_result['mime_type']}")
         print(f"   Download URL: {upload_result['download_url']}")

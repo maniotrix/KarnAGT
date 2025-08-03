@@ -153,7 +153,8 @@ class StreamingService:
             MessageResponse or None
         """
         try:
-            assistant_client = assistant_manager.get_client(self.user.user_id, conversation_id)
+            # Get assistant client with memory tools for cancellation support
+            assistant_client = self.chat_service._get_assistant_client_with_memory(conversation_id)
             stream_handler.set_assistant_client(assistant_client)
             
             # Use the chat service to send message with streaming
@@ -509,8 +510,8 @@ class StreamingService:
             MessageResponse or None
         """
         try:
-            # Get assistant client and set it on the streaming handler for cancellation
-            assistant_client = assistant_manager.get_client(self.user.user_id, conversation_id)
+            # Get assistant client with memory tools and set it on the streaming handler for cancellation
+            assistant_client = self.chat_service._get_assistant_client_with_memory(conversation_id)
             stream_handler.set_assistant_client(assistant_client)
             
             # Set the user message ID for cancellation events (edit flow uses existing message)

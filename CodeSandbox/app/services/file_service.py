@@ -121,7 +121,7 @@ class FileService:
             self.logger.warning("File upload failed - workspace not found",
                               workspace_id=request.workspace_id,
                               file_name=request.filename)
-            raise WorkspaceNotFoundError(f"Workspace {request.workspace_id} not found")
+            raise WorkspaceNotFoundError(f"Workspace {request.workspace_id} not found. Please provide a valid workspace ID or create a new workspace before uploading files.")
         
         if workspace_info.status == WorkspaceStatus.EXPIRED:
             self.logger.warning("File upload failed - workspace expired",
