@@ -304,49 +304,44 @@ class StreamingHandler:
     
     def _format_tool_start_sse_event(self, event: ToolCallStartEvent) -> str:
         """Format tool start event as SSE"""
-        return self._format_sse_event("tool_call_start", {
-            "tool_name": event.tool_name,
-            "tool_type": event.tool_type.value,
-            "tool_id": event.tool_id,
-            "arguments": event.arguments,
+        # Use Pydantic's built-in JSON-safe serialization
+        event_data = event.model_dump(mode='json')
+        event_data.update({
             "stream_id": self.stream_id,
             "timestamp": datetime.utcnow().isoformat()
         })
+        return self._format_sse_event("tool_call_start", event_data)
     
     def _format_tool_output_sse_event(self, event: ToolCallOutputEvent) -> str:
         """Format tool output event as SSE"""
-        return self._format_sse_event("tool_call_output", {
-            "tool_name": event.tool_name,
-            "tool_type": event.tool_type.value,
-            "tool_id": event.tool_id,
-            "result": event.result,
-            "status": event.status.value,
+        # 🎯 BULLETPROOF: Use Pydantic's JSON-safe serialization
+        # This automatically handles complex objects like WorkspaceCreateResult
+        event_data = event.model_dump(mode='json')
+        event_data.update({
             "stream_id": self.stream_id,
             "timestamp": datetime.utcnow().isoformat()
         })
+        return self._format_sse_event("tool_call_output", event_data)
     
     def _format_tool_progress_sse_event(self, event: ToolCallProgressEvent) -> str:
         """Format tool progress event as SSE"""
-        return self._format_sse_event("tool_call_progress", {
-            "tool_name": event.tool_name,
-            "tool_id": event.tool_id,
-            "status": event.status.value,
-            "progress_data": event.progress_data,
+        # Use Pydantic's built-in JSON-safe serialization
+        event_data = event.model_dump(mode='json')
+        event_data.update({
             "stream_id": self.stream_id,
             "timestamp": datetime.utcnow().isoformat()
         })
+        return self._format_sse_event("tool_call_progress", event_data)
     
     def _format_tool_error_sse_event(self, event: ToolCallErrorEvent) -> str:
         """Format tool error event as SSE"""
-        return self._format_sse_event("tool_call_error", {
-            "tool_name": event.tool_name,
-            "tool_type": event.tool_type.value,
-            "tool_id": event.tool_id,
-            "error": event.error,
-            "error_details": event.error_details,
+        # Use Pydantic's built-in JSON-safe serialization
+        event_data = event.model_dump(mode='json')
+        event_data.update({
             "stream_id": self.stream_id,
             "timestamp": datetime.utcnow().isoformat()
         })
+        return self._format_sse_event("tool_call_error", event_data)
     
     async def send_completion_event(self, response_data: Dict[str, Any]):
         """

@@ -5,10 +5,10 @@ This module defines typed events for the single-queue streaming system,
 supporting both text tokens and tool call events with proper type safety.
 """
 
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional, Union
 from abc import ABC
+from pydantic import BaseModel, Field
 
 
 class EventType(Enum):
@@ -46,52 +46,35 @@ class ToolStatus(Enum):
     CANCELLED = "cancelled"
 
 
-@dataclass
-class StreamEvent(ABC):
+class StreamEvent(BaseModel, ABC):
     """Base class for all streaming events"""
-    
-    def __post_init__(self):
-        # Override in subclasses to set event_type
-        pass
+    event_type: EventType = Field(description="Event type")
 
 
-@dataclass
 class TextTokenEvent(StreamEvent):
     """Event for text token streaming"""
     token: str
-    
-    def __post_init__(self):
-        super().__post_init__()
-        self.event_type = EventType.TEXT_TOKEN
+    event_type: EventType = Field(default=EventType.TEXT_TOKEN, description="Event type")
 
 
-@dataclass  
 class ToolCallStartEvent(StreamEvent):
     """Event when a tool call begins"""
     tool_name: str
     tool_type: ToolType
     tool_id: str
     arguments: Dict[str, Any]
-    
-    def __post_init__(self):
-        super().__post_init__()
-        self.event_type = EventType.TOOL_CALL_START
+    event_type: EventType = Field(default=EventType.TOOL_CALL_START, description="Event type")
 
 
-@dataclass  
 class ToolCallProgressEvent(StreamEvent):
     """Event for tool call progress updates"""
     tool_id: str
     tool_name: str
     status: ToolStatus
     progress_data: Optional[Dict[str, Any]] = None
-    
-    def __post_init__(self):
-        super().__post_init__()
-        self.event_type = EventType.TOOL_CALL_PROGRESS
+    event_type: EventType = Field(default=EventType.TOOL_CALL_PROGRESS, description="Event type")
 
 
-@dataclass
 class ToolCallOutputEvent(StreamEvent):
     """Event when a tool call produces output/completes"""
     tool_id: str
@@ -99,13 +82,9 @@ class ToolCallOutputEvent(StreamEvent):
     tool_type: ToolType
     result: Any
     status: ToolStatus
-    
-    def __post_init__(self):
-        super().__post_init__()
-        self.event_type = EventType.TOOL_CALL_OUTPUT
+    event_type: EventType = Field(default=EventType.TOOL_CALL_OUTPUT, description="Event type")
 
 
-@dataclass
 class ToolCallErrorEvent(StreamEvent):
     """Event when a tool call encounters an error"""
     tool_id: str
@@ -113,20 +92,13 @@ class ToolCallErrorEvent(StreamEvent):
     tool_type: ToolType
     error: str
     error_details: Optional[Dict[str, Any]] = None
-    
-    def __post_init__(self):
-        super().__post_init__()
-        self.event_type = EventType.TOOL_CALL_ERROR
+    event_type: EventType = Field(default=EventType.TOOL_CALL_ERROR, description="Event type")
 
 
-@dataclass
 class CompletionEvent(StreamEvent):
     """Event when the entire response is completed"""
     response_data: Dict[str, Any]
-    
-    def __post_init__(self):
-        super().__post_init__()
-        self.event_type = EventType.COMPLETION
+    event_type: EventType = Field(default=EventType.COMPLETION, description="Event type")
 
 
 # Union type for all possible stream events
