@@ -127,6 +127,7 @@ class ConfigurableOpenAIAssistant:
                 self._manage_conversation_history()
             
             logger.info(f"ConfigurableOpenAIAssistant: Agent model: {self.agent.model}")
+            logger.info(f"ConfigurableOpenAIAssistant: Agent tools names: {', '.join([tool.name for tool in self.agent.tools])}")
             
             # 🚀 WORKSPACE SESSION INTEGRATION - INSIDE TRY-CATCH FOR GUARANTEED CLEANUP
             async with WorkspaceExecutionSession() as session:
