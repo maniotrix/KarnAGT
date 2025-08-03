@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 # Use absolute imports to avoid circular import issues
 from app.aicore.config.agent_config import AgentConfig
-from app.aicore.instructions.prompt_utils import INITIAL_CORE_PROMPT
+from app.aicore.instructions.prompt_utils import INITIAL_CORE_PROMPT, ALL_TOOLS_ENABLED_SYSTEM_PROMPT
 from app.logging.logger import get_logger
 
 # Set up logger
@@ -119,51 +119,15 @@ class InstructionBuilder:
             return self.config.core_prompt
         return INITIAL_CORE_PROMPT
     
-    def _get_original_template(self, context: InstructionContext, memory_context: str) -> str:
-        """Get the exact template from original prompt_utils.py"""
+    def _get_original_template(self, context: InstructionContext, memory_context: Optional[str]) -> str:
+        """Get the template from prompt_utils.py and append memory context"""
         
-        # This is the EXACT template from prompt_utils.py
-        INSTRUCTIONS_TEMPLATE = """    
-    Additional capabilities include:
-    - Searching user uploaded documents and files for information
-    - Executing Python code in a workspace
-    - Searching the web for latest and up to date information
-    - MUST use web search tool when current or recent information is required
-    - If uncertain whether information is current, always search the web first
-    
-    You have access to the following tools (running on a '{os_type}' host):
-    1. A set of tools to create , upload files and execute code in a workspace.
-    2. A tool that searches the web for latest and up to date information.
-    3. A tool that searches user uploaded documents and files for information.
-    
-    **CRITICAL: ALWAYS CHECK UPLOADED DOCUMENTS FIRST**
-    Before providing any answer, check if the user has uploaded files that might contain the answer.
-    Users expect answers from their uploaded documents, not generic knowledge.
-    
-    ** Do not provide vague answers, always check for relevant information from user uploaded documents, and if required,
-    combined with your own knowledge and web search results.
-
-    **KNOWLEDGE SEARCH INSTRUCTIONS:**
-    1. **Always search uploaded documents first** before giving generic answers
-    2. Use search_user_uploaded_documents with search_all_files=true for most queries
-    3. Only use specific file IDs if you have them from message attachments
-    4. If no relevant information found in documents, then proceed with other tools
-    
-    {memory_context}
-    """
+        # Start with the system prompt from prompt_utils.py
+        formatted_template = ALL_TOOLS_ENABLED_SYSTEM_PROMPT
         
-        # Format exactly like the original
-        formatted_template = INSTRUCTIONS_TEMPLATE.replace("{os_type}", context.os_type)  
-        formatted_template = formatted_template.replace("{message_id}", context.message_id)
-        
-        try:
-            if memory_context and memory_context != "":
-                formatted_template = formatted_template.replace("{memory_context}", memory_context)
-            else:
-                formatted_template = formatted_template.replace("{memory_context}", "")
-        except Exception as e:
-            logger.error(f"Error replacing memory context: {e}")
-            formatted_template = formatted_template.replace("{memory_context}", "")
+        # Add memory context if available
+        if memory_context and memory_context.strip():
+            formatted_template += f"\n\n{memory_context}"
         
         return formatted_template
     
