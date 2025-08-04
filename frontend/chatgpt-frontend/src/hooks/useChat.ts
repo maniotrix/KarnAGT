@@ -548,6 +548,7 @@ export function useChat(options: ChatOptions = {}) {
               }
             } catch (parseError) {
               console.warn('⚠️ Failed to parse SSE data:', data, parseError);
+              throw new Error('Error occurred during streaming. Please try again.');
             }
           }
         }
@@ -1013,6 +1014,7 @@ export function useChat(options: ChatOptions = {}) {
                 }
               } catch (parseError) {
                 console.error('Failed to parse edit stream event:', parseError, 'Raw data:', data);
+                throw new Error('Error occurred while streaming. Please try again.');
               }
             }
           }
