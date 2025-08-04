@@ -5,7 +5,8 @@ import {
   ChatOptions,
   ConversationResponse,
   MessageResponse,
-  StreamMessage
+  StreamMessage,
+  ToolExecution
 } from '../types/chat';
 import { chatApi } from '../services/chatApi';
 import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
@@ -45,6 +46,23 @@ export function useChat(options: ChatOptions = {}) {
   
   // Stream state for stop functionality
   const [currentStreamId, setCurrentStreamId] = useState<string | null>(null);
+  
+  // Tool execution state - Map keyed by message ID to store tool executions per message
+  const [messageToolExecutions, setMessageToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
+  
+  // Helper function to add tool execution event (ALL events, no updates)
+  const addToolExecutionEvent = useCallback((messageId: string, toolExecution: ToolExecution) => {
+    setMessageToolExecutions(prev => {
+      const updated = new Map(prev);
+      const existing = updated.get(messageId) || [];
+      
+      // Create NEW array instead of mutating existing one (React optimization)
+      const newToolList = [...existing, toolExecution];
+      
+      updated.set(messageId, newToolList);
+      return updated;
+    });
+  }, []);
   
   // Refs for SSE management
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -393,6 +411,20 @@ export function useChat(options: ChatOptions = {}) {
                   arguments: parsed.data?.openai_tool_data?.arguments,
                   timestamp: parsed.data?.timestamp
                 });
+                
+                // Add tool execution to state
+                if (assistantMessage && parsed.data) {
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.display_name || parsed.data?.tool_name || 'Unknown Tool',
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: parsed.data?.tool_type || 'unknown',
+                    status: 'starting',
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id
+                  };
+                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                }
               } else if (parsed.type === 'tool_call_output') {
                 // Handle tool execution completion events
                 console.log('✅ Tool Completed:', {
@@ -406,6 +438,20 @@ export function useChat(options: ChatOptions = {}) {
                     : parsed.data?.openai_tool_data?.result,
                   timestamp: parsed.data?.timestamp
                 });
+                
+                // Add tool completion event (separate from start event)
+                if (assistantMessage && parsed.data) {
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.display_name || parsed.data?.tool_name || 'Tool Completed',
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: parsed.data?.tool_type || 'unknown',
+                    status: 'completed',
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id
+                  };
+                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                }
               } else if (parsed.type === 'tool_call_progress') {
                 // Handle tool execution progress events
                 console.log('🔄 Tool Progress:', {
@@ -415,6 +461,21 @@ export function useChat(options: ChatOptions = {}) {
                   progress_data: parsed.data?.progress_data,
                   timestamp: parsed.data?.timestamp
                 });
+                
+                // Add tool progress event (separate entry)
+                if (assistantMessage && parsed.data) {
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.tool_name || 'Tool Progress',
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: 'progress',
+                    status: 'running',
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id,
+                    progress_data: parsed.data?.progress_data
+                  };
+                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                }
               } else if (parsed.type === 'tool_call_error') {
                 // Handle tool execution error events
                 console.log('❌ Tool Error:', {
@@ -425,6 +486,22 @@ export function useChat(options: ChatOptions = {}) {
                   error_details: parsed.data?.error_details,
                   timestamp: parsed.data?.timestamp
                 });
+                
+                // Add tool error event (separate entry)
+                if (assistantMessage && parsed.data) {
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.tool_name || 'Tool Error',
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: parsed.data?.tool_type || 'unknown',
+                    status: 'error',
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id,
+                    error: parsed.data?.error,
+                    error_details: parsed.data?.error_details
+                  };
+                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                }
               } else if (parsed.type === 'completion' 
                                     || parsed.type === 'end' 
                                     || parsed.type === 'cancelled' 
@@ -766,6 +843,20 @@ export function useChat(options: ChatOptions = {}) {
                       arguments: event.data?.openai_tool_data?.arguments,
                       timestamp: event.data?.timestamp
                     });
+                    
+                    // Add tool execution to state during edit
+                    if (currentStreamingMessageRef.current && event.data) {
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.display_name || event.data?.tool_name || 'Unknown Tool',
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: event.data?.tool_type || 'unknown',
+                        status: 'starting',
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id
+                      };
+                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
                     break;
                     
                   case 'tool_call_output':
@@ -781,6 +872,20 @@ export function useChat(options: ChatOptions = {}) {
                         : event.data?.openai_tool_data?.result,
                       timestamp: event.data?.timestamp
                     });
+                    
+                    // Add tool completion event during edit (separate entry)
+                    if (currentStreamingMessageRef.current && event.data) {
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.display_name || event.data?.tool_name || 'Tool Completed',
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: event.data?.tool_type || 'unknown',
+                        status: 'completed',
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id
+                      };
+                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
                     break;
                     
                   case 'tool_call_progress':
@@ -792,6 +897,21 @@ export function useChat(options: ChatOptions = {}) {
                       progress_data: event.data?.progress_data,
                       timestamp: event.data?.timestamp
                     });
+                    
+                    // Add tool progress event during edit (separate entry)
+                    if (currentStreamingMessageRef.current && event.data) {
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.tool_name || 'Tool Progress',
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: 'progress',
+                        status: 'running',
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id,
+                        progress_data: event.data?.progress_data
+                      };
+                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
                     break;
                     
                   case 'tool_call_error':
@@ -804,6 +924,22 @@ export function useChat(options: ChatOptions = {}) {
                       error_details: event.data?.error_details,
                       timestamp: event.data?.timestamp
                     });
+                    
+                    // Add tool error event during edit (separate entry)
+                    if (currentStreamingMessageRef.current && event.data) {
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.tool_name || 'Tool Error',
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: event.data?.tool_type || 'unknown',
+                        status: 'error',
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id,
+                        error: event.data?.error,
+                        error_details: event.data?.error_details
+                      };
+                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
                     break;
                     
                   case 'token':
@@ -939,5 +1075,8 @@ export function useChat(options: ChatOptions = {}) {
     clearError: () => setError(null),
     hasConversation: !!conversation,
     conversationId: conversation?.conversation_id || null,
+    
+    // Tool execution data
+    messageToolExecutions,
   };
 } 

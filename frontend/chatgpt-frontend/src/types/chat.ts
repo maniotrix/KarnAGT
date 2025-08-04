@@ -135,6 +135,20 @@ export interface StreamErrorEvent {
   message?: string;
 }
 
+// Tool execution interface for tracking tool calls during streaming
+export interface ToolExecution {
+  tool_id: string;
+  display_name: string;
+  tool_name: string;
+  tool_type: string;
+  status: 'starting' | 'running' | 'completed' | 'error';
+  timestamp: string;
+  message_id?: string; // Associate with assistant message
+  progress_data?: any;
+  error?: string;
+  error_details?: any;
+}
+
 // Simple Message interface that matches frontend needs - replaces AISDKMessage
 export interface Message {
   id: string;

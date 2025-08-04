@@ -125,6 +125,7 @@ export const Chat: React.FC<ChatProps> = ({
     loadMoreMessages,
     hasMoreMessages,
     editMessage,
+    messageToolExecutions,
   } = useChat(chatOptions);
 
   // Quota is already calculated above using clean architecture
@@ -416,6 +417,7 @@ export const Chat: React.FC<ChatProps> = ({
             hasMoreMessages={hasMoreMessages}
             onScrollStateChange={handleScrollStateChange}
             onEdit={editMessage}
+            messageToolExecutions={messageToolExecutions}
           />
         </ConversationImagesProvider>
         

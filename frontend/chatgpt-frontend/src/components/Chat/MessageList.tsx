@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ChatMessage } from './ChatMessage';
-import { Message } from '../../types/chat';
+import { Message, ToolExecution } from '../../types/chat';
 
 
 import { 
@@ -26,6 +26,7 @@ interface MessageListProps {
   hasMoreMessages?: boolean;
   onScrollStateChange?: (shouldAutoScroll: boolean, scrollToBottom: () => void) => void;
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
+  messageToolExecutions?: Map<string, ToolExecution[]>;
 }
 
 const MessageListComponent: React.FC<MessageListProps> = ({
@@ -36,7 +37,8 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   conversationId,
   hasMoreMessages = false,
   onScrollStateChange,
-  onEdit
+  onEdit,
+  messageToolExecutions = new Map()
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -252,6 +254,10 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               // Create a more stable key - use message ID if available, fallback to index
               const messageKey = message.id || `${conversationId}-${message.role}-${index}`;
               
+              // Pass tool execution data to ChatMessage
+              const messageTools = messageToolExecutions.get(message.id) || [];
+              const shouldShowThinking = isLoading && !isStreamingThisMessage;
+              
               return (
                 <motion.div
                   key={messageKey}
@@ -264,6 +270,8 @@ const MessageListComponent: React.FC<MessageListProps> = ({
                     message={message} 
                     isStreaming={isStreamingThisMessage}
                     onEdit={onEdit}
+                    messageTools={messageTools}
+                    isThinking={shouldShowThinking}
                   />
                 </motion.div>
               );

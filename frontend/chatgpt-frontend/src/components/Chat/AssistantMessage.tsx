@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Message } from '../../types/chat';
+import { Message, ToolExecution } from '../../types/chat';
+import { ToolExecutionDropdown } from './ToolExecutionDropdown';
 
 // Markdown Support
 import ReactMarkdown from 'react-markdown';
@@ -26,11 +27,15 @@ import { useUiStore } from '../../app/stores/uiStore';
 interface AssistantMessageProps {
   message: Message;
   isStreaming?: boolean;
+  messageTools?: ToolExecution[];
+  isThinking?: boolean;
 }
 
 export const AssistantMessage: React.FC<AssistantMessageProps> = ({ 
   message, 
-  isStreaming = false
+  isStreaming = false,
+  messageTools = [],
+  isThinking = false
 }) => {
   // Clean Architecture Integration
   const { theme } = useUiStore();
@@ -53,13 +58,26 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
     }
   };
 
+  // Show tool dropdown when thinking OR when tools exist for this message
+  const shouldShowToolDropdown = isThinking || messageTools.length > 0;
+
   return (
     <TooltipProvider>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex gap-4 p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors justify-start"
-      >
+      <div>
+        {/* Tool Execution Dropdown - Show above assistant message */}
+        {shouldShowToolDropdown && (
+          <ToolExecutionDropdown 
+            tools={messageTools}
+            isThinking={isThinking}
+            isStreaming={isStreaming}
+          />
+        )}
+        
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex gap-4 p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors justify-start"
+        >
         {/* Assistant Avatar */}
         <Avatar className="w-8 h-8 shrink-0">
           <AvatarFallback className="bg-blue-100 dark:bg-blue-900">
@@ -199,6 +217,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
           )}
         </div>
       </motion.div>
+      </div>
     </TooltipProvider>
   );
 }; 
