@@ -112,6 +112,7 @@ class StreamingService:
                     "stream_id": stream_handler.stream_id,
                     "timestamp": datetime.utcnow().isoformat()
                 })
+                # [WARNING] This error event is sent after stream handler sends stream end event
                 yield error_event
             
         except Exception as e:
@@ -123,6 +124,7 @@ class StreamingService:
                 "stream_id": stream_handler.stream_id,
                 "timestamp": datetime.utcnow().isoformat()
             })
+            # [WARNING] This error event is sent after stream handler sends stream end event
             yield error_event
             
         finally:
@@ -468,6 +470,7 @@ class StreamingService:
                     "stream_id": stream_handler.stream_id,
                     "timestamp": datetime.utcnow().isoformat()
                 })
+                # [WARNING] This error event is sent after stream handler sends stream end event
                 yield error_event
             
         except Exception as e:
@@ -479,6 +482,7 @@ class StreamingService:
                 "stream_id": stream_handler.stream_id,
                 "timestamp": datetime.utcnow().isoformat()
             })
+            # [WARNING] This error event is sent after stream handler sends stream end event
             yield error_event
             
         finally:
