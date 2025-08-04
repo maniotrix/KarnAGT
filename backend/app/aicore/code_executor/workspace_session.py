@@ -53,6 +53,20 @@ _current_session: contextvars.ContextVar[Optional['WorkspaceExecutionSession']] 
     default=None
 )
 
+class WorkspaceToolNames:
+    WORKSPACE_CREATE = "create_workspace"
+    WORKSPACE_UPLOAD_FILE = "upload_file"
+    WORKSPACE_EXECUTE_CODE = "execute_code"
+
+class WorkspaceSessionToolsInfo():
+    """
+    Information about the workspace session
+    """
+    TOOL_TYPE: str = "workspace_session"
+    TOOL_NAMES: List[str] = [WorkspaceToolNames.WORKSPACE_CREATE, 
+                                WorkspaceToolNames.WORKSPACE_UPLOAD_FILE, 
+                                WorkspaceToolNames.WORKSPACE_EXECUTE_CODE]
+
 def _get_current_workspace_session() -> 'WorkspaceExecutionSession':
     """
     PRIVATE: Get the current workspace session from context variables.
@@ -633,21 +647,21 @@ async def execute_code_func(workspace_id: str, code: str) -> ExecutionOperationR
 # Define all workspace function tools with their parameters in one place
 WORKSPACE_FUNCTION_TOOLS = {
     'create_workspace': WorkspaceFunctionTool(
-        name_override="create_workspace",
+        name_override=WorkspaceToolNames.WORKSPACE_CREATE,
         description_override=CREATE_WORKSPACE_TOOL_DESCRIPTION,
         strict_mode=True,
         func=create_workspace_func
     ),
     
     'upload_file': WorkspaceFunctionTool(
-        name_override="upload_file",
+        name_override=WorkspaceToolNames.WORKSPACE_UPLOAD_FILE,
         description_override=UPLOAD_FILE_TOOL_DESCRIPTION,
         strict_mode=True,
         func=upload_file_func
     ),
     
     'execute_code': WorkspaceFunctionTool(
-        name_override="execute_code",
+        name_override=WorkspaceToolNames.WORKSPACE_EXECUTE_CODE,
         description_override=EXECUTE_CODE_TOOL_DESCRIPTION,
         strict_mode=True,
         func=execute_code_func
