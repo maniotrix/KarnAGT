@@ -117,12 +117,13 @@ class ToolCallsEventFormatter():
         actual_tool_type = ToolRegistry.get_tool_type(tool_calls_event.tool_name)
         display_name = ToolRegistry.get_display_name(tool_calls_event.tool_name)
         
+        event_data = tool_calls_event.model_dump(mode='json')
+        
         return {
             "tool_name": tool_calls_event.tool_name,
             "display_name": display_name,
             "tool_type": actual_tool_type.value,
-            "tool_id": tool_calls_event.tool_id,
-            "arguments": tool_calls_event.arguments,
+            "openai_tool_data": event_data,
         }
     
     @staticmethod
@@ -133,11 +134,11 @@ class ToolCallsEventFormatter():
         actual_tool_type = ToolRegistry.get_tool_type(tool_calls_output_event.tool_name)
         display_name = ToolRegistry.get_display_name(tool_calls_output_event.tool_name)
         
+        event_data = tool_calls_output_event.model_dump(mode='json')
+        
         return {
             "tool_name": tool_calls_output_event.tool_name,
             "display_name": display_name,
             "tool_type": actual_tool_type.value,
-            "tool_id": tool_calls_output_event.tool_id,
-            "result": tool_calls_output_event.result,
-            "status": tool_calls_output_event.status,
+            "openai_tool_data": event_data,
         }

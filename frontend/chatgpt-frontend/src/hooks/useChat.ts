@@ -383,6 +383,48 @@ export function useChat(options: ChatOptions = {}) {
                 if (options.onTokenUpdate) {
                   options.onTokenUpdate({ type: 'token', content: token, message_id: assistantMessage.message_id || '' });
                 }
+              } else if (parsed.type === 'tool_call_start') {
+                // Handle tool execution start events
+                console.log('🔧 Tool Started:', {
+                  tool_name: parsed.data?.tool_name,
+                  display_name: parsed.data?.display_name,
+                  tool_type: parsed.data?.tool_type,
+                  tool_id: parsed.data?.openai_tool_data?.tool_id,
+                  arguments: parsed.data?.openai_tool_data?.arguments,
+                  timestamp: parsed.data?.timestamp
+                });
+              } else if (parsed.type === 'tool_call_output') {
+                // Handle tool execution completion events
+                console.log('✅ Tool Completed:', {
+                  tool_name: parsed.data?.tool_name,
+                  display_name: parsed.data?.display_name,
+                  tool_type: parsed.data?.tool_type,
+                  tool_id: parsed.data?.openai_tool_data?.tool_id,
+                  status: parsed.data?.openai_tool_data?.status,
+                  result_preview: typeof parsed.data?.openai_tool_data?.result === 'string' 
+                    ? parsed.data.openai_tool_data.result.substring(0, 100) + (parsed.data.openai_tool_data.result.length > 100 ? '...' : '')
+                    : parsed.data?.openai_tool_data?.result,
+                  timestamp: parsed.data?.timestamp
+                });
+              } else if (parsed.type === 'tool_call_progress') {
+                // Handle tool execution progress events
+                console.log('🔄 Tool Progress:', {
+                  tool_name: parsed.data?.tool_name,
+                  tool_id: parsed.data?.tool_id,
+                  status: parsed.data?.status,
+                  progress_data: parsed.data?.progress_data,
+                  timestamp: parsed.data?.timestamp
+                });
+              } else if (parsed.type === 'tool_call_error') {
+                // Handle tool execution error events
+                console.log('❌ Tool Error:', {
+                  tool_name: parsed.data?.tool_name,
+                  tool_type: parsed.data?.tool_type,
+                  tool_id: parsed.data?.tool_id,
+                  error: parsed.data?.error,
+                  error_details: parsed.data?.error_details,
+                  timestamp: parsed.data?.timestamp
+                });
               } else if (parsed.type === 'completion' 
                                     || parsed.type === 'end' 
                                     || parsed.type === 'cancelled' 
@@ -712,6 +754,56 @@ export function useChat(options: ChatOptions = {}) {
                   case 'stream_start':
                     console.log('Edit stream started');
                     options.onStreamStart?.();
+                    break;
+                    
+                  case 'tool_call_start':
+                    // Handle tool execution start events during edit
+                    console.log('🔧 Edit Tool Started:', {
+                      tool_name: event.data?.tool_name,
+                      display_name: event.data?.display_name,
+                      tool_type: event.data?.tool_type,
+                      tool_id: event.data?.openai_tool_data?.tool_id,
+                      arguments: event.data?.openai_tool_data?.arguments,
+                      timestamp: event.data?.timestamp
+                    });
+                    break;
+                    
+                  case 'tool_call_output':
+                    // Handle tool execution completion events during edit
+                    console.log('✅ Edit Tool Completed:', {
+                      tool_name: event.data?.tool_name,
+                      display_name: event.data?.display_name,
+                      tool_type: event.data?.tool_type,
+                      tool_id: event.data?.openai_tool_data?.tool_id,
+                      status: event.data?.openai_tool_data?.status,
+                      result_preview: typeof event.data?.openai_tool_data?.result === 'string' 
+                        ? event.data.openai_tool_data.result.substring(0, 100) + (event.data.openai_tool_data.result.length > 100 ? '...' : '')
+                        : event.data?.openai_tool_data?.result,
+                      timestamp: event.data?.timestamp
+                    });
+                    break;
+                    
+                  case 'tool_call_progress':
+                    // Handle tool execution progress events during edit
+                    console.log('🔄 Edit Tool Progress:', {
+                      tool_name: event.data?.tool_name,
+                      tool_id: event.data?.tool_id,
+                      status: event.data?.status,
+                      progress_data: event.data?.progress_data,
+                      timestamp: event.data?.timestamp
+                    });
+                    break;
+                    
+                  case 'tool_call_error':
+                    // Handle tool execution error events during edit
+                    console.log('❌ Edit Tool Error:', {
+                      tool_name: event.data?.tool_name,
+                      tool_type: event.data?.tool_type,
+                      tool_id: event.data?.tool_id,
+                      error: event.data?.error,
+                      error_details: event.data?.error_details,
+                      timestamp: event.data?.timestamp
+                    });
                     break;
                     
                   case 'token':
