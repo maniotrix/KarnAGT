@@ -22,6 +22,17 @@ class Colors:
     PURPLE = '\033[95m'
     END = '\033[0m'
     BOLD = '\033[1m'
+    
+class KnowledgeToolNames:
+    KNOWLEDGE_SEARCH = "search_user_uploaded_documents"
+    KNOWLEDGE_DISCOVERY = "list_user_uploaded_documents"
+    
+class KnowledgeToolsInfo():
+    """
+    Information about the knowledge tools configuration
+    """
+    TOOL_TYPE: str = "knowledge_tools"
+    TOOL_NAMES: List[str] = [KnowledgeToolNames.KNOWLEDGE_SEARCH, KnowledgeToolNames.KNOWLEDGE_DISCOVERY]
 
 def knowledge_log(level, message, tool_name=None):
     """Helper to log knowledge tool messages with color coding"""
@@ -53,7 +64,7 @@ def create_knowledge_search_tool(
     """
     
     @function_tool(
-        name_override="search_user_uploaded_documents",
+        name_override=KnowledgeToolNames.KNOWLEDGE_SEARCH,
         description_override="""
         Search uploaded files and documents by user to answer questions about their content.
         
@@ -253,7 +264,7 @@ def create_knowledge_discovery_tool(
     """
     
     @function_tool(
-        name_override="list_user_uploaded_documents",
+        name_override=KnowledgeToolNames.KNOWLEDGE_DISCOVERY,
         description_override="""
         List all available user uploaded files in this conversation.
         
