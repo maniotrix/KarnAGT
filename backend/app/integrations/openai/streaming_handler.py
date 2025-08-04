@@ -29,6 +29,8 @@ from app.aicore.core.stream_events import (
     create_completion_event
 )
 
+from app.utils.tool_calls_event_formatter import ToolCallsEventFormatter
+
 # Set up logger
 logger = get_logger(__name__)
 
@@ -305,7 +307,7 @@ class StreamingHandler:
     def _format_tool_start_sse_event(self, event: ToolCallStartEvent) -> str:
         """Format tool start event as SSE"""
         # Use Pydantic's built-in JSON-safe serialization
-        event_data = event.model_dump(mode='json')
+        event_data = ToolCallsEventFormatter.format_tool_calls_start_event(event)
         event_data.update({
             "stream_id": self.stream_id,
             "timestamp": datetime.utcnow().isoformat()
@@ -316,7 +318,7 @@ class StreamingHandler:
         """Format tool output event as SSE"""
         # 🎯 BULLETPROOF: Use Pydantic's JSON-safe serialization
         # This automatically handles complex objects like WorkspaceCreateResult
-        event_data = event.model_dump(mode='json')
+        event_data = ToolCallsEventFormatter.format_tool_calls_output_event(event)
         event_data.update({
             "stream_id": self.stream_id,
             "timestamp": datetime.utcnow().isoformat()
