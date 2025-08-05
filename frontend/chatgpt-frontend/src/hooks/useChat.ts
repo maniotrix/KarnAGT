@@ -10,7 +10,7 @@ import {
 } from '../types/chat';
 import { chatApi } from '../services/chatApi';
 import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
-import { chatKeys } from '../app/hooks/chat';
+import { chatKeys } from '../app/hooks/chat/useSidebar';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
 import { imageService, hasStagingFiles } from '../app/services';
 
@@ -612,6 +612,18 @@ export function useChat(options: ChatOptions = {}) {
     } finally {
       setIsLoading(false);
       setCurrentStreamId(null);
+      
+      // Update sidebar conversations cache with latest user message
+      if (queryClient && conversationId) {
+        queryClient.setQueryData(chatKeys.conversations(), (old: any) => {
+          if (!old) return old;
+          return old.map((conv: any) => 
+            conv.conversationId === conversationId 
+              ? { ...conv, latestUserMessage: content }
+              : conv
+          );
+        });
+      }
     }
   }, [options, setMessages, setInput, setError, setIsLoading, extractStreamIdFromSSE]);
 
@@ -1067,8 +1079,15 @@ export function useChat(options: ChatOptions = {}) {
                       message: currentStreamingMessageRef.current as any,
                       conversation: conversation as any
                     });
-                    // Invalidate queries to refresh conversation list
-                    queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+                    // Update sidebar conversations cache with edited user message
+                    queryClient.setQueryData(chatKeys.conversations(), (old: any) => {
+                      if (!old) return old;
+                      return old.map((conv: any) => 
+                        conv.conversationId === conversation?.conversation_id 
+                          ? { ...conv, latestUserMessage: newContent }
+                          : conv
+                      );
+                    });
                     break;
                     
                   case 'error':

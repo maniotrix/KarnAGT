@@ -4,7 +4,7 @@ import {
   useConversations, 
   useDeleteConversation, 
   useCreateConversation 
-} from '../../app/hooks/chat';
+} from '../../app/hooks/chat/useSidebar';
 import { useCurrentUser, useLogout } from '../../app/hooks/auth';
 import { useUiStore, useToast } from '../../app/stores/uiStore';
 import { Chat } from '../Chat/Chat';
