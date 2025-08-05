@@ -49,7 +49,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.3 }}
-      className="mb-2 mx-4"
+      className="w-full"
     >
       <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
         {/* Dropdown Header */}

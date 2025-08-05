@@ -63,21 +63,11 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
   return (
     <TooltipProvider>
-      <div>
-        {/* Tool Execution Dropdown - Show above assistant message */}
-        {shouldShowToolDropdown && (
-          <ToolExecutionDropdown 
-            tools={messageTools}
-            isThinking={isThinking}
-            isStreaming={isStreaming}
-          />
-        )}
-        
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex gap-4 p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors justify-start"
-        >
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex gap-4 p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors justify-start"
+      >
         {/* Assistant Avatar */}
         <Avatar className="w-8 h-8 shrink-0">
           <AvatarFallback className="bg-blue-100 dark:bg-blue-900">
@@ -110,6 +100,17 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
               </motion.div>
             )}
           </div>
+
+          {/* Tool Execution Dropdown - Part of assistant message, below header */}
+          {shouldShowToolDropdown && (
+            <div className="mb-3 w-full">
+              <ToolExecutionDropdown 
+                tools={messageTools}
+                isThinking={isThinking}
+                isStreaming={isStreaming}
+              />
+            </div>
+          )}
 
           {/* Message Bubble - Only show when there's content */}
           {message.content && (
@@ -221,7 +222,6 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
           )}
         </div>
       </motion.div>
-      </div>
     </TooltipProvider>
   );
 }; 
