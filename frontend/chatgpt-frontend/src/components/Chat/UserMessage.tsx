@@ -276,7 +276,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex justify-end"
+        className="px-4 py-2 sm:py-3 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex justify-end"
       >
         {/* Message Content */}
         <div className="flex flex-col max-w-[80%] items-end">

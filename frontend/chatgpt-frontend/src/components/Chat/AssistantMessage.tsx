@@ -51,7 +51,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-2 sm:p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        className="px-2 py-2 sm:px-4 sm:py-3 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
       >
         {/* Message Content */}
         <div className="flex flex-col w-full min-w-0 items-start">
