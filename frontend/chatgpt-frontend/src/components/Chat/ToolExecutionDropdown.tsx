@@ -5,7 +5,8 @@ import { ToolTimelineItem } from './ToolTimelineItem';
 // Modern UI Libraries
 import { 
   Settings, 
-  ChevronDown 
+  ChevronDown,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,11 +22,24 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
   isStreaming 
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   
   // Sort tools chronologically (earliest first)
   const sortedTools = [...tools].sort((a, b) => 
     new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  
+  // Simple timer - count seconds when thinking
+  useEffect(() => {
+    if (isThinking) {
+      setElapsedSeconds(0);
+      const interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isThinking]);
   
   // Auto-expand during execution, collapse after completion
   useEffect(() => {
@@ -68,6 +82,15 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                 className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full"
               />
+            )}
+            {/* Timer - only show when thinking */}
+            {isThinking && (
+              <div className="flex items-center space-x-1 ml-2 px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-md border border-blue-200 dark:border-blue-800">
+                <Clock className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-mono text-blue-700 dark:text-blue-300">
+                  {elapsedSeconds}s
+                </span>
+              </div>
             )}
           </div>
           <ChevronDown 
