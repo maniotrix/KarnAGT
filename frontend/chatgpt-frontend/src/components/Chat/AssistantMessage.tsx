@@ -7,6 +7,9 @@ import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 
+// Code Block Components
+import { CodeComponent, PreBlock } from './CodeBlock';
+
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
 import { 
@@ -81,26 +84,44 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeHighlight]}
                   components={{
-                    // Custom styling for code blocks
+                    // Enhanced pre blocks with copy button
                     pre: ({ children, ...props }) => (
-                      <pre {...props} className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                      <PreBlock {...props} className="bg-gray-50 dark:bg-gray-800 rounded-md p-2 overflow-x-auto border border-gray-200 dark:border-gray-700">
                         {children}
-                      </pre>
+                      </PreBlock>
                     ),
-                    // Custom styling for inline code
+                    // Enhanced code with copy functionality
                     code: ({ children, className, ...props }) => {
                       const isInline = !className;
                       return (
-                        <code 
+                        <CodeComponent 
                           {...props} 
                           className={`${className || ''} ${
                             isInline 
                               ? 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm' 
                               : ''
                           }`}
+                          inline={isInline}
                         >
                           {children}
-                        </code>
+                        </CodeComponent>
+                      );
+                    },
+                    // Custom link handling - open external links in new tab
+                    a: ({ href, children, ...props }) => {
+                      const isExternal = href && (href.startsWith('http://') || href.startsWith('https://'));
+                      const isProxyUrl = href && /\/api\/v1\/proxy\/(images|files|code-files)\//.test(href);
+                      
+                      return (
+                        <a 
+                          {...props}
+                          href={href}
+                          target={isExternal && !isProxyUrl ? '_blank' : undefined}
+                          rel={isExternal && !isProxyUrl ? 'noopener noreferrer' : undefined}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+                        >
+                          {children}
+                        </a>
                       );
                     }
                   }}

@@ -50,6 +50,37 @@ export function useChat(options: ChatOptions = {}) {
   // Tool execution state - Map keyed by message ID to store tool executions per message
   const [messageToolExecutions, setMessageToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
   
+  // Helper function to determine tool execution success and extract error messages
+  const determineToolSuccess = useCallback((result: any, backendStatus?: string) => {
+    let isSuccessful = false;
+    let errorMessage: string | undefined = undefined;
+    
+    if (typeof result === 'object' && result !== null && 'success' in result) {
+      // Format 1: Object with explicit success property
+      isSuccessful = result.success === true;
+      if (!isSuccessful) {
+        errorMessage = result.error || result.message || 'Tool execution failed';
+      }
+    } else if (typeof result === 'string' && result.trim()) {
+      // Format 2: Non-empty string result (memory/knowledge tools)
+      isSuccessful = true;
+      // No error message for successful string results
+    } else if (backendStatus === 'completed') {
+      // Format 3: Backend explicitly says completed
+      isSuccessful = true;
+    } else {
+      // Default: failed execution
+      isSuccessful = false;
+      errorMessage = 'Tool execution failed';
+    }
+    
+    return {
+      isSuccessful,
+      status: isSuccessful ? 'completed' as const : 'error' as const,
+      errorMessage
+    };
+  }, []);
+
   // Helper function to add or update tool execution event
   const addOrUpdateToolExecutionEvent = useCallback((messageId: string, toolExecution: ToolExecution) => {
     setMessageToolExecutions(prev => {
@@ -123,23 +154,14 @@ export function useChat(options: ChatOptions = {}) {
     } else if (toolCall.event_type === 'output') {
       // Create tool execution for output event - EXACTLY like streaming tool_call_output
       const result = toolCall.openai_tool_data?.result;
-      const isSuccessful = result?.success === true;
-      const status = isSuccessful ? 'completed' : 'error';
+      const { isSuccessful, status, errorMessage } = determineToolSuccess(result, toolCall.openai_tool_data?.status);
       
       console.log('🔍 [DEBUG] Processing OUTPUT event:', {
         result,
         isSuccessful,
-        status
+        status,
+        errorMessage
       });
-      
-      // Extract error message from multiple possible locations - MATCHING streaming pattern
-      let errorMessage = undefined;
-      if (!isSuccessful) {
-        errorMessage = result?.error || 
-                       result?.message || 
-                       (typeof result === 'string' ? result : null) ||
-                       'Tool execution failed';
-      }
       
       const execution: ToolExecution = {
         tool_id: toolId,
@@ -578,19 +600,18 @@ export function useChat(options: ChatOptions = {}) {
                 
                 // Update tool execution to completed status (or error if failed)
                 if (assistantMessage && parsed.data) {
-                  // Trust backend's success determination - only mark as error if backend says success=false
                   const result = parsed.data?.openai_tool_data?.result;
-                  const isSuccessful = result?.success === true;
-                  const status = isSuccessful ? 'completed' : 'error';
+                  const { isSuccessful, status, errorMessage } = determineToolSuccess(result, parsed.data?.openai_tool_data?.status);
                   
-                  // Extract error message from multiple possible locations
-                  let errorMessage = undefined;
-                  if (!isSuccessful) {
-                    errorMessage = result?.error || 
-                                   result?.message || 
-                                   (typeof result === 'string' ? result : null) ||
-                                   'Tool execution failed';
-                  }
+                  // Debug logging for streaming tool success determination
+                  console.log('🔍 [STREAM DEBUG] Tool success determination:', {
+                    tool_name: parsed.data?.tool_name,
+                    result,
+                    resultType: typeof result,
+                    finalIsSuccessful: isSuccessful,
+                    finalStatus: status,
+                    errorMessage
+                  });
                   
                   const toolExecution: ToolExecution = {
                     tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
@@ -1051,27 +1072,17 @@ export function useChat(options: ChatOptions = {}) {
                     
                     // Update tool execution to completed status during edit (or error if failed)
                     if (currentStreamingMessageRef.current && event.data) {
-                      // Trust backend's success determination - only mark as error if backend says success=false
                       const result = event.data?.openai_tool_data?.result;
-                      const isSuccessful = result?.success === true;
-                      const status = isSuccessful ? 'completed' : 'error';
+                      const { isSuccessful, status, errorMessage } = determineToolSuccess(result, event.data?.openai_tool_data?.status);
                       
-                      // Extract error message from multiple possible locations
-                      let errorMessage = undefined;
-                      if (!isSuccessful) {
-                        errorMessage = result?.error || 
-                                       result?.message || 
-                                       (typeof result === 'string' ? result : null) ||
-                                       'Tool execution failed';
-                        
-                        console.log('🐛 Debug error extraction (edit):', {
-                          isSuccessful,
-                          result,
-                          'result?.error': result?.error,
-                          'result?.message': result?.message,
-                          extractedError: errorMessage
-                        });
-                      }
+                      console.log('🔍 [EDIT DEBUG] Tool success determination:', {
+                        tool_name: event.data?.tool_name,
+                        result,
+                        resultType: typeof result,
+                        finalIsSuccessful: isSuccessful,
+                        finalStatus: status,
+                        errorMessage
+                      });
                       
                       const toolExecution: ToolExecution = {
                         tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
