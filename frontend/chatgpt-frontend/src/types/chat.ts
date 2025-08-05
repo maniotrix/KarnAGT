@@ -147,6 +147,12 @@ export interface ToolExecution {
   progress_data?: any;
   error?: string;
   error_details?: any;
+  openai_tool_data?: {
+    tool_id?: string;
+    arguments?: any;
+    result?: any;
+    status?: string;
+  };
 }
 
 // Simple Message interface that matches frontend needs - replaces AISDKMessage

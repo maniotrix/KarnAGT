@@ -432,7 +432,8 @@ export function useChat(options: ChatOptions = {}) {
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: 'started',
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
-                    message_id: assistantMessage.id
+                    message_id: assistantMessage.id,
+                    openai_tool_data: parsed.data?.openai_tool_data
                   };
                   addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
@@ -459,7 +460,8 @@ export function useChat(options: ChatOptions = {}) {
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: 'completed',
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
-                    message_id: assistantMessage.id
+                    message_id: assistantMessage.id,
+                    openai_tool_data: parsed.data?.openai_tool_data
                   };
                   addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
@@ -865,7 +867,8 @@ export function useChat(options: ChatOptions = {}) {
                         tool_type: event.data?.tool_type || 'unknown',
                         status: 'started',
                         timestamp: event.data?.timestamp || new Date().toISOString(),
-                        message_id: currentStreamingMessageRef.current.id
+                        message_id: currentStreamingMessageRef.current.id,
+                        openai_tool_data: event.data?.openai_tool_data
                       };
                       addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
@@ -894,7 +897,8 @@ export function useChat(options: ChatOptions = {}) {
                         tool_type: event.data?.tool_type || 'unknown',
                         status: 'completed',
                         timestamp: event.data?.timestamp || new Date().toISOString(),
-                        message_id: currentStreamingMessageRef.current.id
+                        message_id: currentStreamingMessageRef.current.id,
+                        openai_tool_data: event.data?.openai_tool_data
                       };
                       addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
