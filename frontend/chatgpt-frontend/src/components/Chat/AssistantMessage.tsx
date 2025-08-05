@@ -45,7 +45,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
     }
   };
 
-  // Show tool dropdown when thinking OR when tools exist for this message
+  // Show tool dropdown when thinking OR when tools exist (timer shows total time for any AI response)
   const shouldShowToolDropdown = isThinking || messageTools.length > 0;
 
   // Check if content is empty (accounting for whitespace)
