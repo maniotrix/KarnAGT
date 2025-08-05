@@ -256,7 +256,8 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               
               // Pass tool execution data to ChatMessage
               const messageTools = messageToolExecutions.get(message.id) || [];
-              const shouldShowThinking = isLoading && !isStreamingThisMessage;
+              // Show thinking state when AI is working on the last assistant message
+              const shouldShowThinking = isLoading && isLastMessage && message.role === 'assistant';
               
               return (
                 <motion.div
@@ -278,50 +279,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
             })}
           </AnimatePresence>
 
-          {/* Typing Indicator - Only show when thinking (before streaming starts) */}
-          <AnimatePresence>
-            {(() => {
-              // Show thinking indicator only when:
-              // 1. isLoading is true (AI is processing)
-              // 2. AND either no messages exist OR last message is not an incomplete assistant message
-              const lastMessage = messages[messages.length - 1];
-              const isStreamingResponse = isLoading && lastMessage?.role === 'assistant';
-              const shouldShowThinking = isLoading && !isStreamingResponse;
-              
-              return shouldShowThinking;
-            })() && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="flex items-center space-x-3 p-4"
-              >
-                <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </div>
-                <div className="flex space-x-1">
-                  <motion.div
-                    className="w-2 h-2 bg-gray-400 rounded-full"
-                    animate={{ opacity: [0.4, 1, 0.4] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: 0 }}
-                  />
-                  <motion.div
-                    className="w-2 h-2 bg-gray-400 rounded-full"
-                    animate={{ opacity: [0.4, 1, 0.4] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
-                  />
-                  <motion.div
-                    className="w-2 h-2 bg-gray-400 rounded-full"
-                    animate={{ opacity: [0.4, 1, 0.4] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
-                  />
-                </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  AI is thinking...
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
 
           {/* Auto-scroll anchor */}
           <div ref={messagesEndRef} />

@@ -290,6 +290,18 @@ export function useChat(options: ChatOptions = {}) {
     setError(null);
     setIsLoading(true);
 
+    // STEP 2.5: Create assistant message immediately to show tools dropdown
+    const assistantMessage: Message = {
+      id: `temp_assistant_${Date.now()}`,
+      message_id: `temp_assistant_${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(),
+    };
+    
+    setMessages(prev => [...prev, assistantMessage]);
+    let assistantContent = '';
+
     options.onStreamStart?.();
     
     try {
@@ -339,8 +351,7 @@ export function useChat(options: ChatOptions = {}) {
 
       console.log('🌊 Stream started...');
       
-      let assistantMessage: Message | null = null;
-      let assistantContent = '';
+      // Assistant message already created above, use it
       let streamIdCaptured = false;
       
       while (true) {
@@ -388,27 +399,14 @@ export function useChat(options: ChatOptions = {}) {
                 const token = parsed.data.content;
                 assistantContent += token;
                 
-                // Update or create assistant message
-                if (!assistantMessage) {
-                  assistantMessage = {
-                    id: `temp_assistant_${Date.now()}`,
-                    message_id: `temp_assistant_${Date.now()}`,
-                    role: 'assistant',
-                    content: assistantContent,
-                    createdAt: new Date(),
-                  };
-                  
-                  setMessages(prev => [...prev, assistantMessage!]);
-                } else {
-                  // Update existing assistant message
-                  assistantMessage.content = assistantContent;
-                  
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === assistantMessage!.id 
-                      ? { ...assistantMessage! }
-                      : msg
-                  ));
-                }
+                // Update existing assistant message with new content
+                assistantMessage.content = assistantContent;
+                
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessage.id 
+                    ? { ...assistantMessage }
+                    : msg
+                ));
                 
                 // Call token callback if exists
                 if (options.onTokenUpdate) {

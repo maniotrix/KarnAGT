@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ToolExecution } from '../../types/chat';
 import { ToolTimelineItem } from './ToolTimelineItem';
 
@@ -26,6 +26,17 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
   const sortedTools = [...tools].sort((a, b) => 
     new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  
+  // Auto-expand during execution, collapse after completion
+  useEffect(() => {
+    if (isThinking) {
+      // Expand when AI is working
+      setIsExpanded(true);
+    } else if (sortedTools.length > 0) {
+      // Collapse after completion but keep header visible if tools were used
+      setIsExpanded(false);
+    }
+  }, [isThinking, sortedTools.length]);
   
   // Only show the dropdown when thinking or when there are tools
   if (!isThinking && sortedTools.length === 0) {
