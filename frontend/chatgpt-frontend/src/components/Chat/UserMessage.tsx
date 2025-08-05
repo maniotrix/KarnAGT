@@ -7,6 +7,9 @@ import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 
+// Code Block Components
+import { CodeComponent, PreBlock } from './CodeBlock';
+
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
 import * as Dialog from '@radix-ui/react-dialog';
@@ -338,26 +341,27 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeHighlight]}
                   components={{
-                    // Custom styling for code blocks
+                    // Enhanced pre blocks with copy button
                     pre: ({ children, ...props }) => (
-                      <pre {...props} className="bg-blue-800 rounded-lg p-3 overflow-x-auto">
+                      <PreBlock {...props} className="bg-blue-800 rounded-lg p-3 overflow-x-auto">
                         {children}
-                      </pre>
+                      </PreBlock>
                     ),
-                    // Custom styling for inline code
+                    // Enhanced code with copy functionality
                     code: ({ children, className, ...props }) => {
                       const isInline = !className;
                       return (
-                        <code 
+                        <CodeComponent 
                           {...props} 
                           className={`${className || ''} ${
                             isInline 
                               ? 'bg-blue-800 px-1 py-0.5 rounded text-sm' 
                               : ''
                           }`}
+                          inline={isInline}
                         >
                           {children}
-                        </code>
+                        </CodeComponent>
                       );
                     },
                     // Custom link handling - open external links in new tab
