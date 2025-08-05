@@ -2,13 +2,8 @@ import React, { useState } from 'react';
 import { Message, ToolExecution } from '../../types/chat';
 import { ToolExecutionDropdown } from './ToolExecutionDropdown';
 
-// Markdown Support
-import ReactMarkdown from 'react-markdown';
-import rehypeHighlight from 'rehype-highlight';
-import remarkGfm from 'remark-gfm';
-
-// Code Block Components
-import { CodeComponent, PreBlock } from './CodeBlock';
+// Interactive Markdown Component
+import { InteractiveMarkdown } from './InteractiveMarkdown';
 
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
@@ -79,56 +74,11 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
           {/* Message Bubble - Only show when there's content */}
           {message.content && (
             <div className="px-3 py-2 sm:px-4 sm:py-3 rounded-2xl max-w-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-              <div className="prose prose-sm max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                  components={{
-                    // Enhanced pre blocks with copy button
-                    pre: ({ children, ...props }) => (
-                      <PreBlock {...props} className="bg-gray-50 dark:bg-gray-800 rounded-md p-2 overflow-x-auto border border-gray-200 dark:border-gray-700">
-                        {children}
-                      </PreBlock>
-                    ),
-                    // Enhanced code with copy functionality
-                    code: ({ children, className, ...props }) => {
-                      const isInline = !className;
-                      return (
-                        <CodeComponent 
-                          {...props} 
-                          className={`${className || ''} ${
-                            isInline 
-                              ? 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm' 
-                              : ''
-                          }`}
-                          inline={isInline}
-                        >
-                          {children}
-                        </CodeComponent>
-                      );
-                    },
-                    // Custom link handling - open external links in new tab
-                    a: ({ href, children, ...props }) => {
-                      const isExternal = href && (href.startsWith('http://') || href.startsWith('https://'));
-                      const isProxyUrl = href && /\/api\/v1\/proxy\/(images|files|code-files)\//.test(href);
-                      
-                      return (
-                        <a 
-                          {...props}
-                          href={href}
-                          target={isExternal && !isProxyUrl ? '_blank' : undefined}
-                          rel={isExternal && !isProxyUrl ? 'noopener noreferrer' : undefined}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
-                        >
-                          {children}
-                        </a>
-                      );
-                    }
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
-              </div>
+              <InteractiveMarkdown 
+                content={message.content}
+                theme="assistant"
+                className="prose prose-sm max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white"
+              />
             </div>
           )}
 
