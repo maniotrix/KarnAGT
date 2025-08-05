@@ -991,7 +991,10 @@ export function useChat(options: ChatOptions = {}) {
               
               try {
                 const event = JSON.parse(data);
-                console.log('Edit stream event:', event);
+                // Filter out noisy token events, but log other events for debugging
+                if (event.type !== 'token') {
+                  console.log('Edit stream event:', event);
+                }
                 
                 switch (event.type) {
                   case 'stream_start':
