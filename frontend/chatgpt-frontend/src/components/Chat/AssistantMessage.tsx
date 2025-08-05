@@ -12,6 +12,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix
 import { 
   Copy,
   Check,
+  AlertTriangle,
+  FileQuestion,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -45,6 +47,9 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
   // Show tool dropdown when thinking OR when tools exist for this message
   const shouldShowToolDropdown = isThinking || messageTools.length > 0;
+
+  // Check if content is empty (accounting for whitespace)
+  const hasEmptyContent = !message.content || message.content.trim() === '';
 
   return (
     <TooltipProvider>
@@ -106,27 +111,74 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
             </div>
           )}
 
-          {/* Action Buttons - Only show when there's content */}
-          {message.content && (
-            <div className="flex items-center gap-1 mt-1 sm:mt-2 justify-start">
-              {/* Copy Button */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleCopy}
-                    className="p-1 sm:p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+          {/* Compact Status & Actions - Only render when needed */}
+          {(message.status === 'cancelled' || hasEmptyContent || message.content) && (
+            <div className="flex items-center justify-between mt-1 sm:mt-2">
+              {/* Status Indicators - Compact mobile design */}
+              <div className="flex items-center gap-1">
+                {/* Cancelled Status */}
+                {message.status === 'cancelled' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span className="text-xs font-medium">Cancelled</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      align="center"
+                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                    >
+                      <p>AI response was cancelled</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
+                {/* Empty Content Status - Only show for completed messages */}
+                {hasEmptyContent && !isStreaming && !isThinking && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+                        <FileQuestion className="w-3 h-3" />
+                        <span className="text-xs font-medium">No response</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      align="center"
+                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                    >
+                      <p>AI response is empty</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+
+              {/* Copy Button - Only show when there's content */}
+              {message.content && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleCopy}
+                      className="p-1 sm:p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    >
+                      {copied ? (
+                        <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      ) : (
+                        <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent 
+                    side="top" 
+                    align="center"
+                    className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
                   >
-                    {copied ? (
-                      <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                    ) : (
-                      <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>{copied ? 'Copied!' : 'Copy message'}</p>
-                </TooltipContent>
-              </Tooltip>
+                    <p>{copied ? 'Copied!' : 'Copy message'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           )}
 

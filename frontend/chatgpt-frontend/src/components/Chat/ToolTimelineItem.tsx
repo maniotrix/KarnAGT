@@ -104,7 +104,9 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   
   const formatTime = (timestamp: string) => {
     try {
-      return new Date(timestamp).toLocaleTimeString([], { 
+      // Handle UTC timestamps from backend properly
+      const date = new Date(timestamp.endsWith('Z') ? timestamp : timestamp + 'Z');
+      return date.toLocaleTimeString([], { 
         hour: '2-digit', 
         minute: '2-digit',
         second: '2-digit'

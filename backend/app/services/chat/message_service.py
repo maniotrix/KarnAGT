@@ -89,6 +89,7 @@ class MessageService:
                 status=getattr(message_data, 'status', 'completed'),
                 attachments=attachments,  # Use the dedicated attachments column
                 vector_file_references=vector_file_references,  # RAG document references
+                tool_calls=getattr(message_data, 'tool_calls', None),  # Tool calls from AI assistant
                 extra_metadata=getattr(message_data, 'metadata', {})
             )
             

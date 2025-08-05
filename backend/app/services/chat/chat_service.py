@@ -291,7 +291,9 @@ class ChatService:
             # Save AI response message
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
-                role="assistant"
+                role="assistant",
+                tool_calls=ai_response_data.get("tool_calls"),
+                status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
@@ -301,6 +303,7 @@ class ChatService:
             ai_message_conversation_id = ai_message.conversation_id
             ai_message_role = ai_message.role
             ai_message_content = ai_message.content
+            ai_message_status = ai_message.status
             ai_message_extra_metadata = ai_message.extra_metadata or {}
             ai_message_created_at = ai_message.created_at
             
@@ -334,10 +337,12 @@ class ChatService:
                 conversation_id=ai_message_conversation_id,
                 role=ai_message_role,
                 content=ai_message_content,
+                status=ai_message_status,
                 total_tokens=ai_response_data.get("total_tokens", 0),
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata,
                 created_at=ai_message_created_at
             )
@@ -461,6 +466,7 @@ class ChatService:
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
                 role="assistant",
+                tool_calls=ai_response_data.get("tool_calls"),
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
@@ -472,6 +478,7 @@ class ChatService:
             ai_message_conversation_id = ai_message.conversation_id
             ai_message_role = ai_message.role
             ai_message_content = ai_message.content
+            ai_message_status = ai_message.status
             ai_message_extra_metadata = ai_message.extra_metadata or {}
             ai_message_created_at = ai_message.created_at
             
@@ -511,10 +518,12 @@ class ChatService:
                 conversation_id=ai_message_conversation_id,
                 role=ai_message_role,
                 content=ai_message_content,
+                status=ai_message_status,
                 total_tokens=ai_response_data.get("total_tokens", 0),
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model or conversation.model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata_with_user_id,
                 created_at=ai_message_created_at
             )
@@ -559,12 +568,14 @@ class ChatService:
                     conversation_id=msg.conversation_id,
                     role=msg.role,
                     content=msg.content,
+                    status=msg.status,  # Include message status from database
                     total_tokens=msg.total_tokens or 0,
                     cost_usd=msg.cost_usd or 0.0,
                     model_name=msg.model_name,
                     finish_reason=None,  # Not stored in database
                     attachments=msg.attachments or [],
                     vector_file_references=msg.vector_file_references,  # Include vector file references
+                    tool_calls=msg.tool_calls,  # Include tool calls from database
                     extra_metadata=msg.extra_metadata or {},
                     created_at=msg.created_at
                 )
@@ -764,7 +775,9 @@ class ChatService:
             # Save AI response message only
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
-                role="assistant"
+                role="assistant",
+                tool_calls=ai_response_data.get("tool_calls"),
+                status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
@@ -774,6 +787,7 @@ class ChatService:
             ai_message_conversation_id = ai_message.conversation_id
             ai_message_role = ai_message.role
             ai_message_content = ai_message.content
+            ai_message_status = ai_message.status
             ai_message_extra_metadata = ai_message.extra_metadata or {}
             ai_message_created_at = ai_message.created_at
             
@@ -807,10 +821,12 @@ class ChatService:
                 conversation_id=ai_message_conversation_id,
                 role=ai_message_role,
                 content=ai_message_content,
+                status=ai_message_status,
                 total_tokens=ai_response_data.get("total_tokens", 0),
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata,
                 created_at=ai_message_created_at
             )
@@ -909,6 +925,7 @@ class ChatService:
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
                 role="assistant",
+                tool_calls=ai_response_data.get("tool_calls"),
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
@@ -920,6 +937,7 @@ class ChatService:
             ai_message_conversation_id = ai_message.conversation_id
             ai_message_role = ai_message.role
             ai_message_content = ai_message.content
+            ai_message_status = ai_message.status
             ai_message_extra_metadata = ai_message.extra_metadata or {}
             ai_message_created_at = ai_message.created_at
             
@@ -959,10 +977,12 @@ class ChatService:
                 conversation_id=ai_message_conversation_id,
                 role=ai_message_role,
                 content=ai_message_content,
+                status=ai_message_status,
                 total_tokens=ai_response_data.get("total_tokens", 0),
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata,
                 created_at=ai_message_created_at
             )

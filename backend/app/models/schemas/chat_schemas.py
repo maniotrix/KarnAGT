@@ -90,6 +90,9 @@ class MessageCreate(BaseSchema):
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="File attachments")
     vector_file_references: Optional[Dict[str, Any]] = Field(None, description="References to knowledge files processed for RAG")
     
+    # Tool calls (for AI assistant messages)
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(None, description="Tool calls made during message generation")
+    
     # Status field (for internal use)
     status: Optional[str] = Field("completed", description="Message status")
     
@@ -104,17 +107,20 @@ class MessageCreate(BaseSchema):
         """Validate message content and staging files"""
         content = getattr(self, 'content', '')
         staging_files_dict = getattr(self, 'staging_files', None)
+        tool_calls = getattr(self, 'tool_calls', None)
         
         has_text = content and content.strip()
         has_files = False
+        has_tool_calls = tool_calls and len(tool_calls) > 0
         
         if staging_files_dict:
             # Convert to object for validation
             staging_collection = StagingFileCollection.from_dict(staging_files_dict)
             has_files = not staging_collection.is_empty
         
-        if not has_text and not has_files:
-            raise ValueError('Message must have either text content or files')
+        # Allow messages with content, files, or tool calls
+        if not has_text and not has_files and not has_tool_calls:
+            raise ValueError('Message must have either text content, files, or tool calls')
         
         return self
 
@@ -132,6 +138,7 @@ class MessageResponse(BaseSchema):
     conversation_id: int  # Changed to int to match database foreign key
     role: MessageRole
     content: str
+    status: Optional[str] = Field("completed", description="Message status (completed, cancelled, failed)")
     total_tokens: int  # Changed from tokens_used to match database field
     cost_usd: float
     model_name: Optional[str] = None  # Changed from model_used to match database field
@@ -140,6 +147,7 @@ class MessageResponse(BaseSchema):
     has_children: bool = False
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="Message attachments")
     vector_file_references: Optional[Dict[str, Any]] = Field(None, description="References to knowledge files processed for RAG")
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(None, description="Tool calls made during message generation")
     extra_metadata: Dict[str, Any] = {}  # Changed from metadata to match database field
     created_at: datetime
     
