@@ -138,6 +138,7 @@ class MessageResponse(BaseSchema):
     conversation_id: int  # Changed to int to match database foreign key
     role: MessageRole
     content: str
+    status: Optional[str] = Field("completed", description="Message status (completed, cancelled, failed)")
     total_tokens: int  # Changed from tokens_used to match database field
     cost_usd: float
     model_name: Optional[str] = None  # Changed from model_used to match database field

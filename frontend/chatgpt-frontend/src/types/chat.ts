@@ -42,6 +42,7 @@ export interface MessageResponse {
   message_id: string;
   conversation_id: string;
   content: string;
+  status?: string; // Message status (completed, cancelled, failed)
   role: 'user' | 'assistant' | 'system';
   parent_message_id?: string;
   total_tokens?: number;
@@ -168,6 +169,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  status?: string; // Message status (completed, cancelled, failed)
   createdAt?: Date;
   // Backend specific fields (using snake_case as they come from backend)
   message_id?: string;
