@@ -116,12 +116,9 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium">
                       <AlertTriangle className="w-3 h-3" />
-                      <span>Cancelled</span>
+                      <span> AI response cancelled</span>
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>This response was cancelled before completion</p>
-                  </TooltipContent>
                 </Tooltip>
               )}
             </div>
