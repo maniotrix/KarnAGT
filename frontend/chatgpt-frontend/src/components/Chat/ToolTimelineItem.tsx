@@ -12,7 +12,7 @@ import {
   ChevronUp,
   Copy
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ToolTimelineItemProps {
   tool: ToolExecution;
@@ -21,6 +21,9 @@ interface ToolTimelineItemProps {
 }
 
 export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index, isLast }) => {
+  // Start expanded if there's error or code content, collapsed for simple completed tools
+  const hasDetails = tool.error || (tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code);
+  const [isExpanded, setIsExpanded] = useState(hasDetails || tool.status !== 'completed');
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
   const [copiedError, setCopiedError] = useState(false);
 
@@ -97,8 +100,21 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
       {/* Tool Info */}
       <div className="flex-1 min-w-0 pb-2">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-            {tool.display_name}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              {tool.display_name}
+            </div>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="flex-shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              title={isExpanded ? "Collapse details" : "Expand details"}
+            >
+              {isExpanded ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </button>
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
             {formatTime(tool.timestamp)}
@@ -122,12 +138,22 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
           
         </div>
         
-        {/* Error Message */}
-        {(tool.status === 'error' || tool.error) && (
-          <div className="mt-2">
-            <div className="flex items-center justify-between text-xs font-medium text-red-700 dark:text-red-300 mb-1">
-              <span>Error:</span>
-              <div className="flex items-center gap-1">
+        {/* Collapsible Details */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              {/* Error Message */}
+              {(tool.status === 'error' || tool.error) && (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-xs font-medium text-red-700 dark:text-red-300 mb-1">
+                    <span>Error:</span>
+                    <div className="flex items-center gap-1">
                 {tool.error && tool.error.length > 100 && (
                   <button
                     onClick={() => setIsErrorExpanded(!isErrorExpanded)}
@@ -201,6 +227,9 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
             </div>
           </div>
         )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
