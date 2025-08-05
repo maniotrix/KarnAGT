@@ -76,7 +76,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
         </Avatar>
 
         {/* Message Content */}
-        <div className="flex flex-col max-w-full items-start">
+        <div className="flex flex-col max-w-2xl w-full items-start">
           {/* Message Header */}
           <div className="flex items-center gap-2 mb-2 flex-row">
             <span className="text-sm font-medium text-gray-900 dark:text-white">
