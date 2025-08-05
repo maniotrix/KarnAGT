@@ -35,4 +35,4 @@
     [Refer to this cursor chat](https://github.com/maniotrix/ChatGPT_Clone/blob/32defcbed44af17aacb0125263397eac004c6d26/.cursor_chats/cursor_debugging_delay_in_hello_user_re.md)
   * Also  I think the agent cant process using openai vision if provided just image url or in general any publicly available file download link in chat
   
-* [PRIORITY] send stream events when we are processing vector documents or llm invoking tool calls...might also need to store this in ai message
+* [PRIORITY] llm executing code without workspace, unnecessary multiple execute code calls(advice to do maximum stuff in one tool call and script), llm using code or knowledge tool when asked for internet search...completely messing up tools
