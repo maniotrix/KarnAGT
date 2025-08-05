@@ -662,6 +662,12 @@ export function useChat(options: ChatOptions = {}) {
                                     || parsed.type === 'stream_cancelled') {
                 console.log(`✅ Stream ended with ${parsed.type} event`);
                 
+                // Set status based on event type
+                const isCancelled = parsed.type === 'cancelled' || parsed.type === 'stream_cancelled';
+                if (assistantMessage && isCancelled) {
+                  assistantMessage.status = 'cancelled';
+                }
+                
                 // Handle both nested and direct message data formats for compatibility
                 let finalMessage = null;
                 if (parsed.data?.message) {
@@ -1154,8 +1160,13 @@ export function useChat(options: ChatOptions = {}) {
                     
                   case 'completion':
                   case 'stream_end':
+                  case 'stream_cancelled':
                     if (event.data && currentStreamingMessageRef.current) {
                       const messageId = event.data.message_id || currentStreamingMessageRef.current.id;
+                      
+                      // Set status based on event type
+                      const isCancelled = event.type === 'stream_cancelled';
+                      const status = isCancelled ? 'cancelled' : (event.data.status || 'completed');
                       
                       // Final update with complete message data
                       setMessages(prev => {
@@ -1169,7 +1180,7 @@ export function useChat(options: ChatOptions = {}) {
                             cost_usd: event.data.cost_usd,
                             model_name: event.data.model_name,
                             tool_calls: event.data.tool_calls,  // Include persisted tool calls from backend
-                            status: event.data.status,  // Include message status (completed, cancelled, failed)
+                            status: status,  // Set status based on event type
                           };
                         }
                         return updated;

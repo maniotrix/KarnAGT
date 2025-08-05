@@ -122,7 +122,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                     <TooltipTrigger asChild>
                       <div className="flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
                         <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                        <span className="text-xs font-medium hidden sm:inline">Stopped</span>
+                        <span className="text-xs font-medium hidden sm:inline">Cancelled</span>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent 
@@ -130,7 +130,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                       align="center"
                       className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
                     >
-                      <p>Response was stopped</p>
+                      <p>Response was cancelled</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -149,7 +149,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                       align="center"
                       className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
                     >
-                      <p>Something went wrong</p>
+                      <p>AI response is empty</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
