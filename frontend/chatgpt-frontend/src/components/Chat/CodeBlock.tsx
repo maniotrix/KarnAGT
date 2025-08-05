@@ -27,8 +27,8 @@ const CopyButton: React.FC<{ text: string; size?: 'sm' | 'md' }> = ({ text, size
     }
   };
 
-  const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
-  const buttonSize = size === 'sm' ? 'p-1' : 'p-1.5';
+  const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5';
+  const buttonSize = size === 'sm' ? 'p-0.5' : 'p-1';
 
   return (
     <TooltipProvider>
@@ -36,7 +36,7 @@ const CopyButton: React.FC<{ text: string; size?: 'sm' | 'md' }> = ({ text, size
         <TooltipTrigger asChild>
           <button
             onClick={handleCopy}
-            className={`${buttonSize} rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-0 group-hover:opacity-100`}
+            className={`${buttonSize} rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-70 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100`}
             title={copied ? 'Copied!' : 'Copy code'}
           >
             {copied ? (
@@ -47,7 +47,7 @@ const CopyButton: React.FC<{ text: string; size?: 'sm' | 'md' }> = ({ text, size
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{copied ? 'Copied!' : 'Copy code'}</p>
+          <p className="text-xs">{copied ? 'Copied!' : 'Copy code'}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -62,12 +62,12 @@ export const InlineCode: React.FC<CodeBlockProps> = ({ children, className, ...p
     <span className="group relative inline-flex items-center">
       <code 
         {...props} 
-        className={`${className || ''} bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm`}
+        className={`${className || ''}`}
       >
         {children}
       </code>
-      {codeText.length > 5 && ( // Only show copy button for longer code snippets
-        <span className="ml-1">
+      {codeText.length > 10 && ( // Only show copy button for longer code snippets
+        <span className="ml-0.5 opacity-50 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <CopyButton text={codeText} size="sm" />
         </span>
       )}
@@ -103,10 +103,10 @@ export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...prop
 
   return (
     <div className="group relative">
-      <pre {...props} className={`${className || ''} bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto`}>
+      <pre {...props} className={className}>
         {children}
       </pre>
-      <div className="absolute top-2 right-2">
+      <div className="absolute top-1.5 right-1.5">
         <CopyButton text={codeText} />
       </div>
     </div>

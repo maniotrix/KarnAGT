@@ -343,7 +343,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                   components={{
                     // Enhanced pre blocks with copy button
                     pre: ({ children, ...props }) => (
-                      <PreBlock {...props} className="bg-blue-800 rounded-lg p-3 overflow-x-auto">
+                      <PreBlock {...props} className="bg-blue-700 rounded-md p-2 overflow-x-auto border border-blue-600">
                         {children}
                       </PreBlock>
                     ),

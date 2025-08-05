@@ -86,7 +86,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   components={{
                     // Enhanced pre blocks with copy button
                     pre: ({ children, ...props }) => (
-                      <PreBlock {...props} className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                      <PreBlock {...props} className="bg-gray-50 dark:bg-gray-800 rounded-md p-2 overflow-x-auto border border-gray-200 dark:border-gray-700">
                         {children}
                       </PreBlock>
                     ),
