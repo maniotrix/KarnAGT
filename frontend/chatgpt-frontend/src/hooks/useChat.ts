@@ -85,6 +85,89 @@ export function useChat(options: ChatOptions = {}) {
       return updated;
     });
   }, []);
+
+  // Helper function to convert individual backend tool call to frontend ToolExecution
+  // MATCHES streaming pattern: process each tool call individually like streaming does
+  const convertBackendToolCallToExecution = useCallback((messageId: string, toolCall: {
+    tool_name: string;
+    display_name: string;
+    tool_type: string;
+    event_type: 'start' | 'output';
+    openai_tool_data: Record<string, any>;
+  }): ToolExecution => {
+    console.log('🔍 [DEBUG] Converting backend tool call:', {
+      messageId,
+      toolCall,
+      event_type: toolCall.event_type,
+      openai_tool_data: toolCall.openai_tool_data
+    });
+    
+    // MATCH STREAMING PATTERN: Use exact same tool_id extraction pattern as streaming
+    const toolId = toolCall.openai_tool_data?.tool_id || `tool_${Date.now()}`;
+    console.log('🔍 [DEBUG] Generated tool_id:', toolId);
+    
+    if (toolCall.event_type === 'start') {
+      // Create tool execution for start event - EXACTLY like streaming tool_call_start
+      const execution = {
+        tool_id: toolId,
+        display_name: toolCall.display_name || toolCall.tool_name || 'Unknown Tool',
+        tool_name: toolCall.tool_name || 'unknown',
+        tool_type: toolCall.tool_type || 'unknown',
+        status: 'started',
+        timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+        message_id: messageId,
+        openai_tool_data: toolCall.openai_tool_data
+      };
+      console.log('🔍 [DEBUG] Created START execution:', execution);
+      return execution;
+    } else if (toolCall.event_type === 'output') {
+      // Create tool execution for output event - EXACTLY like streaming tool_call_output
+      const result = toolCall.openai_tool_data?.result;
+      const isSuccessful = result?.success === true;
+      const status = isSuccessful ? 'completed' : 'error';
+      
+      console.log('🔍 [DEBUG] Processing OUTPUT event:', {
+        result,
+        isSuccessful,
+        status
+      });
+      
+      // Extract error message from multiple possible locations - MATCHING streaming pattern
+      let errorMessage = undefined;
+      if (!isSuccessful) {
+        errorMessage = result?.error || 
+                       result?.message || 
+                       (typeof result === 'string' ? result : null) ||
+                       'Tool execution failed';
+      }
+      
+      const execution = {
+        tool_id: toolId,
+        display_name: toolCall.display_name || toolCall.tool_name || (isSuccessful ? 'Tool Completed' : 'Tool Failed'),
+        tool_name: toolCall.tool_name || 'unknown',
+        tool_type: toolCall.tool_type || 'unknown',
+        status: status,
+        timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+        message_id: messageId,
+        openai_tool_data: toolCall.openai_tool_data,
+        error: errorMessage
+      };
+      console.log('🔍 [DEBUG] Created OUTPUT execution:', execution);
+      return execution;
+    }
+    
+    // Fallback (shouldn't happen)
+    return {
+      tool_id: toolId,
+      display_name: toolCall.display_name || toolCall.tool_name || 'Unknown Tool',
+      tool_name: toolCall.tool_name || 'unknown',
+      tool_type: toolCall.tool_type || 'unknown',
+      status: 'started',
+      timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+      message_id: messageId,
+      openai_tool_data: toolCall.openai_tool_data
+    };
+  }, []);
   
   // Refs for SSE management
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -103,6 +186,7 @@ export function useChat(options: ChatOptions = {}) {
     model_name: msg.model_name,
     attachments: msg.attachments,
     vector_file_references: msg.vector_file_references,  // Add vector_file_references mapping
+    tool_calls: msg.tool_calls,  // Include persisted tool calls from backend
     metadata: msg.metadata,
   }), []);
 
@@ -122,6 +206,17 @@ export function useChat(options: ChatOptions = {}) {
       const chatMessages = recentMessages.map(transformBackendMessage);
       setMessages(chatMessages);
       
+      // Process tool calls from backend messages using same pattern as streaming
+      recentMessages.forEach(msg => {
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          msg.tool_calls.forEach(toolCall => {
+            // Convert each backend tool call to ToolExecution and use existing add/update function
+            const toolExecution = convertBackendToolCallToExecution(msg.message_id, toolCall);
+            addOrUpdateToolExecutionEvent(msg.message_id, toolExecution);
+          });
+        }
+      });
+      
       // Update pagination info
       setPaginationInfo({
         hasNext: pagination?.has_next || false,
@@ -139,7 +234,7 @@ export function useChat(options: ChatOptions = {}) {
     } catch (error) {
       setError(error instanceof Error ? error : new Error('Failed to load conversation'));
     }
-  }, [transformBackendMessage]);
+  }, [transformBackendMessage, convertBackendToolCallToExecution, addOrUpdateToolExecutionEvent]);
 
   // Load more messages (pagination)
   const loadMoreMessages = useCallback(async (conversationId: string, offset: number = 0) => {
@@ -153,11 +248,31 @@ export function useChat(options: ChatOptions = {}) {
       
       // Prepend older messages, avoiding duplicates
       let uniqueNewMessagesCount = 0;
+      const uniqueNewMessages: MessageResponse[] = [];
       setMessages(prev => {
         const existingIds = new Set(prev.map(msg => msg.id));
-        const uniqueNewMessages = chatMessages.filter(msg => !existingIds.has(msg.id));
-        uniqueNewMessagesCount = uniqueNewMessages.length;
-        return [...uniqueNewMessages, ...prev];
+        const filteredMessages = chatMessages.filter(msg => !existingIds.has(msg.id));
+        uniqueNewMessagesCount = filteredMessages.length;
+        
+        // Store the unique new backend messages for tool call processing
+        newMessages.forEach(msg => {
+          if (!existingIds.has(msg.message_id)) {
+            uniqueNewMessages.push(msg);
+          }
+        });
+        
+        return [...filteredMessages, ...prev];
+      });
+      
+      // Process tool calls from newly loaded messages using same pattern as streaming
+      uniqueNewMessages.forEach(msg => {
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          msg.tool_calls.forEach(toolCall => {
+            // Convert each backend tool call to ToolExecution and use existing add/update function
+            const toolExecution = convertBackendToolCallToExecution(msg.message_id, toolCall);
+            addOrUpdateToolExecutionEvent(msg.message_id, toolExecution);
+          });
+        }
       });
       
       // Update pagination info
@@ -173,7 +288,7 @@ export function useChat(options: ChatOptions = {}) {
       setError(error instanceof Error ? error : new Error('Failed to load more messages'));
       return 0;
     }
-  }, [transformBackendMessage]);
+  }, [transformBackendMessage, convertBackendToolCallToExecution, addOrUpdateToolExecutionEvent]);
 
   // Initialize conversation
   useEffect(() => {
@@ -1036,6 +1151,8 @@ export function useChat(options: ChatOptions = {}) {
                   case 'completion':
                   case 'stream_end':
                     if (event.data && currentStreamingMessageRef.current) {
+                      const messageId = event.data.message_id || currentStreamingMessageRef.current.id;
+                      
                       // Final update with complete message data
                       setMessages(prev => {
                         const updated = [...prev];
@@ -1043,14 +1160,24 @@ export function useChat(options: ChatOptions = {}) {
                         if (lastIndex >= 0 && updated[lastIndex].id === currentStreamingMessageRef.current?.id) {
                           updated[lastIndex] = {
                             ...updated[lastIndex],
-                            message_id: event.data.message_id || updated[lastIndex].id,
+                            message_id: messageId,
                             total_tokens: event.data.total_tokens,
                             cost_usd: event.data.cost_usd,
                             model_name: event.data.model_name,
+                            tool_calls: event.data.tool_calls,  // Include persisted tool calls from backend
                           };
                         }
                         return updated;
                       });
+                      
+                      // Process tool calls from final backend response using same pattern as streaming
+                      if (event.data.tool_calls && event.data.tool_calls.length > 0) {
+                        event.data.tool_calls.forEach((toolCall: any) => {
+                          // Convert each backend tool call to ToolExecution and use existing add/update function
+                          const toolExecution = convertBackendToolCallToExecution(messageId, toolCall);
+                          addOrUpdateToolExecutionEvent(messageId, toolExecution);
+                        });
+                      }
                       
                       // Update conversation metadata
                       if (conversation && event.data) {

@@ -293,16 +293,16 @@ class ConfigurableOpenAIAssistant:
                         logger.info(f"[DEBUG] processing run item stream event: {type(event)}")
                         if event.name == "tool_called":
                             logger.info(f"[DEBUG] Tool called: {type(event.item)}")
+                            tool_start_event = create_tool_start_from_run_item(event.item)
+                            tool_calls.append(tool_start_event)  
                             if self.streaming_callback:
-                                tool_start_event = create_tool_start_from_run_item(event.item)
-                                tool_calls.append(tool_start_event)
                                 self.streaming_callback(tool_start_event)
                                 
                         elif event.name == "tool_output":
                             logger.info(f"[DEBUG] Tool output: {type(event.item)}")
+                            tool_output_event = create_tool_output_from_run_item(event.item)
+                            tool_calls.append(tool_output_event)  
                             if self.streaming_callback:
-                                tool_output_event = create_tool_output_from_run_item(event.item)
-                                tool_calls.append(tool_output_event)
                                 self.streaming_callback(tool_output_event)
                     # else:
                     #     logger.info(f"[DEBUG] Not Raw response or text delta event or run item stream event: {type(event)}")
@@ -389,13 +389,14 @@ class ConfigurableOpenAIAssistant:
                 metadata["stream_error"] = str(error)
                 metadata["error_type"] = type(error).__name__
             
+            formatted_tool_calls = ToolCallsEventFormatter.format_tool_calls_for_persistence(tool_calls)
             logger.info(f"Stream {'cancelled' if self.is_stream_cancelled else 'failed'}, returning partial response: {len(content)} chars")
             return {
                 "content": content,
                 "was_cancelled": True,
                 "partial_response": True,
                 "plots": [],
-                "tool_calls": ToolCallsEventFormatter.format_tool_calls_for_persistence(tool_calls),
+                "tool_calls": formatted_tool_calls,
                 "metadata": metadata
             }
         
@@ -415,14 +416,18 @@ class ConfigurableOpenAIAssistant:
         if self.config.agent.maintain_conversation_history:
             self.messages.append({"role": "assistant", "content": content})
         
-        return {
+        formatted_tool_calls = ToolCallsEventFormatter.format_tool_calls_for_persistence(tool_calls)
+        
+        final_response = {
             "content": content,
             "was_cancelled": False,
             "partial_response": False,
             "plots": plots,
-            "tool_calls": ToolCallsEventFormatter.format_tool_calls_for_persistence(tool_calls),
+            "tool_calls": formatted_tool_calls,
             "metadata": self._create_response_metadata(message_id, result)
         }
+        
+        return final_response
     
     def _create_run_config(self) -> RunConfig:
         """Create RunConfig from our configuration"""

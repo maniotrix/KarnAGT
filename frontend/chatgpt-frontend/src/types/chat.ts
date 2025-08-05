@@ -49,6 +49,13 @@ export interface MessageResponse {
   model_name?: string;
   attachments?: string[] | ImageAttachment[]; // Can be either string IDs or full attachment objects
   vector_file_references?: Record<string, any>; // References to knowledge files processed for RAG
+  tool_calls?: Array<{
+    tool_name: string;
+    display_name: string;
+    tool_type: string;
+    event_type: 'start' | 'output';
+    openai_tool_data: Record<string, any>;
+  }>; // Tool calls made during message generation
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -170,6 +177,13 @@ export interface Message {
   model_name?: string;
   attachments?: string[] | ImageAttachment[]; // Can be either string IDs or full attachment objects
   vector_file_references?: Record<string, any>; // References to knowledge files processed for RAG
+  tool_calls?: Array<{
+    tool_name: string;
+    display_name: string;
+    tool_type: string;
+    event_type: 'start' | 'output';
+    openai_tool_data: Record<string, any>;
+  }>; // Tool calls from backend (persisted)
   metadata?: Record<string, any>;
   // LOCAL IMAGE DATA: Keep actual image data for immediate display after send
   localImages?: Array<{

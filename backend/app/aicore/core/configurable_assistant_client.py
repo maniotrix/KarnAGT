@@ -152,6 +152,7 @@ class ConfigurableAssistantClient:
                 "partial_response": ai_response_data.get("partial_response", False),
                 "type": message_type,
                 "plots": plots,
+                "tool_calls": ai_response_data.get("tool_calls"),  # ✅ FIX: Include tool_calls from AI assistant
                 "metadata": enhanced_metadata
             }
             
