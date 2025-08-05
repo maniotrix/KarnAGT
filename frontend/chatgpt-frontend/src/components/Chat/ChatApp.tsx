@@ -371,7 +371,7 @@ export const ChatApp: React.FC = () => {
                   </div>
                   
                   {/* Quota Info */}
-                  <div className="mb-4">
+                  {/* <div className="mb-4">
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-gray-600">Usage Quota</span>
                       <span className="font-medium">70%</span>
@@ -383,7 +383,7 @@ export const ChatApp: React.FC = () => {
                       <span className="truncate">7,000 / 10,000 tokens</span>
                       <span className="ml-2 flex-shrink-0">~$0.14 used</span>
                     </div>
-                  </div>
+                  </div> */}
                   
                   <button
                     onClick={handleLogout}
