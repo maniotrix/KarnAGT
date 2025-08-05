@@ -108,7 +108,7 @@ export function useChat(options: ChatOptions = {}) {
     
     if (toolCall.event_type === 'start') {
       // Create tool execution for start event - EXACTLY like streaming tool_call_start
-      const execution = {
+      const execution: ToolExecution = {
         tool_id: toolId,
         display_name: toolCall.display_name || toolCall.tool_name || 'Unknown Tool',
         tool_name: toolCall.tool_name || 'unknown',
@@ -141,7 +141,7 @@ export function useChat(options: ChatOptions = {}) {
                        'Tool execution failed';
       }
       
-      const execution = {
+      const execution: ToolExecution = {
         tool_id: toolId,
         display_name: toolCall.display_name || toolCall.tool_name || (isSuccessful ? 'Tool Completed' : 'Tool Failed'),
         tool_name: toolCall.tool_name || 'unknown',

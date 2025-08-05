@@ -1,9 +1,9 @@
+/* Highlight.js theme for syntax highlighting */
+@import 'highlight.js/styles/github.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Highlight.js theme for syntax highlighting */
-@import 'highlight.js/styles/github.css';
 
 @layer base {
   :root {

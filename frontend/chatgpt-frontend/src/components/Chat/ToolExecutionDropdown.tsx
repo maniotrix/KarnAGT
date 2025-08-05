@@ -5,7 +5,8 @@ import { ToolTimelineItem } from './ToolTimelineItem';
 // Modern UI Libraries
 import { 
   Settings, 
-  ChevronDown 
+  ChevronDown,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,11 +22,26 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
   isStreaming 
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   
   // Sort tools chronologically (earliest first)
   const sortedTools = [...tools].sort((a, b) => 
     new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  
+  // Timer - count seconds when thinking, keep final value when done
+  useEffect(() => {
+    if (isThinking) {
+      // Reset and start timer when thinking begins
+      setElapsedSeconds(0);
+      const interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+    // When thinking stops, timer stops but keeps the final value
+  }, [isThinking]);
   
   // Auto-expand during execution, collapse after completion
   useEffect(() => {
@@ -38,8 +54,8 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
     }
   }, [isThinking, sortedTools.length]);
   
-  // Only show the dropdown when thinking or when there are tools
-  if (!isThinking && sortedTools.length === 0) {
+  // Only show the dropdown when thinking or when there are tools or when we have elapsed time to show
+  if (!isThinking && sortedTools.length === 0 && elapsedSeconds === 0) {
     return null;
   }
   
@@ -68,6 +84,27 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                 className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full"
               />
+            )}
+            {/* Timer - show when thinking or when finished (regardless of tools) */}
+            {(isThinking || (!isThinking && elapsedSeconds > 0)) && (
+              <div className={`flex items-center space-x-1 ml-2 px-2 py-1 rounded-md border ${
+                isThinking 
+                  ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800' 
+                  : 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'
+              }`}>
+                <Clock className={`w-3 h-3 ${
+                  isThinking 
+                    ? 'text-blue-600 dark:text-blue-400' 
+                    : 'text-green-600 dark:text-green-400'
+                }`} />
+                <span className={`text-xs font-mono ${
+                  isThinking 
+                    ? 'text-blue-700 dark:text-blue-300' 
+                    : 'text-green-700 dark:text-green-300'
+                }`}>
+                  {elapsedSeconds}s
+                </span>
+              </div>
             )}
           </div>
           <ChevronDown 
