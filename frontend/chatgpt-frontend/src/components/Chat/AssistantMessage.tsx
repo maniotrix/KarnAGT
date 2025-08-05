@@ -135,8 +135,8 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   </Tooltip>
                 )}
 
-                {/* Empty Content Status */}
-                {hasEmptyContent && (
+                              {/* Empty Content Status - Only show for completed messages */}
+              {hasEmptyContent && !isStreaming && !isThinking && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
