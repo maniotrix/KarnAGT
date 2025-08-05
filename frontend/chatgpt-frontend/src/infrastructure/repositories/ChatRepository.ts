@@ -21,8 +21,13 @@ export class ChatRepository implements IChatRepository {
   }
 
   // Conversation methods - migrated from existing chatApi.ts
-  async getConversations(): Promise<Conversation[]> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATIONS), {
+  async getConversations(includeLatestUserMessage: boolean = true): Promise<Conversation[]> {
+    const url = new URL(buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATIONS));
+    if (includeLatestUserMessage) {
+      url.searchParams.set('include_latest_user_message', 'true');
+    }
+    
+    const response = await fetch(url.toString(), {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });

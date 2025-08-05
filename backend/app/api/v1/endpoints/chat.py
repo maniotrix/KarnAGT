@@ -98,11 +98,14 @@ async def list_conversations(
     limit: int = Query(20, ge=1, le=100, description="Number of conversations to return"),
     offset: int = Query(0, ge=0, description="Number of conversations to skip"),
     search: Optional[str] = Query(None, description="Search in conversation titles"),
+    include_latest_user_message: bool = Query(False, description="Include latest user message content for each conversation"),
     current_user: User = Depends(get_current_verified_user),
     db: AsyncSession = Depends(get_db)
 ) -> ConversationListResponse:
     """
     List user's conversations with pagination
+    
+    - **include_latest_user_message**: When true, includes the latest user message content for each conversation
     
     Returns conversations sorted by last activity (most recent first)
     """
@@ -111,6 +114,46 @@ async def list_conversations(
     try:
         chat_service = ChatService(db, current_user)
         conversations = await chat_service.get_user_conversations(limit=limit, offset=offset)
+        
+        # If requested, get latest user messages using the new efficient method
+        enhanced_conversations = []
+        if include_latest_user_message:
+            from app.services.chat.message_service import MessageService
+            message_service = MessageService(db, current_user)
+            
+            for conv in conversations:
+                # Get latest user message for this conversation
+                latest_user_message = await message_service.get_latest_user_message(conv.conversation_id)
+                
+                # Create enhanced ConversationResponse
+                conv_response = ConversationResponse(
+                    id=conv.id,
+                    conversation_id=conv.conversation_id,
+                    title=conv.title,
+                    description=conv.description,
+                    status=conv.status,
+                    model_name=conv.model_name,
+                    temperature=conv.temperature,
+                    max_tokens=conv.max_tokens,
+                    memory_enabled=conv.memory_enabled,
+                    message_count=conv.message_count or 0,
+                    total_tokens_used=conv.total_tokens_used,
+                    total_cost_usd=conv.total_cost_usd,
+                    is_pinned=conv.is_pinned,
+                    is_shared=conv.is_shared,
+                    topics=conv.topics or [],
+                    tags=conv.tags or [],
+                    user_rating=conv.user_rating,
+                    quality_score=conv.quality_score,
+                    created_at=conv.created_at,
+                    updated_at=conv.updated_at,
+                    last_message_at=conv.last_message_at,
+                    latest_user_message=latest_user_message
+                )
+                enhanced_conversations.append(conv_response)
+        else:
+            # Use original conversations without latest user messages
+            enhanced_conversations = conversations
         
         # Count total conversations for pagination
         from app.services.chat.conversation_service import ConversationService
@@ -136,7 +179,7 @@ async def list_conversations(
         return ConversationListResponse(
             success=True,
             message="Conversations retrieved successfully",
-            data=conversations,
+            data=enhanced_conversations,
             pagination=pagination
         )
         

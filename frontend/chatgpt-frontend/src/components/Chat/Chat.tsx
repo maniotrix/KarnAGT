@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useChat } from '../../hooks/useChat';
 import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
+import { getDisplayTitleFromMessages } from '../../utils/conversationUtils';
 import { ChatInput } from './ChatInput';
 import { ChatActions } from './ChatActions';
 import type { UploadFile } from '../../types/upload';
@@ -125,6 +126,7 @@ export const Chat: React.FC<ChatProps> = ({
     loadMoreMessages,
     hasMoreMessages,
     editMessage,
+    messageToolExecutions,
   } = useChat(chatOptions);
 
   // Quota is already calculated above using clean architecture
@@ -327,14 +329,18 @@ export const Chat: React.FC<ChatProps> = ({
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Chat Header */}
-      <motion.div 
+      {/* <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex justify-between items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0"
       >
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {conversation?.title || 'New Chat'}
+            {conversation ? getDisplayTitleFromMessages(
+              conversation.title, 
+              messages.map(m => ({ content: m.content, role: m.role })), 
+              50
+            ) : 'New Chat'}
           </h2>
           {conversation && (
             <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -353,7 +359,7 @@ export const Chat: React.FC<ChatProps> = ({
             </div>
           )}
         </div>
-      </motion.div>
+      </motion.div> */}
 
       {/* Error Display */}
       <AnimatePresence>
@@ -379,7 +385,7 @@ export const Chat: React.FC<ChatProps> = ({
       </AnimatePresence>
 
       {/* Quota Warning */}
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {quota.percentage > 80 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -400,7 +406,7 @@ export const Chat: React.FC<ChatProps> = ({
             </span>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       {/* Main Content Area - This will grow and the inner MessageList will scroll */}
       <div className="flex-1 overflow-hidden min-h-0 relative">
@@ -416,6 +422,7 @@ export const Chat: React.FC<ChatProps> = ({
             hasMoreMessages={hasMoreMessages}
             onScrollStateChange={handleScrollStateChange}
             onEdit={editMessage}
+            messageToolExecutions={messageToolExecutions}
           />
         </ConversationImagesProvider>
         

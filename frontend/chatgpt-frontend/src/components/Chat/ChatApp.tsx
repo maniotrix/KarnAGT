@@ -4,13 +4,14 @@ import {
   useConversations, 
   useDeleteConversation, 
   useCreateConversation 
-} from '../../app/hooks/chat';
+} from '../../app/hooks/chat/useSidebar';
 import { useCurrentUser, useLogout } from '../../app/hooks/auth';
 import { useUiStore, useToast } from '../../app/stores/uiStore';
 import { Chat } from '../Chat/Chat';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ConversationResponse } from '../../types/chat';
 import { Conversation } from '../../domain/entities/Conversation';
+import { getConversationDisplayTitle } from '../../utils/conversationUtils';
 import { 
   Menu, 
   X, 
@@ -228,7 +229,7 @@ export const ChatApp: React.FC = () => {
                       onClick={() => handleSelectConversation(conv.conversationId)}
                     >
                       <div className="font-medium text-gray-900 truncate">
-                        {conv.title}
+                        {getConversationDisplayTitle(conv, 50)}
                       </div>
                                              <div className="text-sm text-gray-500 mt-1">
                          {conv.messageCount} messages • {conv.totalTokensUsed} tokens
@@ -318,10 +319,10 @@ export const ChatApp: React.FC = () => {
             </h1>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">
+            <span className="hidden sm:block text-sm text-gray-600">
               Hello, {user?.getDisplayName()}
             </span>
-            <div className="hidden lg:flex items-center space-x-2 relative">
+            <div className="flex items-center space-x-2 relative">
               {user?.hasAvatar() ? (
                 <img
                   className="h-8 w-8 rounded-full cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
@@ -342,27 +343,27 @@ export const ChatApp: React.FC = () => {
               
               {/* User Dropdown - Shows quota and user info */}
               {showUserDropdown && (
-                <div ref={dropdownRef} className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 p-4">
+                <div ref={dropdownRef} className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-4 transform -translate-x-2 sm:translate-x-0">
                   <div className="flex items-start space-x-3 mb-3">
                     {user?.hasAvatar() ? (
                       <img
-                        className="h-10 w-10 rounded-full"
+                        className="h-10 w-10 rounded-full flex-shrink-0"
                         src={user.avatarUrl}
                         alt={user.getDisplayName()}
                       />
                     ) : (
-                      <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
                         <span className="text-white text-sm font-medium">
                           {user?.getInitials()}
                         </span>
                       </div>
                     )}
-                    <div>
-                      <div className="font-medium">{user?.getDisplayName()}</div>
-                      <div className="text-sm text-gray-500">{user?.email}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium truncate">{user?.getDisplayName()}</div>
+                      <div className="text-sm text-gray-500 truncate">{user?.email}</div>
                       <div className="mt-1 flex items-center">
-                        <Crown className="h-3 w-3 mr-1 text-yellow-500" />
-                        <span className="text-xs bg-green-100 px-2 py-0.5 rounded-full uppercase font-medium text-green-800">
+                        <Crown className="h-3 w-3 mr-1 text-yellow-500 flex-shrink-0" />
+                        <span className="text-xs bg-green-100 px-2 py-0.5 rounded-full uppercase font-medium text-green-800 truncate">
                           {user?.subscriptionTier} plan
                         </span>
                       </div>
@@ -370,7 +371,7 @@ export const ChatApp: React.FC = () => {
                   </div>
                   
                   {/* Quota Info */}
-                  <div className="mb-4">
+                  {/* <div className="mb-4">
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-gray-600">Usage Quota</span>
                       <span className="font-medium">70%</span>
@@ -379,10 +380,10 @@ export const ChatApp: React.FC = () => {
                       <div className="bg-blue-600 h-full rounded-full" style={{ width: '70%' }} />
                     </div>
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>7,000 / 10,000 tokens</span>
-                      <span>~$0.14 used</span>
+                      <span className="truncate">7,000 / 10,000 tokens</span>
+                      <span className="ml-2 flex-shrink-0">~$0.14 used</span>
                     </div>
-                  </div>
+                  </div> */}
                   
                   <button
                     onClick={handleLogout}

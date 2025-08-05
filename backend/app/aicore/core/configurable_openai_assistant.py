@@ -16,6 +16,18 @@ from agents import Runner, RunConfig, ModelSettings, OpenAIProvider
 # OpenAI types for safe isinstance checks
 from openai.types.responses import ResponseTextDeltaEvent
 
+# Import our stream events
+from app.aicore.core.stream_events import (
+    StreamEventUnion, 
+    create_text_event
+)
+from agents.stream_events import RunItemStreamEvent
+
+from app.aicore.core.stream_event_utils import (
+    create_tool_start_from_run_item,
+    create_tool_output_from_run_item
+)
+
 # Import configuration classes
 from app.aicore.config import AIConfig, config_manager
 from app.aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
@@ -43,7 +55,7 @@ class ConfigurableOpenAIAssistant:
         config: Optional[AIConfig] = None,
         user_id: Optional[str] = None,
         environment: Optional[str] = None,
-        streaming_callback: Optional[Callable[[str], None]] = None,
+        streaming_callback: Optional[Callable[[StreamEventUnion], None]] = None,
         config_overrides: Optional[Dict[str, Any]] = None
     ):
         """
@@ -263,14 +275,35 @@ class ConfigurableOpenAIAssistant:
                         logger.info(f"[CANCEL] Stream cancelled by user - breaking consume loop after {event_count} events")
                         break
 
-                    # Handle text deltas safely with isinstance
-                    if (event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent)):
+                    # 🎯 UNIFIED EVENT PROCESSING - Handle both raw and semantic events
+                    if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                        # Text streaming (existing behavior)
                         delta = event.data.delta
                         if delta:
                             full_chunks.append(delta)
                             if self.streaming_callback:
-                                logger.debug(f"[DEBUG] Calling streaming callback with token: '{delta[:20]}...'")
-                                self.streaming_callback(delta)
+                                logger.debug(f"[DEBUG] Calling streaming callback with text token: '{delta[:20]}...'")
+                                text_event = create_text_event(token=delta)
+                                self.streaming_callback(text_event)
+                    
+                    # 🚀 SEMANTIC TOOL EVENTS (Agents SDK)
+                    # NOTE: We only process tool called and tool output events
+                    elif isinstance(event, RunItemStreamEvent):
+                        logger.info(f"[DEBUG] processing run item stream event: {type(event)}")
+                        if event.name == "tool_called":
+                            logger.info(f"[DEBUG] Tool called: {type(event.item)}")
+                            if self.streaming_callback:
+                                tool_start_event = create_tool_start_from_run_item(event.item)
+                                self.streaming_callback(tool_start_event)
+                                
+                        elif event.name == "tool_output":
+                            logger.info(f"[DEBUG] Tool output: {type(event.item)}")
+                            if self.streaming_callback:
+                                tool_output_event = create_tool_output_from_run_item(event.item)
+                                self.streaming_callback(tool_output_event)
+                    # else:
+                    #     logger.info(f"[DEBUG] Not Raw response or text delta event or run item stream event: {type(event)}")
+                    #     logger.info(f"[DEBUG] processing unknown event: {type(event)}")
 
             except asyncio.CancelledError:
                 logger.info(f"[CANCEL] Consume task cancelled after {event_count} events")

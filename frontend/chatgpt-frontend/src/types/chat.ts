@@ -89,6 +89,7 @@ export interface ConversationResponse {
   created_at: string;
   updated_at: string;
   last_message_at?: string;
+  latest_user_message?: string;
   messages?: MessageResponse[];
 }
 
@@ -133,6 +134,26 @@ export interface StreamErrorEvent {
   type: 'error';
   error: string;
   message?: string;
+}
+
+// Tool execution interface for tracking tool calls during streaming
+export interface ToolExecution {
+  tool_id: string;
+  display_name: string;
+  tool_name: string;
+  tool_type: string;
+  status: 'started' | 'running' | 'completed' | 'error';
+  timestamp: string;
+  message_id?: string; // Associate with assistant message
+  progress_data?: any;
+  error?: string;
+  error_details?: any;
+  openai_tool_data?: {
+    tool_id?: string;
+    arguments?: any;
+    result?: any;
+    status?: string;
+  };
 }
 
 // Simple Message interface that matches frontend needs - replaces AISDKMessage

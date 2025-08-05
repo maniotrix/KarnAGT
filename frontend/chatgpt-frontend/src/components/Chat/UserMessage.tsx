@@ -8,12 +8,9 @@ import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 
 // Modern UI Libraries  
-import { Avatar, AvatarFallback } from '@radix-ui/react-avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
 import * as Dialog from '@radix-ui/react-dialog';
 import { 
-  User, 
-  Clock,
   Copy,
   Check,
   Edit3,
@@ -22,8 +19,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// Clean Architecture Integration
-import { useUiStore } from '../../app/stores/uiStore';
+
 
 interface UserMessageProps {
   message: Message;
@@ -34,9 +30,6 @@ export const UserMessage: React.FC<UserMessageProps> = ({
   message, 
   onEdit
 }) => {
-  // Clean Architecture Integration
-  const { theme } = useUiStore();
-  
   // Copy functionality
   const [copied, setCopied] = useState(false);
   
@@ -53,10 +46,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
   // ✅ CONVERSATION CONTEXT: Get image URLs from conversation-level provider
   const { getImageUrl, isLoading, isError } = useConversationImagesContext();
 
-  const formatTime = (date: Date | string) => {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+
 
   const handleCopy = async () => {
     try {
@@ -286,21 +276,11 @@ export const UserMessage: React.FC<UserMessageProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex gap-4 p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors justify-end"
+        className="px-4 py-2 sm:py-3 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex justify-end"
       >
         {/* Message Content */}
         <div className="flex flex-col max-w-[80%] items-end">
-          {/* Message Header */}
-          <div className="flex items-center gap-2 mb-2 flex-row-reverse">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              You
-            </span>
-            
-            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-              <Clock className="w-3 h-3" />
-              <span>{formatTime(message.createdAt || new Date())}</span>
-            </div>
-          </div>
+
 
           {/* Images Display */}
           {renderImages()}
@@ -455,12 +435,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
           </div>
         </div>
 
-        {/* User Avatar */}
-        <Avatar className="w-8 h-8 shrink-0">
-          <AvatarFallback className="bg-gray-100 dark:bg-gray-700">
-            <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-          </AvatarFallback>
-        </Avatar>
+
       </motion.div>
 
       {/* Image Lightbox Modal */}

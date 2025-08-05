@@ -17,6 +17,19 @@ from fastapi import Request
 from sse_starlette.sse import EventSourceResponse
 
 from app.logging.logger import get_logger
+from app.aicore.core.stream_events import (
+    StreamEventUnion, 
+    TextTokenEvent,
+    ToolCallStartEvent,
+    ToolCallOutputEvent,
+    ToolCallProgressEvent,
+    ToolCallErrorEvent,
+    CompletionEvent,
+    EventType,
+    create_completion_event
+)
+
+from app.utils.tool_calls_event_formatter import ToolCallsEventFormatter
 
 # Set up logger
 logger = get_logger(__name__)
@@ -44,7 +57,8 @@ class StreamingHandler:
         """
         self.user_id = user_id
         self.conversation_id = conversation_id
-        self.token_queue = asyncio.Queue()
+        # 🎯 SINGLE QUEUE for all event types (StreamEventUnion)  
+        self.event_queue = asyncio.Queue()
         self.is_streaming = False
         self.is_cancelled = False
         self.stream_id = str(uuid.uuid4())
@@ -101,28 +115,29 @@ class StreamingHandler:
         
         return cancel_data
     
-    def streaming_callback(self, token: str):
+    def streaming_callback(self, event: StreamEventUnion):
         """
-        Callback function for receiving streaming tokens from aicore
+        🎯 GENERIC callback function for receiving ALL streaming events from aicore
         
         Args:
-            token: The streaming token from OpenAI
+            event: StreamEventUnion (TextTokenEvent, ToolCallStartEvent, etc.)
         """
         if self.is_streaming and not self.is_cancelled:
-            # Accumulate content for potential cancellation handling
-            self.accumulated_content += token
-            
-            # Put token in queue for async processing
+            # Accumulate content for text tokens (for cancellation handling)
+            if isinstance(event, TextTokenEvent):
+                self.accumulated_content += event.token
+                
+            # Put event in queue for async processing
             try:
-                # Use a thread-safe method to put the token
-                asyncio.create_task(self.token_queue.put(token))
+                # Use a thread-safe method to put the event
+                asyncio.create_task(self.event_queue.put(event))
             except RuntimeError:
                 # If no event loop is running, try sync approach
                 try:
                     loop = asyncio.get_event_loop()
-                    loop.call_soon_threadsafe(self.token_queue.put_nowait, token)
+                    loop.call_soon_threadsafe(self.event_queue.put_nowait, event)
                 except Exception as e:
-                    logger.error(f"Failed to queue streaming token: {e}")
+                    logger.error(f"Failed to queue streaming event: {e}")
     
     async def start_streaming(self) -> AsyncGenerator[str, None]:
         """
@@ -143,15 +158,15 @@ class StreamingHandler:
                 "timestamp": datetime.utcnow().isoformat()
             })
             
-            # Process streaming tokens
+            # 🎯 SINGLE EVENT QUEUE CONSUMER WITH TYPE-BASED ROUTING
             while self.is_streaming and not self.is_cancelled:
                 try:
-                    # Wait for tokens with a timeout to allow for graceful shutdown
-                    token = await asyncio.wait_for(self.token_queue.get(), timeout=1.0)
+                    # Wait for events with a timeout to allow for graceful shutdown
+                    event = await asyncio.wait_for(self.event_queue.get(), timeout=1.0)
                     
                     # Check if we were cancelled while waiting
                     if self.is_cancelled:
-                        logger.info(f"Stream {self.stream_id} was cancelled, stopping token processing")
+                        logger.info(f"Stream {self.stream_id} was cancelled, stopping event processing")
                         yield self._format_sse_event("cancelled", self._build_cancel_data("user_cancelled"))
                         break
                     
@@ -162,15 +177,33 @@ class StreamingHandler:
                         yield self._format_sse_event("cancelled", self._build_cancel_data("client_disconnected"))
                         break
                     
-                    # Format and yield the token
-                    yield self._format_sse_event("token", {
-                        "content": token,
-                        "stream_id": self.stream_id,
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    # 🚀 TYPE-BASED EVENT ROUTING  
+                    if isinstance(event, TextTokenEvent):
+                        # Text token streaming (existing behavior)
+                        yield self._format_text_sse_event(event)
+                        
+                    elif isinstance(event, ToolCallStartEvent):
+                        # Tool call started
+                        yield self._format_tool_start_sse_event(event)
+                        
+                    elif isinstance(event, ToolCallOutputEvent):
+                        # Tool call completed with output
+                        yield self._format_tool_output_sse_event(event)
+                    
+                    # NOTE: We don't process tool call progress events and tool call error events
+                    # elif isinstance(event, ToolCallProgressEvent):
+                    #     # Tool call progress update
+                    #     yield self._format_tool_progress_sse_event(event)
+                        
+                    # elif isinstance(event, ToolCallErrorEvent):
+                    #     # Tool call error
+                    #     yield self._format_tool_error_sse_event(event)
+                    
+                    else:
+                        logger.warning(f"Unknown event type: {type(event)}")
                     
                     # Mark task as done
-                    self.token_queue.task_done()
+                    self.event_queue.task_done()
                     
                 except asyncio.TimeoutError:
                     # Send heartbeat to keep connection alive
@@ -264,6 +297,55 @@ class StreamingHandler:
         
         return f"event: {event_type}\ndata: {json.dumps(event_data)}\n\n"
     
+    def _format_text_sse_event(self, event: TextTokenEvent) -> str:
+        """Format text token event as SSE"""
+        return self._format_sse_event("token", {
+            "content": event.token,
+            "stream_id": self.stream_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    
+    def _format_tool_start_sse_event(self, event: ToolCallStartEvent) -> str:
+        """Format tool start event as SSE"""
+        # Use Pydantic's built-in JSON-safe serialization
+        event_data = ToolCallsEventFormatter.format_tool_calls_start_event(event)
+        event_data.update({
+            "stream_id": self.stream_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        return self._format_sse_event("tool_call_start", event_data)
+    
+    def _format_tool_output_sse_event(self, event: ToolCallOutputEvent) -> str:
+        """Format tool output event as SSE"""
+        # 🎯 BULLETPROOF: Use Pydantic's JSON-safe serialization
+        # This automatically handles complex objects like WorkspaceCreateResult
+        event_data = ToolCallsEventFormatter.format_tool_calls_output_event(event)
+        event_data.update({
+            "stream_id": self.stream_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        return self._format_sse_event("tool_call_output", event_data)
+    
+    def _format_tool_progress_sse_event(self, event: ToolCallProgressEvent) -> str:
+        """Format tool progress event as SSE"""
+        # Use Pydantic's built-in JSON-safe serialization
+        event_data = event.model_dump(mode='json')
+        event_data.update({
+            "stream_id": self.stream_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        return self._format_sse_event("tool_call_progress", event_data)
+    
+    def _format_tool_error_sse_event(self, event: ToolCallErrorEvent) -> str:
+        """Format tool error event as SSE"""
+        # Use Pydantic's built-in JSON-safe serialization
+        event_data = event.model_dump(mode='json')
+        event_data.update({
+            "stream_id": self.stream_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        return self._format_sse_event("tool_call_error", event_data)
+    
     async def send_completion_event(self, response_data: Dict[str, Any]):
         """
         Send a completion event with the final response
@@ -272,17 +354,20 @@ class StreamingHandler:
             response_data: The complete response data
         """
         if self.is_streaming and not self.is_cancelled:
-            await self.token_queue.put("__COMPLETION__")
+            # Create completion event
+            completion_event = create_completion_event(response_data=response_data)
             
-            # Format completion event
-            completion_event = self._format_sse_event("completion", {
-                "response": response_data,
-                "stream_id": self.stream_id,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            # Queue the completion event
+            try:
+                asyncio.create_task(self.event_queue.put(completion_event))
+            except RuntimeError:
+                try:
+                    loop = asyncio.get_event_loop()
+                    loop.call_soon_threadsafe(self.event_queue.put_nowait, completion_event)
+                except Exception as e:
+                    logger.error(f"Failed to queue completion event: {e}")
             
-            # Send the completion event
-            await self.token_queue.put(completion_event)
+            logger.info(f"Completion event queued for stream {self.stream_id}")
 
 
 class StreamingManager:

@@ -238,6 +238,47 @@ class MessageService:
             logger.error(f"Error retrieving recent messages for conversation {conversation_id}: {e}")
             raise
     
+    async def get_latest_user_message(
+        self,
+        conversation_id: str
+    ) -> Optional[str]:
+        """
+        Get the latest (most recent) user message for a conversation
+        
+        Args:
+            conversation_id: The conversation ID (UUID string)
+            
+        Returns:
+            Latest user message content or None if no user messages found
+        """
+        try:
+            # Get the conversation's integer ID
+            conv_query = select(Conversation.id).where(
+                Conversation.conversation_id == conversation_id,
+                Conversation.user_id == self.user.id
+            )
+            conv_result = await self.db.execute(conv_query)
+            conv_int_id = conv_result.scalar_one_or_none()
+            
+            if not conv_int_id:
+                return None
+            
+            # Get the latest user message (newest first, limit 1)
+            query = select(Message.content).where(
+                Message.conversation_id == conv_int_id,
+                Message.role == 'user'
+            ).order_by(desc(Message.created_at)).limit(1)
+            
+            result = await self.db.execute(query)
+            latest_message_content = result.scalar_one_or_none()
+            
+            logger.debug(f"Retrieved latest user message for conversation {conversation_id}: {bool(latest_message_content)}")
+            return latest_message_content
+            
+        except Exception as e:
+            logger.error(f"Error retrieving latest user message for conversation {conversation_id}: {e}")
+            return None
+    
     async def update_message(
         self,
         message_id: str,

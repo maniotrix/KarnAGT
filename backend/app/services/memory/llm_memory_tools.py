@@ -22,6 +22,17 @@ class Colors:
     PURPLE = '\033[95m'
     END = '\033[0m'
     BOLD = '\033[1m'
+    
+class MemoryToolNames:
+    MEMORY_RETRIEVAL = "retrieve_user_memory"
+    MEMORY_UPDATE = "save_user_memory"
+    
+class MemoryToolsInfo():
+    """
+    Information about the memory tools configuration
+    """
+    TOOL_TYPE: str = "memory_tools"
+    TOOL_NAMES: List[str] = [MemoryToolNames.MEMORY_RETRIEVAL, MemoryToolNames.MEMORY_UPDATE]
 
 def memory_log(level, message, tool_name=None):
     """Helper to log memory tool messages with color coding"""
@@ -114,7 +125,7 @@ def create_memory_retrieval_tool(memory_service: MemoryService, user_id: int):
     """
     
     @function_tool(
-        name_override="retrieve_user_memory",
+        name_override=MemoryToolNames.MEMORY_RETRIEVAL,
         description_override="""
         Get ALL user memories to understand their background, preferences, and context.
         
@@ -196,7 +207,7 @@ def create_memory_update_tool(memory_service: MemoryService, user_id: int, conve
     """
     
     @function_tool(
-        name_override="save_user_memory",
+        name_override=MemoryToolNames.MEMORY_UPDATE,
         description_override="""
         Save important information about the user for future conversations.
         

@@ -5,11 +5,12 @@ import {
   ChatOptions,
   ConversationResponse,
   MessageResponse,
-  StreamMessage
+  StreamMessage,
+  ToolExecution
 } from '../types/chat';
 import { chatApi } from '../services/chatApi';
 import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
-import { chatKeys } from '../app/hooks/chat';
+import { chatKeys } from '../app/hooks/chat/useSidebar';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
 import { imageService, hasStagingFiles } from '../app/services';
 
@@ -45,6 +46,45 @@ export function useChat(options: ChatOptions = {}) {
   
   // Stream state for stop functionality
   const [currentStreamId, setCurrentStreamId] = useState<string | null>(null);
+  
+  // Tool execution state - Map keyed by message ID to store tool executions per message
+  const [messageToolExecutions, setMessageToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
+  
+  // Helper function to add or update tool execution event
+  const addOrUpdateToolExecutionEvent = useCallback((messageId: string, toolExecution: ToolExecution) => {
+    setMessageToolExecutions(prev => {
+      const updated = new Map(prev);
+      const existing = updated.get(messageId) || [];
+      
+      // Check if we already have a tool with this tool_id
+      const existingIndex = existing.findIndex(tool => tool.tool_id === toolExecution.tool_id);
+      
+      if (existingIndex !== -1) {
+        // Update existing tool execution - update status and error (if error status)
+        const newToolList = [...existing];
+        const updateData: Partial<ToolExecution> = {
+          status: toolExecution.status
+        };
+        
+        // Only update error field if status is error
+        if (toolExecution.status === 'error' && toolExecution.error) {
+          updateData.error = toolExecution.error;
+        }
+        
+        newToolList[existingIndex] = {
+          ...newToolList[existingIndex],
+          ...updateData
+        };
+        updated.set(messageId, newToolList);
+      } else {
+        // Add new tool execution as-is
+        const newToolList = [...existing, toolExecution];
+        updated.set(messageId, newToolList);
+      }
+      
+      return updated;
+    });
+  }, []);
   
   // Refs for SSE management
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -259,6 +299,18 @@ export function useChat(options: ChatOptions = {}) {
     setError(null);
     setIsLoading(true);
 
+    // STEP 2.5: Create assistant message immediately to show tools dropdown
+    const assistantMessage: Message = {
+      id: `temp_assistant_${Date.now()}`,
+      message_id: `temp_assistant_${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(),
+    };
+    
+    setMessages(prev => [...prev, assistantMessage]);
+    let assistantContent = '';
+
     options.onStreamStart?.();
     
     try {
@@ -308,8 +360,7 @@ export function useChat(options: ChatOptions = {}) {
 
       console.log('🌊 Stream started...');
       
-      let assistantMessage: Message | null = null;
-      let assistantContent = '';
+      // Assistant message already created above, use it
       let streamIdCaptured = false;
       
       while (true) {
@@ -357,31 +408,136 @@ export function useChat(options: ChatOptions = {}) {
                 const token = parsed.data.content;
                 assistantContent += token;
                 
-                // Update or create assistant message
-                if (!assistantMessage) {
-                  assistantMessage = {
-                    id: `temp_assistant_${Date.now()}`,
-                    message_id: `temp_assistant_${Date.now()}`,
-                    role: 'assistant',
-                    content: assistantContent,
-                    createdAt: new Date(),
-                  };
-                  
-                  setMessages(prev => [...prev, assistantMessage!]);
-                } else {
-                  // Update existing assistant message
-                  assistantMessage.content = assistantContent;
-                  
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === assistantMessage!.id 
-                      ? { ...assistantMessage! }
-                      : msg
-                  ));
-                }
+                // Update existing assistant message with new content
+                assistantMessage.content = assistantContent;
+                
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessage.id 
+                    ? { ...assistantMessage }
+                    : msg
+                ));
                 
                 // Call token callback if exists
                 if (options.onTokenUpdate) {
                   options.onTokenUpdate({ type: 'token', content: token, message_id: assistantMessage.message_id || '' });
+                }
+              } else if (parsed.type === 'tool_call_start') {
+                // Handle tool execution start events
+                console.log('🔧 Tool Started:', {
+                  tool_name: parsed.data?.tool_name,
+                  display_name: parsed.data?.display_name,
+                  tool_type: parsed.data?.tool_type,
+                  tool_id: parsed.data?.openai_tool_data?.tool_id,
+                  arguments: parsed.data?.openai_tool_data?.arguments,
+                  timestamp: parsed.data?.timestamp
+                });
+                
+                // Add tool execution to state
+                if (assistantMessage && parsed.data) {
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.display_name || parsed.data?.tool_name || 'Unknown Tool',
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: parsed.data?.tool_type || 'unknown',
+                    status: 'started',
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id,
+                    openai_tool_data: parsed.data?.openai_tool_data
+                  };
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
+                }
+              } else if (parsed.type === 'tool_call_output') {
+                // Handle tool execution completion events
+                console.log('✅ Tool Completed:', {
+                  tool_name: parsed.data?.tool_name,
+                  display_name: parsed.data?.display_name,
+                  tool_type: parsed.data?.tool_type,
+                  tool_id: parsed.data?.openai_tool_data?.tool_id,
+                  status: parsed.data?.openai_tool_data?.status,
+                  result_preview: typeof parsed.data?.openai_tool_data?.result === 'string' 
+                    ? parsed.data.openai_tool_data.result.substring(0, 100) + (parsed.data.openai_tool_data.result.length > 100 ? '...' : '')
+                    : parsed.data?.openai_tool_data?.result,
+                  timestamp: parsed.data?.timestamp
+                });
+                
+                // Update tool execution to completed status (or error if failed)
+                if (assistantMessage && parsed.data) {
+                  // Trust backend's success determination - only mark as error if backend says success=false
+                  const result = parsed.data?.openai_tool_data?.result;
+                  const isSuccessful = result?.success === true;
+                  const status = isSuccessful ? 'completed' : 'error';
+                  
+                  // Extract error message from multiple possible locations
+                  let errorMessage = undefined;
+                  if (!isSuccessful) {
+                    errorMessage = result?.error || 
+                                   result?.message || 
+                                   (typeof result === 'string' ? result : null) ||
+                                   'Tool execution failed';
+                  }
+                  
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.display_name || parsed.data?.tool_name || (isSuccessful ? 'Tool Completed' : 'Tool Failed'),
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: parsed.data?.tool_type || 'unknown',
+                    status: status,
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id,
+                    openai_tool_data: parsed.data?.openai_tool_data,
+                    error: errorMessage
+                  };
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
+                }
+              } else if (parsed.type === 'tool_call_progress') {
+                // Handle tool execution progress events
+                console.log('🔄 Tool Progress:', {
+                  tool_name: parsed.data?.tool_name,
+                  tool_id: parsed.data?.tool_id,
+                  status: parsed.data?.status,
+                  progress_data: parsed.data?.progress_data,
+                  timestamp: parsed.data?.timestamp
+                });
+                
+                // Update tool execution with progress (keep as started, no separate progress events)
+                if (assistantMessage && parsed.data) {
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.tool_name || 'Tool Progress',
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: 'progress',
+                    status: 'started', // Keep as started, progress doesn't change status
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id,
+                    progress_data: parsed.data?.progress_data
+                  };
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
+                }
+              } else if (parsed.type === 'tool_call_error') {
+                // Handle tool execution error events
+                console.log('❌ Tool Error:', {
+                  tool_name: parsed.data?.tool_name,
+                  tool_type: parsed.data?.tool_type,
+                  tool_id: parsed.data?.tool_id,
+                  error: parsed.data?.error,
+                  error_details: parsed.data?.error_details,
+                  timestamp: parsed.data?.timestamp
+                });
+                
+                // Update tool execution to error status
+                if (assistantMessage && parsed.data) {
+                  const toolExecution: ToolExecution = {
+                    tool_id: parsed.data?.tool_id || `tool_${Date.now()}`,
+                    display_name: parsed.data?.tool_name || 'Tool Error',
+                    tool_name: parsed.data?.tool_name || 'unknown',
+                    tool_type: parsed.data?.tool_type || 'unknown',
+                    status: 'error',
+                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    message_id: assistantMessage.id,
+                    error: parsed.data?.error,
+                    error_details: parsed.data?.error_details
+                  };
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
               } else if (parsed.type === 'completion' 
                                     || parsed.type === 'end' 
@@ -429,6 +585,7 @@ export function useChat(options: ChatOptions = {}) {
               }
             } catch (parseError) {
               console.warn('⚠️ Failed to parse SSE data:', data, parseError);
+              throw new Error('Error occurred during streaming. Please try again.');
             }
           }
         }
@@ -455,6 +612,18 @@ export function useChat(options: ChatOptions = {}) {
     } finally {
       setIsLoading(false);
       setCurrentStreamId(null);
+      
+      // Update sidebar conversations cache with latest user message
+      if (queryClient && conversationId) {
+        queryClient.setQueryData(chatKeys.conversations(), (old: any) => {
+          if (!old) return old;
+          return old.map((conv: any) => 
+            conv.conversationId === conversationId 
+              ? { ...conv, latestUserMessage: content }
+              : conv
+          );
+        });
+      }
     }
   }, [options, setMessages, setInput, setError, setIsLoading, extractStreamIdFromSSE]);
 
@@ -714,6 +883,140 @@ export function useChat(options: ChatOptions = {}) {
                     options.onStreamStart?.();
                     break;
                     
+                  case 'tool_call_start':
+                    // Handle tool execution start events during edit
+                    console.log('🔧 Edit Tool Started:', {
+                      tool_name: event.data?.tool_name,
+                      display_name: event.data?.display_name,
+                      tool_type: event.data?.tool_type,
+                      tool_id: event.data?.openai_tool_data?.tool_id,
+                      arguments: event.data?.openai_tool_data?.arguments,
+                      timestamp: event.data?.timestamp
+                    });
+                    
+                    // Add tool execution to state during edit
+                    if (currentStreamingMessageRef.current && event.data) {
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.display_name || event.data?.tool_name || 'Unknown Tool',
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: event.data?.tool_type || 'unknown',
+                        status: 'started',
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id,
+                        openai_tool_data: event.data?.openai_tool_data
+                      };
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
+                    break;
+                    
+                  case 'tool_call_output':
+                    // Handle tool execution completion events during edit
+                    console.log('✅ Edit Tool Completed:', {
+                      tool_name: event.data?.tool_name,
+                      display_name: event.data?.display_name,
+                      tool_type: event.data?.tool_type,
+                      tool_id: event.data?.openai_tool_data?.tool_id,
+                      status: event.data?.openai_tool_data?.status,
+                      result_preview: typeof event.data?.openai_tool_data?.result === 'string' 
+                        ? event.data.openai_tool_data.result.substring(0, 100) + (event.data.openai_tool_data.result.length > 100 ? '...' : '')
+                        : event.data?.openai_tool_data?.result,
+                      timestamp: event.data?.timestamp
+                    });
+                    
+                    // Update tool execution to completed status during edit (or error if failed)
+                    if (currentStreamingMessageRef.current && event.data) {
+                      // Trust backend's success determination - only mark as error if backend says success=false
+                      const result = event.data?.openai_tool_data?.result;
+                      const isSuccessful = result?.success === true;
+                      const status = isSuccessful ? 'completed' : 'error';
+                      
+                      // Extract error message from multiple possible locations
+                      let errorMessage = undefined;
+                      if (!isSuccessful) {
+                        errorMessage = result?.error || 
+                                       result?.message || 
+                                       (typeof result === 'string' ? result : null) ||
+                                       'Tool execution failed';
+                        
+                        console.log('🐛 Debug error extraction (edit):', {
+                          isSuccessful,
+                          result,
+                          'result?.error': result?.error,
+                          'result?.message': result?.message,
+                          extractedError: errorMessage
+                        });
+                      }
+                      
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.display_name || event.data?.tool_name || (isSuccessful ? 'Tool Completed' : 'Tool Failed'),
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: event.data?.tool_type || 'unknown',
+                        status: status,
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id,
+                        openai_tool_data: event.data?.openai_tool_data,
+                        error: errorMessage
+                      };
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
+                    break;
+                    
+                  case 'tool_call_progress':
+                    // Handle tool execution progress events during edit
+                    console.log('🔄 Edit Tool Progress:', {
+                      tool_name: event.data?.tool_name,
+                      tool_id: event.data?.tool_id,
+                      status: event.data?.status,
+                      progress_data: event.data?.progress_data,
+                      timestamp: event.data?.timestamp
+                    });
+                    
+                    // Update tool execution with progress during edit (keep as started)
+                    if (currentStreamingMessageRef.current && event.data) {
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.tool_name || 'Tool Progress',
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: 'progress',
+                        status: 'started', // Keep as started, progress doesn't change status
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id,
+                        progress_data: event.data?.progress_data
+                      };
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
+                    break;
+                    
+                  case 'tool_call_error':
+                    // Handle tool execution error events during edit
+                    console.log('❌ Edit Tool Error:', {
+                      tool_name: event.data?.tool_name,
+                      tool_type: event.data?.tool_type,
+                      tool_id: event.data?.tool_id,
+                      error: event.data?.error,
+                      error_details: event.data?.error_details,
+                      timestamp: event.data?.timestamp
+                    });
+                    
+                    // Update tool execution to error status during edit
+                    if (currentStreamingMessageRef.current && event.data) {
+                      const toolExecution: ToolExecution = {
+                        tool_id: event.data?.tool_id || `tool_${Date.now()}`,
+                        display_name: event.data?.tool_name || 'Tool Error',
+                        tool_name: event.data?.tool_name || 'unknown',
+                        tool_type: event.data?.tool_type || 'unknown',
+                        status: 'error',
+                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        message_id: currentStreamingMessageRef.current.id,
+                        error: event.data?.error,
+                        error_details: event.data?.error_details
+                      };
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                    }
+                    break;
+                    
                   case 'token':
                     if (event.data?.content && currentStreamingMessageRef.current) {
                       setMessages(prev => {
@@ -776,8 +1079,15 @@ export function useChat(options: ChatOptions = {}) {
                       message: currentStreamingMessageRef.current as any,
                       conversation: conversation as any
                     });
-                    // Invalidate queries to refresh conversation list
-                    queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+                    // Update sidebar conversations cache with edited user message
+                    queryClient.setQueryData(chatKeys.conversations(), (old: any) => {
+                      if (!old) return old;
+                      return old.map((conv: any) => 
+                        conv.conversationId === conversation?.conversation_id 
+                          ? { ...conv, latestUserMessage: newContent }
+                          : conv
+                      );
+                    });
                     break;
                     
                   case 'error':
@@ -785,6 +1095,7 @@ export function useChat(options: ChatOptions = {}) {
                 }
               } catch (parseError) {
                 console.error('Failed to parse edit stream event:', parseError, 'Raw data:', data);
+                throw new Error('Error occurred while streaming. Please try again.');
               }
             }
           }
@@ -847,5 +1158,8 @@ export function useChat(options: ChatOptions = {}) {
     clearError: () => setError(null),
     hasConversation: !!conversation,
     conversationId: conversation?.conversation_id || null,
+    
+    // Tool execution data
+    messageToolExecutions,
   };
 } 

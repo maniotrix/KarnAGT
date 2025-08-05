@@ -13,6 +13,7 @@ from datetime import datetime
 from app.aicore.config import AIConfig, ConfigManager, config_manager
 from app.aicore.core.configurable_openai_assistant import ConfigurableOpenAIAssistant
 from app.logging.logger import get_logger
+from app.integrations.openai.streaming_handler import StreamEventUnion
 
 # Set up logger
 logger = get_logger(__name__)
@@ -88,7 +89,7 @@ class ConfigurableAssistantClient:
             logger.error(f"Failed to initialize ConfigurableOpenAIAssistant: {e}")
             raise
     
-    def set_streaming_callback(self, callback: Callable[[str], None]):
+    def set_streaming_callback(self, callback: Callable[[StreamEventUnion], None]):
         """
         Set a callback function for streaming responses
         
@@ -100,7 +101,7 @@ class ConfigurableAssistantClient:
             self.assistant.streaming_callback = self._handle_streaming_token
         logger.debug("Streaming callback set")
     
-    def _handle_streaming_token(self, token: str):
+    def _handle_streaming_token(self, event: StreamEventUnion):
         """
         Internal handler for streaming tokens
         
@@ -108,7 +109,7 @@ class ConfigurableAssistantClient:
             token: The streaming token from the AI model
         """
         if self.streaming_callback:
-            self.streaming_callback(token)
+            self.streaming_callback(event)
     
     async def send_message(
         self,
@@ -164,7 +165,7 @@ class ConfigurableAssistantClient:
     async def send_message_streaming(
         self,
         message: List[Dict[str, Any]],
-        callback: Callable[[str], None],
+        callback: Callable[[StreamEventUnion], None],
         message_type: str = "text",
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
