@@ -20,7 +20,7 @@ interface ToolTimelineItemProps {
 export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index, isLast }) => {
   const getStatusIcon = () => {
     switch (tool.status) {
-      case 'starting':
+      case 'started':
         return <Loader2 className="w-3 h-3 animate-spin text-blue-500" />;
       case 'running':
         return <Loader2 className="w-3 h-3 animate-spin text-blue-500" />;
@@ -35,7 +35,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   
   const getStatusColor = () => {
     switch (tool.status) {
-      case 'starting':
+      case 'started':
       case 'running':
         return 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20';
       case 'completed':
@@ -90,13 +90,13 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         {/* Status Text */}
         <div className="flex items-center space-x-1 mt-1">
           <span className={`text-xs font-medium ${
-            tool.status === 'starting' ? 'text-blue-600 dark:text-blue-400' :
+            tool.status === 'started' ? 'text-blue-600 dark:text-blue-400' :
             tool.status === 'running' ? 'text-blue-600 dark:text-blue-400' :
             tool.status === 'completed' ? 'text-green-600 dark:text-green-400' :
             tool.status === 'error' ? 'text-red-600 dark:text-red-400' :
             'text-gray-500 dark:text-gray-400'
           }`}>
-            {tool.status === 'starting' && 'Starting...'}
+            {tool.status === 'started' && 'Started'}
             {tool.status === 'running' && 'Running...'}
             {tool.status === 'completed' && 'Completed'}
             {tool.status === 'error' && 'Failed'}

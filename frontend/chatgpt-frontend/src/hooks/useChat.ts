@@ -50,16 +50,29 @@ export function useChat(options: ChatOptions = {}) {
   // Tool execution state - Map keyed by message ID to store tool executions per message
   const [messageToolExecutions, setMessageToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
   
-  // Helper function to add tool execution event (ALL events, no updates)
-  const addToolExecutionEvent = useCallback((messageId: string, toolExecution: ToolExecution) => {
+  // Helper function to add or update tool execution event
+  const addOrUpdateToolExecutionEvent = useCallback((messageId: string, toolExecution: ToolExecution) => {
     setMessageToolExecutions(prev => {
       const updated = new Map(prev);
       const existing = updated.get(messageId) || [];
       
-      // Create NEW array instead of mutating existing one (React optimization)
-      const newToolList = [...existing, toolExecution];
+      // Check if we already have a tool with this tool_id
+      const existingIndex = existing.findIndex(tool => tool.tool_id === toolExecution.tool_id);
       
-      updated.set(messageId, newToolList);
+      if (existingIndex !== -1) {
+        // Update existing tool execution - ONLY update status, discard everything else
+        const newToolList = [...existing];
+        newToolList[existingIndex] = {
+          ...newToolList[existingIndex],
+          status: toolExecution.status  // Only update status
+        };
+        updated.set(messageId, newToolList);
+      } else {
+        // Add new tool execution as-is
+        const newToolList = [...existing, toolExecution];
+        updated.set(messageId, newToolList);
+      }
+      
       return updated;
     });
   }, []);
@@ -419,11 +432,11 @@ export function useChat(options: ChatOptions = {}) {
                     display_name: parsed.data?.display_name || parsed.data?.tool_name || 'Unknown Tool',
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
-                    status: 'starting',
+                    status: 'started',
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
                     message_id: assistantMessage.id
                   };
-                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
               } else if (parsed.type === 'tool_call_output') {
                 // Handle tool execution completion events
@@ -439,7 +452,7 @@ export function useChat(options: ChatOptions = {}) {
                   timestamp: parsed.data?.timestamp
                 });
                 
-                // Add tool completion event (separate from start event)
+                // Update tool execution to completed status
                 if (assistantMessage && parsed.data) {
                   const toolExecution: ToolExecution = {
                     tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
@@ -450,7 +463,7 @@ export function useChat(options: ChatOptions = {}) {
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
                     message_id: assistantMessage.id
                   };
-                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
               } else if (parsed.type === 'tool_call_progress') {
                 // Handle tool execution progress events
@@ -462,19 +475,19 @@ export function useChat(options: ChatOptions = {}) {
                   timestamp: parsed.data?.timestamp
                 });
                 
-                // Add tool progress event (separate entry)
+                // Update tool execution with progress (keep as started, no separate progress events)
                 if (assistantMessage && parsed.data) {
                   const toolExecution: ToolExecution = {
                     tool_id: parsed.data?.tool_id || `tool_${Date.now()}`,
                     display_name: parsed.data?.tool_name || 'Tool Progress',
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: 'progress',
-                    status: 'running',
+                    status: 'started', // Keep as started, progress doesn't change status
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
                     message_id: assistantMessage.id,
                     progress_data: parsed.data?.progress_data
                   };
-                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
               } else if (parsed.type === 'tool_call_error') {
                 // Handle tool execution error events
@@ -487,7 +500,7 @@ export function useChat(options: ChatOptions = {}) {
                   timestamp: parsed.data?.timestamp
                 });
                 
-                // Add tool error event (separate entry)
+                // Update tool execution to error status
                 if (assistantMessage && parsed.data) {
                   const toolExecution: ToolExecution = {
                     tool_id: parsed.data?.tool_id || `tool_${Date.now()}`,
@@ -500,7 +513,7 @@ export function useChat(options: ChatOptions = {}) {
                     error: parsed.data?.error,
                     error_details: parsed.data?.error_details
                   };
-                  addToolExecutionEvent(assistantMessage.id, toolExecution);
+                  addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
               } else if (parsed.type === 'completion' 
                                     || parsed.type === 'end' 
@@ -852,11 +865,11 @@ export function useChat(options: ChatOptions = {}) {
                         display_name: event.data?.display_name || event.data?.tool_name || 'Unknown Tool',
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
-                        status: 'starting',
+                        status: 'started',
                         timestamp: event.data?.timestamp || new Date().toISOString(),
                         message_id: currentStreamingMessageRef.current.id
                       };
-                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
                     break;
                     
@@ -874,7 +887,7 @@ export function useChat(options: ChatOptions = {}) {
                       timestamp: event.data?.timestamp
                     });
                     
-                    // Add tool completion event during edit (separate entry)
+                    // Update tool execution to completed status during edit
                     if (currentStreamingMessageRef.current && event.data) {
                       const toolExecution: ToolExecution = {
                         tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
@@ -885,7 +898,7 @@ export function useChat(options: ChatOptions = {}) {
                         timestamp: event.data?.timestamp || new Date().toISOString(),
                         message_id: currentStreamingMessageRef.current.id
                       };
-                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
                     break;
                     
@@ -899,19 +912,19 @@ export function useChat(options: ChatOptions = {}) {
                       timestamp: event.data?.timestamp
                     });
                     
-                    // Add tool progress event during edit (separate entry)
+                    // Update tool execution with progress during edit (keep as started)
                     if (currentStreamingMessageRef.current && event.data) {
                       const toolExecution: ToolExecution = {
                         tool_id: event.data?.tool_id || `tool_${Date.now()}`,
                         display_name: event.data?.tool_name || 'Tool Progress',
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: 'progress',
-                        status: 'running',
+                        status: 'started', // Keep as started, progress doesn't change status
                         timestamp: event.data?.timestamp || new Date().toISOString(),
                         message_id: currentStreamingMessageRef.current.id,
                         progress_data: event.data?.progress_data
                       };
-                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
                     break;
                     
@@ -926,7 +939,7 @@ export function useChat(options: ChatOptions = {}) {
                       timestamp: event.data?.timestamp
                     });
                     
-                    // Add tool error event during edit (separate entry)
+                    // Update tool execution to error status during edit
                     if (currentStreamingMessageRef.current && event.data) {
                       const toolExecution: ToolExecution = {
                         tool_id: event.data?.tool_id || `tool_${Date.now()}`,
@@ -939,7 +952,7 @@ export function useChat(options: ChatOptions = {}) {
                         error: event.data?.error,
                         error_details: event.data?.error_details
                       };
-                      addToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
+                      addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
                     break;
                     

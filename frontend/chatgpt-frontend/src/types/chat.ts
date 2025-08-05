@@ -141,7 +141,7 @@ export interface ToolExecution {
   display_name: string;
   tool_name: string;
   tool_type: string;
-  status: 'starting' | 'running' | 'completed' | 'error';
+  status: 'started' | 'running' | 'completed' | 'error';
   timestamp: string;
   message_id?: string; // Associate with assistant message
   progress_data?: any;

@@ -189,14 +189,15 @@ class StreamingHandler:
                     elif isinstance(event, ToolCallOutputEvent):
                         # Tool call completed with output
                         yield self._format_tool_output_sse_event(event)
+                    
+                    # NOTE: We don't process tool call progress events and tool call error events
+                    # elif isinstance(event, ToolCallProgressEvent):
+                    #     # Tool call progress update
+                    #     yield self._format_tool_progress_sse_event(event)
                         
-                    elif isinstance(event, ToolCallProgressEvent):
-                        # Tool call progress update
-                        yield self._format_tool_progress_sse_event(event)
-                        
-                    elif isinstance(event, ToolCallErrorEvent):
-                        # Tool call error
-                        yield self._format_tool_error_sse_event(event)
+                    # elif isinstance(event, ToolCallErrorEvent):
+                    #     # Tool call error
+                    #     yield self._format_tool_error_sse_event(event)
                     
                     else:
                         logger.warning(f"Unknown event type: {type(event)}")

@@ -287,6 +287,7 @@ class ConfigurableOpenAIAssistant:
                                 self.streaming_callback(text_event)
                     
                     # 🚀 SEMANTIC TOOL EVENTS (Agents SDK)
+                    # NOTE: We only process tool called and tool output events
                     elif isinstance(event, RunItemStreamEvent):
                         logger.info(f"[DEBUG] processing run item stream event: {type(event)}")
                         if event.name == "tool_called":
