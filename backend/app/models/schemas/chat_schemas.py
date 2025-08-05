@@ -63,6 +63,7 @@ class ConversationResponse(BaseSchema):
     created_at: datetime
     updated_at: datetime
     last_message_at: Optional[datetime] = None
+    latest_user_message: Optional[str] = Field(None, description="Latest user message content (when requested)")
     
     class Config:
         from_attributes = True

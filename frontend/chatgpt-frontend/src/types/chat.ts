@@ -89,6 +89,7 @@ export interface ConversationResponse {
   created_at: string;
   updated_at: string;
   last_message_at?: string;
+  latest_user_message?: string;
   messages?: MessageResponse[];
 }
 

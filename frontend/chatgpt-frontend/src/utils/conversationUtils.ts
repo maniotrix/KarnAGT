@@ -8,10 +8,24 @@ import { Conversation } from '../domain/entities/Conversation';
  * Falls back to original title if no user messages or empty content
  */
 export function getConversationDisplayTitle(
-  conversation: Conversation | { title: string; messages?: Message[] },
+  conversation: Conversation | { title: string; messages?: Message[]; latestUserMessage?: string },
   maxLength: number = 50
 ): string {
-  // If no messages, return original title
+  // First, try to use the latest user message from the API if available
+  if ('latestUserMessage' in conversation && conversation.latestUserMessage?.trim()) {
+    const cleanContent = conversation.latestUserMessage
+      .trim()
+      .replace(/\n+/g, ' ') // Replace newlines with spaces
+      .replace(/\s+/g, ' '); // Replace multiple spaces with single space
+
+    // Truncate with ellipsis if needed
+    if (cleanContent.length <= maxLength) {
+      return cleanContent;
+    }
+    return cleanContent.substring(0, maxLength).trim() + '...';
+  }
+
+  // Fallback: If no latestUserMessage from API, search through messages array
   if (!conversation.messages || conversation.messages.length === 0) {
     return conversation.title || 'New Chat';
   }

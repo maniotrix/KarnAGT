@@ -24,6 +24,7 @@ export interface ConversationData {
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly lastMessageAt?: Date;
+  readonly latestUserMessage?: string;
   readonly messages?: Message[];
 }
 
@@ -50,6 +51,7 @@ export class Conversation implements ConversationData {
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
     public readonly lastMessageAt: Date | undefined,
+    public readonly latestUserMessage: string | undefined,
     public readonly messages?: Message[]
   ) {}
 
@@ -79,6 +81,7 @@ export class Conversation implements ConversationData {
       new Date(response.created_at),
       new Date(response.updated_at),
       response.last_message_at ? new Date(response.last_message_at) : undefined,
+      response.latest_user_message,
       messages
     );
   }
@@ -117,6 +120,7 @@ export class Conversation implements ConversationData {
       undefined,
       now,
       now,
+      undefined,
       undefined,
       []
     );
