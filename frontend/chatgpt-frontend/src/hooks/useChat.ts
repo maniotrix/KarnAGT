@@ -451,17 +451,23 @@ export function useChat(options: ChatOptions = {}) {
                   timestamp: parsed.data?.timestamp
                 });
                 
-                // Update tool execution to completed status
+                // Update tool execution to completed status (or error if failed)
                 if (assistantMessage && parsed.data) {
+                  // Trust backend's success determination - only mark as error if backend says success=false
+                  const result = parsed.data?.openai_tool_data?.result;
+                  const isSuccessful = result?.success === true;
+                  const status = isSuccessful ? 'completed' : 'error';
+                  
                   const toolExecution: ToolExecution = {
                     tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
-                    display_name: parsed.data?.display_name || parsed.data?.tool_name || 'Tool Completed',
+                    display_name: parsed.data?.display_name || parsed.data?.tool_name || (hasError ? 'Tool Failed' : 'Tool Completed'),
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
-                    status: 'completed',
+                    status: status,
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
                     message_id: assistantMessage.id,
-                    openai_tool_data: parsed.data?.openai_tool_data
+                    openai_tool_data: parsed.data?.openai_tool_data,
+                    error: hasError ? (result?.error || 'Tool execution failed') : undefined
                   };
                   addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
@@ -888,17 +894,23 @@ export function useChat(options: ChatOptions = {}) {
                       timestamp: event.data?.timestamp
                     });
                     
-                    // Update tool execution to completed status during edit
+                    // Update tool execution to completed status during edit (or error if failed)
                     if (currentStreamingMessageRef.current && event.data) {
+                      // Determine if the tool execution failed
+                      const result = event.data?.openai_tool_data?.result;
+                      const hasError = result?.error || result?.success === false;
+                      const status = hasError ? 'error' : 'completed';
+                      
                       const toolExecution: ToolExecution = {
                         tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
-                        display_name: event.data?.display_name || event.data?.tool_name || 'Tool Completed',
+                        display_name: event.data?.display_name || event.data?.tool_name || (hasError ? 'Tool Failed' : 'Tool Completed'),
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
-                        status: 'completed',
+                        status: status,
                         timestamp: event.data?.timestamp || new Date().toISOString(),
                         message_id: currentStreamingMessageRef.current.id,
-                        openai_tool_data: event.data?.openai_tool_data
+                        openai_tool_data: event.data?.openai_tool_data,
+                        error: hasError ? (result?.error || 'Tool execution failed') : undefined
                       };
                       addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }

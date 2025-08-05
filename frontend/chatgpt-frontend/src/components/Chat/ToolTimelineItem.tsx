@@ -123,7 +123,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         {tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code && (
           <div className="mt-2">
             <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Code:
+              Code (python):
             </div>
             <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto border border-gray-200 dark:border-gray-600">
               <pre className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">
