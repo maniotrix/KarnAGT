@@ -60,7 +60,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
           <div className="flex items-center space-x-2">
             <Settings className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {isThinking ? 'AI Tools' : `Tools Used (${sortedTools.length})`}
+              {isThinking ? 'Analyzing and Working...' : `Analysis complete  •  Steps : ${sortedTools.length}`}
             </span>
             {isThinking && (
               <motion.div
@@ -90,7 +90,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
               <div className="p-3 space-y-2">
                 {sortedTools.length === 0 ? (
                   <div className="text-sm text-gray-500 dark:text-gray-400 italic">
-                    {isThinking ? 'Preparing tools...' : 'No tools were used'}
+                    {isThinking ? 'Preparing ...' : 'No steps to show'}
                   </div>
                 ) : (
                   <div className="space-y-1">
