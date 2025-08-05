@@ -359,6 +359,23 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                           {children}
                         </code>
                       );
+                    },
+                    // Custom link handling - open external links in new tab
+                    a: ({ href, children, ...props }) => {
+                      const isExternal = href && (href.startsWith('http://') || href.startsWith('https://'));
+                      const isProxyUrl = href && /\/api\/v1\/proxy\/(images|files|code-files)\//.test(href);
+                      
+                      return (
+                        <a 
+                          {...props}
+                          href={href}
+                          target={isExternal && !isProxyUrl ? '_blank' : undefined}
+                          rel={isExternal && !isProxyUrl ? 'noopener noreferrer' : undefined}
+                          className="text-blue-200 hover:text-blue-100 underline"
+                        >
+                          {children}
+                        </a>
+                      );
                     }
                   }}
                 >

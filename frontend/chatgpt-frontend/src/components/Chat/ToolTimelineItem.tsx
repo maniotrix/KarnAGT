@@ -314,7 +314,24 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                                     >
                                       {children}
                                     </code>
-                                  )
+                                  ),
+                                  // Custom link handling - open external links in new tab
+                                  a: ({ href, children, ...props }) => {
+                                    const isExternal = href && (href.startsWith('http://') || href.startsWith('https://'));
+                                    const isProxyUrl = href && /\/api\/v1\/proxy\/(images|files|code-files)\//.test(href);
+                                    
+                                    return (
+                                      <a 
+                                        {...props}
+                                        href={href}
+                                        target={isExternal && !isProxyUrl ? '_blank' : undefined}
+                                        rel={isExternal && !isProxyUrl ? 'noopener noreferrer' : undefined}
+                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-xs"
+                                      >
+                                        {children}
+                                      </a>
+                                    );
+                                  }
                                 }}
                               >
                                 {`\`\`\`${language.lang}\n${tool.openai_tool_data.arguments.code}\n\`\`\``}
