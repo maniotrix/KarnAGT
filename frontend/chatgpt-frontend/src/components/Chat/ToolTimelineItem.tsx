@@ -29,7 +29,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   const hasDetails = tool.error || (tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code);
   const [isExpanded, setIsExpanded] = useState(hasDetails || tool.status !== 'completed');
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
-  const [isCodeExpanded, setIsCodeExpanded] = useState(true); // Code expanded by default
+  const [isCodeExpanded, setIsCodeExpanded] = useState(false); // Code collapsed by default
   const [copiedError, setCopiedError] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
