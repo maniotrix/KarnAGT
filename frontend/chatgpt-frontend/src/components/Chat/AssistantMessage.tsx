@@ -111,63 +111,67 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
             )}
           </div>
 
-          {/* Message Bubble */}
-          <div className="px-4 py-3 rounded-2xl max-w-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-            <div className="prose prose-sm max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
-                components={{
-                  // Custom styling for code blocks
-                  pre: ({ children, ...props }) => (
-                    <pre {...props} className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
-                      {children}
-                    </pre>
-                  ),
-                  // Custom styling for inline code
-                  code: ({ children, className, ...props }) => {
-                    const isInline = !className;
-                    return (
-                      <code 
-                        {...props} 
-                        className={`${className || ''} ${
-                          isInline 
-                            ? 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm' 
-                            : ''
-                        }`}
-                      >
+          {/* Message Bubble - Only show when there's content */}
+          {message.content && (
+            <div className="px-4 py-3 rounded-2xl max-w-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+              <div className="prose prose-sm max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={{
+                    // Custom styling for code blocks
+                    pre: ({ children, ...props }) => (
+                      <pre {...props} className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
                         {children}
-                      </code>
-                    );
-                  }
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
-            </div>
-          </div>
-
-          {/* Action Buttons - Below the message bubble */}
-          <div className="flex items-center gap-1 mt-2 justify-start">
-            {/* Copy Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleCopy}
-                  className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                      </pre>
+                    ),
+                    // Custom styling for inline code
+                    code: ({ children, className, ...props }) => {
+                      const isInline = !className;
+                      return (
+                        <code 
+                          {...props} 
+                          className={`${className || ''} ${
+                            isInline 
+                              ? 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm' 
+                              : ''
+                          }`}
+                        >
+                          {children}
+                        </code>
+                      );
+                    }
+                  }}
                 >
-                  {copied ? (
-                    <Check className="w-3 h-3" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>{copied ? 'Copied!' : 'Copy message'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons - Only show when there's content */}
+          {message.content && (
+            <div className="flex items-center gap-1 mt-2 justify-start">
+              {/* Copy Button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleCopy}
+                    className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                  >
+                    {copied ? (
+                      <Check className="w-3 h-3" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>{copied ? 'Copied!' : 'Copy message'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
 
           {/* Message Metadata */}
           {(message.total_tokens || message.cost_usd || message.model_name) && (
