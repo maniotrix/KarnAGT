@@ -21,9 +21,9 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   const getStatusIcon = () => {
     switch (tool.status) {
       case 'started':
-        return <Loader2 className="w-3 h-3 animate-spin text-blue-500" />;
+        return <Circle className="w-3 h-3 text-blue-500" />;
       case 'running':
-        return <Loader2 className="w-3 h-3 animate-spin text-blue-500" />;
+        return <Circle className="w-3 h-3 text-blue-500" />;
       case 'completed':
         return <Check className="w-3 h-3 text-green-500" />;
       case 'error':
