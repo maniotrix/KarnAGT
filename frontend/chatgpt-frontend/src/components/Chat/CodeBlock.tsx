@@ -14,12 +14,20 @@ interface PreBlockProps {
 }
 
 // Copy button component for code blocks
-const CopyButton: React.FC<{ text: string; size?: 'sm' | 'md' }> = ({ text, size = 'md' }) => {
+const CopyButton: React.FC<{ 
+  text: string; 
+  size?: 'sm' | 'md';
+  onCustomCopy?: () => Promise<void>;
+}> = ({ text, size = 'md', onCustomCopy }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      if (onCustomCopy) {
+        await onCustomCopy();
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -77,37 +85,27 @@ export const InlineCode: React.FC<CodeBlockProps> = ({ children, className, ...p
 
 // Enhanced pre block component with copy button
 export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...props }) => {
-  // Extract text content from the code element
-  const getCodeText = (children: React.ReactNode): string => {
-    if (typeof children === 'string') {
-      return children;
-    }
-    
-    if (React.isValidElement(children) && children.props) {
-      const props = children.props as any;
-      if (props.children) {
-        if (typeof props.children === 'string') {
-          return props.children;
-        }
-        
-        if (Array.isArray(props.children)) {
-          return props.children.join('');
-        }
+  const preRef = React.useRef<HTMLPreElement>(null);
+
+  const handleCopy = async () => {
+    if (preRef.current) {
+      // Simple solution: just get the text content from the DOM
+      const textContent = preRef.current.textContent || '';
+      try {
+        await navigator.clipboard.writeText(textContent);
+      } catch (error) {
+        console.error('Failed to copy:', error);
       }
     }
-    
-    return children?.toString() || '';
   };
-
-  const codeText = getCodeText(children);
 
   return (
     <div className="group relative">
-      <pre {...props} className={className}>
+      <pre {...props} ref={preRef} className={className}>
         {children}
       </pre>
       <div className="absolute top-1.5 right-1.5">
-        <CopyButton text={codeText} />
+        <CopyButton text="" onCustomCopy={handleCopy} />
       </div>
     </div>
   );
