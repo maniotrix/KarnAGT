@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useChat } from '../../hooks/useChat';
 import { ConversationResponse } from '../../types/chat';
 import { MessageList } from './MessageList';
+import { getDisplayTitleFromMessages } from '../../utils/conversationUtils';
 import { ChatInput } from './ChatInput';
 import { ChatActions } from './ChatActions';
 import type { UploadFile } from '../../types/upload';
@@ -335,7 +336,11 @@ export const Chat: React.FC<ChatProps> = ({
       >
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {conversation?.title || 'New Chat'}
+            {conversation ? getDisplayTitleFromMessages(
+              conversation.title, 
+              messages.map(m => ({ content: m.content, role: m.role })), 
+              50
+            ) : 'New Chat'}
           </h2>
           {conversation && (
             <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500 dark:text-gray-400">

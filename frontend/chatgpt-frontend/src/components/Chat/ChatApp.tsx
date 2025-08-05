@@ -11,6 +11,7 @@ import { Chat } from '../Chat/Chat';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ConversationResponse } from '../../types/chat';
 import { Conversation } from '../../domain/entities/Conversation';
+import { getConversationDisplayTitle } from '../../utils/conversationUtils';
 import { 
   Menu, 
   X, 
@@ -228,7 +229,7 @@ export const ChatApp: React.FC = () => {
                       onClick={() => handleSelectConversation(conv.conversationId)}
                     >
                       <div className="font-medium text-gray-900 truncate">
-                        {conv.title}
+                        {getConversationDisplayTitle(conv, 50)}
                       </div>
                                              <div className="text-sm text-gray-500 mt-1">
                          {conv.messageCount} messages • {conv.totalTokensUsed} tokens
