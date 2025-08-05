@@ -107,17 +107,20 @@ class MessageCreate(BaseSchema):
         """Validate message content and staging files"""
         content = getattr(self, 'content', '')
         staging_files_dict = getattr(self, 'staging_files', None)
+        tool_calls = getattr(self, 'tool_calls', None)
         
         has_text = content and content.strip()
         has_files = False
+        has_tool_calls = tool_calls and len(tool_calls) > 0
         
         if staging_files_dict:
             # Convert to object for validation
             staging_collection = StagingFileCollection.from_dict(staging_files_dict)
             has_files = not staging_collection.is_empty
         
-        if not has_text and not has_files:
-            raise ValueError('Message must have either text content or files')
+        # Allow messages with content, files, or tool calls
+        if not has_text and not has_files and not has_tool_calls:
+            raise ValueError('Message must have either text content, files, or tool calls')
         
         return self
 
