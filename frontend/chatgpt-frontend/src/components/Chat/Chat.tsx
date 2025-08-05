@@ -329,7 +329,7 @@ export const Chat: React.FC<ChatProps> = ({
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Chat Header */}
-      <motion.div 
+      {/* <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex justify-between items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0"
@@ -359,7 +359,7 @@ export const Chat: React.FC<ChatProps> = ({
             </div>
           )}
         </div>
-      </motion.div>
+      </motion.div> */}
 
       {/* Error Display */}
       <AnimatePresence>
@@ -385,7 +385,7 @@ export const Chat: React.FC<ChatProps> = ({
       </AnimatePresence>
 
       {/* Quota Warning */}
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {quota.percentage > 80 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -406,7 +406,7 @@ export const Chat: React.FC<ChatProps> = ({
             </span>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       {/* Main Content Area - This will grow and the inner MessageList will scroll */}
       <div className="flex-1 overflow-hidden min-h-0 relative">
