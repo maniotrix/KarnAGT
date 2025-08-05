@@ -29,6 +29,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   const hasDetails = tool.error || (tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code);
   const [isExpanded, setIsExpanded] = useState(hasDetails || tool.status !== 'completed');
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
+  const [isCodeExpanded, setIsCodeExpanded] = useState(true); // Code expanded by default
   const [copiedError, setCopiedError] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -257,6 +258,23 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                       <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">
                         {language.name} Code
                       </span>
+                      <button
+                        onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                        className="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors"
+                        title={isCodeExpanded ? "Collapse code" : "Expand code"}
+                      >
+                        {isCodeExpanded ? (
+                          <>
+                            <ChevronUp className="w-3 h-3" />
+                            <span>Hide</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-3 h-3" />
+                            <span>Show</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                     <button
                       onClick={copyCodeToClipboard}
@@ -267,32 +285,44 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                       {copiedCode && <span className="text-xs">Copied!</span>}
                     </button>
                   </div>
-                  <div className="relative bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div className="max-h-48 overflow-y-auto">
-                      <div className="prose prose-sm max-w-none dark:prose-invert">
-                        <ReactMarkdown
-                          rehypePlugins={[rehypeHighlight]}
-                          components={{
-                            pre: ({ children, ...props }) => (
-                              <pre {...props} className="!bg-transparent !p-3 !m-0 text-xs overflow-x-auto">
-                                {children}
-                              </pre>
-                            ),
-                            code: ({ children, className, ...props }) => (
-                              <code 
-                                {...props} 
-                                className={`${className || ''} !bg-transparent text-xs leading-relaxed`}
+                  <AnimatePresence>
+                    {isCodeExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="relative bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                          <div className="max-h-48 overflow-y-auto">
+                            <div className="prose prose-sm max-w-none dark:prose-invert">
+                              <ReactMarkdown
+                                rehypePlugins={[rehypeHighlight]}
+                                components={{
+                                  pre: ({ children, ...props }) => (
+                                    <pre {...props} className="!bg-transparent !p-3 !m-0 text-xs overflow-x-auto">
+                                      {children}
+                                    </pre>
+                                  ),
+                                  code: ({ children, className, ...props }) => (
+                                    <code 
+                                      {...props} 
+                                      className={`${className || ''} !bg-transparent text-xs leading-relaxed`}
+                                    >
+                                      {children}
+                                    </code>
+                                  )
+                                }}
                               >
-                                {children}
-                              </code>
-                            )
-                          }}
-                        >
-                          {`\`\`\`${language.lang}\n${tool.openai_tool_data.arguments.code}\n\`\`\``}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-                  </div>
+                                {`\`\`\`${language.lang}\n${tool.openai_tool_data.arguments.code}\n\`\`\``}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 );
               })()}
