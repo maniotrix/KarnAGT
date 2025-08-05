@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { ToolExecution } from '../../types/chat';
 
+// Markdown & Syntax Highlighting
+import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
+
 // Modern UI Libraries
 import { 
   Loader2, 
@@ -26,6 +30,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   const [isExpanded, setIsExpanded] = useState(hasDetails || tool.status !== 'completed');
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
   const [copiedError, setCopiedError] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const copyErrorToClipboard = async () => {
     if (tool.error) {
@@ -37,6 +42,34 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         console.error('Failed to copy error:', err);
       }
     }
+  };
+
+  const copyCodeToClipboard = async () => {
+    const code = tool.openai_tool_data?.arguments?.code;
+    if (code) {
+      try {
+        await navigator.clipboard.writeText(code);
+        setCopiedCode(true);
+        setTimeout(() => setCopiedCode(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy code:', err);
+      }
+    }
+  };
+
+  const detectLanguage = (code: string) => {
+    // Simple language detection based on common patterns
+    if (code.includes('import ') && (code.includes('def ') || code.includes('print('))) {
+      return { name: 'Python', emoji: '🐍', lang: 'python' };
+    }
+    if (code.includes('function ') || code.includes('const ') || code.includes('console.log')) {
+      return { name: 'JavaScript', emoji: '🟨', lang: 'javascript' };
+    }
+    if (code.includes('SELECT ') || code.includes('FROM ') || code.includes('WHERE ')) {
+      return { name: 'SQL', emoji: '🗄️', lang: 'sql' };
+    }
+    // Default to Python for execute_code tool
+    return { name: 'Python', emoji: '🐍', lang: 'python' };
   };
 
   const getStatusIcon = () => {
@@ -214,19 +247,55 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
           </span>
         </div>
         
-        {/* Code Arguments Display for execute_code tool */}
-        {tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code && (
-          <div className="mt-2">
-            <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Code (python):
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto border border-gray-200 dark:border-gray-600">
-              <pre className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">
-                {tool.openai_tool_data.arguments.code}
-              </pre>
-            </div>
-          </div>
-        )}
+              {/* Enhanced Code Display for execute_code tool */}
+              {tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code && (() => {
+                const language = detectLanguage(tool.openai_tool_data.arguments.code);
+                return (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">
+                        {language.name} Code
+                      </span>
+                    </div>
+                    <button
+                      onClick={copyCodeToClipboard}
+                      className="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                      title="Copy code"
+                    >
+                      <Copy className="w-3 h-3" />
+                      {copiedCode && <span className="text-xs">Copied!</span>}
+                    </button>
+                  </div>
+                  <div className="relative bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="max-h-48 overflow-y-auto">
+                      <div className="prose prose-sm max-w-none dark:prose-invert">
+                        <ReactMarkdown
+                          rehypePlugins={[rehypeHighlight]}
+                          components={{
+                            pre: ({ children, ...props }) => (
+                              <pre {...props} className="!bg-transparent !p-3 !m-0 text-xs overflow-x-auto">
+                                {children}
+                              </pre>
+                            ),
+                            code: ({ children, className, ...props }) => (
+                              <code 
+                                {...props} 
+                                className={`${className || ''} !bg-transparent text-xs leading-relaxed`}
+                              >
+                                {children}
+                              </code>
+                            )
+                          }}
+                        >
+                          {`\`\`\`${language.lang}\n${tool.openai_tool_data.arguments.code}\n\`\`\``}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                );
+              })()}
             </motion.div>
           )}
         </AnimatePresence>
