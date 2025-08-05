@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ToolExecution } from '../../types/chat';
 
 // Modern UI Libraries
@@ -7,7 +7,10 @@ import {
   Check, 
   X, 
   Circle,
-  AlertTriangle 
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Copy
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -18,6 +21,21 @@ interface ToolTimelineItemProps {
 }
 
 export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index, isLast }) => {
+  const [isErrorExpanded, setIsErrorExpanded] = useState(false);
+  const [copiedError, setCopiedError] = useState(false);
+
+  const copyErrorToClipboard = async () => {
+    if (tool.error) {
+      try {
+        await navigator.clipboard.writeText(tool.error);
+        setCopiedError(true);
+        setTimeout(() => setCopiedError(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy error:', err);
+      }
+    }
+  };
+
   const getStatusIcon = () => {
     switch (tool.status) {
       case 'started':
@@ -107,12 +125,57 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         {/* Error Message */}
         {(tool.status === 'error' || tool.error) && (
           <div className="mt-2">
-            <div className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">
-              Error:
+            <div className="flex items-center justify-between text-xs font-medium text-red-700 dark:text-red-300 mb-1">
+              <span>Error:</span>
+              <div className="flex items-center gap-1">
+                {tool.error && tool.error.length > 100 && (
+                  <button
+                    onClick={() => setIsErrorExpanded(!isErrorExpanded)}
+                    className="flex items-center gap-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                  >
+                    {isErrorExpanded ? (
+                      <>
+                        <ChevronUp className="w-3 h-3" />
+                        <span>Less</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3 h-3" />
+                        <span>More</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                {tool.error && (
+                  <button
+                    onClick={copyErrorToClipboard}
+                    className="flex items-center gap-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                    title="Copy error message"
+                  >
+                    <Copy className="w-3 h-3" />
+                    {copiedError && <span className="text-xs">Copied!</span>}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="bg-red-50 dark:bg-red-900/20 rounded-md p-2 text-xs border border-red-200 dark:border-red-800">
               <div className="text-red-800 dark:text-red-200">
-                {tool.error || 'Tool execution failed - no details available'}
+                {tool.error ? (
+                  <div className={`${isErrorExpanded ? 'max-h-32 overflow-y-auto' : ''}`}>
+                    {tool.error.length > 100 && !isErrorExpanded ? (
+                      <span>
+                        {tool.error.substring(0, 100)}
+                        <span className="text-red-600 dark:text-red-400">...</span>
+                      </span>
+                    ) : (
+                      <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                        {tool.error}
+                      </pre>
+                    )}
+                  </div>
+                ) : (
+                  'Tool execution failed - no details available'
+                )}
               </div>
             </div>
           </div>
