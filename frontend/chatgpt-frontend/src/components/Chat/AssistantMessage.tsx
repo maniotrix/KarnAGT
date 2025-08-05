@@ -66,26 +66,26 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex gap-4 p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors justify-start"
+        className="flex gap-2 sm:gap-4 p-2 sm:p-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors justify-start"
       >
         {/* Assistant Avatar */}
-        <Avatar className="w-8 h-8 shrink-0">
+        <Avatar className="w-6 h-6 sm:w-8 sm:h-8 shrink-0">
           <AvatarFallback className="bg-blue-100 dark:bg-blue-900">
-            <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <Bot className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
           </AvatarFallback>
         </Avatar>
 
         {/* Message Content */}
-        <div className="flex flex-col max-w-2xl w-full items-start">
+        <div className="flex flex-col w-full min-w-0 items-start">
           {/* Message Header */}
-          <div className="flex items-center gap-2 mb-2 flex-row">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
+          <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2 flex-row">
+            <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
               Assistant
             </span>
             
             <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-              <Clock className="w-3 h-3" />
-              <span>{formatTime(message.createdAt || new Date())}</span>
+              <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              <span className="text-xs">{formatTime(message.createdAt || new Date())}</span>
             </div>
 
             {/* Streaming Indicator */}
@@ -95,7 +95,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                 transition={{ duration: 1.5, repeat: Infinity }}
                 className="flex items-center gap-1"
               >
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full" />
                 <span className="text-xs text-green-600 dark:text-green-400">Live</span>
               </motion.div>
             )}
@@ -103,7 +103,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
           {/* Tool Execution Dropdown - Part of assistant message, below header */}
           {shouldShowToolDropdown && (
-            <div className="mb-3 w-full">
+            <div className="mb-2 sm:mb-3 w-full">
               <ToolExecutionDropdown 
                 tools={messageTools}
                 isThinking={isThinking}
@@ -114,7 +114,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
           {/* Message Bubble - Only show when there's content */}
           {message.content && (
-            <div className="px-4 py-3 rounded-2xl max-w-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            <div className="px-3 py-2 sm:px-4 sm:py-3 rounded-2xl max-w-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
               <div className="prose prose-sm max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -152,18 +152,18 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
           {/* Action Buttons - Only show when there's content */}
           {message.content && (
-            <div className="flex items-center gap-1 mt-2 justify-start">
+            <div className="flex items-center gap-1 mt-1 sm:mt-2 justify-start">
               {/* Copy Button */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={handleCopy}
-                    className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    className="p-1 sm:p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                   >
                     {copied ? (
-                      <Check className="w-3 h-3" />
+                      <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                     ) : (
-                      <Copy className="w-3 h-3" />
+                      <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                     )}
                   </button>
                 </TooltipTrigger>
@@ -176,12 +176,12 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
           {/* Message Metadata */}
           {(message.total_tokens || message.cost_usd || message.model_name) && (
-            <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400 flex-row">
+            <div className="flex items-center gap-2 sm:gap-3 mt-1 sm:mt-2 text-xs text-gray-500 dark:text-gray-400 flex-row">
               {message.model_name && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1">
-                      <Cpu className="w-3 h-3" />
+                      <Cpu className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       <span>{message.model_name}</span>
                     </div>
                   </TooltipTrigger>
@@ -195,7 +195,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1">
-                      <Zap className="w-3 h-3" />
+                      <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       <span>{message.total_tokens}</span>
                     </div>
                   </TooltipTrigger>
@@ -209,7 +209,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1">
-                      <DollarSign className="w-3 h-3" />
+                      <DollarSign className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       <span>${message.cost_usd.toFixed(4)}</span>
                     </div>
                   </TooltipTrigger>
