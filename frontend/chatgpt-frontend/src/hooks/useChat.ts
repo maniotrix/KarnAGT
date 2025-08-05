@@ -187,6 +187,7 @@ export function useChat(options: ChatOptions = {}) {
     attachments: msg.attachments,
     vector_file_references: msg.vector_file_references,  // Add vector_file_references mapping
     tool_calls: msg.tool_calls,  // Include persisted tool calls from backend
+    status: msg.status,  // Include message status (completed, cancelled, failed)
     metadata: msg.metadata,
   }), []);
 
@@ -1165,6 +1166,7 @@ export function useChat(options: ChatOptions = {}) {
                             cost_usd: event.data.cost_usd,
                             model_name: event.data.model_name,
                             tool_calls: event.data.tool_calls,  // Include persisted tool calls from backend
+                            status: event.data.status,  // Include message status (completed, cancelled, failed)
                           };
                         }
                         return updated;

@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix
 import { 
   Copy,
   Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -106,29 +107,49 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
             </div>
           )}
 
-          {/* Action Buttons - Only show when there's content */}
-          {message.content && (
-            <div className="flex items-center gap-1 mt-1 sm:mt-2 justify-start">
-              {/* Copy Button */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleCopy}
-                    className="p-1 sm:p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-                  >
-                    {copied ? (
-                      <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                    ) : (
-                      <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>{copied ? 'Copied!' : 'Copy message'}</p>
-                </TooltipContent>
-              </Tooltip>
+          {/* Status Indicator & Action Buttons */}
+          <div className="flex items-center gap-1 mt-1 sm:mt-2 justify-between w-full">
+            <div className="flex items-center gap-1">
+              {/* Status Indicator for Cancelled Messages */}
+              {message.status === 'cancelled' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium">
+                      <AlertTriangle className="w-3 h-3" />
+                      <span>Cancelled</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>This response was cancelled before completion</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
-          )}
+
+            {/* Action Buttons - Only show when there's content */}
+            {message.content && (
+              <div className="flex items-center gap-1">
+                {/* Copy Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleCopy}
+                      className="p-1 sm:p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    >
+                      {copied ? (
+                        <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      ) : (
+                        <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>{copied ? 'Copied!' : 'Copy message'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+          </div>
 
 
         </div>
