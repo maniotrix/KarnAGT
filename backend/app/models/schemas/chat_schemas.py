@@ -90,6 +90,9 @@ class MessageCreate(BaseSchema):
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="File attachments")
     vector_file_references: Optional[Dict[str, Any]] = Field(None, description="References to knowledge files processed for RAG")
     
+    # Tool calls (for AI assistant messages)
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(None, description="Tool calls made during message generation")
+    
     # Status field (for internal use)
     status: Optional[str] = Field("completed", description="Message status")
     
@@ -140,6 +143,7 @@ class MessageResponse(BaseSchema):
     has_children: bool = False
     attachments: Optional[List[Dict[str, Any]]] = Field(None, description="Message attachments")
     vector_file_references: Optional[Dict[str, Any]] = Field(None, description="References to knowledge files processed for RAG")
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(None, description="Tool calls made during message generation")
     extra_metadata: Dict[str, Any] = {}  # Changed from metadata to match database field
     created_at: datetime
     

@@ -5,6 +5,7 @@ from app.aicore.core.stream_events import (
     ToolCallStartEvent,
     ToolCallOutputEvent,
     EventType,
+    StreamEventUnion,
 )
 
 from app.services.knowledge.llm_knowledge_tools import KnowledgeToolsInfo
@@ -142,3 +143,30 @@ class ToolCallsEventFormatter():
             "tool_type": actual_tool_type.value,
             "openai_tool_data": event_data,
         }
+        
+    @staticmethod
+    def format_tool_calls_for_persistence(tool_calls: List[StreamEventUnion]) -> List[Dict[str, Any]]:
+        """
+        Format all tool call events for database persistence using ToolCallsEventFormatter
+        
+        Args:
+            tool_calls: List of tool call events collected during streaming
+            
+        Returns:
+            List of formatted tool call events for database storage
+        """
+        
+        formatted_calls = []
+        
+        for event in tool_calls:
+            if isinstance(event, ToolCallStartEvent):
+                formatted_event = ToolCallsEventFormatter.format_tool_calls_start_event(event)
+                formatted_event["event_type"] = "start"
+                formatted_calls.append(formatted_event)
+                
+            elif isinstance(event, ToolCallOutputEvent):
+                formatted_event = ToolCallsEventFormatter.format_tool_calls_output_event(event)
+                formatted_event["event_type"] = "output"
+                formatted_calls.append(formatted_event)
+        
+        return formatted_calls

@@ -291,7 +291,8 @@ class ChatService:
             # Save AI response message
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
-                role="assistant"
+                role="assistant",
+                tool_calls=ai_response_data.get("tool_calls")
             )
             
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
@@ -338,6 +339,7 @@ class ChatService:
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata,
                 created_at=ai_message_created_at
             )
@@ -461,6 +463,7 @@ class ChatService:
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
                 role="assistant",
+                tool_calls=ai_response_data.get("tool_calls"),
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
@@ -515,6 +518,7 @@ class ChatService:
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model or conversation.model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata_with_user_id,
                 created_at=ai_message_created_at
             )
@@ -565,6 +569,7 @@ class ChatService:
                     finish_reason=None,  # Not stored in database
                     attachments=msg.attachments or [],
                     vector_file_references=msg.vector_file_references,  # Include vector file references
+                    tool_calls=msg.tool_calls,  # Include tool calls from database
                     extra_metadata=msg.extra_metadata or {},
                     created_at=msg.created_at
                 )
@@ -764,7 +769,8 @@ class ChatService:
             # Save AI response message only
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
-                role="assistant"
+                role="assistant",
+                tool_calls=ai_response_data.get("tool_calls")
             )
             
             ai_message = await self.message_service.create_message(conversation_id, ai_message_data)
@@ -811,6 +817,7 @@ class ChatService:
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata,
                 created_at=ai_message_created_at
             )
@@ -909,6 +916,7 @@ class ChatService:
             ai_message_data = MessageCreate(
                 content=ai_response_data["content"],
                 role="assistant",
+                tool_calls=ai_response_data.get("tool_calls"),
                 status="cancelled" if ai_response_data.get("was_cancelled", False) else "completed"
             )
             
@@ -963,6 +971,7 @@ class ChatService:
                 cost_usd=ai_response_data.get("cost_usd", 0.0),
                 model_name=model_name,
                 finish_reason=ai_response_data.get("finish_reason"),
+                tool_calls=ai_response_data.get("tool_calls"),
                 extra_metadata=ai_message_extra_metadata,
                 created_at=ai_message_created_at
             )

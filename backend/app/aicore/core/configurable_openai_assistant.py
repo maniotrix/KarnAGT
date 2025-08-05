@@ -204,19 +204,20 @@ class ConfigurableOpenAIAssistant:
             
             # Holder for response chunks that persists across all error scenarios
             full_chunks: List[str] = []
+            tool_calls: List[StreamEventUnion] = []
             
             try:
                 # Process events with wrapper task
-                event_count = await self._process_streaming_events(result, full_chunks)
+                event_count = await self._process_streaming_events(result, full_chunks, tool_calls)
                 
                 # Handle successful completion
-                return self._build_final_response(message_id, result, full_chunks, was_error=False)
+                return self._build_final_response(message_id, result, full_chunks, tool_calls, was_error=False)
                 
             except asyncio.CancelledError:
                 # User-requested cancellation or task-level cancellation
                 logger.info("[CANCEL] Stream cancelled via asyncio.CancelledError")
                 self.is_stream_cancelled = True
-                return self._build_final_response(message_id, None, full_chunks, was_error=False)
+                return self._build_final_response(message_id, None, full_chunks, tool_calls, was_error=False)
                 
             except Exception as e:
                 # Actual streaming errors (network, SDK errors, etc.) - not cleanup errors
@@ -224,12 +225,12 @@ class ConfigurableOpenAIAssistant:
                     # This shouldn't happen now since we handle cleanup errors separately
                     logger.warning(f"Context variable error during streaming (unexpected): {e}")
                     logger.info("Stream may have completed successfully despite context variable issue")
-                    return self._build_final_response(message_id, result, full_chunks, was_error=False)
+                    return self._build_final_response(message_id, result, full_chunks, tool_calls, was_error=False)
                 else:
                     # Genuine streaming failure
                     logger.error(f"Streaming failed during event processing: {e}")
                     self.is_stream_cancelled = True
-                    return self._build_final_response(message_id, None, full_chunks, was_error=True, error=e)
+                    return self._build_final_response(message_id, None, full_chunks, tool_calls, was_error=True, error=e)
             
         except Exception as e:
             logger.error(f"Error during streaming agent execution: {e}")
@@ -258,7 +259,7 @@ class ConfigurableOpenAIAssistant:
         
         return message_id, result
     
-    async def _process_streaming_events(self, result, full_chunks: List[str]) -> int:
+    async def _process_streaming_events(self, result, full_chunks: List[str], tool_calls: List[StreamEventUnion]) -> int:
         """Process streaming events using wrapper task with context preservation"""
         event_count = 0
 
@@ -294,12 +295,14 @@ class ConfigurableOpenAIAssistant:
                             logger.info(f"[DEBUG] Tool called: {type(event.item)}")
                             if self.streaming_callback:
                                 tool_start_event = create_tool_start_from_run_item(event.item)
+                                tool_calls.append(tool_start_event)
                                 self.streaming_callback(tool_start_event)
                                 
                         elif event.name == "tool_output":
                             logger.info(f"[DEBUG] Tool output: {type(event.item)}")
                             if self.streaming_callback:
                                 tool_output_event = create_tool_output_from_run_item(event.item)
+                                tool_calls.append(tool_output_event)
                                 self.streaming_callback(tool_output_event)
                     # else:
                     #     logger.info(f"[DEBUG] Not Raw response or text delta event or run item stream event: {type(event)}")
@@ -373,8 +376,10 @@ class ConfigurableOpenAIAssistant:
         self.current_streaming_result = None
         self._stream_task = None
     
-    def _build_final_response(self, message_id: str, result: Any, full_chunks: List[str], *, was_error: bool = False, error: Exception = None) -> Dict[str, Any]:
+    def _build_final_response(self, message_id: str, result: Any, full_chunks: List[str], tool_calls: List[StreamEventUnion], *, was_error: bool = False, error: Exception = None) -> Dict[str, Any]:
         """Build the final streaming response for both success and error cases"""
+        from app.utils.tool_calls_event_formatter import ToolCallsEventFormatter
+        
         content = "".join(full_chunks)
         
         # Handle cancelled or error scenarios
@@ -390,6 +395,7 @@ class ConfigurableOpenAIAssistant:
                 "was_cancelled": True,
                 "partial_response": True,
                 "plots": [],
+                "tool_calls": ToolCallsEventFormatter.format_tool_calls_for_persistence(tool_calls),
                 "metadata": metadata
             }
         
@@ -414,6 +420,7 @@ class ConfigurableOpenAIAssistant:
             "was_cancelled": False,
             "partial_response": False,
             "plots": plots,
+            "tool_calls": ToolCallsEventFormatter.format_tool_calls_for_persistence(tool_calls),
             "metadata": self._create_response_metadata(message_id, result)
         }
     
