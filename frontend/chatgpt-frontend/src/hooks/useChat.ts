@@ -60,11 +60,20 @@ export function useChat(options: ChatOptions = {}) {
       const existingIndex = existing.findIndex(tool => tool.tool_id === toolExecution.tool_id);
       
       if (existingIndex !== -1) {
-        // Update existing tool execution - ONLY update status, discard everything else
+        // Update existing tool execution - update status and error (if error status)
         const newToolList = [...existing];
+        const updateData: Partial<ToolExecution> = {
+          status: toolExecution.status
+        };
+        
+        // Only update error field if status is error
+        if (toolExecution.status === 'error' && toolExecution.error) {
+          updateData.error = toolExecution.error;
+        }
+        
         newToolList[existingIndex] = {
           ...newToolList[existingIndex],
-          status: toolExecution.status  // Only update status
+          ...updateData
         };
         updated.set(messageId, newToolList);
       } else {
@@ -458,6 +467,15 @@ export function useChat(options: ChatOptions = {}) {
                   const isSuccessful = result?.success === true;
                   const status = isSuccessful ? 'completed' : 'error';
                   
+                  // Extract error message from multiple possible locations
+                  let errorMessage = undefined;
+                  if (!isSuccessful) {
+                    errorMessage = result?.error || 
+                                   result?.message || 
+                                   (typeof result === 'string' ? result : null) ||
+                                   'Tool execution failed';
+                  }
+                  
                   const toolExecution: ToolExecution = {
                     tool_id: parsed.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
                     display_name: parsed.data?.display_name || parsed.data?.tool_name || (isSuccessful ? 'Tool Completed' : 'Tool Failed'),
@@ -467,7 +485,7 @@ export function useChat(options: ChatOptions = {}) {
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
                     message_id: assistantMessage.id,
                     openai_tool_data: parsed.data?.openai_tool_data,
-                    error: !isSuccessful ? (result?.error || 'Tool execution failed') : undefined
+                    error: errorMessage
                   };
                   addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
@@ -901,6 +919,23 @@ export function useChat(options: ChatOptions = {}) {
                       const isSuccessful = result?.success === true;
                       const status = isSuccessful ? 'completed' : 'error';
                       
+                      // Extract error message from multiple possible locations
+                      let errorMessage = undefined;
+                      if (!isSuccessful) {
+                        errorMessage = result?.error || 
+                                       result?.message || 
+                                       (typeof result === 'string' ? result : null) ||
+                                       'Tool execution failed';
+                        
+                        console.log('🐛 Debug error extraction (edit):', {
+                          isSuccessful,
+                          result,
+                          'result?.error': result?.error,
+                          'result?.message': result?.message,
+                          extractedError: errorMessage
+                        });
+                      }
+                      
                       const toolExecution: ToolExecution = {
                         tool_id: event.data?.openai_tool_data?.tool_id || `tool_${Date.now()}`,
                         display_name: event.data?.display_name || event.data?.tool_name || (isSuccessful ? 'Tool Completed' : 'Tool Failed'),
@@ -910,7 +945,7 @@ export function useChat(options: ChatOptions = {}) {
                         timestamp: event.data?.timestamp || new Date().toISOString(),
                         message_id: currentStreamingMessageRef.current.id,
                         openai_tool_data: event.data?.openai_tool_data,
-                        error: !isSuccessful ? (result?.error || 'Tool execution failed') : undefined
+                        error: errorMessage
                       };
                       addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
