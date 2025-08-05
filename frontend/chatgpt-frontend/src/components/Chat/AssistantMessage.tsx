@@ -13,6 +13,7 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  FileQuestion,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -46,6 +47,9 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
   // Show tool dropdown when thinking OR when tools exist for this message
   const shouldShowToolDropdown = isThinking || messageTools.length > 0;
+
+  // Check if content is empty (accounting for whitespace)
+  const hasEmptyContent = !message.content || message.content.trim() === '';
 
   return (
     <TooltipProvider>
@@ -107,26 +111,52 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
             </div>
           )}
 
-          {/* Status Indicator & Action Buttons */}
-          <div className="flex items-center gap-1 mt-1 sm:mt-2 justify-between w-full">
-            <div className="flex items-center gap-1">
-              {/* Status Indicator for Cancelled Messages */}
-              {message.status === 'cancelled' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium">
-                      <AlertTriangle className="w-3 h-3" />
-                      <span> AI response cancelled</span>
-                    </div>
-                  </TooltipTrigger>
-                </Tooltip>
-              )}
-            </div>
-
-            {/* Action Buttons - Only show when there's content */}
-            {message.content && (
+          {/* Compact Status & Actions - Only render when needed */}
+          {(message.status === 'cancelled' || hasEmptyContent || message.content) && (
+            <div className="flex items-center justify-between mt-1 sm:mt-2">
+              {/* Status Indicators - Compact mobile design */}
               <div className="flex items-center gap-1">
-                {/* Copy Button */}
+                {/* Cancelled Status */}
+                {message.status === 'cancelled' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                        <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <span className="text-xs font-medium hidden sm:inline">Stopped</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      align="center"
+                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                    >
+                      <p>Response was stopped</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
+                {/* Empty Content Status */}
+                {hasEmptyContent && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+                        <FileQuestion className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <span className="text-xs font-medium hidden sm:inline">No response</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      align="center"
+                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                    >
+                      <p>Something went wrong</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+
+              {/* Copy Button - Only show when there's content */}
+              {message.content && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -140,13 +170,17 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">
+                  <TooltipContent 
+                    side="top" 
+                    align="center"
+                    className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                  >
                     <p>{copied ? 'Copied!' : 'Copy message'}</p>
                   </TooltipContent>
                 </Tooltip>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
 
         </div>
