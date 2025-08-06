@@ -204,18 +204,34 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
           {/* Warning indicator for completed tools with stderr */}
           {tool.status === 'completed' && tool.stderr && (
             <button
-              onClick={() => setIsStderrExpanded(!isStderrExpanded)}
+              onClick={() => {
+                if (!isExpanded) {
+                  // If parent is collapsed, expand it first
+                  setIsExpanded(true);
+                  setIsStderrExpanded(true);
+                } else {
+                  // If parent is expanded, toggle stderr details
+                  setIsStderrExpanded(!isStderrExpanded);
+                }
+              }}
               className="flex items-center space-x-1 hover:bg-yellow-50 dark:hover:bg-yellow-900/10 px-1 py-0.5 rounded transition-colors"
-              title={isStderrExpanded ? "Hide warning details" : "Show warning details"}
+              title={
+                !isExpanded 
+                  ? "Show warning details" 
+                  : isStderrExpanded 
+                    ? "Hide warning details" 
+                    : "Show warning details"
+              }
             >
               <AlertTriangle className="w-3 h-3 text-yellow-500" />
               <span className="text-xs text-yellow-600 dark:text-yellow-400">
                 Warning
               </span>
-              {isStderrExpanded ? (
-                <ChevronUp className="w-3 h-3 text-yellow-500" />
-              ) : (
+              {/* Always show chevron to indicate expandable warning content */}
+              {(!isExpanded || !isStderrExpanded) ? (
                 <ChevronDown className="w-3 h-3 text-yellow-500" />
+              ) : (
+                <ChevronUp className="w-3 h-3 text-yellow-500" />
               )}
             </button>
           )}
