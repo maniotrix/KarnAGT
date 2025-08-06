@@ -100,8 +100,8 @@ export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...prop
   };
 
   return (
-    <div className="group relative">
-      <pre {...props} ref={preRef} className={className}>
+    <div className="group relative max-w-full">
+      <pre {...props} ref={preRef} className={`${className} min-w-0`} style={{ maxWidth: '100%' }}>
         {children}
       </pre>
       <div className="absolute top-1.5 right-1.5">
