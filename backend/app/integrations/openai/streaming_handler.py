@@ -310,8 +310,7 @@ class StreamingHandler:
         # Use Pydantic's built-in JSON-safe serialization
         event_data = ToolCallsEventFormatter.format_tool_calls_start_event(event)
         event_data.update({
-            "stream_id": self.stream_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "stream_id": self.stream_id
         })
         return self._format_sse_event("tool_call_start", event_data)
     
@@ -321,8 +320,7 @@ class StreamingHandler:
         # This automatically handles complex objects like WorkspaceCreateResult
         event_data = ToolCallsEventFormatter.format_tool_calls_output_event(event)
         event_data.update({
-            "stream_id": self.stream_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "stream_id": self.stream_id
         })
         return self._format_sse_event("tool_call_output", event_data)
     

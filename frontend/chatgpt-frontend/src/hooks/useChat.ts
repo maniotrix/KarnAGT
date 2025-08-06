@@ -50,10 +50,40 @@ export function useChat(options: ChatOptions = {}) {
   // Tool execution state - Map keyed by message ID to store tool executions per message
   const [messageToolExecutions, setMessageToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
   
-  // Helper function to determine tool execution success and extract error messages
+  // Helper function to clean stderr by removing temporary file paths
+  const cleanStderr = useCallback((stderr: string): string => {
+    if (!stderr) return stderr;
+    
+    // Remove temporary Jupyter kernel file paths like "/tmp/ipykernel_368/4016107853.py:4:"
+    // This regex matches: /tmp/ipykernel_[digits]/[digits].py:[digits]: (with optional space after colon)
+    // Also handles cases where the path appears at the beginning of a line
+    const tempFileRegex = /^\/tmp\/ipykernel_\d+\/\d+\.py:\d+:\s*/gm;
+    
+    let cleaned = stderr.replace(tempFileRegex, '');
+    
+    // Remove empty lines that might be left after removing file paths
+    cleaned = cleaned.replace(/^\s*\n/gm, '');
+    
+    return cleaned.trim();
+  }, []);
+
+  // Helper function to determine tool execution success and extract error messages and stderr
   const determineToolSuccess = useCallback((result: any, backendStatus?: string) => {
     let isSuccessful = false;
     let errorMessage: string | undefined = undefined;
+    let stderrMessage: string | undefined = undefined;
+    
+    // Extract stderr if execution_result is present (regardless of success/failure)
+    if (typeof result === 'object' && result !== null && result.execution_result?.stderr?.trim()) {
+      const rawStderr = result.execution_result.stderr.trim();
+      // Clean stderr by removing temporary Jupyter kernel file paths that aren't useful to users
+      stderrMessage = cleanStderr(rawStderr);
+      
+      // If after cleaning, the stderr is empty or only whitespace, don't include it
+      if (!stderrMessage || !stderrMessage.trim()) {
+        stderrMessage = undefined;
+      }
+    }
     
     if (typeof result === 'object' && result !== null && 'success' in result) {
       // Format 1: Object with explicit success property
@@ -77,7 +107,8 @@ export function useChat(options: ChatOptions = {}) {
     return {
       isSuccessful,
       status: isSuccessful ? 'completed' as const : 'error' as const,
-      errorMessage
+      errorMessage,
+      stderrMessage
     };
   }, []);
 
@@ -91,20 +122,27 @@ export function useChat(options: ChatOptions = {}) {
       const existingIndex = existing.findIndex(tool => tool.tool_id === toolExecution.tool_id);
       
       if (existingIndex !== -1) {
-        // Update existing tool execution - update status and error (if error status)
+        // Update existing tool execution - update status, error, and stderr
         const newToolList = [...existing];
         const updateData: Partial<ToolExecution> = {
           status: toolExecution.status
         };
         
-        // Only update error field if status is error
+        // Update error field if status is error
         if (toolExecution.status === 'error' && toolExecution.error) {
           updateData.error = toolExecution.error;
         }
         
+        // Update stderr field if present (for both completed and error status)
+        if (toolExecution.stderr) {
+          updateData.stderr = toolExecution.stderr;
+        }
+        
+        // Preserve original timestamp (shows when tool started, not when it completed)
         newToolList[existingIndex] = {
           ...newToolList[existingIndex],
           ...updateData
+          // timestamp intentionally not updated - keeps original start time
         };
         updated.set(messageId, newToolList);
       } else {
@@ -145,7 +183,7 @@ export function useChat(options: ChatOptions = {}) {
         tool_name: toolCall.tool_name || 'unknown',
         tool_type: toolCall.tool_type || 'unknown',
         status: 'started',
-        timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+        timestamp: toolCall.openai_tool_data?.timestamp,
         message_id: messageId,
         openai_tool_data: toolCall.openai_tool_data
       };
@@ -154,13 +192,14 @@ export function useChat(options: ChatOptions = {}) {
     } else if (toolCall.event_type === 'output') {
       // Create tool execution for output event - EXACTLY like streaming tool_call_output
       const result = toolCall.openai_tool_data?.result;
-      const { isSuccessful, status, errorMessage } = determineToolSuccess(result, toolCall.openai_tool_data?.status);
+      const { isSuccessful, status, errorMessage, stderrMessage } = determineToolSuccess(result, toolCall.openai_tool_data?.status);
       
       console.log('🔍 [DEBUG] Processing OUTPUT event:', {
         result,
         isSuccessful,
         status,
-        errorMessage
+        errorMessage,
+        stderrMessage
       });
       
       const execution: ToolExecution = {
@@ -169,10 +208,11 @@ export function useChat(options: ChatOptions = {}) {
         tool_name: toolCall.tool_name || 'unknown',
         tool_type: toolCall.tool_type || 'unknown',
         status: status,
-        timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+        timestamp: toolCall.openai_tool_data?.timestamp,
         message_id: messageId,
         openai_tool_data: toolCall.openai_tool_data,
-        error: errorMessage
+        error: errorMessage,
+        stderr: stderrMessage
       };
       console.log('🔍 [DEBUG] Created OUTPUT execution:', execution);
       return execution;
@@ -185,7 +225,7 @@ export function useChat(options: ChatOptions = {}) {
       tool_name: toolCall.tool_name || 'unknown',
       tool_type: toolCall.tool_type || 'unknown',
       status: 'started',
-      timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+      timestamp: toolCall.openai_tool_data?.timestamp,
       message_id: messageId,
       openai_tool_data: toolCall.openai_tool_data
     };
@@ -578,7 +618,7 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: 'started',
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     openai_tool_data: parsed.data?.openai_tool_data
                   };
@@ -601,7 +641,7 @@ export function useChat(options: ChatOptions = {}) {
                 // Update tool execution to completed status (or error if failed)
                 if (assistantMessage && parsed.data) {
                   const result = parsed.data?.openai_tool_data?.result;
-                  const { isSuccessful, status, errorMessage } = determineToolSuccess(result, parsed.data?.openai_tool_data?.status);
+                  const { isSuccessful, status, errorMessage, stderrMessage } = determineToolSuccess(result, parsed.data?.openai_tool_data?.status);
                   
                   // Debug logging for streaming tool success determination
                   console.log('🔍 [STREAM DEBUG] Tool success determination:', {
@@ -610,7 +650,8 @@ export function useChat(options: ChatOptions = {}) {
                     resultType: typeof result,
                     finalIsSuccessful: isSuccessful,
                     finalStatus: status,
-                    errorMessage
+                    errorMessage,
+                    stderrMessage
                   });
                   
                   const toolExecution: ToolExecution = {
@@ -619,10 +660,11 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: status,
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     openai_tool_data: parsed.data?.openai_tool_data,
-                    error: errorMessage
+                    error: errorMessage,
+                    stderr: stderrMessage
                   };
                   addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
@@ -644,7 +686,7 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: 'progress',
                     status: 'started', // Keep as started, progress doesn't change status
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     progress_data: parsed.data?.progress_data
                   };
@@ -669,7 +711,7 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: 'error',
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     error: parsed.data?.error,
                     error_details: parsed.data?.error_details
@@ -1048,7 +1090,7 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
                         status: 'started',
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         openai_tool_data: event.data?.openai_tool_data
                       };
@@ -1073,7 +1115,7 @@ export function useChat(options: ChatOptions = {}) {
                     // Update tool execution to completed status during edit (or error if failed)
                     if (currentStreamingMessageRef.current && event.data) {
                       const result = event.data?.openai_tool_data?.result;
-                      const { isSuccessful, status, errorMessage } = determineToolSuccess(result, event.data?.openai_tool_data?.status);
+                      const { isSuccessful, status, errorMessage, stderrMessage } = determineToolSuccess(result, event.data?.openai_tool_data?.status);
                       
                       console.log('🔍 [EDIT DEBUG] Tool success determination:', {
                         tool_name: event.data?.tool_name,
@@ -1081,7 +1123,8 @@ export function useChat(options: ChatOptions = {}) {
                         resultType: typeof result,
                         finalIsSuccessful: isSuccessful,
                         finalStatus: status,
-                        errorMessage
+                        errorMessage,
+                        stderrMessage
                       });
                       
                       const toolExecution: ToolExecution = {
@@ -1090,10 +1133,11 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
                         status: status,
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         openai_tool_data: event.data?.openai_tool_data,
-                        error: errorMessage
+                        error: errorMessage,
+                        stderr: stderrMessage
                       };
                       addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
@@ -1117,7 +1161,7 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: 'progress',
                         status: 'started', // Keep as started, progress doesn't change status
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         progress_data: event.data?.progress_data
                       };
@@ -1144,7 +1188,7 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
                         status: 'error',
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         error: event.data?.error,
                         error_details: event.data?.error_details

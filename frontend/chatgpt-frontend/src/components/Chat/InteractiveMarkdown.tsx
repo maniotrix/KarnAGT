@@ -24,10 +24,10 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
   const getCodeBlockStyles = () => {
     switch (theme) {
       case 'user':
-        return 'bg-blue-700 rounded-md p-2 overflow-x-auto border border-blue-600';
+        return 'bg-blue-700 rounded-md p-2 overflow-x-auto border border-blue-600 max-w-full';
       case 'assistant':
       default:
-        return 'bg-gray-50 dark:bg-gray-800 rounded-md p-2 overflow-x-auto border border-gray-200 dark:border-gray-700';
+        return 'bg-gray-50 dark:bg-gray-800 rounded-md p-2 overflow-x-auto border border-gray-200 dark:border-gray-700 max-w-full';
     }
   };
 
@@ -64,19 +64,30 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
             </PreBlock>
           ),
           // Enhanced code with copy functionality
-          code: ({ children, className, ...props }) => {
-            const isInline = !className;
-            return (
-              <CodeComponent 
-                {...props} 
-                className={`${className || ''} ${
-                  isInline ? getInlineCodeStyles() : ''
-                }`}
-                inline={isInline}
-              >
-                {children}
-              </CodeComponent>
-            );
+          code: ({ children, className, inline, ...props }: any) => {
+            if (inline) {
+              // True inline code (like `code` in text) - add inline styling and copy button
+              return (
+                <CodeComponent 
+                  {...props} 
+                  className={getInlineCodeStyles()}
+                  inline={true}
+                >
+                  {children}
+                </CodeComponent>
+              );
+            } else {
+              // Code inside pre blocks - just render plain code element
+              // The PreBlock wrapper will handle the copy functionality
+              return (
+                <code 
+                  {...props} 
+                  className={className}
+                >
+                  {children}
+                </code>
+              );
+            }
           },
           // Custom link handling
           a: ({ href, children, ...props }) => {

@@ -25,12 +25,15 @@ interface ToolTimelineItemProps {
 }
 
 export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index, isLast }) => {
-  // Start expanded if there's error or code content, collapsed for simple completed tools
-  const hasDetails = tool.error || (tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code);
+  // Start expanded if there's error, stderr, or code content, collapsed for simple completed tools
+  const hasDetails = tool.error || tool.stderr || (tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code);
   const [isExpanded, setIsExpanded] = useState(hasDetails || tool.status !== 'completed');
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
+  const [isStderrExpanded, setIsStderrExpanded] = useState(false);
+  const [isStderrFullExpanded, setIsStderrFullExpanded] = useState(false); // For full stderr content
   const [isCodeExpanded, setIsCodeExpanded] = useState(false); // Code collapsed by default
   const [copiedError, setCopiedError] = useState(false);
+  const [copiedStderr, setCopiedStderr] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
   const copyErrorToClipboard = async () => {
@@ -41,6 +44,18 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         setTimeout(() => setCopiedError(false), 2000);
       } catch (err) {
         console.error('Failed to copy error:', err);
+      }
+    }
+  };
+
+  const copyStderrToClipboard = async () => {
+    if (tool.stderr) {
+      try {
+        await navigator.clipboard.writeText(tool.stderr);
+        setCopiedStderr(true);
+        setTimeout(() => setCopiedStderr(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy stderr:', err);
       }
     }
   };
@@ -172,6 +187,24 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
             {tool.status === 'error' && 'Failed'}
           </span>
           
+          {/* Warning indicator for completed tools with stderr */}
+          {tool.status === 'completed' && tool.stderr && (
+            <button
+              onClick={() => setIsStderrExpanded(!isStderrExpanded)}
+              className="flex items-center space-x-1 hover:bg-yellow-50 dark:hover:bg-yellow-900/10 px-1 py-0.5 rounded transition-colors"
+              title={isStderrExpanded ? "Hide warning details" : "Show warning details"}
+            >
+              <AlertTriangle className="w-3 h-3 text-yellow-500" />
+              <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                Warning
+              </span>
+              {isStderrExpanded ? (
+                <ChevronUp className="w-3 h-3 text-yellow-500" />
+              ) : (
+                <ChevronDown className="w-3 h-3 text-yellow-500" />
+              )}
+            </button>
+          )}
         </div>
         
         {/* Collapsible Details */}
@@ -242,6 +275,75 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
             </div>
           </div>
         )}
+        
+        {/* Stderr Warning Message - Collapsible */}
+        <AnimatePresence>
+          {(tool.status === 'completed' && tool.stderr && isStderrExpanded) && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden mt-2"
+            >
+              <div className="flex items-center justify-between text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
+                <span>Warning Details:</span>
+                <div className="flex items-center gap-1">
+                  {tool.stderr && tool.stderr.length > 200 && (
+                    <button
+                      onClick={() => setIsStderrFullExpanded(!isStderrFullExpanded)}
+                      className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300 transition-colors"
+                    >
+                      {isStderrFullExpanded ? (
+                        <>
+                          <ChevronUp className="w-3 h-3" />
+                          <span>Less</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3 h-3" />
+                          <span>More</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {tool.stderr && (
+                    <button
+                      onClick={copyStderrToClipboard}
+                      className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300 transition-colors"
+                      title="Copy stderr output"
+                    >
+                      <Copy className="w-3 h-3" />
+                      {copiedStderr && <span className="text-xs">Copied!</span>}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-md p-2 text-xs border border-yellow-200 dark:border-yellow-800">
+                <div className="text-yellow-800 dark:text-yellow-200">
+                  {tool.stderr ? (
+                    <div className={`${isStderrFullExpanded ? 'max-h-64 overflow-y-auto' : ''}`}>
+                      {tool.stderr.length > 200 && !isStderrFullExpanded ? (
+                        <span>
+                          <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed inline">
+                            {tool.stderr.substring(0, 200)}
+                          </pre>
+                          <span className="text-yellow-600 dark:text-yellow-400">...</span>
+                        </span>
+                      ) : (
+                        <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                          {tool.stderr}
+                        </pre>
+                      )}
+                    </div>
+                  ) : (
+                    'Tool execution completed with warnings - no details available'
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         {/* Tool Type Badge */}
         <div className="mt-1">
