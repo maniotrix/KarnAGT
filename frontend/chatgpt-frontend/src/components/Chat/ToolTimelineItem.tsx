@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ToolExecution } from '../../types/chat';
+import { getToolDisplayName, getToolStatusMessage } from '../../constants/toolDisplayNames';
 
 // Markdown & Syntax Highlighting
 import ReactMarkdown from 'react-markdown';
@@ -118,16 +119,27 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   };
   
   const formatTime = (timestamp: string) => {
+    // Return empty if no timestamp provided
+    if (!timestamp || timestamp.trim() === '') {
+      return '';
+    }
+    
     try {
       // Handle UTC timestamps from backend properly
       const date = new Date(timestamp.endsWith('Z') ? timestamp : timestamp + 'Z');
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
       return date.toLocaleTimeString([], { 
         hour: '2-digit', 
         minute: '2-digit',
         second: '2-digit'
       });
     } catch {
-      return 'Invalid time';
+      return '';
     }
   };
   
@@ -153,7 +165,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-              {tool.display_name}
+              {getToolDisplayName(tool.tool_name)}
             </div>
             <button
               onClick={() => setIsExpanded(!isExpanded)}
@@ -167,9 +179,11 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
               )}
             </button>
           </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
-            {formatTime(tool.timestamp)}
-          </div>
+          {formatTime(tool.timestamp) && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+              {formatTime(tool.timestamp)}
+            </div>
+          )}
         </div>
         
         {/* Status Text */}
@@ -181,27 +195,43 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
             tool.status === 'error' ? 'text-red-600 dark:text-red-400' :
             'text-gray-500 dark:text-gray-400'
           }`}>
-            {tool.status === 'started' && 'Started'}
-            {tool.status === 'running' && 'Running...'}
-            {tool.status === 'completed' && 'Completed'}
-            {tool.status === 'error' && 'Failed'}
+            {tool.status === 'started' && '🔄 Started'}
+            {tool.status === 'running' && '⏳ In progress...'}
+            {tool.status === 'completed' && '✅ Done'}
+            {tool.status === 'error' && '❌ Failed'}
           </span>
           
           {/* Warning indicator for completed tools with stderr */}
           {tool.status === 'completed' && tool.stderr && (
             <button
-              onClick={() => setIsStderrExpanded(!isStderrExpanded)}
+              onClick={() => {
+                if (!isExpanded) {
+                  // If parent is collapsed, expand it first
+                  setIsExpanded(true);
+                  setIsStderrExpanded(true);
+                } else {
+                  // If parent is expanded, toggle stderr details
+                  setIsStderrExpanded(!isStderrExpanded);
+                }
+              }}
               className="flex items-center space-x-1 hover:bg-yellow-50 dark:hover:bg-yellow-900/10 px-1 py-0.5 rounded transition-colors"
-              title={isStderrExpanded ? "Hide warning details" : "Show warning details"}
+              title={
+                !isExpanded 
+                  ? "Show warning details" 
+                  : isStderrExpanded 
+                    ? "Hide warning details" 
+                    : "Show warning details"
+              }
             >
               <AlertTriangle className="w-3 h-3 text-yellow-500" />
               <span className="text-xs text-yellow-600 dark:text-yellow-400">
                 Warning
               </span>
-              {isStderrExpanded ? (
-                <ChevronUp className="w-3 h-3 text-yellow-500" />
-              ) : (
+              {/* Always show chevron to indicate expandable warning content */}
+              {(!isExpanded || !isStderrExpanded) ? (
                 <ChevronDown className="w-3 h-3 text-yellow-500" />
+              ) : (
+                <ChevronUp className="w-3 h-3 text-yellow-500" />
               )}
             </button>
           )}
