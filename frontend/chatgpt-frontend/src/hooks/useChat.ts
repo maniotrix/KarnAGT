@@ -114,9 +114,11 @@ export function useChat(options: ChatOptions = {}) {
           updateData.stderr = toolExecution.stderr;
         }
         
+        // Preserve original timestamp (shows when tool started, not when it completed)
         newToolList[existingIndex] = {
           ...newToolList[existingIndex],
           ...updateData
+          // timestamp intentionally not updated - keeps original start time
         };
         updated.set(messageId, newToolList);
       } else {
@@ -157,7 +159,7 @@ export function useChat(options: ChatOptions = {}) {
         tool_name: toolCall.tool_name || 'unknown',
         tool_type: toolCall.tool_type || 'unknown',
         status: 'started',
-        timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+        timestamp: toolCall.openai_tool_data?.timestamp,
         message_id: messageId,
         openai_tool_data: toolCall.openai_tool_data
       };
@@ -182,7 +184,7 @@ export function useChat(options: ChatOptions = {}) {
         tool_name: toolCall.tool_name || 'unknown',
         tool_type: toolCall.tool_type || 'unknown',
         status: status,
-        timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+        timestamp: toolCall.openai_tool_data?.timestamp,
         message_id: messageId,
         openai_tool_data: toolCall.openai_tool_data,
         error: errorMessage,
@@ -199,7 +201,7 @@ export function useChat(options: ChatOptions = {}) {
       tool_name: toolCall.tool_name || 'unknown',
       tool_type: toolCall.tool_type || 'unknown',
       status: 'started',
-      timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
+      timestamp: toolCall.openai_tool_data?.timestamp,
       message_id: messageId,
       openai_tool_data: toolCall.openai_tool_data
     };
@@ -592,7 +594,7 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: 'started',
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     openai_tool_data: parsed.data?.openai_tool_data
                   };
@@ -634,7 +636,7 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: status,
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     openai_tool_data: parsed.data?.openai_tool_data,
                     error: errorMessage,
@@ -660,7 +662,7 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: 'progress',
                     status: 'started', // Keep as started, progress doesn't change status
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     progress_data: parsed.data?.progress_data
                   };
@@ -685,7 +687,7 @@ export function useChat(options: ChatOptions = {}) {
                     tool_name: parsed.data?.tool_name || 'unknown',
                     tool_type: parsed.data?.tool_type || 'unknown',
                     status: 'error',
-                    timestamp: parsed.data?.timestamp || new Date().toISOString(),
+                    timestamp: parsed.data?.openai_tool_data?.timestamp,
                     message_id: assistantMessage.id,
                     error: parsed.data?.error,
                     error_details: parsed.data?.error_details
@@ -1064,7 +1066,7 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
                         status: 'started',
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         openai_tool_data: event.data?.openai_tool_data
                       };
@@ -1107,7 +1109,7 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
                         status: status,
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         openai_tool_data: event.data?.openai_tool_data,
                         error: errorMessage,
@@ -1135,7 +1137,7 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: 'progress',
                         status: 'started', // Keep as started, progress doesn't change status
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         progress_data: event.data?.progress_data
                       };
@@ -1162,7 +1164,7 @@ export function useChat(options: ChatOptions = {}) {
                         tool_name: event.data?.tool_name || 'unknown',
                         tool_type: event.data?.tool_type || 'unknown',
                         status: 'error',
-                        timestamp: event.data?.timestamp || new Date().toISOString(),
+                        timestamp: event.data?.openai_tool_data?.timestamp,
                         message_id: currentStreamingMessageRef.current.id,
                         error: event.data?.error,
                         error_details: event.data?.error_details

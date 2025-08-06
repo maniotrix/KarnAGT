@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Any, Dict, Optional, Union
 from abc import ABC
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 
 class EventType(Enum):
@@ -49,6 +50,7 @@ class ToolStatus(Enum):
 class StreamEvent(BaseModel, ABC):
     """Base class for all streaming events"""
     event_type: EventType = Field(description="Event type")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Event timestamp in ISO format")
 
 
 class TextTokenEvent(StreamEvent):
