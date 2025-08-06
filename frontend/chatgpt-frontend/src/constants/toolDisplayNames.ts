@@ -6,7 +6,7 @@
 export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   // Workspace/Code Execution Tools
   'create_workspace': 'Getting things ready…',
-  'upload_file': 'Fetching the file for you…',
+  'upload_file': 'Processing the files…',
   'execute_code': 'Working on it…',
   
   // Memory Tools
