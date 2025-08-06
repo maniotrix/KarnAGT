@@ -156,6 +156,7 @@ export interface ToolExecution {
   progress_data?: any;
   error?: string;
   error_details?: any;
+  stderr?: string; // Standard error output for completed executions with warnings
   openai_tool_data?: {
     tool_id?: string;
     arguments?: any;

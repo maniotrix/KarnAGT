@@ -50,10 +50,16 @@ export function useChat(options: ChatOptions = {}) {
   // Tool execution state - Map keyed by message ID to store tool executions per message
   const [messageToolExecutions, setMessageToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
   
-  // Helper function to determine tool execution success and extract error messages
+  // Helper function to determine tool execution success and extract error messages and stderr
   const determineToolSuccess = useCallback((result: any, backendStatus?: string) => {
     let isSuccessful = false;
     let errorMessage: string | undefined = undefined;
+    let stderrMessage: string | undefined = undefined;
+    
+    // Extract stderr if execution_result is present (regardless of success/failure)
+    if (typeof result === 'object' && result !== null && result.execution_result?.stderr?.trim()) {
+      stderrMessage = result.execution_result.stderr.trim();
+    }
     
     if (typeof result === 'object' && result !== null && 'success' in result) {
       // Format 1: Object with explicit success property
@@ -77,7 +83,8 @@ export function useChat(options: ChatOptions = {}) {
     return {
       isSuccessful,
       status: isSuccessful ? 'completed' as const : 'error' as const,
-      errorMessage
+      errorMessage,
+      stderrMessage
     };
   }, []);
 
@@ -91,15 +98,20 @@ export function useChat(options: ChatOptions = {}) {
       const existingIndex = existing.findIndex(tool => tool.tool_id === toolExecution.tool_id);
       
       if (existingIndex !== -1) {
-        // Update existing tool execution - update status and error (if error status)
+        // Update existing tool execution - update status, error, and stderr
         const newToolList = [...existing];
         const updateData: Partial<ToolExecution> = {
           status: toolExecution.status
         };
         
-        // Only update error field if status is error
+        // Update error field if status is error
         if (toolExecution.status === 'error' && toolExecution.error) {
           updateData.error = toolExecution.error;
+        }
+        
+        // Update stderr field if present (for both completed and error status)
+        if (toolExecution.stderr) {
+          updateData.stderr = toolExecution.stderr;
         }
         
         newToolList[existingIndex] = {
@@ -154,13 +166,14 @@ export function useChat(options: ChatOptions = {}) {
     } else if (toolCall.event_type === 'output') {
       // Create tool execution for output event - EXACTLY like streaming tool_call_output
       const result = toolCall.openai_tool_data?.result;
-      const { isSuccessful, status, errorMessage } = determineToolSuccess(result, toolCall.openai_tool_data?.status);
+      const { isSuccessful, status, errorMessage, stderrMessage } = determineToolSuccess(result, toolCall.openai_tool_data?.status);
       
       console.log('🔍 [DEBUG] Processing OUTPUT event:', {
         result,
         isSuccessful,
         status,
-        errorMessage
+        errorMessage,
+        stderrMessage
       });
       
       const execution: ToolExecution = {
@@ -172,7 +185,8 @@ export function useChat(options: ChatOptions = {}) {
         timestamp: toolCall.openai_tool_data?.timestamp || new Date().toISOString(),
         message_id: messageId,
         openai_tool_data: toolCall.openai_tool_data,
-        error: errorMessage
+        error: errorMessage,
+        stderr: stderrMessage
       };
       console.log('🔍 [DEBUG] Created OUTPUT execution:', execution);
       return execution;
@@ -601,7 +615,7 @@ export function useChat(options: ChatOptions = {}) {
                 // Update tool execution to completed status (or error if failed)
                 if (assistantMessage && parsed.data) {
                   const result = parsed.data?.openai_tool_data?.result;
-                  const { isSuccessful, status, errorMessage } = determineToolSuccess(result, parsed.data?.openai_tool_data?.status);
+                  const { isSuccessful, status, errorMessage, stderrMessage } = determineToolSuccess(result, parsed.data?.openai_tool_data?.status);
                   
                   // Debug logging for streaming tool success determination
                   console.log('🔍 [STREAM DEBUG] Tool success determination:', {
@@ -610,7 +624,8 @@ export function useChat(options: ChatOptions = {}) {
                     resultType: typeof result,
                     finalIsSuccessful: isSuccessful,
                     finalStatus: status,
-                    errorMessage
+                    errorMessage,
+                    stderrMessage
                   });
                   
                   const toolExecution: ToolExecution = {
@@ -622,7 +637,8 @@ export function useChat(options: ChatOptions = {}) {
                     timestamp: parsed.data?.timestamp || new Date().toISOString(),
                     message_id: assistantMessage.id,
                     openai_tool_data: parsed.data?.openai_tool_data,
-                    error: errorMessage
+                    error: errorMessage,
+                    stderr: stderrMessage
                   };
                   addOrUpdateToolExecutionEvent(assistantMessage.id, toolExecution);
                 }
@@ -1073,7 +1089,7 @@ export function useChat(options: ChatOptions = {}) {
                     // Update tool execution to completed status during edit (or error if failed)
                     if (currentStreamingMessageRef.current && event.data) {
                       const result = event.data?.openai_tool_data?.result;
-                      const { isSuccessful, status, errorMessage } = determineToolSuccess(result, event.data?.openai_tool_data?.status);
+                      const { isSuccessful, status, errorMessage, stderrMessage } = determineToolSuccess(result, event.data?.openai_tool_data?.status);
                       
                       console.log('🔍 [EDIT DEBUG] Tool success determination:', {
                         tool_name: event.data?.tool_name,
@@ -1081,7 +1097,8 @@ export function useChat(options: ChatOptions = {}) {
                         resultType: typeof result,
                         finalIsSuccessful: isSuccessful,
                         finalStatus: status,
-                        errorMessage
+                        errorMessage,
+                        stderrMessage
                       });
                       
                       const toolExecution: ToolExecution = {
@@ -1093,7 +1110,8 @@ export function useChat(options: ChatOptions = {}) {
                         timestamp: event.data?.timestamp || new Date().toISOString(),
                         message_id: currentStreamingMessageRef.current.id,
                         openai_tool_data: event.data?.openai_tool_data,
-                        error: errorMessage
+                        error: errorMessage,
+                        stderr: stderrMessage
                       };
                       addOrUpdateToolExecutionEvent(currentStreamingMessageRef.current.id, toolExecution);
                     }
