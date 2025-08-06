@@ -50,6 +50,23 @@ export function useChat(options: ChatOptions = {}) {
   // Tool execution state - Map keyed by message ID to store tool executions per message
   const [messageToolExecutions, setMessageToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
   
+  // Helper function to clean stderr by removing temporary file paths
+  const cleanStderr = useCallback((stderr: string): string => {
+    if (!stderr) return stderr;
+    
+    // Remove temporary Jupyter kernel file paths like "/tmp/ipykernel_368/4016107853.py:4:"
+    // This regex matches: /tmp/ipykernel_[digits]/[digits].py:[digits]: (with optional space after colon)
+    // Also handles cases where the path appears at the beginning of a line
+    const tempFileRegex = /^\/tmp\/ipykernel_\d+\/\d+\.py:\d+:\s*/gm;
+    
+    let cleaned = stderr.replace(tempFileRegex, '');
+    
+    // Remove empty lines that might be left after removing file paths
+    cleaned = cleaned.replace(/^\s*\n/gm, '');
+    
+    return cleaned.trim();
+  }, []);
+
   // Helper function to determine tool execution success and extract error messages and stderr
   const determineToolSuccess = useCallback((result: any, backendStatus?: string) => {
     let isSuccessful = false;
@@ -58,7 +75,14 @@ export function useChat(options: ChatOptions = {}) {
     
     // Extract stderr if execution_result is present (regardless of success/failure)
     if (typeof result === 'object' && result !== null && result.execution_result?.stderr?.trim()) {
-      stderrMessage = result.execution_result.stderr.trim();
+      const rawStderr = result.execution_result.stderr.trim();
+      // Clean stderr by removing temporary Jupyter kernel file paths that aren't useful to users
+      stderrMessage = cleanStderr(rawStderr);
+      
+      // If after cleaning, the stderr is empty or only whitespace, don't include it
+      if (!stderrMessage || !stderrMessage.trim()) {
+        stderrMessage = undefined;
+      }
     }
     
     if (typeof result === 'object' && result !== null && 'success' in result) {
