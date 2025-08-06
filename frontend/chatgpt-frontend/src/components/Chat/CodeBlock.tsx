@@ -44,13 +44,13 @@ const CopyButton: React.FC<{
         <TooltipTrigger asChild>
           <button
             onClick={handleCopy}
-            className={`${buttonSize} rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-70 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100`}
+            className={`${buttonSize} rounded bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm border border-gray-200 dark:border-gray-600 opacity-90 hover:opacity-100 md:opacity-0 md:group-hover:opacity-90 md:hover:opacity-100`}
             title={copied ? 'Copied!' : 'Copy code'}
           >
             {copied ? (
-              <Check className={`${iconSize} text-green-600`} />
+              <Check className={`${iconSize} text-green-600 dark:text-green-500`} />
             ) : (
-              <Copy className={`${iconSize} text-gray-600 dark:text-gray-400`} />
+              <Copy className={`${iconSize} text-gray-700 dark:text-gray-300`} />
             )}
           </button>
         </TooltipTrigger>
