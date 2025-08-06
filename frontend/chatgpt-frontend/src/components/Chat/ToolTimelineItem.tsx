@@ -30,6 +30,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
   const [isExpanded, setIsExpanded] = useState(hasDetails || tool.status !== 'completed');
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
   const [isStderrExpanded, setIsStderrExpanded] = useState(false);
+  const [isStderrFullExpanded, setIsStderrFullExpanded] = useState(false); // For full stderr content
   const [isCodeExpanded, setIsCodeExpanded] = useState(false); // Code collapsed by default
   const [copiedError, setCopiedError] = useState(false);
   const [copiedStderr, setCopiedStderr] = useState(false);
@@ -288,6 +289,24 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
               <div className="flex items-center justify-between text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
                 <span>Warning Details:</span>
                 <div className="flex items-center gap-1">
+                  {tool.stderr && tool.stderr.length > 200 && (
+                    <button
+                      onClick={() => setIsStderrFullExpanded(!isStderrFullExpanded)}
+                      className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300 transition-colors"
+                    >
+                      {isStderrFullExpanded ? (
+                        <>
+                          <ChevronUp className="w-3 h-3" />
+                          <span>Less</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3 h-3" />
+                          <span>More</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                   {tool.stderr && (
                     <button
                       onClick={copyStderrToClipboard}
@@ -302,11 +321,24 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
               </div>
               <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-md p-2 text-xs border border-yellow-200 dark:border-yellow-800">
                 <div className="text-yellow-800 dark:text-yellow-200">
-                  <div className="max-h-32 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
-                      {tool.stderr}
-                    </pre>
-                  </div>
+                  {tool.stderr ? (
+                    <div className={`${isStderrFullExpanded ? 'max-h-64 overflow-y-auto' : ''}`}>
+                      {tool.stderr.length > 200 && !isStderrFullExpanded ? (
+                        <span>
+                          <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed inline">
+                            {tool.stderr.substring(0, 200)}
+                          </pre>
+                          <span className="text-yellow-600 dark:text-yellow-400">...</span>
+                        </span>
+                      ) : (
+                        <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                          {tool.stderr}
+                        </pre>
+                      )}
+                    </div>
+                  ) : (
+                    'Tool execution completed with warnings - no details available'
+                  )}
                 </div>
               </div>
             </motion.div>
