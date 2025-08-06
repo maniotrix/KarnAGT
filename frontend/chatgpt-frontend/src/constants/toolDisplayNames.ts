@@ -5,34 +5,20 @@
 
 export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   // Workspace/Code Execution Tools
-  'create_workspace': '🏗️ Setting up workspace',
-  'upload_file': '📁 Uploading file',
-  'execute_code': '⚡ Running code',
+  'create_workspace': 'Getting things ready…',
+  'upload_file': 'Fetching the file for you…',
+  'execute_code': 'Working on it…',
   
   // Memory Tools
-  'retrieve_user_memory': '🧠 Recalling previous context',
-  'save_user_memory': '💾 Remembering important details',
+  'retrieve_user_memory': 'Fetching more information about you…',
+  'save_user_memory': 'Saving your information…',
   
   // Knowledge/Document Tools
-  'search_user_uploaded_documents': '🔍 Searching your documents',
-  'list_user_uploaded_documents': '📋 Checking your files',
+  'search_user_uploaded_documents': 'Looking through docs in the chat…',
+  'list_user_uploaded_documents': 'Listing uploaded docs…',
   
   // Web/External Tools (if any)
-  'web_search': '🌐 Searching the web',
-  'fetch_url': '🔗 Fetching web content',
-  
-  // File Operations
-  'read_file': '📖 Reading file',
-  'write_file': '✍️ Writing file',
-  'list_files': '📂 Browsing files',
-  
-  // Data Analysis
-  'analyze_data': '📊 Analyzing data',
-  'generate_chart': '📈 Creating visualization',
-  
-  // Communication
-  'send_email': '📧 Sending email',
-  'make_request': '🌐 Making API request',
+  'web_search': 'Searching the web for more information…',
 };
 
 /**
