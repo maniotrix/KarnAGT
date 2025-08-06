@@ -36,3 +36,4 @@
   * Also  I think the agent cant process using openai vision if provided just image url or in general any publicly available file download link in chat
   
 * [PRIORITY] llm executing code without workspace, unnecessary multiple execute code calls(advice to do maximum stuff in one tool call and script), llm using code or knowledge tool when asked for internet search...completely messing up tools
+* llm keeps doing:  Workspace not found: Workspace ws_abc123 not found
