@@ -516,9 +516,16 @@ class AutoWorkspaceToolsInfo:
 EXECUTE_CODE_AUTO_DESCRIPTION = """
 # CODE EXECUTION INSTRUCTIONS:
 Execute Python code in an isolated code execution environment with persistent state and file generation capabilities.
-Dont download files from internet in code execution environment,instead provide url in upload file tool to upload it and then later use it in the code.
+Do not download files from internet in code execution environment,instead provide url in upload file tool to upload it and then later use it in the code.
 
 Make sure to strictly follow all the code execution instructions and requirements below.
+
+## CRITICAL: PYTHON CODE ONLY
+- The 'code' parameter MUST contain valid Python syntax only
+- DO NOT pass raw text, markdown, JSON, CSV data, or any non-Python content
+- If creating files, write Python code that opens/writes the file
+- WRONG: execute_code("# My Title\n- Item 1")  ← This is markdown, not Python!
+- RIGHT: execute_code("with open('file.md', 'w') as f: f.write('# My Title\\n- Item 1')")
 
 ## CRITICAL REQUIREMENT FOR CODE EXECUTION: 
 - ALWAYS check if the execution succeeded before using any outputs
@@ -534,7 +541,7 @@ Make sure to strictly follow all the code execution instructions and requirement
 - NEVER retry the exact same code after a timeout
 
 ## REQUIRED PARAMETERS:
-- code: Python code string
+- code: Valid Python code string (NOT raw text/markdown/data)
 
 ## RETURN VALUE STRUCTURE:
 The tool returns an ExecutionOperationResult containing:
@@ -576,10 +583,10 @@ img = Image.open(requests.get('http://localhost:8000/api/v1/proxy/images/img_123
 img = Image.open('image_filename.jpg')  # Direct local access
 ```
 
-## FILE OPERATIONS:
+## FILE OPERATIONS (Python code examples):
 - **Read uploaded files**: open('filename.txt', 'r') - access files uploaded via upload_file tool
-- **Create files**: open('output.csv', 'w') - any file you create gets tracked
-- **Generate plots**: plt.savefig('chart.png') - saved plots are automatically detected
+- **Create files with Python**: open('output.csv', 'w') - any file you create gets tracked
+- **Generate plots with Python**: plt.savefig('chart.png') - saved plots are automatically detected
 
 ## EXAMPLES:
 ```python
@@ -591,9 +598,11 @@ plt.figure(figsize=(10,6))
 plt.plot(data)
 plt.savefig('visualization.png', dpi=300, bbox_inches='tight')
 
-# Generate reports or documents  
-with open('report.txt', 'w') as f:
-    f.write(f"Analysis completed: {results}")
+# Generate text files (markdown, reports, etc.)
+with open('report.md', 'w') as f:
+    f.write("# Analysis Report\n\n")
+    f.write(f"Results: {results}\n")
+    f.write("- Item 1\n- Item 2\n")
 ```
 
 ## BEST PRACTICES and DATA VISUALIZATION INSTRUCTIONS:

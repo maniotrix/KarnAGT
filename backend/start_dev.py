@@ -12,6 +12,9 @@ sys.path.insert(0, str(current_dir))
 
 # Set environment to development if not set
 os.environ.setdefault("ENVIRONMENT", "development")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONLEGACYWINDOWSIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONUTF8", "1")
 
 if __name__ == "__main__":
     try:

@@ -445,7 +445,7 @@ export const Chat: React.FC<ChatProps> = ({
       </div>
 
       {/* Chat Actions (conditionally rendered) */}
-      {showActions && conversation && (
+      {/* {showActions && conversation && (
         <div className="px-4 pb-2 flex-shrink-0">
           <ChatActions
             onShare={handleShare}
@@ -457,7 +457,7 @@ export const Chat: React.FC<ChatProps> = ({
             canDelete={!!conversation}
           />
         </div>
-      )}
+      )} */}
 
       {/* Chat Input & Error Display */}
       <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex-shrink-0">

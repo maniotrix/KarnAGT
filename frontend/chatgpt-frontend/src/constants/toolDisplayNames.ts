@@ -7,18 +7,18 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   // Workspace/Code Execution Tools
   'create_workspace': 'Getting things ready…',
   'upload_file': 'Processing the files…',
-  'execute_code': 'Working on it…',
+  'execute_code': 'Running code…',
   
   // Memory Tools
   'retrieve_user_memory': 'Fetching more information about you…',
   'save_user_memory': 'Saving your information…',
   
   // Knowledge/Document Tools
-  'search_user_uploaded_documents': 'Looking through docs in the chat…',
+  'search_user_uploaded_documents': 'Searching docs…',
   'list_user_uploaded_documents': 'Listing uploaded docs…',
   
   // Web/External Tools (if any)
-  'web_search': 'Searching the web for more information…',
+  'web_search': 'Searching the web…',
 };
 
 /**
