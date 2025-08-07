@@ -42,3 +42,5 @@
 * maybe the long messages in chat collapsible
 
 * llm trying to directly download proxy file in code sanbox instead of uploading again - {Error: ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/proxy/images/img_8d9d8724}
+
+* Fix nested or raw markdown inside llm response on frontend
