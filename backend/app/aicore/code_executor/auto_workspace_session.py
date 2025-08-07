@@ -607,7 +607,7 @@ with open('report.txt', 'w') as f:
 UPLOAD_FILE_AUTO_DESCRIPTION = """
 Upload a file from a URL to the code execution environment so it can be accessed locally by Python code.
 
-⚠️  **ALWAYS use this tool FIRST before accessing any external files in Python code!**
+**ALWAYS use this tool FIRST before accessing any external files in Python code!**
 
 ## WHEN TO USE THIS TOOL:
 - **REQUIRED** for ALL proxy URLs (http://localhost:8000/api/v1/proxy/*)
