@@ -31,7 +31,7 @@ from app.aicore.core.stream_event_utils import (
 # Import configuration classes
 from app.aicore.config import AIConfig, config_manager
 from app.aicore.ai_agents.configurable_code_agent import ConfigurableCodeExecutorAgent
-from app.aicore.code_executor import WorkspaceExecutionSession
+from app.aicore.code_executor.auto_workspace_session import AutoWorkspaceSession
 from app.logging.logger import get_logger
 
 # Set up logger
@@ -142,7 +142,7 @@ class ConfigurableOpenAIAssistant:
             logger.info(f"ConfigurableOpenAIAssistant: Agent tools names: {', '.join([tool.name for tool in self.agent.tools])}")
             
             # 🚀 WORKSPACE SESSION INTEGRATION - INSIDE TRY-CATCH FOR GUARANTEED CLEANUP
-            async with WorkspaceExecutionSession() as session:
+            async with AutoWorkspaceSession() as session:
                 logger.info(f"Created workspace session {session.session_id} for message processing")
                 
                 # Check if streaming is enabled

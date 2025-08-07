@@ -16,7 +16,7 @@ from app.aicore.core.stream_events import ToolCallStartEvent, ToolCallOutputEven
 from app.utils.tool_calls_event_formatter import ToolCallsEventFormatter, ToolRegistry, ActualToolType
 from app.services.memory.llm_memory_tools import MemoryToolsInfo
 from app.services.knowledge.llm_knowledge_tools import KnowledgeToolsInfo
-from app.aicore.code_executor.workspace_session import WorkspaceSessionToolsInfo
+from app.aicore.code_executor.auto_workspace_session import AutoWorkspaceToolsInfo
 from app.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -55,9 +55,9 @@ def test_tool_registry():
     display_name = ToolRegistry.get_display_name(workspace_tool)
     
     print(f"✅ Workspace Tool: {workspace_tool}")
-    print(f"   Type: {tool_type} (expected: {ActualToolType.WORKSPACE_SESSION_TOOLS})")
+    print(f"   Type: {tool_type} (expected: {ActualToolType.AUTO_WORKSPACE_TOOLS})")
     print(f"   Display: {display_name}")
-    assert tool_type == ActualToolType.WORKSPACE_SESSION_TOOLS
+    assert tool_type == ActualToolType.AUTO_WORKSPACE_TOOLS
     assert display_name == "Create Workspace"
     
     # Test unknown tool
@@ -148,7 +148,7 @@ def test_tool_call_start_event_formatting():
     # Verify structure
     assert formatted["tool_name"] == "execute_code"
     assert formatted["display_name"] == "Execute Code"
-    assert formatted["tool_type"] == WorkspaceSessionToolsInfo.TOOL_TYPE
+    assert formatted["tool_type"] == AutoWorkspaceToolsInfo.TOOL_TYPE
     assert formatted["tool_id"] == "tool_workspace_789"
     assert "workspace_id" in formatted["arguments"]
     assert "code" in formatted["arguments"]
@@ -211,7 +211,7 @@ def test_tool_call_output_event_formatting():
     # Verify structure
     assert formatted["tool_name"] == "create_workspace"
     assert formatted["display_name"] == "Create Workspace"
-    assert formatted["tool_type"] == WorkspaceSessionToolsInfo.TOOL_TYPE
+    assert formatted["tool_type"] == AutoWorkspaceToolsInfo.TOOL_TYPE
     assert formatted["tool_id"] == "tool_workspace_456"
     assert isinstance(formatted["result"], dict)
     assert formatted["result"]["success"] == True

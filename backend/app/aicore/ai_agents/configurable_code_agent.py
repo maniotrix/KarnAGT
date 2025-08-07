@@ -14,10 +14,10 @@ from app.aicore.config import AgentConfig, ModelConfig
 from app.aicore.instructions import InstructionBuilder, InstructionContext
 from app.logging.logger import get_logger
 
-# Import workspace session functionality (replaces deprecated new_code_tool)
-from app.aicore.code_executor.workspace_session_config import create_auto_session_code_tools
+# Import auto workspace session functionality (replaces deprecated workspace session tools)
 from app.aicore.code_executor.models import ExecutionOperationResult, FileInfo
 from app.aicore.ai_agents.agent_models import DownloadedFilesTracker
+from app.aicore.code_executor.auto_workspace_session import create_auto_workspace_tools
 
 
 # Get logger
@@ -99,7 +99,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         # Add workspace session tools if enabled (with automatic file tracking)
         if self.agent_config.code_execution.enabled:
             # Get workspace session tools with contextvars support
-            session_tools = create_auto_session_code_tools()
+            session_tools = create_auto_workspace_tools()
             
             # Wrap tools with file tracking for the agent
             wrapped_tools = self._wrap_session_tools_with_tracking(session_tools)
@@ -150,7 +150,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         approach, but works with the new workspace session tools.
         
         Args:
-            session_tools: List of workspace session tools from create_auto_session_code_tools()
+            session_tools: List of auto workspace tools from create_auto_workspace_tools()
             
         Returns:
             List of wrapped tools with file tracking
@@ -181,8 +181,8 @@ class ConfigurableCodeExecutorAgent(Agent):
         """
         
         # Get the raw callable function from the workspace tools registry
-        from app.aicore.code_executor.workspace_session import get_workspace_callables
-        workspace_callables = get_workspace_callables()
+        from app.aicore.code_executor.auto_workspace_session import get_auto_workspace_callables
+        workspace_callables = get_auto_workspace_callables()
         execute_code_func = workspace_callables['execute_code']
         
         # Capture reference to self for the closure
@@ -194,7 +194,6 @@ class ConfigurableCodeExecutorAgent(Agent):
             strict_mode=getattr(original_execute_code, 'strict_mode', False)
         )
         async def execute_code_with_tracking(
-            workspace_id: str,
             code: str
         ) -> ExecutionOperationResult:
             """
@@ -204,7 +203,6 @@ class ConfigurableCodeExecutorAgent(Agent):
             agent's tracking system using the current message ID.
             
             Args:
-                workspace_id: Valid workspace ID from create_workspace()
                 code: Python code to execute
                 
             Returns:
@@ -213,7 +211,11 @@ class ConfigurableCodeExecutorAgent(Agent):
             logger.info(f"Agent executing code with auto file tracking (message: {_agent.current_message_id})")
             
             # Call the underlying function directly (uses context variables internally)
-            result: ExecutionOperationResult = await execute_code_func(workspace_id, code)
+            try:
+                result: ExecutionOperationResult = await execute_code_func(code)
+            except Exception as e:
+                logger.error(f"Error executing code: {e}")
+                return ExecutionOperationResult.error_result(str(e))
             
             # Handle file tracking based on what we got back
             if result.success and result.execution_result and result.execution_result.generated_files:

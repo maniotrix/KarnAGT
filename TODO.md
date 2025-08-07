@@ -40,3 +40,5 @@
 * llm showing made up and wrong url even if its not returned after code execution : http://localhost:8080/api/v1/workspace/ws_e4f852ac/files/abhilasha_6_april_ticket.pdf
 
 * maybe the long messages in chat collapsible
+
+* llm trying to directly download proxy file in code sanbox instead of uploading again - {Error: ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/proxy/images/img_8d9d8724}

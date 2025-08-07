@@ -14,10 +14,8 @@ sys.path.append(backend_dir)
 
 from agents import Agent, Runner
 from app.aicore.code_executor.services.health_service import HealthService
-from app.aicore.code_executor.workspace_session import WorkspaceExecutionSession
-from app.aicore.code_executor.workspace_session_config import create_auto_session_code_tools
+from app.aicore.code_executor.auto_workspace_session import AutoWorkspaceSession
 from app.logging.logger import get_logger
-from app.aicore.code_executor.prompts.tools_prompts import EXECUTE_CODE_TOOL_DESCRIPTION
 
 logger = get_logger(__name__)
 
@@ -142,12 +140,13 @@ def create_test_agent() -> Agent:
     from agents.tool import WebSearchTool, Tool
     from typing import List
     from app.aicore.config.agent_config import WebSearchConfig
+    from app.aicore.code_executor.auto_workspace_session import create_auto_workspace_tools
     web_search_config = WebSearchConfig()
     websearch_tool = WebSearchTool(
         user_location=web_search_config.location
     )
     tools: List[Tool] = []
-    tools.extend(create_auto_session_code_tools()) # Uses contextvars - no session parameter!
+    tools.extend(create_auto_workspace_tools()) # Uses contextvars - no session parameter!
     tools.append(websearch_tool)
     return Agent(
         name="test_agent",
@@ -173,7 +172,7 @@ async def test_with_prompt(prompt: str):
     print(f"\n--- Testing agent with prompt: {prompt} ---")
         
     # Use workspace session as context manager for automatic cleanup
-    async with WorkspaceExecutionSession() as session:
+    async with AutoWorkspaceSession() as session:
         print(f"Created workspace session: {session.session_id}")
         
         # Run the agent
@@ -254,7 +253,7 @@ Extract and summarize:
 
 # Even if this is not an HTTP URL, upload the file to workspace - it will work.
 #     """
-#     await test_with_prompt(excel_prompt.strip())
+    await test_with_prompt(excel_prompt.strip())
     
 #     # test with docx file
 #     docx_prompt = f"""
@@ -272,17 +271,17 @@ Extract and summarize:
 #     await test_with_prompt(docx_prompt.strip())
     
 #     # test with zip file
-    zip_prompt = f"""
-Analyze this ZIP archive: {test_zip_file}
-Extract and examine:
-1. List all files and folders in the archive
-2. Extract and analyze text files
-3. Identify file types and structure
-4. Provide a summary of the archive contents
+#     zip_prompt = f"""
+# Analyze this ZIP archive: {test_zip_file}
+# Extract and examine:
+# 1. List all files and folders in the archive
+# 2. Extract and analyze text files
+# 3. Identify file types and structure
+# 4. Provide a summary of the archive contents
 
-Even if this is not an HTTP URL, upload the file to workspace - it will work.
-    """
-    await test_with_prompt(zip_prompt.strip())
+# Even if this is not an HTTP URL, upload the file to workspace - it will work.
+#     """
+#     await test_with_prompt(zip_prompt.strip())
     
     results.summary()
 
