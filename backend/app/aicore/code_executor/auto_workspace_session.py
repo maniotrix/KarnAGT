@@ -516,6 +516,7 @@ class AutoWorkspaceToolsInfo:
 EXECUTE_CODE_AUTO_DESCRIPTION = """
 # CODE EXECUTION INSTRUCTIONS:
 Execute Python code in an isolated code execution environment with persistent state and file generation capabilities.
+Dont download files from internet in code execution environment,instead provide url in upload file tool to upload it and then later use it in the code.
 
 Make sure to strictly follow all the code execution instructions and requirements below.
 
@@ -556,8 +557,27 @@ The tool returns an ExecutionOperationResult containing:
 - Output capture: stdout, stderr, and execution results
 - Your code will be executed with a timeout of 30 seconds.
 
+## CRITICAL FILE ACCESS WORKFLOW:
+**NEVER download URLs directly in Python code** - use upload_file tool instead!
+
+**CORRECT WORKFLOW:**
+1. **First**: Use upload_file tool for ANY external file/image URLs (especially proxy URLs like http://localhost:8000/api/v1/proxy/*)
+2. **Then**: Access the uploaded file locally by filename in your Python code
+
+**WRONG:**
+```python
+import requests
+img = Image.open(requests.get('http://localhost:8000/api/v1/proxy/images/img_123', stream=True).raw)
+```
+
+**CORRECT:**
+```python
+# After using upload_file tool to upload the image first
+img = Image.open('image_filename.jpg')  # Direct local access
+```
+
 ## FILE OPERATIONS:
-- **Read files**: open('filename.txt', 'r') - access uploaded files directly
+- **Read uploaded files**: open('filename.txt', 'r') - access files uploaded via upload_file tool
 - **Create files**: open('output.csv', 'w') - any file you create gets tracked
 - **Generate plots**: plt.savefig('chart.png') - saved plots are automatically detected
 
@@ -585,11 +605,23 @@ with open('report.txt', 'w') as f:
 """
 
 UPLOAD_FILE_AUTO_DESCRIPTION = """
-Upload a file to code execution environment so it can be accessed by Python code.
-        
+Upload a file from a URL to the code execution environment so it can be accessed locally by Python code.
+
+⚠️  **ALWAYS use this tool FIRST before accessing any external files in Python code!**
+
+## WHEN TO USE THIS TOOL:
+- **REQUIRED** for ALL proxy URLs (http://localhost:8000/api/v1/proxy/*)
+- **REQUIRED** for any external web URLs you want to process in Python
+- **REQUIRED** before any file processing operations in code execution
+
+## WORKFLOW:
+1. **First**: Call upload_file with the URL and desired filename
+2. **Then**: Use execute_code to process the file locally by filename
+
 ## CRITICAL FILE UPLOAD INSTRUCTIONS:
 - File URL must be a valid Full HTTP URL and the maximum file size allowed is 20MB.
 - You must provide a file_name to be used for the file in the code execution environment.
+- After uploading, access the file in Python code using ONLY the filename (not the original URL)
 
 ## REQUIRED PARAMETERS:
 - file_url: Valid Full HTTP URL
@@ -602,7 +634,18 @@ The tool returns a FileUploadResult containing:
 - **error**: Optional error message if upload failed
 
 ## EXAMPLES:
-upload_file(file_url="https://example.com/data.csv", file_name="data.csv")
+
+**For proxy URLs (images, documents, etc.):**
+```
+upload_file(file_url="http://localhost:8000/api/v1/proxy/images/img_8d9d8724", file_name="my_image.jpg")
+# Then in Python: img = Image.open('my_image.jpg')
+```
+
+**For external URLs:**
+```
+upload_file(file_url="https://example.com/data.csv", file_name="data.csv")  
+# Then in Python: df = pd.read_csv('data.csv')
+```
 """
 
 
