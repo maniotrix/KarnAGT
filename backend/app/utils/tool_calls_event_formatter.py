@@ -10,13 +10,13 @@ from app.aicore.core.stream_events import (
 
 from app.services.knowledge.llm_knowledge_tools import KnowledgeToolsInfo
 from app.services.memory.llm_memory_tools import MemoryToolsInfo
-from app.aicore.code_executor.workspace_session import WorkspaceSessionToolsInfo
+from app.aicore.code_executor.auto_workspace_session import AutoWorkspaceToolsInfo
 
 
 class ActualToolType(Enum):
     KNOWLEDGE_TOOLS = KnowledgeToolsInfo.TOOL_TYPE
     MEMORY_TOOLS = MemoryToolsInfo.TOOL_TYPE
-    WORKSPACE_SESSION_TOOLS = WorkspaceSessionToolsInfo.TOOL_TYPE
+    AUTO_WORKSPACE_TOOLS = AutoWorkspaceToolsInfo.TOOL_TYPE
     UNKNOWN = "unknown"
 
 
@@ -29,7 +29,7 @@ class ToolRegistry:
     _TOOLS_INFO_CLASSES = [
         KnowledgeToolsInfo,
         MemoryToolsInfo, 
-        WorkspaceSessionToolsInfo,
+        AutoWorkspaceToolsInfo,
     ]
     
     # Lazy-loaded lookup tables
