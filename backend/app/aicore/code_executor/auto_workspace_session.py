@@ -516,7 +516,7 @@ class AutoWorkspaceToolsInfo:
 EXECUTE_CODE_AUTO_DESCRIPTION = """
 # CODE EXECUTION INSTRUCTIONS:
 Execute Python code in an isolated code execution environment with persistent state and file generation capabilities.
-Dont download files from internet in code execution environment,instead provide url in upload file tool to upload it and then later use it in the code.
+Do not download files from internet in code execution environment,instead provide url in upload file tool to upload it and then later use it in the code.
 
 Make sure to strictly follow all the code execution instructions and requirements below.
 
