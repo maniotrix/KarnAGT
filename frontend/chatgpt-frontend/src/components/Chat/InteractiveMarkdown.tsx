@@ -58,9 +58,9 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
           wrapper: 'border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden',
           table: 'bg-white dark:bg-gray-900',
           headerRow: 'bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-700',
-          headerCell: 'text-gray-900 dark:text-blue-100 font-medium',
+          headerCell: 'text-gray-900 dark:text-blue-100',
           bodyRowHover: 'hover:bg-blue-50/60 dark:hover:bg-blue-900/20',
-          bodyCell: 'text-gray-800 dark:text-blue-100 border-b border-gray-200 dark:border-blue-800/40'
+          bodyCell: 'text-gray-900 dark:text-blue-100 border-b border-gray-200 dark:border-blue-800/40'
         };
       case 'assistant':
       default:
@@ -68,9 +68,9 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
           wrapper: 'border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden',
           table: 'bg-white dark:bg-gray-900',
           headerRow: 'bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700',
-          headerCell: 'text-gray-900 dark:text-gray-100 font-medium',
+          headerCell: 'text-gray-900 dark:text-gray-100',
           bodyRowHover: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
-          bodyCell: 'text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700'
+          bodyCell: 'text-gray-900 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700'
         };
     }
   };
@@ -134,7 +134,7 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
           table: ({ children, ...props }) => {
             const styles = getTableStyles();
             return (
-              <div className={`w-full overflow-x-auto not-prose ${styles.wrapper} my-6`} style={{ margin: '1.5rem 0' }}>
+              <div className={`w-full overflow-x-auto not-prose ${styles.wrapper} my-4`} style={{ margin: '1rem 0' }}>
                 <table 
                   {...props} 
                   className={`min-w-full border-collapse ${styles.table}`}
@@ -158,7 +158,7 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
             return (
               <th 
                 {...props} 
-                className={`px-4 py-3 text-left text-sm ${styles.headerCell}`}
+                className={`px-3 py-2 text-left text-xs font-medium ${styles.headerCell}`}
               >
                 {children}
               </th>
@@ -190,7 +190,7 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
             return (
               <td 
                 {...props} 
-                className={`px-4 py-3 text-sm ${styles.bodyCell}`}
+                className={`px-3 py-2 text-xs leading-relaxed ${styles.bodyCell}`}
               >
                 {children}
               </td>
