@@ -69,3 +69,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Override highlight.js backgrounds to work with custom code block cards */
+@layer components {
+  .hljs {
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  
+  /* Ensure syntax highlighting colors still work */
+  pre code.hljs {
+    background: transparent !important;
+    color: inherit;
+  }
+}

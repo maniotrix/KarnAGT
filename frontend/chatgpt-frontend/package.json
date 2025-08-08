@@ -24,6 +24,7 @@
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.57.0",
     "react-hotkeys-hook": "^5.1.0",
+    "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.6.2",
     "rehype-highlight": "^7.0.2",

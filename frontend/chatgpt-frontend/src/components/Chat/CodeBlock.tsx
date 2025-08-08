@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Code2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
+import { 
+  DiJavascript1, DiPython, DiReact, DiHtml5, DiCss3, DiSass,
+  DiNodejsSmall, DiPhp, DiJava, DiRuby, DiSwift, DiGo,
+  DiRust, DiDotnet, DiMysql, DiPostgresql,
+  DiMarkdown, DiTerminal, DiCode, DiDatabase
+} from 'react-icons/di';
+import { SiTypescript, SiKotlin, SiCplusplus } from 'react-icons/si';
 
 interface CodeBlockProps {
   children: React.ReactNode;
@@ -44,18 +51,18 @@ const CopyButton: React.FC<{
         <TooltipTrigger asChild>
           <button
             onClick={handleCopy}
-            className={`${buttonSize} rounded bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm border border-gray-200 dark:border-gray-600 opacity-90 hover:opacity-100 md:opacity-0 md:group-hover:opacity-90 md:hover:opacity-100`}
+            className={`${buttonSize} rounded-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/30 dark:hover:to-blue-800/30 transition-all duration-200 shadow-sm hover:shadow-md border border-gray-200 dark:border-gray-600 hover:border-blue-200 dark:hover:border-blue-700 opacity-90 hover:opacity-100 md:opacity-0 md:group-hover:opacity-90 md:hover:opacity-100 transform hover:scale-105`}
             title={copied ? 'Copied!' : 'Copy code'}
           >
             {copied ? (
-              <Check className={`${iconSize} text-green-600 dark:text-green-500`} />
+              <Check className={`${iconSize} text-green-600 dark:text-green-400`} />
             ) : (
-              <Copy className={`${iconSize} text-gray-700 dark:text-gray-300`} />
+              <Copy className={`${iconSize} text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors`} />
             )}
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="text-xs">{copied ? 'Copied!' : 'Copy code'}</p>
+          <p className="text-xs font-medium">{copied ? '✓ Copied!' : 'Copy code'}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -83,9 +90,110 @@ export const InlineCode: React.FC<CodeBlockProps> = ({ children, className, ...p
   );
 };
 
-// Enhanced pre block component with copy button
+// Enhanced pre block component with copy button - Card style
 export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...props }) => {
   const preRef = React.useRef<HTMLPreElement>(null);
+
+  const extractLanguage = (node: React.ReactNode): string | null => {
+    const array = React.Children.toArray(node);
+    for (const child of array) {
+      if (React.isValidElement(child)) {
+        const el = child as React.ReactElement<any>;
+        // Look on the code element first
+        const className: string | undefined = el.props?.className;
+        if (className) {
+          // Common patterns: "language-ts", "language-python", sometimes with hljs classes
+          const match = className.match(/language-([a-zA-Z0-9+#-]+)/);
+          if (match?.[1]) return match[1].toLowerCase();
+        }
+        // Recurse into children if any
+        if (el.props?.children) {
+          const nested = extractLanguage(el.props.children);
+          if (nested) return nested;
+        }
+      }
+    }
+    return null;
+  };
+
+  const language = extractLanguage(children);
+
+  // Get language-specific icon
+  const getLanguageIcon = (lang: string | null) => {
+    if (!lang) return Code2;
+    
+    const langMap: Record<string, React.ComponentType<any>> = {
+      // JavaScript/TypeScript
+      'javascript': DiJavascript1,
+      'js': DiJavascript1,
+      'typescript': SiTypescript,
+      'ts': SiTypescript,
+      'tsx': DiReact,
+      'jsx': DiReact,
+      
+      // Web
+      'html': DiHtml5,
+      'css': DiCss3,
+      'scss': DiSass,
+      'sass': DiSass,
+      
+      // Python
+      'python': DiPython,
+      'py': DiPython,
+      
+      // Database
+      'sql': DiDatabase,
+      'mysql': DiMysql,
+      'postgresql': DiPostgresql,
+      'postgres': DiPostgresql,
+      
+      // Shell/Terminal
+      'bash': DiTerminal,
+      'sh': DiTerminal,
+      'zsh': DiTerminal,
+      'powershell': DiTerminal,
+      'cmd': DiTerminal,
+      'shell': DiTerminal,
+      
+      // Config/Data
+      'json': DiCode,
+      'yaml': DiCode,
+      'yml': DiCode,
+      'xml': DiCode,
+      'toml': DiCode,
+      
+      // Other languages
+      'java': DiJava,
+      'c': SiCplusplus,
+      'cpp': SiCplusplus,
+      'c++': SiCplusplus,
+      'csharp': DiDotnet,
+      'cs': DiDotnet,
+      'php': DiPhp,
+      'ruby': DiRuby,
+      'rb': DiRuby,
+      'go': DiGo,
+      'golang': DiGo,
+      'rust': DiRust,
+      'rs': DiRust,
+      'swift': DiSwift,
+      'kotlin': SiKotlin,
+      'kt': SiKotlin,
+      'node': DiNodejsSmall,
+      'nodejs': DiNodejsSmall,
+      'dotnet': DiDotnet,
+      
+      // Markup
+      'markdown': DiMarkdown,
+      'md': DiMarkdown,
+      'text': DiCode,
+      'txt': DiCode,
+    };
+    
+    return langMap[lang.toLowerCase()] || Code2;
+  };
+
+  const LanguageIcon = getLanguageIcon(language);
 
   const handleCopy = async () => {
     if (preRef.current) {
@@ -100,12 +208,35 @@ export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...prop
   };
 
   return (
-    <div className="group relative max-w-full">
-      <pre {...props} ref={preRef} className={`${className} min-w-0`} style={{ maxWidth: '100%' }}>
-        {children}
-      </pre>
-      <div className="absolute top-1.5 right-1.5">
-        <CopyButton text="" onCustomCopy={handleCopy} />
+    <div className="group relative max-w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          {/* Language-specific icon with subtle glow */}
+          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800/30">
+            <LanguageIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          </div>
+          {/* Enhanced language pill */}
+          {language && (
+            <span className="text-xs font-mono text-gray-700 dark:text-gray-200 select-none">
+              {language.toLowerCase()}
+            </span>
+          )}
+        </div>
+        {/* Copy button */}
+        <CopyButton text="" onCustomCopy={handleCopy} size="sm" />
+      </div>
+      
+      {/* Code content */}
+      <div className="relative">
+        <pre 
+          {...props} 
+          ref={preRef} 
+          className={`${className || ''} m-0 p-4 border-none overflow-x-auto text-sm leading-relaxed`}
+          style={{ maxWidth: '100%' }}
+        >
+          {children}
+        </pre>
       </div>
     </div>
   );
