@@ -213,15 +213,13 @@ export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...prop
       <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           {/* Language-specific icon with subtle glow */}
-          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800/30">
-            <LanguageIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800/30">
+            <LanguageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
           {/* Enhanced language pill */}
-          {language && (
-            <span className="text-xs font-mono text-gray-700 dark:text-gray-200 select-none">
-              {language.toLowerCase()}
-            </span>
-          )}
+          <span className="text-xs font-mono text-gray-700 dark:text-gray-200 select-none">
+            {language ? language.toLowerCase() : 'plaintext'}
+          </span>
         </div>
         {/* Copy button */}
         <CopyButton text="" onCustomCopy={handleCopy} size="sm" />
