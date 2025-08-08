@@ -51,6 +51,30 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
     }
   };
 
+  const getTableStyles = () => {
+    switch (theme) {
+      case 'user':
+        return {
+          wrapper: 'border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden',
+          table: 'bg-white dark:bg-gray-900',
+          headerRow: 'bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-700',
+          headerCell: 'text-gray-900 dark:text-blue-100 font-medium',
+          bodyRowHover: 'hover:bg-blue-50/60 dark:hover:bg-blue-900/20',
+          bodyCell: 'text-gray-800 dark:text-blue-100 border-b border-gray-200 dark:border-blue-800/40'
+        };
+      case 'assistant':
+      default:
+        return {
+          wrapper: 'border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden',
+          table: 'bg-white dark:bg-gray-900',
+          headerRow: 'bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700',
+          headerCell: 'text-gray-900 dark:text-gray-100 font-medium',
+          bodyRowHover: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+          bodyCell: 'text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700'
+        };
+    }
+  };
+
   return (
     <div className={className}>
       <ReactMarkdown
@@ -104,6 +128,72 @@ export const InteractiveMarkdown: React.FC<InteractiveMarkdownProps> = ({
               >
                 {children}
               </a>
+            );
+          },
+          // Professional table with clean design
+          table: ({ children, ...props }) => {
+            const styles = getTableStyles();
+            return (
+              <div className={`w-full overflow-x-auto not-prose ${styles.wrapper} my-6`} style={{ margin: '1.5rem 0' }}>
+                <table 
+                  {...props} 
+                  className={`min-w-full border-collapse ${styles.table}`}
+                >
+                  {children}
+                </table>
+              </div>
+            );
+          },
+          // Clean table headers
+          thead: ({ children, ...props }) => {
+            const styles = getTableStyles();
+            return (
+              <thead {...props} className={styles.headerRow}>
+                {children}
+              </thead>
+            );
+          },
+          th: ({ children, ...props }) => {
+            const styles = getTableStyles();
+            return (
+              <th 
+                {...props} 
+                className={`px-4 py-3 text-left text-sm ${styles.headerCell}`}
+              >
+                {children}
+              </th>
+            );
+          },
+          // Table body with zebra striping
+          tbody: ({ children, ...props }) => (
+            <tbody {...props}>
+              {children}
+            </tbody>
+          ),
+          tr: ({ children, ...props }) => {
+            const styles = getTableStyles();            
+            return (
+              <tr 
+                {...props} 
+                className={`transition-colors duration-150 ${styles.bodyRowHover} ${
+                  theme === 'user' 
+                    ? 'even:bg-blue-50/30 dark:even:bg-blue-950/20' 
+                    : 'even:bg-gray-50/50 dark:even:bg-gray-800/30'
+                }`}
+              >
+                {children}
+              </tr>
+            );
+          },
+          td: ({ children, ...props }) => {
+            const styles = getTableStyles();
+            return (
+              <td 
+                {...props} 
+                className={`px-4 py-3 text-sm ${styles.bodyCell}`}
+              >
+                {children}
+              </td>
             );
           },
           // Interactive Components - These can be used in markdown
