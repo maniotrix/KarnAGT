@@ -54,7 +54,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-2 py-2 sm:px-4 sm:py-3 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        className="px-3 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
       >
         {/* Message Content */}
         <div className="flex flex-col w-full min-w-0 items-start">
@@ -73,7 +73,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 
           {/* Message Bubble - Only show when there's content */}
           {message.content && (
-            <div className="px-3 py-2 sm:px-4 sm:py-3 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 w-full min-w-0">
+            <div className="px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 w-full min-w-0">
               <div className="min-w-0 overflow-hidden">
                 <InteractiveMarkdown 
                   content={message.content}

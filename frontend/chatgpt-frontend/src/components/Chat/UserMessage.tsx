@@ -274,7 +274,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-4 py-2 sm:py-3 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex justify-end"
+        className="px-3 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex justify-end"
       >
         {/* Message Content */}
         <div className="flex flex-col max-w-[80%] items-end">
@@ -305,7 +305,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
           )}
 
           {/* Message Bubble */}
-          <div className="px-4 py-3 rounded-2xl max-w-none bg-blue-600 text-white ml-8">
+          <div className="px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4 rounded-2xl max-w-none bg-blue-600 text-white ml-8">
             {/* Message Text with Edit/Display Mode */}
             {isEditing ? (
               <div>
