@@ -2,13 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Message, ImageAttachment } from '../../types/chat';
 import { useConversationImagesContext } from '../../contexts/ConversationImagesContext';
 
-// Markdown Support
-import ReactMarkdown from 'react-markdown';
-import rehypeHighlight from 'rehype-highlight';
-import remarkGfm from 'remark-gfm';
-
-// Code Block Components
-import { CodeComponent, PreBlock } from './CodeBlock';
+// Interactive Markdown Component
+import { InteractiveMarkdown } from './InteractiveMarkdown';
 
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
@@ -337,54 +332,11 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                   </div>
                 )}
                 
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                  components={{
-                    // Enhanced pre blocks with copy button
-                    pre: ({ children, ...props }) => (
-                      <PreBlock {...props} className="bg-blue-700 rounded-md p-2 overflow-x-auto border border-blue-600">
-                        {children}
-                      </PreBlock>
-                    ),
-                    // Enhanced code with copy functionality
-                    code: ({ children, className, ...props }) => {
-                      const isInline = !className;
-                      return (
-                        <CodeComponent 
-                          {...props} 
-                          className={`${className || ''} ${
-                            isInline 
-                              ? 'bg-blue-800 px-1 py-0.5 rounded text-sm' 
-                              : ''
-                          }`}
-                          inline={isInline}
-                        >
-                          {children}
-                        </CodeComponent>
-                      );
-                    },
-                    // Custom link handling - open external links in new tab
-                    a: ({ href, children, ...props }) => {
-                      const isExternal = href && (href.startsWith('http://') || href.startsWith('https://'));
-                      const isProxyUrl = href && /\/api\/v1\/proxy\/(images|files|code-files)\//.test(href);
-                      
-                      return (
-                        <a 
-                          {...props}
-                          href={href}
-                          target={isExternal && !isProxyUrl ? '_blank' : undefined}
-                          rel={isExternal && !isProxyUrl ? 'noopener noreferrer' : undefined}
-                          className="text-blue-200 hover:text-blue-100 underline"
-                        >
-                          {children}
-                        </a>
-                      );
-                    }
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                <InteractiveMarkdown 
+                  content={message.content}
+                  theme="user"
+                  className="prose prose-sm max-w-none prose-invert text-white break-words"
+                />
               </div>
             )}
           </div>
