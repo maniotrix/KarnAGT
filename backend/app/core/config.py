@@ -148,7 +148,7 @@ class Settings(BaseSettings):
     MEMORY_MAX_AGE_DAYS: int = 365
     
     # Cost Management
-    COST_TRACKING_ENABLED: bool = True
+    COST_TRACKING_ENABLED: bool = False
     DEFAULT_USER_QUOTA_USD: float = 10.0
     COST_ALERT_THRESHOLD: float = 0.8  # 80% of quota
     
