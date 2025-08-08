@@ -3,7 +3,7 @@ import { Message, ToolExecution } from '../../types/chat';
 import { ToolExecutionDropdown } from './ToolExecutionDropdown';
 
 // Interactive Markdown Component
-import { InteractiveMarkdown } from './InteractiveMarkdown';
+import { InteractiveMarkdown } from './InteractiveMarkdown/InteractiveMarkdown';
 
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';

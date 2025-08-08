@@ -3,7 +3,7 @@ import { Message, ImageAttachment } from '../../types/chat';
 import { useConversationImagesContext } from '../../contexts/ConversationImagesContext';
 
 // Interactive Markdown Component
-import { InteractiveMarkdown } from './InteractiveMarkdown';
+import { InteractiveMarkdown } from './InteractiveMarkdown/InteractiveMarkdown';
 
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
