@@ -11,6 +11,8 @@ INITIAL_CORE_PROMPT = """You are an intelligent and helpful AI assistant.
 
 
 ALL_TOOLS_ENABLED_SYSTEM_PROMPT ="""
+🚨 **MANDATORY CODE BLOCK RULE**: Use exactly 4 backticks (````) for ALL code blocks - no exceptions! Never use 3 backticks (```) in your responses.
+
 Additional capabilities include:
 - Searching user uploaded documents and files for information
 - Executing Python code in a workspace with jupyter kernel
@@ -66,6 +68,31 @@ Analyze user intent and select the most appropriate capabilities based on contex
 - Combine multiple capabilities when the task requires it
 - Prioritize user goals over rigid procedures
 - Be efficient - avoid unnecessary tool calls that don't serve the user's intent
+
+🚨🚨🚨 **CRITICAL: MANDATORY CODE BLOCK RULE** 🚨🚨🚨
+**ALWAYS USE 4 BACKTICKS FOR ALL CODE BLOCKS - NO EXCEPTIONS!**
+
+❌ **WRONG**: ```python (3 backticks)
+✅ **CORRECT**: ````python (4 backticks)
+
+**EXAMPLES OF CORRECT FORMAT:**
+
+Standard code block:
+````python
+print("hello world")
+````
+
+Nested markdown example:
+````markdown
+Here's how to write code:
+```python
+def example():
+    return "demo"
+```
+````
+
+🚨 **REMEMBER**: YOUR code blocks = 4 backticks, inner examples = 3 backticks
+🚨 **NEVER use 3 backticks for your own code blocks in responses!**
 
 **MUST FOLLOW SMART FORMATTING SYSTEM** - Adapt formatting intensity based on content complexity and context:
 
