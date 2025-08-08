@@ -37,8 +37,10 @@
   
 * [PRIORITY] llm executing code without workspace, unnecessary multiple execute code calls(advice to do maximum stuff in one tool call and script), llm using code or knowledge tool when asked for internet search...completely messing up tools
 * llm keeps doing:  Workspace not found: Workspace ws_abc123 not found
-* llm showing made up and wrong url even if its not returned after code execution : http://localhost:8080/api/v1/workspace/ws_e4f852ac/files/abhilasha_6_april_ticket.pdf
+* llm showing made up and wrong url even if its not returned after code execution : http://localhost:8080/api/v1/workspace/ws_e4f852ac/files/abhilasha_6_april_ticket.pdf---removed create workspace tool from llm tools to avoid this
 
 * maybe the long messages in chat collapsible
 
-* llm trying to directly download proxy file in code sanbox instead of uploading again - {Error: ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/proxy/images/img_8d9d8724}
+* llm trying to directly download proxy file in code sanbox instead of uploading again - {Error: ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/proxy/images/img_8d9d8724} -fixed by llm system prompt
+
+* Fix nested or raw markdown inside llm response on frontend - fixed by llm system prompt

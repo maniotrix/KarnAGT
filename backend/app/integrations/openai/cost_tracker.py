@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.logging.logger import get_logger
+from app.core.config import get_settings
 
 # Set up logger
 logger = get_logger(__name__)
@@ -51,7 +52,7 @@ PRICING_PER_1K_TOKENS = {
 }
 
 
-class CostTracker:
+class _CostTracker:
     """
     Tracks costs and token usage for OpenAI API calls
     
@@ -144,7 +145,7 @@ class CostTracker:
         output_text: str,
         conversation_id: Optional[str] = None,
         additional_metadata: Optional[Dict[str, Any]] = None
-    ) -> CostTracking:
+    ) -> Optional[CostTracking]:
         """
         Track API usage in the database
         
@@ -158,7 +159,7 @@ class CostTracker:
             additional_metadata: Additional metadata
             
         Returns:
-            CostTracking record
+            CostTracking record or None if error
         """
         try:
             # Count tokens
@@ -214,8 +215,11 @@ class CostTracker:
             
         except Exception as e:
             logger.error(f"Error tracking usage: {e}")
-            await db.rollback()
-            raise
+            try:
+                await db.rollback()
+            except:
+                pass  # Ignore rollback errors
+            return None
     
     async def get_user_usage_stats(
         self,
@@ -464,4 +468,45 @@ class CostAnalytics:
                 "total_cost": 0.0,
                 "active_users": 0,
                 "avg_cost_per_user": 0.0
-            } 
+            }
+
+
+class DisabledCostTracker:
+    """No-op implementation when cost tracking is disabled"""
+    
+    def __init__(self, user_id: str):
+        self.user_id = user_id
+        logger.info(f"Cost tracking disabled for user {user_id}")
+    
+    def count_tokens(self, text: str, model: str = "gpt-4") -> int:
+        return len(text) // 4  # Quick estimate
+    
+    def calculate_cost(self, input_tokens: int, output_tokens: int, model: str = "gpt-4") -> Decimal:
+        return Decimal("0.00")
+    
+    async def track_usage(self, db: AsyncSession, operation_type: str, model: str, 
+                         input_text: str, output_text: str, 
+                         conversation_id: Optional[str] = None,
+                         additional_metadata: Optional[Dict[str, Any]] = None) -> Optional[CostTracking]:
+        return None
+    
+    async def get_user_usage_stats(self, db: AsyncSession, days: int = 30) -> Dict[str, Any]:
+        return {
+            "period_days": days, "total_requests": 0, "total_tokens": 0,
+            "total_cost": 0.0, "avg_tokens_per_request": 0.0, "by_model": []
+        }
+    
+    async def check_user_quota(self, db: AsyncSession, requested_tokens: int = 0) -> Dict[str, Any]:
+        return {"allowed": True, "quota_type": "disabled"}
+
+
+def create_cost_tracker(user_id: str):
+    """Factory function - returns appropriate tracker based on config"""
+    if get_settings().COST_TRACKING_ENABLED:
+        return _CostTracker(user_id)
+    else:
+        return DisabledCostTracker(user_id)
+
+
+# Export the factory function as the main interface
+CostTracker = create_cost_tracker
