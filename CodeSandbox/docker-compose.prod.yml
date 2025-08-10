@@ -1,5 +1,10 @@
 version: '3.8'
 
+networks:
+  codesandbox-prod-network:
+    driver: bridge
+    name: codesandbox-prod-network
+
 services:
   codesandbox-prod:
     container_name: codesandbox-production
@@ -10,6 +15,8 @@ services:
         CS_USER: code_sandbox
     ports:
       - "8080:8080"  # Fixed port since no env_file to interpolate
+    networks:
+      - codesandbox-prod-network
     # No volume mounts for production - code is baked into image
     restart: unless-stopped
     healthcheck:
