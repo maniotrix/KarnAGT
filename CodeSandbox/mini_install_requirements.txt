@@ -12,6 +12,7 @@ requests
 tqdm
 python-multipart
 pathvalidate
+watchfiles
 
 # ===================================
 # JUPYTER & CODE EXECUTION ENVIRONMENT
