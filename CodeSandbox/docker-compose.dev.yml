@@ -1,9 +1,11 @@
 version: '3.8'
 
 services:
-  codesandbox:
+  codesandbox-dev:
+    container_name: codesandbox-development
     build: 
       context: .
+      dockerfile: Dockerfile.dev
       args:
         CS_USER: code_sandbox
     ports:
@@ -11,5 +13,5 @@ services:
     env_file:
       - .env  # Load all environment variables from .env file
     volumes:
-      - ./:/home/${CS_USER:-code_sandbox}  # Mount source code for development
-    # restart: unless-stopped 
+      - ./:/home/${CS_USER:-code_sandbox}  # Mount source code for development (hot reload)
+    # No restart policy in dev mode for easier debugging

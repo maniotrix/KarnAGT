@@ -34,9 +34,20 @@ class Colors:
 class DockerManager:
     """Manages Docker images and containers intelligently"""
     
-    def __init__(self):
+    def __init__(self, mode: str = "prod"):
         self.project_name = "codesandbox"
-        self.service_name = "codesandbox"
+        self.mode = mode
+        
+        # Set compose file and service name based on mode
+        if mode == "dev":
+            self.compose_file = "docker-compose.dev.yml"
+            self.service_name = "codesandbox-dev"
+            self.container_name = "codesandbox-development"
+        else:
+            self.compose_file = "docker-compose.prod.yml"
+            self.service_name = "codesandbox-prod"
+            self.container_name = "codesandbox-production"
+        
         self.image_name = f"{self.project_name}_{self.service_name}"
         
     def log(self, message: str, color: str = Colors.WHITE, bold: bool = False) -> None:
@@ -72,6 +83,25 @@ class DockerManager:
         try:
             self.run_command(["docker", "--version"])
             self.run_command(["docker-compose", "--version"])
+            
+            # Check if compose file exists
+            if not Path(self.compose_file).exists():
+                self.log(f"❌ Compose file {self.compose_file} not found", Colors.RED, bold=True)
+                return False
+                
+            # Check if mode-specific Dockerfile exists
+            dockerfile_name = f"Dockerfile.{self.mode}"
+            if not Path(dockerfile_name).exists():
+                self.log(f"❌ Dockerfile {dockerfile_name} not found", Colors.RED, bold=True)
+                return False
+                
+            # Check if mode-specific environment file exists
+            env_file_name = f".env.docker.{self.mode}"
+            if not Path(env_file_name).exists():
+                self.log(f"❌ Environment file {env_file_name} not found", Colors.RED, bold=True)
+                self.log(f"💡 Create it by copying: cp .env.docker.{self.mode}.template .env.docker.{self.mode}", Colors.YELLOW)
+                return False
+                
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
@@ -104,7 +134,7 @@ class DockerManager:
         # Method 2: Try docker-compose images (if container method failed)
         try:
             result = self.run_command([
-                "docker-compose", "images", "--format", "json", self.service_name
+                "docker-compose", "-f", self.compose_file, "images", "--format", "json", self.service_name
             ])
             
             if result.stdout.strip():
@@ -146,7 +176,7 @@ class DockerManager:
         try:
             # Use docker-compose ps to get info for our specific service (includes stopped containers)
             result = self.run_command([
-                "docker-compose", "ps", "-a", "--format", "json", self.service_name
+                "docker-compose", "-f", self.compose_file, "ps", "-a", "--format", "json", self.service_name
             ])
             
             # Parse the JSON output
@@ -158,7 +188,7 @@ class DockerManager:
             # Fallback: try without service filter (includes stopped containers)
             try:
                 result = self.run_command([
-                    "docker-compose", "ps", "-a", "--format", "json"
+                    "docker-compose", "-f", self.compose_file, "ps", "-a", "--format", "json"
                 ])
                 
                 # Find our service in the list
@@ -182,12 +212,20 @@ class DockerManager:
         return "running" in state or "up" in state
     
     def get_dockerfile_hash(self) -> str:
-        """Get hash of Dockerfile and requirements.txt for change detection"""
+        """Get hash of mode-specific Dockerfile and related files for change detection"""
         import hashlib
         
-        files_to_check = ["Dockerfile", "requirements.txt", "docker-compose.yml"]
-        combined_content = ""
+        # Check mode-specific files
+        dockerfile_name = f"Dockerfile.{self.mode}"
+        env_file_name = f".env.docker.{self.mode}"
         
+        files_to_check = [dockerfile_name, "requirements.txt", self.compose_file]
+        
+        # Also include environment file if it exists (affects container behavior)
+        if Path(env_file_name).exists():
+            files_to_check.append(env_file_name)
+        
+        combined_content = ""
         for file_path in files_to_check:
             if Path(file_path).exists():
                 combined_content += Path(file_path).read_text()
@@ -202,7 +240,14 @@ class DockerManager:
             return True, "Image does not exist"
         
         # Simple approach: Check if key files are newer than image
-        files_to_check = ["Dockerfile", "requirements.txt", "docker-compose.yml"]
+        dockerfile_name = f"Dockerfile.{self.mode}"
+        env_file_name = f".env.docker.{self.mode}"
+        
+        files_to_check = [dockerfile_name, "requirements.txt", self.compose_file]
+        
+        # Also check environment file if it exists
+        if Path(env_file_name).exists():
+            files_to_check.append(env_file_name)
         
         # Get image creation time
         try:
@@ -249,7 +294,7 @@ class DockerManager:
         try:
             # Build image using docker-compose
             self.run_command([
-                "docker-compose", "build", self.service_name
+                "docker-compose", "-f", self.compose_file, "build", self.service_name
             ], capture_output=False)
             
             self.log("✅ Image built successfully", Colors.GREEN, bold=True)
@@ -268,7 +313,7 @@ class DockerManager:
             
             self.log("🚀 Starting containers...", Colors.YELLOW, bold=True)
             
-            cmd = ["docker-compose", "up"]
+            cmd = ["docker-compose", "-f", self.compose_file, "up"]
             if detached:
                 cmd.append("-d")
             
@@ -294,7 +339,7 @@ class DockerManager:
         """Stop containers"""
         try:
             self.log("🛑 Stopping containers...", Colors.YELLOW)
-            self.run_command(["docker-compose", "down"])
+            self.run_command(["docker-compose", "-f", self.compose_file, "down"])
             self.log("✅ Containers stopped", Colors.GREEN)
             return True
         except subprocess.CalledProcessError:
@@ -304,7 +349,7 @@ class DockerManager:
     def show_logs(self, follow: bool = True) -> None:
         """Show container logs"""
         try:
-            cmd = ["docker-compose", "logs"]
+            cmd = ["docker-compose", "-f", self.compose_file, "logs"]
             if follow:
                 cmd.append("-f")
             
@@ -343,7 +388,7 @@ class DockerManager:
             try:
                 # Try to get port info
                 result = self.run_command([
-                    "docker-compose", "port", self.service_name, "8080"
+                    "docker-compose", "-f", self.compose_file, "port", self.service_name, "8080"
                 ])
                 port_info = result.stdout.strip()
                 if port_info:
@@ -364,11 +409,11 @@ class DockerManager:
             if full:
                 # Remove containers and images
                 self.log("🗑️  Removing containers and images...", Colors.YELLOW)
-                self.run_command(["docker-compose", "down", "--rmi", "all", "--volumes"])
+                self.run_command(["docker-compose", "-f", self.compose_file, "down", "--rmi", "all", "--volumes"])
                 self.log("✅ Full cleanup completed", Colors.GREEN)
             else:
                 # Just remove containers
-                self.run_command(["docker-compose", "down", "--volumes"])
+                self.run_command(["docker-compose", "-f", self.compose_file, "down", "--volumes"])
                 self.log("✅ Cleanup completed", Colors.GREEN)
             
             return True
@@ -380,22 +425,29 @@ class DockerManager:
 
 def main():
     """Main script execution"""
-    docker_manager = DockerManager()
-    
     # Parse command line arguments
     args = sys.argv[1:] if len(sys.argv) > 1 else ["start"]
-    command = args[0].lower()
+    command = args[0].lower() if args else "start"
+    
+    # Determine mode based on flags
+    mode = "prod"  # Default to production
+    if "--dev" in args:
+        mode = "dev"
+    elif "--prod" in args:
+        mode = "prod"
+    
+    docker_manager = DockerManager(mode=mode)
     
     docker_manager.log("🐳 CodeSandbox Docker Manager", Colors.CYAN, bold=True)
+    docker_manager.log(f"📁 Mode: {mode.upper()} (using {docker_manager.compose_file})", Colors.BLUE)
+    docker_manager.log(f"📦 Container: {docker_manager.container_name}", Colors.BLUE)
     
     # Check Docker availability
     if not docker_manager.check_docker_availability():
         docker_manager.log("❌ Docker or Docker Compose not available", Colors.RED, bold=True)
         sys.exit(1)
     
-    # Check if .env file exists
-    if not Path(".env").exists():
-        docker_manager.log("⚠️  .env file not found - using defaults", Colors.YELLOW)
+    # Environment file validation is now handled in check_docker_availability()
     
     # Execute commands
     try:
@@ -460,7 +512,7 @@ def main():
             docker_manager.log(f"🐚 Opening shell as {user_desc} user...", Colors.CYAN)
             
             try:
-                subprocess.run(f"docker-compose exec {user_flag} codesandbox bash", shell=True)
+                subprocess.run(f"docker-compose -f {docker_manager.compose_file} exec {user_flag} {docker_manager.service_name} bash", shell=True)
             except KeyboardInterrupt:
                 docker_manager.log("\n🐚 Shell session ended", Colors.GREEN)
         
@@ -469,7 +521,7 @@ def main():
 {Colors.CYAN}{Colors.BOLD}CodeSandbox Docker Manager{Colors.END}
 
 {Colors.YELLOW}Usage:{Colors.END}
-    python setup_and_run.py [command]
+    python setup_and_run.py [command] [--dev|--prod] [options]
 
 {Colors.YELLOW}Commands:{Colors.END}
     {Colors.GREEN}start{Colors.END}      Start the application (default)
@@ -482,12 +534,22 @@ def main():
     {Colors.GREEN}cleanup{Colors.END}    Clean up containers (add --full to remove images)
     {Colors.GREEN}help{Colors.END}       Show this help message
 
+{Colors.YELLOW}Mode Flags:{Colors.END}
+    {Colors.GREEN}--dev{Colors.END}      Development mode (with volume mounts for hot reload)
+    {Colors.GREEN}--prod{Colors.END}     Production mode (code baked into image) - DEFAULT
+
+{Colors.YELLOW}Setup Requirements:{Colors.END}
+    Before first use, create environment files:
+    cp .env.docker.dev.template .env.docker.dev    # For development mode
+    cp .env.docker.prod.template .env.docker.prod  # For production mode
+
 {Colors.YELLOW}Examples:{Colors.END}
-    python setup_and_run.py start
-    python setup_and_run.py logs
-    python setup_and_run.py rebuild --clean
-    python setup_and_run.py shell --root
-    python setup_and_run.py cleanup --full
+    python setup_and_run.py start --dev             # Development with hot reload
+    python setup_and_run.py start --prod            # Production mode
+    python setup_and_run.py logs --dev              # View dev container logs
+    python setup_and_run.py rebuild --clean --prod  # Clean production rebuild
+    python setup_and_run.py shell --root --dev      # Dev shell as root
+    python setup_and_run.py cleanup --full --dev    # Clean dev environment
             """)
         
         else:

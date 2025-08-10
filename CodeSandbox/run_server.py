@@ -144,16 +144,23 @@ class ServiceManager:
         # Use the simple uvicorn.run approach (like your working start_dev.py)
         try:
             import uvicorn
-            uvicorn.run(
-            "app.main:app",
-            host=settings.host,
-            port=settings.port,
-            reload=reload_enabled,  # Simple reload flag
-            reload_dirs=reload_dirs,
-            reload_excludes=reload_excludes,
-            log_level="info",
-                access_log=True
-            )
+            
+            # Build uvicorn arguments conditionally
+            uvicorn_args = {
+                "app": "app.main:app",
+                "host": settings.host,
+                "port": settings.port,
+                "reload": reload_enabled,
+                "log_level": "info",
+                "access_log": True
+            }
+            
+            # Only add reload-specific arguments when reload is enabled
+            if reload_enabled:
+                uvicorn_args["reload_dirs"] = reload_dirs
+                uvicorn_args["reload_excludes"] = reload_excludes
+            
+            uvicorn.run(**uvicorn_args)
         except KeyboardInterrupt:
             logger.info("🛑 FastAPI server stopped by user")
         except Exception as e:

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  codesandbox-prod:
+    container_name: codesandbox-production
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        CS_USER: code_sandbox
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"  # Use PORT from .env file
+    env_file:
+      - .env  # Load all environment variables from .env file
+    # No volume mounts for production - code is baked into image
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8080}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
