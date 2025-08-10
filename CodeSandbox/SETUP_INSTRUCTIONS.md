@@ -116,3 +116,29 @@ python docker_setup_and_run.py start --prod  # Then start prod
 - **Prod**: `codesandbox-production` 
 
 Check with: `docker ps`
+
+## 📋 **Logging Configuration**
+
+### **Log Format Control**
+You can control log formatting using the `LOG_FORMAT` environment variable:
+
+**In your `.env.docker.dev`:**
+```bash
+LOG_FORMAT=console    # Human-readable colored logs (default for dev)
+```
+
+**In your `.env.docker.prod`:**
+```bash
+LOG_FORMAT=console    # Human-readable logs in production
+# OR
+LOG_FORMAT=json       # Machine-parsable JSON logs (default for prod)
+```
+
+**Examples:**
+- **Console Format**: `14:45:58 INFO RUN_SERVER | 🚀 Starting FastAPI server`
+- **JSON Format**: `{"timestamp": "2025-08-10T09:15:58", "level": "INFO", "logger": "RUN_SERVER", "message": "🚀 Starting FastAPI server"}`
+
+**Industry Standards:**
+- **Development**: Console format for easy reading and debugging
+- **Production**: JSON format for log aggregation tools (ELK, Splunk, Datadog)
+- **Override**: Use `LOG_FORMAT=console` in production if you prefer human-readable logs
