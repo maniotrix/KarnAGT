@@ -9,9 +9,7 @@ services:
       args:
         CS_USER: code_sandbox
     ports:
-      - "${PORT:-8080}:${PORT:-8080}"  # Use PORT from .env file
-    env_file:
-      - .env  # Load all environment variables from .env file
+      - "8080:8080"  # Fixed port since no env_file to interpolate
     volumes:
       - ./:/home/${CS_USER:-code_sandbox}  # Mount source code for development (hot reload)
     # No restart policy in dev mode for easier debugging

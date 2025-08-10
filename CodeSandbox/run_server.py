@@ -41,6 +41,10 @@ settings = get_settings()
 logger = AppLogger("RUN_SERVER")
 
 
+class UvicornExitException(Exception):
+    """Exception raised when uvicorn stops"""
+    pass
+
 class ServiceManager:
     """Manages Jupyter and FastAPI services"""
     
@@ -48,7 +52,7 @@ class ServiceManager:
         self.jupyter_process = None
         self.fastapi_task = None
         
-    async def start_jupyter_server(self):
+    def start_jupyter_server_sync(self):
         """Start Jupyter Server"""
         logger.info("Starting Jupyter Server",
                    host=settings.jupyter_host,
@@ -82,8 +86,9 @@ class ServiceManager:
                 text=True
             )
             
-            # Give the process a moment to start
-            await asyncio.sleep(3)
+                        # Give the process a moment to start
+            import time
+            time.sleep(3)
             
             # Check if process is still running
             if self.jupyter_process.poll() is None:
@@ -97,13 +102,10 @@ class ServiceManager:
             logger.error(f"❌ Error starting Jupyter Server: {e}")
             raise
         
-        # Wait for Jupyter to be ready
-        await self._wait_for_jupyter()
-        logger.info("✅ Jupyter Server is ready")
+        # Ready check is done in start_services_sync()
     
-
-    async def _wait_for_jupyter(self, timeout=30):
-        """Wait for Jupyter Server to be ready"""
+    def wait_for_jupyter_sync(self, timeout=30):
+        """Wait for Jupyter Server to be ready - synchronous version"""
         logger.info(f"⏳ Waiting for Jupyter Server at {settings.jupyter_url}/api/status...")
         start_time = time.time()
         
@@ -112,25 +114,26 @@ class ServiceManager:
         
         while time.time() - start_time < timeout:
             try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{settings.jupyter_url}/api/status",
-                        headers=headers,
-                        timeout=5.0
-                    )
-                    if response.status_code == 200:
-                        return
-                    else:
-                        logger.debug(f"🔄 Jupyter not ready yet: {response}")
+                import requests
+                response = requests.get(
+                    f"{settings.jupyter_url}/api/status",
+                    headers=headers,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    logger.info("✅ Jupyter Server is ready")
+                    return
+                else:
+                    logger.debug(f"🔄 Jupyter not ready yet: {response}")
             except Exception as e:
                 logger.debug(f"🔄 Jupyter not ready yet: {e}")
             
-            await asyncio.sleep(1)
+            time.sleep(1)
         
         raise RuntimeError(f"Jupyter Server failed to start within timeout: {timeout}s")
     
-    async def start_fastapi_server(self):
-        """Start FastAPI application using simple uvicorn.run approach"""
+    def start_fastapi_server(self):
+        """Start FastAPI application - SYNCHRONOUS to avoid event loop conflict"""
         logger.info(f"🚀 Starting FastAPI server on {settings.host}:{settings.port}")
         
         # Enable reload in development
@@ -141,7 +144,7 @@ class ServiceManager:
         logger.info(f"🔧 Environment: {settings.environment}")
         logger.info(f"🔄 Auto-reload enabled: {reload_enabled}")
         
-        # Use the simple uvicorn.run approach (like your working start_dev.py)
+        # Use uvicorn.run() SYNCHRONOUSLY
         try:
             import uvicorn
             
@@ -160,31 +163,42 @@ class ServiceManager:
                 uvicorn_args["reload_dirs"] = reload_dirs
                 uvicorn_args["reload_excludes"] = reload_excludes
             
-            uvicorn.run(**uvicorn_args)
+            # This will run and BLOCK until server stops
+            result = uvicorn.run(**uvicorn_args)
+            if result is None:
+                logger.info("🛑 FastAPI server stopped by uvicorn")
+                raise UvicornExitException("FastAPI server stopped by uvicorn")
+            else:
+                logger.info(f"🛑 FastAPI server stopped by uvicorn with result: {result}")
+                raise UvicornExitException("FastAPI server stopped by uvicorn with result")
         except KeyboardInterrupt:
             logger.info("🛑 FastAPI server stopped by user")
-        except Exception as e:
-            logger.error(f"❌ FastAPI server error: {e}")
-            raise
+            raise  # Re-raise to be handled by start_services_sync()
+        # Note: UvicornExitException and other exceptions bubble up to start_services_sync()
     
-    async def start_services(self):
-        """Start both services"""
+    def start_services_sync(self):
+        """Start both services synchronously - much simpler!"""
         try:
             # Start Jupyter Server first
-            await self.start_jupyter_server()
+            self.start_jupyter_server_sync()
             
-            # Start FastAPI server
-            await self.start_fastapi_server()
+            # Wait for Jupyter to be ready
+            self.wait_for_jupyter_sync()
             
+            # Start FastAPI server (this will block until server stops)
+            self.start_fastapi_server()
+        except UvicornExitException:
+            logger.info("🛑 FastAPI server stopped received from uvicorn")
+            self.cleanup_sync()
         except KeyboardInterrupt:
             logger.info("🛑 Received shutdown signal")
-            await self.cleanup()
+            self.cleanup_sync()
         except Exception as e:
             logger.error(f"❌ Error starting services: {e}")
-            await self.cleanup()
+            self.cleanup_sync()
             raise
     
-    async def cleanup(self):
+    def cleanup_sync(self):
         """Cleanup services"""
         logger.info("🧹 Cleaning up services...")
         
@@ -231,13 +245,13 @@ def print_startup_info():
     print("Press Ctrl+C to stop\n")
 
 
-async def main():
-    """Main function"""
+def main():
+    """Main function - Pure synchronous approach"""
     print_startup_info()
     
     try:
         service_manager = ServiceManager()
-        await service_manager.start_services()
+        service_manager.start_services_sync()
     except KeyboardInterrupt:
         print("\n👋 Server stopped by user")
     except Exception as e:
@@ -248,6 +262,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Run the async main function
-    exit_code = asyncio.run(main())
+    # Run synchronously - no asyncio needed
+    exit_code = main()
     sys.exit(exit_code) 
