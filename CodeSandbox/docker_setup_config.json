@@ -1,0 +1,33 @@
+{
+  "project_name": "codesandbox",
+  "description": "CodeSandbox Docker Environment Configuration",
+  "environments": {
+    "dev": {
+      "compose_file": "docker-compose.dev.yml",
+      "dockerfile": "Dockerfile.dev",
+      "env_file": ".env.docker.dev",
+      "service_name": "codesandbox-dev",
+      "description": "Development environment with hot reload and volume mounts"
+    },
+    "prod": {
+      "compose_file": "docker-compose.prod.yml",
+      "dockerfile": "Dockerfile.prod", 
+      "env_file": ".env.docker.prod",
+      "service_name": "codesandbox-prod",
+      "description": "Production environment with optimized builds"
+    },
+    "test": {
+      "compose_file": "docker-compose.test.yml",
+      "dockerfile": "Dockerfile.test",
+      "env_file": ".env.docker.test", 
+      "service_name": "codesandbox-test",
+      "description": "Testing environment for CI/CD pipelines"
+    }
+  },
+  "default_environment": "prod",
+  "settings": {
+    "docker_compose_timeout": 300,
+    "build_timeout": 600,
+    "startup_wait_time": 5
+  }
+}

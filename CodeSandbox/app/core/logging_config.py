@@ -175,6 +175,20 @@ class LoggingConfig:
         self.settings = get_settings()
         self.is_development = self.settings.is_development()
         
+    def _get_console_formatter(self) -> str:
+        """
+        Determine console formatter based on environment and settings
+        """
+        # Check for explicit LOG_FORMAT environment variable
+        log_format = os.getenv('LOG_FORMAT', '').lower()
+        if log_format == 'console':
+            return "console"
+        elif log_format == 'json':
+            return "json"
+        
+        # Default behavior: console for dev, json for prod
+        return "console" if self.is_development else "json"
+        
     def setup_logging(self):
         """
         Set up comprehensive logging configuration
@@ -208,7 +222,7 @@ class LoggingConfig:
                 "console": {
                     "class": "logging.StreamHandler",
                     "level": "DEBUG",
-                    "formatter": "console" if self.is_development else "json",
+                    "formatter": self._get_console_formatter(),
                     "stream": "ext://sys.stdout",
                 },
                 "app_file": {
@@ -326,12 +340,14 @@ class LoggingConfig:
         
         # Log the configuration
         logger = logging.getLogger("app.logging")
+        console_formatter = self._get_console_formatter()
         logger.info(
             "Logging system initialized",
             extra={
                 "environment": self.settings.environment,
                 "log_level": self.settings.log_level,
-                "json_logging": not self.is_development,
+                "json_logging": console_formatter == "json",
+                "console_formatter": console_formatter,
                 "log_files_enabled": True,
             }
         )

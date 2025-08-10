@@ -44,6 +44,8 @@ pyvenv.cfg
 *.env
 !env.example
 !.env.example
+.env.docker.dev
+.env.docker.prod
 
 # === IDE/Editor Files ===
 .vscode/
@@ -147,8 +149,6 @@ certs/
 keys/
 
 # === Docker ===
-.dockerignore
-Dockerfile.dev
 docker-compose.override.yml
 
 # === Backup Files ===

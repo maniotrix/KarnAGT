@@ -35,13 +35,15 @@ USER ${CS_USER}
 # Go to user home
 WORKDIR /home/${CS_USER}
 
+# Copy production environment file as .env (the app always reads .env)
+COPY --chown=${CS_USER}:${CS_USER} .env.docker.prod ./.env
+
 # Copy application files
 COPY --chown=${CS_USER}:${CS_USER} app/ ./app/
 COPY --chown=${CS_USER}:${CS_USER} run_server.py ./
-COPY --chown=${CS_USER}:${CS_USER} .env ./
 
 # Expose only FastAPI port
 EXPOSE 8080
 
 # Start the application
-CMD ["python", "run_server.py"] 
+CMD ["python", "run_server.py"]
