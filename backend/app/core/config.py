@@ -112,7 +112,10 @@ class Settings(BaseSettings):
     
     # Image Storage (MinIO/S3 compatible)
     STORAGE_BACKEND: str = "minio"
-    S3_BUCKET_NAME: str = "chatgpt-files"
+    # Bucket names Rules:
+    # Allowed: lowercase letters, numbers, and hyphens
+    # Not allowed: uppercase characters or underscores
+    S3_BUCKET_NAME: str = "minio-files"
     S3_ENDPOINT_URL: Optional[str] = "http://localhost:9000"
     S3_ACCESS_KEY_ID: str = "minioadmin"
     S3_SECRET_ACCESS_KEY: str = "minioadmin123"

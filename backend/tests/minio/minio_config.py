@@ -10,6 +10,79 @@ from botocore.exceptions import ClientError
 from typing import Optional
 import logging
 
+import re
+from typing import List, Tuple
+
+
+def validate_bucket_name(bucket_name: str) -> Tuple[bool, List[str]]:
+    """
+    Validate bucket name according to S3/MinIO naming conventions
+    
+    AWS S3 Bucket naming rules:
+    - Must be between 3 and 63 characters long
+    - Can contain only lowercase letters, numbers, and hyphens
+    - Cannot contain uppercase characters or underscores
+    - Cannot start or end with a hyphen
+    - Cannot have consecutive hyphens
+    - Must not be formatted as an IP address (e.g., 192.168.1.1)
+    
+    Args:
+        bucket_name: The bucket name to validate
+        
+    Returns:
+        Tuple of (is_valid: bool, errors: List[str])
+        - is_valid: True if the bucket name is valid
+        - errors: List of specific validation errors (empty if valid)
+    """
+    errors = []
+    
+    # Check if bucket_name is provided
+    if not bucket_name:
+        errors.append("Bucket name cannot be empty")
+        return False, errors
+    
+    # Check length (3-63 characters)
+    if len(bucket_name) < 3:
+        errors.append("Bucket name must be at least 3 characters long")
+    elif len(bucket_name) > 63:
+        errors.append("Bucket name cannot exceed 63 characters")
+    
+    # Check for valid characters (lowercase letters, numbers, hyphens only)
+    if not re.match(r'^[a-z0-9-]+$', bucket_name):
+        invalid_chars = set(char for char in bucket_name if not re.match(r'[a-z0-9-]', char))
+        if invalid_chars:
+            errors.append(f"Bucket name contains invalid characters: {', '.join(sorted(invalid_chars))}. Only lowercase letters, numbers, and hyphens are allowed")
+    
+    # Check for uppercase letters specifically (common mistake)
+    if any(char.isupper() for char in bucket_name):
+        errors.append("Bucket name cannot contain uppercase letters")
+    
+    # Check for underscores specifically (common mistake)
+    if '_' in bucket_name:
+        errors.append("Bucket name cannot contain underscores. Use hyphens (-) instead")
+    
+    # Check start/end with hyphen
+    if bucket_name.startswith('-'):
+        errors.append("Bucket name cannot start with a hyphen")
+    if bucket_name.endswith('-'):
+        errors.append("Bucket name cannot end with a hyphen")
+    
+    # Check for consecutive hyphens
+    if '--' in bucket_name:
+        errors.append("Bucket name cannot contain consecutive hyphens")
+    
+    # Check if it looks like an IP address
+    ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+    if re.match(ip_pattern, bucket_name):
+        errors.append("Bucket name cannot be formatted as an IP address")
+    
+    # Check for dots (not recommended for SSL/TLS)
+    if '.' in bucket_name:
+        errors.append("Bucket name should not contain dots (.) as they can cause SSL/TLS certificate issues")
+    
+    is_valid = len(errors) == 0
+    return is_valid, errors
+
 logger = logging.getLogger(__name__)
 
 class MinIOConfig:
@@ -21,7 +94,15 @@ class MinIOConfig:
         self.access_key = os.getenv("S3_ACCESS_KEY_ID", "minioadmin")
         self.secret_key = os.getenv("S3_SECRET_ACCESS_KEY", "minioadmin123")
         self.region = os.getenv("S3_REGION", "us-east-1")
-        self.bucket_name = os.getenv("S3_BUCKET_NAME", "chatgpt-files")
+        # Bucket names Rules:
+        # Allowed: lowercase letters, numbers, and hyphens
+        # Not allowed: uppercase characters or underscores
+        self.bucket_name = os.getenv("S3_BUCKET_NAME", "minio-files")
+        
+        # Validate bucket name
+        is_valid, errors = validate_bucket_name(self.bucket_name)
+        if not is_valid:
+            raise ValueError(f"Invalid bucket name: {errors}")
         
         self._client = None
     
@@ -66,13 +147,16 @@ class MinIOConfig:
     
     def generate_presigned_url(
         self, 
-        bucket_name: str, 
         object_key: str, 
+        bucket_name: str = None, 
         expiration: int = 3600,
         method: str = 'GET'
     ) -> Optional[str]:
         """Generate a presigned URL for object access"""
         try:
+            if not bucket_name:
+                bucket_name = self.bucket_name
+                
             response = self.client.generate_presigned_url(
                 method.lower() + '_object',
                 Params={'Bucket': bucket_name, 'Key': object_key},
@@ -88,6 +172,16 @@ class MinIOConfig:
         try:
             self.client.upload_file(file_path, bucket_name, object_key)
             logger.info(f"Uploaded '{file_path}' to bucket '{bucket_name}' as '{object_key}'")
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to upload file: {e}")
+            return False
+        
+    def upload_file_bytes(self, file_data: bytes, bucket_name: str, object_key: str) -> bool:
+        """Upload a file to MinIO"""
+        try:
+            self.client.upload_fileobj(file_data, bucket_name, object_key)
+            logger.info(f"Uploaded '{file_data}' to bucket '{bucket_name}' as '{object_key}'")
             return True
         except ClientError as e:
             logger.error(f"Failed to upload file: {e}")
@@ -114,4 +208,9 @@ class MinIOConfig:
             return False
 
 # Global MinIO configuration instance
-minio_config = MinIOConfig() 
+try:
+    global minio_config
+    minio_config = MinIOConfig()
+except Exception as e:
+    print(f"❌ Failed to initialize MinIOConfig: {e}")
+    raise

@@ -6,9 +6,9 @@ services:
     container_name: postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: chatgpt_user
-      POSTGRES_PASSWORD: chatgpt_password
-      POSTGRES_DB: chatgpt_clone
+      POSTGRES_USER: pg_adm_user
+      POSTGRES_PASSWORD: pg_adm_password
+      POSTGRES_DB: pg_adm_db
     ports:
       - "5432:5432"
     volumes:
@@ -46,7 +46,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: chatgpt-minio
+    container_name: minio
     restart: unless-stopped
     ports:
       - "9000:9000"    # API
@@ -54,7 +54,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
-      MINIO_DEFAULT_BUCKETS: chatgpt-files
+      MINIO_DEFAULT_BUCKETS: minio-files
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"

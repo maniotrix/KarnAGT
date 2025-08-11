@@ -85,7 +85,7 @@ class ImageAttachment(BaseSchema):
                 "size": 1024000,
                 "dimensions": {"width": 1920, "height": 1080},
                 "urls": {
-                    "display": "http://localhost:9000/chatgpt-files/images/2024/01/15/img_7f9e2b4c.png",
+                    "display": "http://localhost:9000/minio-files/images/2024/01/15/img_7f9e2b4c.png",
                     "thumbnail": "http://localhost:8000/api/v1/images/img_7f9e2b4c/thumbnail",
                     "api": "http://localhost:8000/api/v1/images/img_7f9e2b4c"
                 },
