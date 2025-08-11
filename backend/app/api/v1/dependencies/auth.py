@@ -2,7 +2,7 @@
 Authentication Dependencies for FastAPI
 """
 from typing import Optional, Dict, Any, Union
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -33,13 +33,22 @@ class ServiceAuth:
 bearer_scheme = HTTPBearer(auto_error=False)
 
 async def get_current_user_id(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
 ) -> str:
-    """Get current user ID from JWT token"""
-    if not credentials:
+    """Get current user ID from JWT token (Authorization header or httpOnly cookie)"""
+    token = None
+    
+    # Try Authorization header first
+    if credentials:
+        token = credentials.credentials
+    else:
+        # Fallback to httpOnly cookie
+        token = request.cookies.get("access_token")
+    
+    if not token:
         raise AuthenticationException("Authentication required")
     
-    token = credentials.credentials
     user_id = security.get_subject_from_token(token)
     
     if not user_id:
@@ -259,4 +268,6 @@ class QuotaChecker:
 check_chat_quota = QuotaChecker(0.001)  # Approximate cost per message
 check_image_quota = QuotaChecker(0.005)  # Approximate cost per image upload
 check_embedding_quota = QuotaChecker(0.0001)  # Approximate cost per embedding
-check_file_processing_quota = QuotaChecker(0.01)  # Approximate cost per file processing 
+check_file_processing_quota = QuotaChecker(0.01)  # Approximate cost per file processing
+
+# Note: CSRF Protection is handled at middleware level for all authenticated state-changing requests 

@@ -176,4 +176,104 @@ def get_password_hash(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Utility function for password verification"""
-    return security.verify_password(plain_password, hashed_password) 
+    return security.verify_password(plain_password, hashed_password)
+
+# Cookie-based authentication utilities
+def set_auth_cookies(response, user_id: str, settings, scopes: Optional[list] = None) -> Dict[str, str]:
+    """Set httpOnly authentication cookies and CSRF token"""
+    from fastapi import Response
+    
+    # Create tokens
+    access_token = security.create_access_token(subject=user_id, scopes=scopes)
+    refresh_token = security.create_refresh_token(subject=user_id)
+    
+    # Get cookie settings
+    cookie_settings = settings.get_cookie_settings()
+    
+    # Set access token cookie (httpOnly)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        **cookie_settings
+    )
+    
+    # Set refresh token cookie (httpOnly)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
+        **cookie_settings
+    )
+    
+    # Set CSRF token cookie (NOT httpOnly - JS needs to read this)
+    csrf_token = CSRFProtection.set_csrf_cookie(response, settings)
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "csrf_token": csrf_token
+    }
+
+def clear_auth_cookies(response, settings):
+    """Clear authentication cookies"""
+    from fastapi import Response
+    
+    cookie_settings = settings.get_cookie_settings()
+    
+    # Clear cookies by setting them to expire immediately
+    response.set_cookie(
+        key="access_token",
+        value="",
+        max_age=0,
+        **cookie_settings
+    )
+    
+    response.set_cookie(
+        key="refresh_token", 
+        value="",
+        max_age=0,
+        **cookie_settings
+    )
+    
+    response.set_cookie(
+        key="csrf_token",
+        value="",
+        max_age=0,
+        **cookie_settings
+    )
+
+# CSRF Protection System
+class CSRFProtection:
+    """CSRF token management for additional security"""
+    
+    @staticmethod
+    def generate_csrf_token() -> str:
+        """Generate cryptographically secure CSRF token"""
+        import secrets
+        return secrets.token_urlsafe(32)
+    
+    @staticmethod
+    def set_csrf_cookie(response, settings) -> str:
+        """Set CSRF token cookie (readable by JavaScript)"""
+        csrf_token = CSRFProtection.generate_csrf_token()
+        
+        cookie_settings = settings.get_cookie_settings()
+        # CSRF cookie must NOT be httpOnly (JS needs to read it)
+        csrf_settings = {**cookie_settings, "httponly": False}
+        
+        response.set_cookie(
+            key="csrf_token",
+            value=csrf_token,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            **csrf_settings
+        )
+        return csrf_token
+    
+    @staticmethod
+    def validate_csrf_token(request_token: str, cookie_token: str) -> bool:
+        """Validate CSRF token using constant-time comparison"""
+        if not request_token or not cookie_token:
+            return False
+        return secrets.compare_digest(request_token, cookie_token) 

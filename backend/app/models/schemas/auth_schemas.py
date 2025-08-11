@@ -53,23 +53,26 @@ class UserLogin(BaseSchema):
 
 
 class TokenResponse(BaseResponse):
-    """Token response schema"""
-    access_token: str = Field(..., description="JWT access token")
-    refresh_token: str = Field(..., description="JWT refresh token")
+    """Token response schema for httpOnly cookie + CSRF authentication"""
+    access_token: str = Field("", description="Empty - JWT access token is in httpOnly cookie")
+    refresh_token: str = Field("", description="Empty - JWT refresh token is in httpOnly cookie")
     token_type: str = Field("bearer", description="Token type")
     expires_in: int = Field(..., description="Token expiration time in seconds")
     user: "UserProfile" = Field(..., description="User profile information")
+    csrf_token: Optional[str] = Field(None, description="CSRF token for state-changing requests")
 
 
 class TokenRefresh(BaseSchema):
-    """Token refresh request schema"""
-    refresh_token: str = Field(..., description="Valid refresh token")
+    """Token refresh request schema - refresh token comes from httpOnly cookie"""
+    # No fields needed - refresh token comes from httpOnly cookie
+    pass
 
 
 class TokenRefreshResponse(BaseResponse):
-    """Token refresh response schema"""
-    access_token: str = Field(..., description="New JWT access token")
+    """Token refresh response schema for httpOnly cookie + CSRF authentication"""
+    access_token: str = Field("", description="Empty - new JWT access token is in httpOnly cookie")
     expires_in: int = Field(..., description="Token expiration time in seconds")
+    csrf_token: Optional[str] = Field(None, description="Updated CSRF token for state-changing requests")
 
 
 class PasswordReset(BaseSchema):
@@ -152,8 +155,9 @@ class ChangePassword(BaseSchema):
 
 
 class LogoutRequest(BaseSchema):
-    """Logout request schema"""
-    refresh_token: Optional[str] = Field(None, description="Refresh token to invalidate")
+    """Logout request schema - tokens come from httpOnly cookies"""
+    # No fields needed - tokens come from httpOnly cookies and are cleared by server
+    pass
 
 
 class UserProfile(BaseSchema):

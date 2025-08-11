@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days
     
+    # Cookie Configuration
+    COOKIE_SECURE: bool = False  # Set to True in production with HTTPS
+    COOKIE_SAMESITE: str = "lax"  # "strict", "lax", or "none"
+    COOKIE_DOMAIN: Optional[str] = None  # Set for subdomain sharing
+    
     # Service-to-Service Authentication
     CODE_EXECUTOR_TOKEN: str = "code-executor-service-token-change-in-production"
     TRUSTED_INTERNAL_DOMAINS: str = "localhost,127.0.0.1,0.0.0.0"
@@ -311,6 +316,15 @@ class Settings(BaseSettings):
         """Get a full URL for a given path"""
         path = path.lstrip('/')
         return f"{self.server_base_url}/{path}" if path else self.server_base_url
+    
+    def get_cookie_settings(self) -> dict:
+        """Get cookie settings based on environment"""
+        return {
+            "secure": self.ENVIRONMENT == "production",  # HTTPS only in production
+            "samesite": self.COOKIE_SAMESITE,
+            "domain": self.COOKIE_DOMAIN,
+            "httponly": True  # Always httpOnly for security
+        }
     
     class Config:
         env_file = ".env"

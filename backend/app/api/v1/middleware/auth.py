@@ -64,14 +64,19 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             self._add_timing_header(response, start_time)
             return response
         
-        # Extract token from Authorization header
+        # Extract token from Authorization header OR httpOnly cookie
         auth_header = request.headers.get("Authorization")
         token = None
         user_id = None
         
+        # Try Authorization header first (for API clients, mobile apps)
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header[7:]  # Remove "Bearer " prefix
-            
+        else:
+            # Fallback to httpOnly cookie (for web browsers)
+            token = request.cookies.get("access_token")
+        
+        if token:
             # Verify token and extract user ID
             try:
                 payload = security.verify_token(token)
@@ -91,6 +96,23 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # Add token and user info to request state
         request.state.token = token
         request.state.user_id = user_id
+        
+        # CSRF protection for authenticated state-changing operations
+        if (request.state.authenticated and 
+            request.method in ["POST", "PUT", "DELETE", "PATCH"]):
+            
+            csrf_token = request.headers.get("X-CSRF-Token")
+            cookie_csrf = request.cookies.get("csrf_token")
+            
+            if not self._validate_csrf_token(csrf_token, cookie_csrf):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "CSRF token validation failed",
+                        "error_code": "csrf_validation_failed",
+                        "error_type": "security_error"
+                    }
+                )
         
         try:
             response = await call_next(request)
@@ -116,6 +138,15 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         """Add processing time header to response"""
         process_time = time.time() - start_time
         response.headers["X-Process-Time"] = str(f"{process_time:.4f}")
+    
+    def _validate_csrf_token(self, request_token: Optional[str], cookie_token: Optional[str]) -> bool:
+        """Validate CSRF token using constant-time comparison"""
+        from app.core.security import CSRFProtection
+        
+        if not request_token or not cookie_token:
+            return False
+        
+        return CSRFProtection.validate_csrf_token(request_token, cookie_token)
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
