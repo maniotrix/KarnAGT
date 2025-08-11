@@ -1,0 +1,106 @@
+{
+  "project_name": "app_database",
+  "description": "Multi-database infrastructure with PostgreSQL, Redis, Qdrant, Neo4j, and MinIO",
+  "environments": {
+    "dev": {
+      "compose_file": "docker-compose.dev.yml",
+      "env_file": "env.dev",
+      "description": "Development database with debug settings and relaxed security",
+      "resource_profile": "minimal",
+      "backup_retention_days": 3,
+      "log_level": "debug"
+    },
+    "staging": {
+      "compose_file": "docker-compose.staging.yml", 
+      "env_file": "env.staging",
+      "description": "Staging database - production mirror with reduced resources",
+      "resource_profile": "medium",
+      "backup_retention_days": 7,
+      "log_level": "info"
+    },
+    "prod": {
+      "compose_file": "docker-compose.prod.yml",
+      "env_file": "env.prod", 
+      "description": "Production database with high availability and security",
+      "resource_profile": "high",
+      "backup_retention_days": 30,
+      "log_level": "warn"
+    }
+  },
+  "resource_profiles": {
+    "minimal": {
+      "postgres": {"memory": "512M", "cpus": "0.5", "memory_reserve": "256M"},
+      "redis": {"memory": "128M", "cpus": "0.25"},
+      "qdrant": {"memory": "256M", "cpus": "0.25"},
+      "neo4j": {"memory": "512M", "cpus": "0.5", "heap_size": "256M", "pagecache_size": "128M"},
+      "minio": {"memory": "256M", "cpus": "0.25"}
+    },
+    "medium": {
+      "postgres": {"memory": "2G", "cpus": "1", "memory_reserve": "512M"},
+      "redis": {"memory": "512M", "cpus": "0.5"},
+      "qdrant": {"memory": "1G", "cpus": "0.5"},
+      "neo4j": {"memory": "2G", "cpus": "1", "heap_size": "1G", "pagecache_size": "512M"},
+      "minio": {"memory": "512M", "cpus": "0.5"}
+    },
+    "high": {
+      "postgres": {"memory": "4G", "cpus": "2", "memory_reserve": "1G"},
+      "redis": {"memory": "1G", "cpus": "1"},
+      "qdrant": {"memory": "2G", "cpus": "1"},
+      "neo4j": {"memory": "4G", "cpus": "2", "heap_size": "2G", "pagecache_size": "1G"},
+      "minio": {"memory": "1G", "cpus": "1"}
+    }
+  },
+  "default_environment": "dev",
+  "settings": {
+    "docker_compose_timeout": 300,
+    "build_timeout": 600,
+    "health_check_timeout": 120,
+    "backup_parallel_jobs": 2
+  },
+  "services": {
+    "postgres": {
+      "port_dev": 5433,
+      "port_staging": 5434,
+      "port_prod": 5432,
+      "backup_format": "custom",
+      "health_check_interval": "30s"
+    },
+    "redis": {
+      "port_dev": 6380,
+      "port_staging": 6381,
+      "port_prod": 6379,
+      "backup_format": "rdb",
+      "health_check_interval": "30s"
+    },
+    "neo4j": {
+      "http_port_dev": 7475,
+      "http_port_staging": 7476,
+      "http_port_prod": 7474,
+      "bolt_port_dev": 7688,
+      "bolt_port_staging": 7689,
+      "bolt_port_prod": 7687,
+      "backup_format": "dump",
+      "health_check_interval": "30s"
+    },
+    "qdrant": {
+      "port_dev": 6335,
+      "port_staging": 6337,
+      "port_prod": 6333,
+      "grpc_port_dev": 6336,
+      "grpc_port_staging": 6338,
+      "grpc_port_prod": 6334,
+      "backup_format": "snapshot",
+      "health_check_interval": "60s"
+    },
+    "minio": {
+      "api_port_dev": 9002,
+      "api_port_staging": 9004,
+      "api_port_prod": 9000,
+      "console_port_dev": 9003,
+      "console_port_staging": 9005,
+      "console_port_prod": 9001,
+      "backup_format": "mirror",
+      "health_check_interval": "60s"
+    }
+  }
+}

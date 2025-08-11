@@ -1,0 +1,134 @@
+# Qdrant Production Configuration
+# High-performance, enterprise-grade settings
+
+service:
+  host: 0.0.0.0
+  http_port: 6333
+  grpc_port: 6334
+  max_request_size_mb: 64
+  max_workers: 0  # Auto-detect based on CPU cores
+  
+storage:
+  # Storage path inside container
+  storage_path: /qdrant/storage
+  
+  # Snapshots configuration (production)
+  snapshots_path: /qdrant/snapshots
+  snapshots_config:
+    snapshots_per_shard: 3
+    
+  # Performance settings (production - high)
+  performance:
+    max_search_threads: 8
+    max_optimization_threads: 4
+    
+  # Memory settings (production optimized)
+  hnsw_config:
+    m: 16
+    ef_construct: 256
+    full_scan_threshold: 20000
+    max_indexing_threads: 4
+    
+  # Indexing settings (production)
+  wal_config:
+    wal_capacity_mb: 128
+    wal_segments_ahead: 2
+    
+  # Storage optimization (production)
+  optimizers:
+    deleted_threshold: 0.15
+    vacuum_min_vector_number: 1000
+    default_segment_number: 2
+    max_segment_size_mb: 200
+    memmap_threshold_mb: 1000
+    indexing_threshold_mb: 100
+
+log_level: ERROR
+
+# Disable telemetry in production
+telemetry_disabled: true
+
+# Clustering (for future high availability)
+cluster:
+  enabled: false
+  # node_id: 1
+  # p2p:
+  #   port: 6335
+
+# Production security settings
+debug: false
+enable_cors: false
+
+# API settings (production security)
+api:
+  # Enable API key authentication in production
+  enable_api_key: true
+  api_key: "${QDRANT_API_KEY}"  # Set via environment variable
+  
+  # CORS settings (production - restrictive)
+  cors:
+    allow_any_origin: false
+    allow_credentials: false
+    allowed_origins:
+      - "https://yourdomain.com"
+    
+# Timeout settings (production)
+timeout:
+  # Default request timeout in seconds
+  default: 30
+  
+# Service limits (production)
+service:
+  # Maximum request payload size
+  max_request_size_mb: 64
+  
+  # Rate limiting (requests per second per client)
+  # rate_limit: 100
+  
+# Storage configuration (production optimized)
+storage:
+  # Memory mapping configuration
+  mmap_threshold: 1000000
+  
+  # Vector quantization for memory efficiency
+  quantization:
+    # Enable scalar quantization to save memory
+    scalar_quantization:
+      type: int8
+      quantile: 0.99
+      always_ram: false
+    
+  # Search configuration
+  search:
+    # Use SIMD for faster vector operations
+    use_fast_blas: true
+    
+# Backup and recovery (production)
+storage:
+  # Automatic snapshot creation
+  auto_snapshot_interval: 3600  # Every hour
+  
+  # Snapshot retention
+  snapshot_retention:
+    max_snapshots: 24  # Keep 24 hours of snapshots
+    
+# Monitoring and observability (production)
+telemetry:
+  enabled: false
+  
+service:
+  # Health check endpoint
+  health_check_enabled: true
+  
+  # Metrics endpoint (for Prometheus)
+  metrics_enabled: true
+  
+# Performance tuning (production)
+service:
+  # Thread pool configuration
+  max_concurrent_searches: 100
+  search_timeout: 30
+  
+  # Memory management
+  collection_memory_threshold: 0.85
+  segment_memory_threshold: 0.9

@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: pg_adm_user
       POSTGRES_PASSWORD: pg_adm_password
-      POSTGRES_DB: pg_adm_db
+      POSTGRES_DB: app_db
     ports:
       - "5432:5432"
     volumes:

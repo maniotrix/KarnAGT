@@ -1,0 +1,377 @@
+version: '3.9'
+
+# File-based secrets for database credentials
+secrets:
+  postgres_password:
+    file: ./secrets/staging/postgres_password.txt
+  redis_password:
+    file: ./secrets/staging/redis_password.txt
+  neo4j_auth:
+    file: ./secrets/staging/neo4j_auth.txt
+  minio_credentials:
+    file: ./secrets/staging/minio_credentials.txt
+
+# Staging environment isolated network
+networks:
+  app_db_network_staging:
+    driver: bridge
+    name: app_db_network_staging
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_staging
+    restart: unless-stopped
+    
+    # Security context - never run as root
+    user: "999:999"  # postgres user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Secrets-based authentication
+    environment:
+      POSTGRES_USER: app_staging_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: app_staging_db
+      # Staging PostgreSQL settings (minimal logging)
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
+      POSTGRES_LOG_MIN_DURATION_STATEMENT: 5000
+      POSTGRES_LOG_STATEMENT: none
+      POSTGRES_LOG_LINE_PREFIX: '%t [%p]: [%l-1] user=%u,db=%d '
+    
+    secrets:
+      - postgres_password
+      
+    # Staging-specific port mapping (5434 to avoid conflicts)
+    ports:
+      - "5434:5432"
+      
+    volumes:
+      - pgdata_staging:/var/lib/postgresql/data
+      # Optional: Custom config files (uncomment if needed)
+      # - ./config/staging/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      # - ./config/staging/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      # - ./init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./backups/staging:/backups
+      
+    networks:
+      - app_db_network_staging
+      
+    # Structured logging with rotation
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=staging,service=postgres"
+        
+    # Metadata labels for organization
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.service=database"
+      - "com.app.component=postgres"
+      - "com.app.backup.enable=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_staging_user -d app_staging_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      
+    # Staging resource limits (medium)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  redis:
+    image: redis:7
+    container_name: redis_staging
+    restart: unless-stopped
+    
+    # Security context
+    user: "999:999"  # redis user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Secure Redis with password from secrets
+    command: >
+      sh -c '
+        redis-server 
+        --requirepass "$$(cat /run/secrets/redis_password)"
+        --appendonly yes 
+        --appendfsync everysec
+        --maxmemory 512M
+        --maxmemory-policy allkeys-lru
+        --save 900 1
+        --save 300 10  
+        --save 60 10000
+      '
+      
+    secrets:
+      - redis_password
+      
+    # Staging-specific port mapping (6381 to avoid conflicts)
+    ports:
+      - "6381:6379"
+      
+    volumes:
+      - redisdata_staging:/data
+      # Optional: Custom config file (uncomment if needed)
+      # - ./config/staging/redis.conf:/etc/redis/redis.conf:ro
+      
+    networks:
+      - app_db_network_staging
+      
+    # Structured logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=staging,service=redis"
+        
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.service=cache"
+      - "com.app.component=redis"
+      - "com.app.backup.enable=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --pass $$(cat /run/secrets/redis_password) ping | grep PONG"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  neo4j:
+    image: neo4j:5.19
+    container_name: neo4j_staging
+    restart: unless-stopped
+    
+    # Security context
+    user: "7474:7474"  # neo4j user
+    security_opt:
+      - no-new-privileges:true
+      
+    environment:
+      NEO4J_AUTH_FILE: /run/secrets/neo4j_auth
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_memory_heap_initial_size: 1G
+      NEO4J_dbms_memory_heap_max_size: 1G
+      NEO4J_dbms_memory_pagecache_size: 512M
+      NEO4J_INITIAL_dbms_default_database: app_staging_graph
+      NEO4J_dbms_logs_debug_level: WARN
+      
+    secrets:
+      - neo4j_auth
+      
+    # Staging-specific port mapping (custom ports to avoid conflicts)
+    ports:
+      - "7476:7474"   # HTTP Browser
+      - "7689:7687"   # Bolt Driver
+      
+    volumes:
+      - neo4jdata_staging:/data
+      - neo4jlogs_staging:/logs
+      # Optional: Custom config file (uncomment if needed)
+      # - ./config/staging/neo4j.conf:/etc/neo4j/neo4j.conf:ro
+      
+    networks:
+      - app_db_network_staging
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=staging,service=neo4j"
+        
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.service=graph_database"
+      - "com.app.component=neo4j"
+      - "com.app.backup.enable=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell 'RETURN 1;' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    container_name: qdrant_staging
+    restart: unless-stopped
+    
+    # Security context
+    user: "1000:1000"  # qdrant runs as user 1000
+    security_opt:
+      - no-new-privileges:true
+      
+    # Staging-specific port mapping (custom ports to avoid conflicts)
+    ports:
+      - "6337:6333"
+      - "6338:6334"
+      
+    environment:
+      QDRANT__SERVICE__HOST: 0.0.0.0
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: WARN
+      
+    volumes:
+      - qdrantdata_staging:/qdrant/storage
+      # Optional: Custom config file (uncomment if needed)
+      # - ./config/staging/qdrant_config.yaml:/qdrant/config/production.yaml:ro
+      
+    networks:
+      - app_db_network_staging
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=staging,service=qdrant"
+        
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.service=vector_database"
+      - "com.app.component=qdrant"
+      - "com.app.backup.enable=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/health || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+      
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    container_name: minio_staging
+    restart: unless-stopped
+    
+    # Security context
+    user: "1000:1000"  # minio user
+    security_opt:
+      - no-new-privileges:true
+      
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_credentials
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_credentials
+      MINIO_BROWSER_REDIRECT_URL: https://minio-staging.yourdomain.com:9005
+      MINIO_DEFAULT_BUCKETS: app-files-staging
+      
+    secrets:
+      - minio_credentials
+      
+    # Staging-specific port mapping (custom ports to avoid conflicts)
+    ports:
+      - "9004:9000"
+      - "9005:9001"
+      
+    volumes:
+      - minio_data_staging:/data
+      # Optional: Custom policy file (uncomment if needed)
+      # - ./config/staging/minio_policy.json:/policies/default.json:ro
+      
+    networks:
+      - app_db_network_staging
+      
+    command: server /data --console-address ":9001"
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=staging,service=minio"
+        
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.service=object_storage"
+      - "com.app.component=minio"
+      - "com.app.backup.enable=true"
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+      
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+# Staging environment volumes with consistent naming
+volumes:
+  pgdata_staging:
+    driver: local
+    name: pgdata_staging
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.data-type=database"
+      
+  redisdata_staging:
+    driver: local
+    name: redisdata_staging
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.data-type=cache"
+      
+  neo4jdata_staging:
+    driver: local
+    name: neo4jdata_staging
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.data-type=graph_database"
+      
+  neo4jlogs_staging:
+    driver: local
+    name: neo4jlogs_staging
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.data-type=graph_logs"
+      
+  qdrantdata_staging:
+    driver: local
+    name: qdrantdata_staging
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.data-type=vector_database"
+      
+  minio_data_staging:
+    driver: local
+    name: minio_data_staging
+    labels:
+      - "com.app.environment=staging"
+      - "com.app.data-type=object_storage"
