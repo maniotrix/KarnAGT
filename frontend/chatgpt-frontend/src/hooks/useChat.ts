@@ -13,6 +13,7 @@ import { useCurrentUser, useAuthStatus } from '../app/hooks/auth/useAuth';
 import { chatKeys } from '../app/hooks/chat/useSidebar';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
 import { imageService, hasStagingFiles } from '../app/services';
+import { authService } from '../services/authService';
 
 export function useChat(options: ChatOptions = {}) {
   // Auth state
@@ -404,12 +405,13 @@ export function useChat(options: ChatOptions = {}) {
     // Cancel backend stream if we have a stream ID
     if (currentStreamId) {
       try {
-        const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
+        const csrfToken = authService.getCSRFToken();
         const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT.CANCEL_STREAM(currentStreamId)), {
           method: 'POST',
+          credentials: 'include', // Send httpOnly cookies
           headers: {
             'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }),
+            ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
           },
         });
         
@@ -508,15 +510,16 @@ export function useChat(options: ChatOptions = {}) {
 
       // STEP 4: Start streaming to backend
       const url = buildApiUrl(API_ENDPOINTS.CHAT.STREAM_MESSAGE(conversationId));
-      const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
+      const csrfToken = authService.getCSRFToken();
       
       const response = await fetch(url, {
         method: 'POST',
+        credentials: 'include', // Send httpOnly cookies
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
           'Cache-Control': 'no-cache',
-          ...(token && { Authorization: `Bearer ${token}` }),
+          ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
         },
         body: JSON.stringify(streamMessage),
       });

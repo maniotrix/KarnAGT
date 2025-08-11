@@ -66,8 +66,8 @@ export class RegisterUser {
       // Execute registration through repository
       const { user, tokens } = await this.authRepository.register(registerData);
 
-      // Store tokens for immediate session
-      this.authRepository.storeTokenResponse(tokens);
+      // Note: Token storage is now handled by httpOnly cookies in AuthService
+      // No need to manually store tokens anymore
 
       return {
         user,

@@ -133,7 +133,7 @@ export function useRefreshToken() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (refreshToken: string) => authRepository.refreshToken(refreshToken),
+    mutationFn: () => authRepository.refreshToken(''), // Empty string - backend reads from httpOnly cookies
     onSuccess: () => {
       // Invalidate user data to refetch with new token
       queryClient.invalidateQueries({ queryKey: authKeys.all });

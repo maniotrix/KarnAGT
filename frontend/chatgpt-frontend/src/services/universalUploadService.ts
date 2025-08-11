@@ -1,5 +1,5 @@
-import { apiClient } from './api';
 import { ENV, API_ENDPOINTS, buildApiUrl } from '../config/env';
+import { authService } from './authService';
 import type { UploadFile, StagingUploadResponse } from '../types/upload';
 
 export type FileCategory = 'image' | 'document' | 'unknown';
@@ -13,6 +13,24 @@ export interface FileTypeInfo {
 class UniversalUploadService {
   constructor() {
     // URL building handled by centralized buildApiUrl function
+  }
+
+  /**
+   * Get headers for authenticated requests
+   * Uses CSRF token instead of Authorization headers (httpOnly cookies system)
+   */
+  private getAuthHeaders(includeCsrf: boolean = false): HeadersInit {
+    const headers: HeadersInit = {};
+
+    // Add CSRF token for mutating operations
+    if (includeCsrf) {
+      const csrfToken = authService.getCSRFToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
+    return headers;
   }
 
   /**
@@ -261,10 +279,9 @@ class UniversalUploadService {
     });
     formData.append('max_concurrent_uploads', '5');
 
-    // Get authentication token
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    const authHeader = token ? `Bearer ${token}` : '';
-    console.log('🔐 [UniversalUploadService] Auth token:', token ? `${token.substring(0, 20)}...` : 'MISSING');
+    // Authentication now handled by httpOnly cookies + CSRF
+    const csrfToken = authService.getCSRFToken();
+    console.log('🔐 [UniversalUploadService] CSRF token:', csrfToken ? `${csrfToken.substring(0, 20)}...` : 'MISSING');
 
     try {
       const uploadUrl = buildApiUrl(API_ENDPOINTS.AI_FILES.STAGING_BULK_UPLOAD);
@@ -272,9 +289,8 @@ class UniversalUploadService {
       
       const response = await fetch(uploadUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-        },
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for POST
         body: formData,
       });
 
@@ -424,9 +440,9 @@ class UniversalUploadService {
   async discardStagedFiles(fileIds: string[]): Promise<void> {
     console.log('🗑️ [UniversalUploadService] Discarding files from server:', fileIds);
     
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    const authHeader = token ? `Bearer ${token}` : '';
-    console.log('🔐 [UniversalUploadService] Discard auth header:', authHeader ? `${authHeader.substring(0, 30)}...` : 'MISSING');
+    // Authentication now handled by httpOnly cookies + CSRF
+    const csrfToken = authService.getCSRFToken();
+    console.log('🔐 [UniversalUploadService] CSRF token:', csrfToken ? `${csrfToken.substring(0, 20)}...` : 'MISSING');
 
     if (fileIds.length === 1) {
       const url = buildApiUrl(API_ENDPOINTS.AI_FILES.STAGING_DISCARD(fileIds[0]));
@@ -434,8 +450,9 @@ class UniversalUploadService {
       
       const response = await fetch(url, {
         method: 'DELETE',
+        credentials: 'include', // Send httpOnly cookies
         headers: {
-          'Authorization': authHeader,
+          ...this.getAuthHeaders(true), // ✅ CSRF required for DELETE
           'Content-Type': 'application/json',
         },
       });
@@ -453,8 +470,9 @@ class UniversalUploadService {
       
       const response = await fetch(url, {
         method: 'DELETE',
+        credentials: 'include', // Send httpOnly cookies
         headers: {
-          'Authorization': authHeader,
+          ...this.getAuthHeaders(true), // ✅ CSRF required for DELETE
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ file_ids: fileIds }),

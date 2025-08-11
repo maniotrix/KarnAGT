@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { buildApiUrl, ENV } from '../config/env';
 import { Message } from '../types/chat';
+import { authService } from '../services/authService';
 
 interface ImageUrls {
   display: string;
@@ -61,12 +62,13 @@ const fetchBulkImageUrls = async (fileIds: string[]): Promise<Record<string, Ima
 
   console.log('🌐 API CALL: Fetching URLs for', fileIds.length, 'files:', fileIds);
   
-  const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
+  const csrfToken = authService.getCSRFToken();
   const response = await fetch(buildApiUrl('/api/v1/files/images/bulk-presigned-urls'), {
     method: 'POST',
+    credentials: 'include', // Send httpOnly cookies
     headers: {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(csrfToken && { 'X-CSRF-Token': csrfToken }), // ✅ CSRF required for POST
     },
     body: JSON.stringify({ file_ids: fileIds }),
   });

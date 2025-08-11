@@ -2,6 +2,7 @@
 // Handles downloading files through authenticated proxy endpoints
 
 import { ENV, buildApiUrl } from '../config/env';
+import { authService } from '../services/authService';
 
 export interface DownloadResult {
   success: boolean;
@@ -14,10 +15,9 @@ export interface DownloadResult {
  */
 export async function handleAuthenticatedDownload(url: string): Promise<DownloadResult> {
   try {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    
-    if (!token) {
-      console.error('❌ No authentication token found');
+    // Check authentication status using the new system
+    if (!authService.isAuthenticated()) {
+      console.error('❌ Not authenticated (no CSRF token cookie found)');
       return { success: false, error: 'Authentication required. Please log in.' };
     }
 
@@ -40,17 +40,18 @@ export async function handleAuthenticatedDownload(url: string): Promise<Download
     console.log('🔗 Original URL:', url);
     console.log('🔗 Full URL for request:', fullUrl);
 
-    // Make authenticated request and follow the redirect to get the presigned URL
+    // Make authenticated request to get redirect URL (don't follow automatically)
     const response = await fetch(fullUrl, {
       method: 'GET',
+      credentials: 'include', // Send httpOnly cookies for authentication
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        // No CSRF token needed for GET requests
       },
-      redirect: 'follow' // Follow redirects to get final presigned URL
+      redirect: 'manual' // Get redirect URL manually to avoid CORS issue
     });
 
     console.log('✅ Response status:', response.status);
-    console.log('✅ Final URL:', response.url);
 
     if (response.status === 401) {
       console.error('❌ Authentication failed');
@@ -67,14 +68,19 @@ export async function handleAuthenticatedDownload(url: string): Promise<Download
       return { success: false, error: 'Access denied. You do not have permission to access this file.' };
     }
 
-    // If we get a successful response, the final URL is our presigned URL
-    if (response.ok) {
-      const presignedUrl = response.url; // This is the final URL after redirect
+    // Backend returns 302 redirect with presigned URL in Location header
+    if (response.status === 302) {
+      const presignedUrl = response.headers.get('location');
       
-      console.log('✅ Got presigned URL, opening in new tab');
-      console.log('🔗 Presigned URL:', presignedUrl);
+      if (!presignedUrl) {
+        console.error('❌ No redirect URL found in Location header');
+        return { success: false, error: 'Failed to get download URL from server.' };
+      }
       
-      // Open the presigned URL in a new tab - browser handles the rest!
+      console.log('✅ Got presigned URL from redirect, opening in new tab');
+      console.log('🔗 Presigned URL:', presignedUrl.substring(0, 100) + '...');
+      
+      // Open the presigned URL in new tab - no credentials needed, avoids CORS issue
       window.open(presignedUrl, '_blank');
       return { success: true };
     }
@@ -83,10 +89,9 @@ export async function handleAuthenticatedDownload(url: string): Promise<Download
     return { success: false, error: `Server returned ${response.status}: ${response.statusText}` };
 
   } catch (error) {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
     console.error('❌ Failed to get presigned URL:', error);
     console.error('❌ Original URL:', url);
-    console.error('❌ Token available:', !!token);
+    console.error('❌ Authenticated:', authService.isAuthenticated());
     
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       return { success: false, error: 'Network error. Please check your connection.' };

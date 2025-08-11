@@ -44,6 +44,7 @@ export interface TokenResponse {
   token_type: string; // "bearer"
   expires_in: number;
   user: UserProfile;
+  csrf_token?: string; // CSRF token for frontend use (httpOnly cookies system)
 }
 
 // Exact TokenRefresh from your backend line 64
@@ -58,6 +59,7 @@ export interface RefreshTokenResponse {
   timestamp: string;
   access_token: string;
   expires_in: number;
+  csrf_token?: string; // CSRF token for frontend use (httpOnly cookies system)
 }
 
 // Exact PasswordReset from your backend line 74
