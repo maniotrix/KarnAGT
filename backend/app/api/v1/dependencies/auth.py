@@ -125,21 +125,29 @@ async def get_current_user_optional(
 
 
 async def get_current_user_or_service(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> Union[User, ServiceAuth]:
-    """Get current user or service authentication"""
-    if not credentials:
-        raise AuthenticationException("Authentication required")
-    
-    token = credentials.credentials
+    """Get current user or service authentication (supports both Authorization headers and httpOnly cookies)"""
+    token = None
     settings = get_settings()
     
-    # Check if it's the service token
+    # Try Authorization header first (for service authentication)
+    if credentials:
+        token = credentials.credentials
+    else:
+        # Fallback to httpOnly cookie (for web browser users)
+        token = request.cookies.get("access_token")
+    
+    if not token:
+        raise AuthenticationException("Authentication required")
+    
+    # Check if it's the service token (from Authorization header)
     if token == settings.CODE_EXECUTOR_TOKEN:
         return ServiceAuth(service_name="code_executor", has_full_access=True)
     
-    # Regular user authentication
+    # Regular user authentication (from either Authorization header or httpOnly cookie)
     user_id = security.get_subject_from_token(token)
     if not user_id:
         raise InvalidTokenException("Invalid or expired token")
