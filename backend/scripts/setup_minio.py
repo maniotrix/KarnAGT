@@ -95,6 +95,8 @@ MINIO_SECRET_KEY = "minioadmin123"
 # Not allowed: uppercase characters or underscores
 BUCKET_NAME = "minio-files"
 
+# NOTE: WARNING: This script should be only used in local environment, not in docker containers
+
 def create_minio_client():
     """Create MinIO client"""
     return boto3.client(
