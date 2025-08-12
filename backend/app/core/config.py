@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     """Application settings"""
     
     # Basic App Config
-    PROJECT_NAME: str = "ChatGPT Clone Backend"
+    PROJECT_NAME: str = "App Backend"
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     ALLOWED_HOSTS: str = "*"
     
     # Database URLs
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/chatgpt_clone"
+    DATABASE_URL: str = "postgresql://app_local_user:app_local_password@localhost:5432/app_local_db"
     REDIS_URL: str = "redis://localhost:6379/0"
     
     # Vector Database (Qdrant)
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     # Graph Database (Neo4j)
     NEO4J_URL: str = "bolt://localhost:7687"
     NEO4J_USERNAME: str = "neo4j"
-    NEO4J_PASSWORD: str = "password"
+    NEO4J_PASSWORD: str = "neo4j_password"
     
     # AI Services
     OPENAI_API_KEY: str = ""
@@ -82,7 +82,6 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
     
     # File Storage
-    UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
     ALLOWED_FILE_TYPES: str = ".pdf,.docx,.doc,.txt,.md,.pptx,.ppt,.csv,.xlsx,.xls,.rtf,.html,.xml,.epub,.json,.tsv,.odt,.org,.rst,.msg,.eml,.ipynb,.mbox,.hwp"
     
@@ -159,6 +158,9 @@ class Settings(BaseSettings):
     COST_TRACKING_ENABLED: bool = False
     DEFAULT_USER_QUOTA_USD: float = 10.0
     COST_ALERT_THRESHOLD: float = 0.8  # 80% of quota
+    
+    # Code Execution Service (CodeSandbox Integration)
+    CODESANDBOX_URL: str = "http://localhost:8080/api/v1"
     
     # Monitoring
     ENABLE_METRICS: bool = True
@@ -274,10 +276,6 @@ class Settings(BaseSettings):
     def get_graphiti_openai_key(self) -> str:
         """Get OpenAI API key for Graphiti (fallback to main OpenAI key)"""
         return self.GRAPHITI_OPENAI_API_KEY or self.OPENAI_API_KEY
-    
-    def get_upload_path(self) -> Path:
-        """Get upload directory path"""
-        return Path(self.UPLOAD_DIR)
     
     @property
     def server_scheme(self) -> str:

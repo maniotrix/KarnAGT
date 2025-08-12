@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Use correct database credentials from docker-compose.yml
-DATABASE_URL = "postgresql+asyncpg://chatgpt_user:chatgpt_password@localhost:5432/chatgpt_clone"
+DATABASE_URL = "postgresql+asyncpg://app_local_user:app_local_password@localhost:5432/app_local_db"
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
