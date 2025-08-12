@@ -117,23 +117,17 @@ class DatabaseManager:
         """Get the Docker Compose file path for environment."""
         return self.base_dir / f"docker-compose.{env}.yml"
     
-    def _get_env_file(self, env: str) -> Path:
-        """Get the environment file path for environment."""
-        return self.base_dir / f"env.{env}"
+
     
     def _check_prerequisites(self, env: str) -> bool:
         """Check if all prerequisites exist for environment."""
         compose_file = self._get_compose_file(env)
-        env_file = self._get_env_file(env)
         secrets_dir = self.base_dir / 'secrets' / env
         
         missing = []
         
         if not compose_file.exists():
             missing.append(f"Docker Compose file: {compose_file}")
-            
-        if not env_file.exists():
-            missing.append(f"Environment file: {env_file}")
             
         if not secrets_dir.exists():
             missing.append(f"Secrets directory: {secrets_dir}")
@@ -166,12 +160,10 @@ class DatabaseManager:
             return False
         
         compose_file = self._get_compose_file(env)
-        env_file = self._get_env_file(env)
         
         cmd = [
             'docker-compose',
             '-f', str(compose_file),
-            '--env-file', str(env_file),
             'up', '-d'
         ]
         
@@ -197,12 +189,10 @@ class DatabaseManager:
             return False
         
         compose_file = self._get_compose_file(env)
-        env_file = self._get_env_file(env)
         
         cmd = [
             'docker-compose',
             '-f', str(compose_file),
-            '--env-file', str(env_file),
             'down'
         ]
         
@@ -235,12 +225,10 @@ class DatabaseManager:
             return False
         
         compose_file = self._get_compose_file(env)
-        env_file = self._get_env_file(env)
         
         cmd = [
             'docker-compose',
             '-f', str(compose_file),
-            '--env-file', str(env_file),
             'ps'
         ]
         
@@ -311,12 +299,10 @@ class DatabaseManager:
             return False
         
         compose_file = self._get_compose_file(env)
-        env_file = self._get_env_file(env)
         
         cmd = [
             'docker-compose',
             '-f', str(compose_file),
-            '--env-file', str(env_file),
             'logs'
         ]
         

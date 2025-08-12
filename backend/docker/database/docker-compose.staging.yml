@@ -166,13 +166,6 @@ services:
       
     environment:
       NEO4J_AUTH_FILE: /run/secrets/neo4j_auth
-      NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_dbms_security_procedures_unrestricted: apoc.*
-      NEO4J_dbms_memory_heap_initial_size: 1G
-      NEO4J_dbms_memory_heap_max_size: 1G
-      NEO4J_dbms_memory_pagecache_size: 512M
-      NEO4J_INITIAL_dbms_default_database: app_staging_graph
-      NEO4J_dbms_logs_debug_level: WARN
       
     secrets:
       - neo4j_auth

@@ -2,15 +2,15 @@
 
 This document shows how to use your backend application with the database container infrastructure.
 
-## 🎯 **Perfect Environment Coordination**
+## 🎯 **Database Container Environment**
 
-Your backend now has **three environment files** that perfectly coordinate with the database containers:
+Your database containers are managed by **environment-specific Docker Compose files**:
 
 ```
-Backend Environment Files          Database Containers
-├── env.docker.app.dev       ↔    docker-compose.dev.yml
-├── env.docker.app.staging   ↔    docker-compose.staging.yml  
-└── env.docker.app.prod      ↔    docker-compose.prod.yml
+Database Container Environments
+├── docker-compose.dev.yml      (Development)
+├── docker-compose.staging.yml  (Staging)  
+└── docker-compose.prod.yml     (Production)
 ```
 
 ## 🚀 **Complete Deployment Workflows**
@@ -26,7 +26,7 @@ python db_manager.py health --env=dev
 
 # 3. Start your backend application (in new terminal)
 cd backend
-export $(cat env.docker.app.dev | xargs)
+# Use your backend's development environment configuration
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -41,7 +41,7 @@ python db_manager.py health --env=staging
 
 # 3. Start backend with staging config
 cd backend
-export $(cat env.docker.app.staging | xargs)
+# Use your backend's staging environment configuration
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -62,7 +62,7 @@ python db_manager.py health --env=prod
 
 # 5. Start backend with production config
 cd backend
-export $(cat env.docker.app.prod | xargs)
+# Use your backend's production environment configuration
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -118,21 +118,21 @@ S3_SECRET_ACCESS_KEY=devpassword123
 ```
 
 
-## 🔄 **Environment Switching**
+## 🔄 **Environment Management**
 
-### **Quick Environment Switch**
+### **Database Environment Management**
+Database containers are managed independently from your backend application:
+
 ```bash
-# Switch to development
-export $(cat backend/env.docker.app.dev | xargs)
-echo "Current environment: $ENVIRONMENT"
+# Start development database containers
+cd backend/docker/database
+python db_manager.py start --env=dev
 
-# Switch to staging  
-export $(cat backend/env.docker.app.staging | xargs)
-echo "Current environment: $ENVIRONMENT"
+# Start staging database containers
+python db_manager.py start --env=staging
 
-# Switch to production
-export $(cat backend/env.docker.app.prod | xargs)
-echo "Current environment: $ENVIRONMENT"
+# Start production database containers
+python db_manager.py start --env=prod
 ```
 
 ### **Verify Your Configuration**
@@ -150,23 +150,25 @@ async def database_health():
     }
 ```
 
+**Note**: Configure your backend environment variables to match the database ports shown in the Connection Matrix above.
+
 ## 🎯 **Environment Parity Achievement**
 
 ✅ **Same Docker Images**: All environments use identical database versions
 ✅ **Same Container Structure**: Identical volumes, networks, health checks  
 ✅ **Same Operational Commands**: `db_manager.py` works identically everywhere
 ✅ **Environment-Specific Settings**: Only ports, passwords, and resources differ
-✅ **Perfect Coordination**: Backend environment files match container ports exactly
+✅ **Perfect Coordination**: Database containers use consistent, conflict-free ports
 
 ## 🚀 **Ready to Use!**
 
 Your backend application will now:
-- **Connect to the correct databases** based on the environment file you load
+- **Connect to the correct databases** based on your backend environment configuration
 - **Use appropriate security settings** per environment
 - **Scale resources properly** (dev uses less memory, prod uses more)
 - **Behave identically** across all environments (same database versions, same features)
 
-**This achieves true environment parity** - your application code doesn't change, only the connection details and security settings adapt to each environment!
+**This achieves true environment parity** - database containers are identical across environments, only ports, passwords, and resources differ!
 
 ## 🔐 **Git Security & Team Collaboration**
 
@@ -176,7 +178,7 @@ Sensitive files are **automatically protected** by `.gitignore`:
 - ❌ **Staging secrets** (`secrets/staging/`) - **Protected from git**
 - ❌ **Production secrets** (`secrets/prod/`) - **Protected from git**
 - ❌ **Backup files** (`backups/`) - Database backups ignored  
-- ❌ **Environment files** (`.env*`) - Credentials ignored
+- ❌ **Backend environment files** (`.env*`) - Your backend app credentials ignored
 - ❌ **Database exports** (`*.sql`, `*.dump`) - Data exports ignored
 
 ### **🚀 Instant Team Setup**
