@@ -2,9 +2,11 @@
 
 Complete database infrastructure management for development, staging, and production environments.
 
-> **✨ Simple & Clean:** All custom configurations are commented out by default. The containers work perfectly with their default settings, just like your original setup. Uncomment config files only if you need custom tuning.
+> **✨ Simple & Clean:** All containers work perfectly with their default settings, just like your original setup. No complex init containers, no resource limits, no security hardening complexity - just reliable database services.
 
 > **🎯 Image Consistency:** All environments use **identical Docker images** with **pinned versions** (`postgres:15`, `redis:7`, `neo4j:5.19`, `qdrant/qdrant:v1.14.1`, `minio/minio:RELEASE.2025-05-24T17-08-30Z`) for proven stability and true environment parity.
+
+> **🚀 No Resource Limits:** All services can use whatever resources they need - no artificial memory or CPU constraints that could cause startup issues.
 
 ## 🚀 Quick Start
 
@@ -150,8 +152,9 @@ secrets/prod/... (same structure)
 ```
 
 ### Container Security
-- All containers run as non-root users
-- `no-new-privileges` security option enabled
+- PostgreSQL and Redis run with built-in security (user 999:999)
+- Neo4j runs with custom user (user 7474:7474)  
+- Qdrant and MinIO run as root for simplicity and compatibility
 - File-based secrets (no plain text passwords)
 - Network isolation per environment
 
@@ -160,8 +163,8 @@ secrets/prod/... (same structure)
 ```
 backend/docker/database/
 ├── 📄 README.md                       # This file
-├── 📄 db_config.json                  # Configuration
-├── 🐍 db_manager.py                   # Management tool
+├── 📄 db_config.json                  # Minimal configuration (28 lines - only essentials)
+├── 🐍 db_manager.py                   # Management tool (reads compose files from config)
 ├── 📄 docker-compose.dev.yml          # Development
 ├── 📄 docker-compose.staging.yml      # Staging
 ├── 📄 docker-compose.prod.yml         # Production
@@ -170,9 +173,9 @@ backend/docker/database/
 │   ├── 📁 staging/                    # Staging configurations (optional)
 │   └── 📁 prod/                       # Production configurations (optional)
 ├── 📁 secrets/
-│   ├── 📁 dev/                        # Dev secrets
-│   ├── 📁 staging/                    # Staging secrets
-│   └── 📁 prod/                       # Production secrets
+│   ├── 📁 dev/                        # Dev secrets (committed for easy setup)
+│   ├── 📁 staging/                    # Staging secrets (.gitignored)
+│   └── 📁 prod/                       # Production secrets (.gitignored)
 ├── 📁 init-scripts/                  # Optional: Database initialization scripts (commented out)
 │   ├── 📄 001-create-extensions.sql  # PostgreSQL extensions (optional)
 │   └── 📄 002-setup-databases.sql    # Database setup (optional)
@@ -185,6 +188,48 @@ backend/docker/database/
     ├── 🔧 restore.sh                  # Database restore script
     └── 🔧 health_check.sh             # Comprehensive health monitoring
 ```
+
+### **📋 Minimal Configuration Structure**
+
+The `db_config.json` file contains only the essential configuration:
+
+```json
+{
+  "description": "Simplified database infrastructure - compose files contain all configuration",
+  "supported_environments": ["dev", "staging", "prod"],
+  "environments": {
+    "dev": {
+      "compose_file": "docker-compose.dev.yml",
+      "description": "Development database with debug settings"
+    },
+    "staging": {
+      "compose_file": "docker-compose.staging.yml",
+      "description": "Staging database - production mirror"
+    },
+    "prod": {
+      "compose_file": "docker-compose.prod.yml",
+      "description": "Production database with high availability"
+    }
+  },
+  "settings": {
+    "docker_compose_timeout": 300,
+    "health_check_timeout": 120,
+    "backup_parallel_jobs": 2
+  },
+  "required_secrets": [
+    "postgres_password.txt",
+    "redis_password.txt",
+    "neo4j_auth.txt",
+    "minio_credentials.txt"
+  ]
+}
+```
+
+**Key Benefits:**
+- **28 lines vs 107 lines** - Removed all unused resource profiles and service configs
+- **Configuration-driven** - `db_manager.py` reads compose file paths from config instead of hardcoding
+- **Flexible** - Easy to add new environments or change compose file names
+- **Essential only** - Contains only what's actually used by the system
 
 ## 🔄 Backend Application Integration
 
@@ -248,13 +293,19 @@ If you prefer direct Docker commands:
 
 ```bash
 # Development
-docker-compose -f docker-compose.dev.yml --env-file env.dev up -d
+docker-compose -f docker-compose.dev.yml up -d
 
 # Check status
-docker-compose -f docker-compose.dev.yml --env-file env.dev ps
+docker-compose -f docker-compose.dev.yml ps
 
 # Stop
-docker-compose -f docker-compose.dev.yml --env-file env.dev down
+docker-compose -f docker-compose.dev.yml down
+
+# Staging
+docker-compose -f docker-compose.staging.yml up -d
+
+# Production
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
 ## 🔐 Security & Git Management
@@ -285,7 +336,7 @@ docker-compose*.yml   # Container definitions
 - **Staging/Production secrets** are ignored for security
 - **Backup directories** exist but all backup files are ignored
 - **Config files** are optional (containers work with defaults)
-- **Init containers** handle volume permissions automatically
+- **Simple container setup** with no complex permission handling
 
 ### **Best Practices**
 1. **Development secrets** - Generic/simple passwords, safe to commit
@@ -312,14 +363,11 @@ Make sure secrets files exist and have correct permissions:
 chmod 600 secrets/dev/*.txt
 ```
 
-### Windows/WSL2 Volume Permissions
-If you're on Windows and see permission errors for Qdrant or MinIO:
-1. **Normal behavior**: Init containers will automatically fix permissions
-2. **Check init container logs**: `docker logs qdrant_init_dev` or `docker logs minio_init_dev`
-3. **Manual fix if needed**: 
-   ```bash
-   docker run --rm -v app_db_dev_qdrantdata:/qdrant alpine sh -c "chown -R 1000:1000 /qdrant"
-   ```
+### Windows/WSL2 Compatibility
+All containers now run with default permissions (root when needed) for maximum compatibility:
+1. **No permission issues**: Containers run as root or system users that work reliably
+2. **No init containers needed**: Simplified approach eliminates permission complexity
+3. **Works everywhere**: Same behavior on Windows, WSL2, macOS, and Linux
 
 ### Missing Staging/Production Secrets
 Development secrets are included, but you'll need to create staging/production secrets:
@@ -360,13 +408,17 @@ This prevents container mixing and makes environment management clearer.
 
 ## 🎯 Recent Updates & Features
 
-✅ **Multi-Environment Support** - Dev, staging, prod, and local environments  
-✅ **Windows/WSL2 Compatibility** - Automatic permission fixes via init containers  
+✅ **Minimal Configuration** - Clean `db_config.json` with only essential keys (28 lines vs 107 lines)  
+✅ **Configuration-Driven Compose Files** - `db_manager.py` reads compose file paths from config instead of hardcoding  
+✅ **Multi-Environment Support** - Dev, staging, prod environments  
+✅ **Maximum Compatibility** - Simple container setup works everywhere  
 ✅ **Project Naming** - Unique Docker Compose project names prevent conflicts  
 ✅ **Simplified Authentication** - Direct environment variables, no complex commands  
-✅ **Self-Contained Configuration** - No external `.env` files needed  
+✅ **Self-Contained Configuration** - All config embedded in compose files  
 ✅ **Enhanced backup system** - Comprehensive backup/restore for all services  
-✅ **Security hardening** - File-based secrets and git protection
+✅ **No Resource Limits** - Services can use whatever resources they need  
+✅ **Development-Friendly** - Simple setup like your original working compose file  
+✅ **Mixed Security Model** - System users where appropriate, root where needed for compatibility
 
 ## 🎯 Optional Enhancements
 
@@ -381,3 +433,14 @@ For issues or questions:
 2. Validate environment: `python db_manager.py validate --env=dev`
 3. Check Docker status: `docker info`
 4. Review configuration: `cat db_config.json`
+
+## 🎯 Current Architecture Summary
+
+**Simplified & Reliable Database Infrastructure**
+
+✅ **No Resource Limits** - Services can use whatever memory/CPU they need  
+✅ **No Init Containers** - Simple setup, no complex permission handling  
+✅ **Mixed Security Model** - PostgreSQL/Redis/Neo4j use system users, Qdrant/MinIO run as root for compatibility  
+✅ **Maximum Compatibility** - Works reliably on Windows, WSL2, macOS, and Linux  
+✅ **Environment Parity** - Same Docker images and versions across all environments  
+✅ **Development-Friendly** - Just like your original working setup, but with multi-environment support

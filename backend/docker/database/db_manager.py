@@ -43,7 +43,7 @@ class DatabaseManager:
         """Initialize the database manager."""
         self.base_dir = base_dir or Path(__file__).parent
         self.config = self._load_config()
-        self.supported_environments = ['dev', 'staging', 'prod']
+        self.supported_environments = self.config.get('supported_environments', ['dev', 'staging', 'prod'])
         self.services = ['postgres', 'redis', 'neo4j', 'qdrant', 'minio']
         
     def _load_config(self) -> Dict:
@@ -56,12 +56,23 @@ class DatabaseManager:
         
         # Default configuration if file doesn't exist
         return {
-            "project_name": "app_database",
-            "default_environment": "dev",
+            "description": "Simplified database infrastructure",
+            "supported_environments": ["dev", "staging", "prod"],
+            "environments": {
+                "dev": {"compose_file": "docker-compose.dev.yml"},
+                "staging": {"compose_file": "docker-compose.staging.yml"},
+                "prod": {"compose_file": "docker-compose.prod.yml"}
+            },
             "settings": {
                 "docker_compose_timeout": 300,
                 "health_check_timeout": 120
-            }
+            },
+            "required_secrets": [
+                "postgres_password.txt",
+                "redis_password.txt",
+                "neo4j_auth.txt",
+                "minio_credentials.txt"
+            ]
         }
     
     def _run_command(self, cmd: List[str], capture_output: bool = False, 
@@ -115,7 +126,9 @@ class DatabaseManager:
     
     def _get_compose_file(self, env: str) -> Path:
         """Get the Docker Compose file path for environment."""
-        return self.base_dir / f"docker-compose.{env}.yml"
+        env_config = self.config.get('environments', {}).get(env, {})
+        compose_file = env_config.get('compose_file', f"docker-compose.{env}.yml")
+        return self.base_dir / compose_file
     
 
     
@@ -133,12 +146,12 @@ class DatabaseManager:
             missing.append(f"Secrets directory: {secrets_dir}")
         else:
             # Check for required secret files
-            required_secrets = [
+            required_secrets = self.config.get('required_secrets', [
                 'postgres_password.txt',
                 'redis_password.txt', 
                 'neo4j_auth.txt',
                 'minio_credentials.txt'
-            ]
+            ])
             for secret in required_secrets:
                 secret_file = secrets_dir / secret
                 if not secret_file.exists():
