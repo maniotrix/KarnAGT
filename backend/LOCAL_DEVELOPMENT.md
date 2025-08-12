@@ -2,6 +2,8 @@
 
 This guide covers setting up local development where database services run in Docker containers while the backend application runs locally on your host machine.
 
+The default values in backend/app/core/config.py use settings as per local env example and docker compose files.
+
 ## 📋 **Prerequisites**
 
 - Docker & Docker Compose installed
