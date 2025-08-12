@@ -1,4 +1,5 @@
 version: '3.9'
+name: 'app_db_local'
 
 services:
   postgres:
@@ -6,9 +7,9 @@ services:
     container_name: postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: pg_adm_user
-      POSTGRES_PASSWORD: pg_adm_password
-      POSTGRES_DB: app_db
+      POSTGRES_USER: app_local_user
+      POSTGRES_PASSWORD: app_local_password
+      POSTGRES_DB: app_local_db
     ports:
       - "5432:5432"
     volumes:

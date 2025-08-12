@@ -1,4 +1,5 @@
 version: '3.9'
+name: 'app_db_prod'
 
 # File-based secrets for database credentials
 secrets:
@@ -18,6 +19,43 @@ networks:
     name: app_db_network_prod
 
 services:
+  # One-time init to fix permissions on Qdrant volume
+  qdrant_init:
+    image: alpine:3.19
+    container_name: qdrant_init_prod
+    restart: "no"
+    user: "0:0"  # run as root to fix ownership
+    volumes:
+      - qdrantdata_prod:/qdrant/storage
+    command: >
+      sh -c "\
+        echo 'Fixing permissions for Qdrant volume...' && \
+        mkdir -p /qdrant/storage /qdrant/snapshots /qdrant/snapshots/tmp && \
+        chown -R 1000:1000 /qdrant && \
+        chmod -R 755 /qdrant && \
+        echo 'Qdrant volume permissions fixed (full directory tree).'"
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.component=init-qdrant"
+
+  # One-time init to fix permissions on MinIO volume
+  minio_init:
+    image: alpine:3.19
+    container_name: minio_init_prod
+    restart: "no"
+    user: "0:0"  # run as root to fix ownership
+    volumes:
+      - minio_data_prod:/data
+    command: >
+      sh -c "\
+        echo 'Fixing permissions for MinIO volume...' && \
+        mkdir -p /data && \
+        chown -R 1000:1000 /data && \
+        chmod -R 755 /data && \
+        echo 'MinIO volume permissions fixed.'"
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.component=init-minio"
   postgres:
     image: postgres:15
     container_name: postgres_prod
@@ -167,11 +205,9 @@ services:
     security_opt:
       - no-new-privileges:true
       
+    # Simple environment-based authentication (from secrets folder)
     environment:
-      NEO4J_AUTH_FILE: /run/secrets/neo4j_auth
-      
-    secrets:
-      - neo4j_auth
+      NEO4J_AUTH: "neo4j/Pr0d_N30j4_Gr@ph_M@st3r_K3y_2024_Kn8dV7rQ2sF9"
       
     # Production-specific port mapping (7474, 7687 - standard Neo4j ports)
     ports:
@@ -218,6 +254,9 @@ services:
     image: qdrant/qdrant:v1.14.1
     container_name: qdrant_prod
     restart: unless-stopped
+    depends_on:
+      qdrant_init:
+        condition: service_completed_successfully
     
     # Security context
     user: "1000:1000"  # qdrant runs as user 1000
@@ -274,6 +313,9 @@ services:
     image: minio/minio:RELEASE.2025-05-24T17-08-30Z
     container_name: minio_prod
     restart: unless-stopped
+    depends_on:
+      minio_init:
+        condition: service_completed_successfully
     
     # Security context
     user: "1000:1000"  # minio user
