@@ -19,43 +19,6 @@ networks:
     name: app_db_network_dev
 
 services:
-  # One-time init to fix permissions on Qdrant volume
-  qdrant_init:
-    image: alpine:3.19
-    container_name: qdrant_init_dev
-    restart: "no"
-    user: "0:0"  # run as root to fix ownership
-    volumes:
-      - qdrantdata_dev:/qdrant/storage
-    command: >
-      sh -c "\
-        echo 'Fixing permissions for Qdrant volume...' && \
-        mkdir -p /qdrant/storage /qdrant/snapshots /qdrant/snapshots/tmp && \
-        chown -R 1000:1000 /qdrant && \
-        chmod -R 755 /qdrant && \
-        echo 'Qdrant volume permissions fixed (full directory tree).'"
-    labels:
-      - "com.app.environment=dev"
-      - "com.app.component=init-qdrant"
-
-  # One-time init to fix permissions on MinIO volume
-  minio_init:
-    image: alpine:3.19
-    container_name: minio_init_dev
-    restart: "no"
-    user: "0:0"  # run as root to fix ownership
-    volumes:
-      - minio_data_dev:/data
-    command: >
-      sh -c "\
-        echo 'Fixing permissions for MinIO volume...' && \
-        mkdir -p /data && \
-        chown -R 1000:1000 /data && \
-        chmod -R 755 /data && \
-        echo 'MinIO volume permissions fixed.'"
-    labels:
-      - "com.app.environment=dev"
-      - "com.app.component=init-minio"
   postgres:
     image: postgres:15
     container_name: postgres_dev
@@ -116,16 +79,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-      
-    # Development resource limits (minimal)
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 256M
-          cpus: '0.25'
 
   redis:
     image: redis:7
@@ -185,12 +138,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
 
   neo4j:
     image: neo4j:5.19
@@ -239,25 +186,11 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-      
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
 
   qdrant:
     image: qdrant/qdrant:v1.14.1
     container_name: qdrant_dev
     restart: unless-stopped
-    depends_on:
-      qdrant_init:
-        condition: service_completed_successfully
-    
-    # Security context
-    user: "1000:1000"  # qdrant runs as user 1000
-    security_opt:
-      - no-new-privileges:true
       
     # Development-specific port mapping (custom ports to avoid conflicts)
     ports:
@@ -297,25 +230,11 @@ services:
       timeout: 30s
       retries: 3
       start_period: 60s
-      
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
 
   minio:
     image: minio/minio:RELEASE.2025-05-24T17-08-30Z
     container_name: minio_dev
     restart: unless-stopped
-    depends_on:
-      minio_init:
-        condition: service_completed_successfully
-    
-    # Security context
-    user: "1000:1000"  # minio user
-    security_opt:
-      - no-new-privileges:true
       
     environment:
       MINIO_ROOT_USER_FILE: /run/secrets/minio_credentials
@@ -360,12 +279,6 @@ services:
       timeout: 30s
       retries: 3
       start_period: 60s
-      
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
 
 # Development environment volumes with consistent naming
 volumes:
