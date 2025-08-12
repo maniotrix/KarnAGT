@@ -165,7 +165,7 @@ backend/docker/database/
 ├── 📄 docker-compose.dev.yml          # Development
 ├── 📄 docker-compose.staging.yml      # Staging
 ├── 📄 docker-compose.prod.yml         # Production
-├── 📁 config/                        # Optional: Custom configurations (commented out by default)
+├── 📁 config/                        # Optional: Custom configurations (mostly unused)
 │   ├── 📁 dev/                        # Dev configurations (optional)
 │   ├── 📁 staging/                    # Staging configurations (optional)
 │   └── 📁 prod/                       # Production configurations (optional)
@@ -193,9 +193,9 @@ Your backend application should use corresponding environment files:
 ### Development
 ```bash
 # backend/.env.dev
-DATABASE_URL=postgresql://app_dev_user:dev_password@localhost:5433/app_dev_db
-REDIS_URL=redis://:dev_redis_password@localhost:6380
-NEO4J_URI=bolt://localhost:7688
+DATABASE_URL=postgresql://app_dev_user:dev_neo4j_password_123@localhost:5433/app_dev_db
+REDIS_URL=redis://:dev_redis_password_789@localhost:6380
+NEO4J_URI=bolt://neo4j:dev_neo4j_password_123@localhost:7688
 QDRANT_URL=http://localhost:6335
 MINIO_ENDPOINT=localhost:9002
 ```
@@ -205,7 +205,7 @@ MINIO_ENDPOINT=localhost:9002
 # backend/.env.prod
 DATABASE_URL=postgresql://app_prod_user:strong_password@localhost:5432/app_prod_db
 REDIS_URL=redis://:strong_redis_password@localhost:6379
-NEO4J_URI=bolt://localhost:7687
+NEO4J_URI=bolt://neo4j:strong_neo4j_password@localhost:7687
 QDRANT_URL=http://localhost:6333
 MINIO_ENDPOINT=localhost:9000
 ```
@@ -284,6 +284,8 @@ docker-compose*.yml   # Container definitions
 - **Development secrets** are committed for easy team setup
 - **Staging/Production secrets** are ignored for security
 - **Backup directories** exist but all backup files are ignored
+- **Config files** are optional (containers work with defaults)
+- **Init containers** handle volume permissions automatically
 
 ### **Best Practices**
 1. **Development secrets** - Generic/simple passwords, safe to commit
@@ -297,7 +299,7 @@ docker-compose*.yml   # Container definitions
 If you get port conflicts:
 1. Check what's using the ports: `netstat -tulpn | grep :5433`
 2. Stop conflicting services
-3. Or change ports in `env.dev` file
+3. Ports are hardcoded in compose files - edit `docker-compose.dev.yml` if needed
 
 ### Container Won't Start
 1. Check logs: `python db_manager.py logs --env=dev --service=postgres`
@@ -309,6 +311,15 @@ Make sure secrets files exist and have correct permissions:
 ```bash
 chmod 600 secrets/dev/*.txt
 ```
+
+### Windows/WSL2 Volume Permissions
+If you're on Windows and see permission errors for Qdrant or MinIO:
+1. **Normal behavior**: Init containers will automatically fix permissions
+2. **Check init container logs**: `docker logs qdrant_init_dev` or `docker logs minio_init_dev`
+3. **Manual fix if needed**: 
+   ```bash
+   docker run --rm -v app_db_dev_qdrantdata:/qdrant alpine sh -c "chown -R 1000:1000 /qdrant"
+   ```
 
 ### Missing Staging/Production Secrets
 Development secrets are included, but you'll need to create staging/production secrets:
@@ -338,11 +349,27 @@ cd backend/docker/database
 python db_manager.py start --env=dev  # Works immediately!
 ```
 
-## 🎯 Next Steps
+### Container Grouping in Docker Desktop
+Each environment appears as a separate group:
+- **app_db_dev** - Development containers
+- **app_db_staging** - Staging containers  
+- **app_db_prod** - Production containers
+- **app_db_local** - Local testing containers
 
-1. ✅ **Staging/production environments** - Complete with separate compose files
-2. ✅ **Enhanced backup system** - Comprehensive backup/restore for all services  
-3. ✅ **Security hardening** - File-based secrets and git protection
+This prevents container mixing and makes environment management clearer.
+
+## 🎯 Recent Updates & Features
+
+✅ **Multi-Environment Support** - Dev, staging, prod, and local environments  
+✅ **Windows/WSL2 Compatibility** - Automatic permission fixes via init containers  
+✅ **Project Naming** - Unique Docker Compose project names prevent conflicts  
+✅ **Simplified Authentication** - Direct environment variables, no complex commands  
+✅ **Self-Contained Configuration** - No external `.env` files needed  
+✅ **Enhanced backup system** - Comprehensive backup/restore for all services  
+✅ **Security hardening** - File-based secrets and git protection
+
+## 🎯 Optional Enhancements
+
 4. **Monitoring integration** with Prometheus/Grafana (optional)
 5. **SSL/TLS configuration** for production (optional)
 6. **High availability setup** with replicas (optional)

@@ -14,8 +14,9 @@ This document outlines the complete strategy for implementing database container
 
 ### **2. Environment-Specific Compose Files**
 - **Separate Docker Compose files** for each environment (dev, staging, prod)
-- **JSON configuration** for automation
-- **Environment-specific files** for secrets and settings
+- **Unique project names** prevent container grouping conflicts
+- **File-based secrets** for secure credential management
+- **Init containers** for volume permission fixes on Windows/WSL2
 - **Tailored configurations** per environment needs
 
 ### **3. Security First**
@@ -29,6 +30,8 @@ This document outlines the complete strategy for implementing database container
 - **Structured logging** with rotation
 - **Automated backups** with retention
 - **Resource limits** to prevent resource exhaustion
+- **Volume permission fixes** via init containers for Windows/WSL2
+- **Project naming** to prevent container grouping conflicts
 
 ---
 
@@ -76,13 +79,10 @@ backend/docker/database/
 ├── 📄 DATABASE_CONTAINER_STRATEGY.md     # This planning document
 ├── 📄 db_config.json                     # Environment configuration
 ├── 🐍 db_manager.py                      # Database deployment automation
-├── 📄 docker-compose.dev.yml             # Development environment
-├── 📄 docker-compose.staging.yml         # Staging environment
-├── 📄 docker-compose.prod.yml            # Production environment
-├── 📁 environments/
-│   ├── 📄 .env.dev                       # Development variables
-│   ├── 📄 .env.staging                   # Staging variables
-│   └── 📄 .env.prod                      # Production variables
+├── 📄 docker-compose.dev.yml             # Development environment (project: app_db_dev)
+├── 📄 docker-compose.staging.yml         # Staging environment (project: app_db_staging) 
+├── 📄 docker-compose.prod.yml            # Production environment (project: app_db_prod)
+├── 📄 docker-compose.local.yml           # Local testing environment (project: app_db_local)
 ├── 📁 secrets/
 │   ├── 📁 dev/
 │   │   ├── 🔒 postgres_password.txt
@@ -155,6 +155,7 @@ python db_manager.py cleanup --env=dev    # Clean up old resources
 - **Application deployment** (separate concern)
 - **Schema changes** (handled by your migration workflow)
 - **Application configuration** (stays in your backend code)
+- **Environment variable management** (configurations embedded in compose files)
 
 ### **🎪 Why This Separation Works**
 - **Single Responsibility**: Container management vs application logic
@@ -232,16 +233,23 @@ python db_manager.py cleanup --env=dev    # Clean up old resources
 
 ### **2. Environment Variables** (`.env` files)
 
-#### **Development** (`.env.dev`)
-```bash
-# Environment Identity
-ENVIRONMENT=dev
-COMPOSE_PROJECT_NAME=app_db_dev
+### **Configuration Approach: Embedded in Compose Files**
 
-# PostgreSQL Configuration (custom port for dev)
-POSTGRES_USER=app_dev_user
-POSTGRES_DB=app_dev_db
-POSTGRES_PORT=5433
+**Key Decision**: All configurations are **embedded directly in compose files** rather than using external `.env` files. This approach provides:
+- ✅ **Single source of truth** - everything in one compose file
+- ✅ **No variable resolution complexity** - what you see is what you get
+- ✅ **Easier debugging** - no external dependencies to track
+- ✅ **Environment isolation** - each compose file is self-contained
+
+#### **Development Configuration** (in `docker-compose.dev.yml`)
+```yaml
+# Project identity
+name: 'app_db_dev'
+
+# PostgreSQL service (hardcoded values)
+postgres:
+  container_name: postgres_dev
+  ports: ["5433:5432"]                    # Custom port for dev
 POSTGRES_LOG_LEVEL=all
 POSTGRES_MEMORY_LIMIT=512M
 POSTGRES_CPU_LIMIT=0.5
@@ -460,24 +468,18 @@ MAX_FILE_SIZE_MB=500
 **Key Decision: Dedicated docker-compose.{env}.yml file for EACH environment**
 
 ```python
-# How db_manager.py works with separate files
+# How db_manager.py works with separate files (simplified - no env files)
 def start(self, env: str):
     """Start database containers using environment-specific compose file"""
     
-    # 1. Use environment-specific compose file
+    # 1. Use environment-specific compose file (all config embedded)
     compose_file = f"docker-compose.{env}.yml"
     
-    # 2. Load environment-specific variables (optional - can be embedded in compose file)
-    env_file = f"environments/.env.{env}" if self.use_env_files else None
-    
-    # 3. Simple command per environment
-    command = ["docker-compose", "-f", compose_file]
-    if env_file:
-        command.extend(["--env-file", env_file])
-    command.extend(["up", "-d"])
+    # 2. Simple command (no external env files needed)
+    command = ["docker-compose", "-f", compose_file, "up", "-d"]
     
     subprocess.run(command)
-    # Each compose file has environment-appropriate configurations
+    # Each compose file is self-contained with hardcoded configurations
 ```
 
 ### **Coordinated Deployment Workflow**
@@ -493,18 +495,25 @@ cd ../../ && export $(cat .env.staging | xargs) && uvicorn app.main:app
 # Production (uses docker-compose.prod.yml)
 cd backend/docker/database/ && python db_manager.py start --env=prod
 cd ../../ && export $(cat .env.prod | xargs) && uvicorn app.main:app
+
+# Local testing (uses docker-compose.local.yml)
+cd backend/docker/database/ && python db_manager.py start --env=local
+cd ../../ && export $(cat .env.local | xargs) && uvicorn app.main:app --reload
 ```
 
 ### **Manual Docker Compose Commands**
 ```bash
-# Development
+# Development (project: app_db_dev)
 docker-compose -f docker-compose.dev.yml up -d
 
-# Staging  
+# Staging (project: app_db_staging)
 docker-compose -f docker-compose.staging.yml up -d
 
-# Production
+# Production (project: app_db_prod)
 docker-compose -f docker-compose.prod.yml up -d
+
+# Local testing (project: app_db_local)
+docker-compose -f docker-compose.local.yml up -d
 ```
 
 ### **Complete Port Reference Table**
@@ -537,6 +546,102 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ---
 
+## 🔐 **Authentication & Permission Strategy**
+
+### **1. Simplified Authentication Approach**
+
+After testing various approaches, we chose **simple environment variables** over complex command-based authentication:
+
+#### **Neo4j Authentication**
+```yaml
+# ✅ Simple & Reliable (Current Approach)
+neo4j:
+  environment:
+    NEO4J_AUTH: "neo4j/password_from_secrets_folder"
+    
+# ❌ Complex Process Replacement (Avoided)
+neo4j:
+  command: >
+    sh -c '
+      export NEO4J_AUTH="$(cat /run/secrets/neo4j_auth)"
+      exec /docker-entrypoint.sh neo4j
+    '
+```
+
+**Why Simple Environment Variables:**
+- ✅ **No process replacement complexity**
+- ✅ **Direct Docker environment variable support**
+- ✅ **Easier debugging and troubleshooting**
+- ✅ **Standard Docker practices**
+- ✅ **No signal handling issues**
+
+### **2. Volume Permission Handling (Windows/WSL2)**
+
+Docker volumes on Windows/WSL2 create permission issues for non-root containers. We solve this with **init containers**:
+
+#### **Permission Fix Pattern**
+```yaml
+# Init container (runs first, fixes permissions)
+qdrant_init:
+  image: alpine:3.19
+  container_name: qdrant_init_dev
+  restart: "no"
+  user: "0:0"  # Root to fix ownership
+  volumes:
+    - qdrantdata_dev:/qdrant/storage
+  command: >
+    sh -c "
+      echo 'Fixing permissions for Qdrant volume...' &&
+      mkdir -p /qdrant/storage /qdrant/snapshots /qdrant/snapshots/tmp &&
+      chown -R 1000:1000 /qdrant &&
+      chmod -R 755 /qdrant &&
+      echo 'Qdrant volume permissions fixed.'"
+
+# Main container (runs after init completes)
+qdrant:
+  user: "1000:1000"  # Non-root user can now write
+  depends_on:
+    qdrant_init:
+      condition: service_completed_successfully
+```
+
+#### **Why This Approach:**
+- ✅ **Solves Windows/WSL2 permission issues**
+- ✅ **Safe on Linux** (no-op, works fine)
+- ✅ **One-time execution** (`restart: "no"`)
+- ✅ **Guaranteed execution order** (`depends_on`)
+- ✅ **Minimal overhead** (Alpine is ~5MB)
+
+#### **Services Requiring Permission Fixes:**
+- **Qdrant**: Needs write access to `/qdrant/` directory tree
+- **MinIO**: Needs write access to `/data/` directory
+- **PostgreSQL/Redis/Neo4j**: Handle permissions internally
+
+### **3. Project Naming Strategy**
+
+Each environment gets a unique project name to prevent container grouping conflicts:
+
+```yaml
+# docker-compose.dev.yml
+name: 'app_db_dev'
+
+# docker-compose.staging.yml  
+name: 'app_db_staging'
+
+# docker-compose.prod.yml
+name: 'app_db_prod'
+
+# docker-compose.local.yml
+name: 'app_db_local'
+```
+
+**Benefits:**
+- ✅ **Docker Desktop groups correctly** - no more mixed container groups
+- ✅ **Environment isolation** - dev and prod containers stay separate
+- ✅ **Parallel environments** - can run multiple environments simultaneously
+
+---
+
 ## 🔐 **Security Strategy**
 
 ### **1. Secrets Management**
@@ -565,20 +670,38 @@ secrets/prod/minio_credentials.txt     # Production MinIO credentials (strong)
 
 ### **2. Network Security**
 ```yaml
-# Each environment gets isolated network
+# Each environment gets isolated network (hardcoded names)
 networks:
-  app_db_network_${ENVIRONMENT}:
+  app_db_network_dev:        # Development network
     driver: bridge
-    name: app_db_network_${ENVIRONMENT}
+    name: app_db_network_dev
+  app_db_network_staging:    # Staging network  
+    driver: bridge
+    name: app_db_network_staging
+  app_db_network_prod:       # Production network
+    driver: bridge
+    name: app_db_network_prod
     # No external internet access by default
 ```
 
 ### **3. Container Security**
 ```yaml
 # All containers run as non-root
-user: "999:999"  # Database users
+user: "999:999"   # PostgreSQL, Redis
+user: "7474:7474" # Neo4j
+user: "1000:1000" # Qdrant, MinIO
 security_opt:
   - no-new-privileges:true
+
+# Volume permission handling via init containers
+qdrant_init:
+  image: alpine:3.19
+  user: "0:0"  # Root access to fix ownership
+  command: >
+    sh -c "
+      mkdir -p /qdrant/storage /qdrant/snapshots /qdrant/snapshots/tmp &&
+      chown -R 1000:1000 /qdrant &&
+      chmod -R 755 /qdrant"
 ```
 
 ---
@@ -1074,6 +1197,7 @@ After research and analysis, we chose **separate compose files** over a single t
 - **Configuration Complexity**: Complex variable substitution makes debugging harder
 - **Rigid Constraints**: All environments forced into same structure
 - **Limited Flexibility**: Can't easily add environment-specific services or configurations
+- **Windows/WSL2 Permission Issues**: Template approach makes init container management complex
 
 #### **✅ Separate Files Benefits (Why We Chose This)**
 - **Consistent Security**: Named volumes across all environments for proper isolation
