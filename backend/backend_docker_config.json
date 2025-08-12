@@ -1,0 +1,34 @@
+{
+  "project_name": "app-backend",
+  "description": "Application Backend Docker Environment Configuration",
+  "environments": {
+    "dev": {
+      "compose_file": "docker-compose.dev.yml",
+      "dockerfile": "Dockerfile.dev",
+      "env_file": ".env.docker.app.dev",
+      "service_name": "app-backend-dev",
+      "description": "Development environment with hot reload and debug logging"
+    },
+    "staging": {
+      "compose_file": "docker-compose.staging.yml",
+      "dockerfile": "Dockerfile.staging",
+      "env_file": ".env.docker.app.staging",
+      "service_name": "app-backend-staging",
+      "description": "Staging environment for pre-production testing"
+    },
+    "prod": {
+      "compose_file": "docker-compose.prod.yml",
+      "dockerfile": "Dockerfile.prod",
+      "env_file": ".env.docker.app.prod",
+      "service_name": "app-backend-prod",
+      "description": "Production environment with optimized performance"
+    }
+  },
+  "default_environment": "dev",
+  "settings": {
+    "docker_compose_timeout": 300,
+    "build_timeout": 600,
+    "startup_wait_time": 10,
+    "health_check_timeout": 120
+  }
+}

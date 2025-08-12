@@ -1,0 +1,72 @@
+# Application Backend - Production Docker Image
+FROM python:3.10.11-slim
+
+# === System Dependencies ===
+# Based on requirements.txt analysis and common backend needs
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        # PDF processing (for file uploads)
+        poppler-utils \
+        # OCR capabilities  
+        tesseract-ocr tesseract-ocr-eng \
+        # File type detection
+        libmagic1 \
+        # PostgreSQL client (for debugging)
+        postgresql-client \
+        # Image processing
+        libjpeg-dev \
+        libpng-dev \
+        libwebp-dev \
+        # Additional system libs for Python packages
+        pkg-config \
+        libffi-dev \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# === Create Non-Root User ===
+ARG BACKEND_USER=app_backend_prod
+ENV BACKEND_USER=${BACKEND_USER}
+RUN useradd --create-home --shell /bin/bash ${BACKEND_USER}
+
+# === Install Python Dependencies (as root) ===
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+# === Create Application Directories ===
+RUN mkdir -p /app/logs /app/uploads && \
+    chown -R ${BACKEND_USER}:${BACKEND_USER} /app
+
+# === Switch to Non-Root User ===
+USER ${BACKEND_USER}
+WORKDIR /app
+
+# === Copy Environment Configuration ===
+# Production uses .env.docker.app.prod -> .env (same as CodeSandbox pattern)
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} .env.docker.app.prod ./.env
+
+# === Copy Application Code ===
+# Copy core application
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} app/ ./app/
+
+# Copy configuration files
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} alembic.ini ./
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} migrations/ ./migrations/
+
+# Copy startup and migration scripts
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} start_app.py ./
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} run_migrations.py ./
+
+# === Expose Port ===
+EXPOSE 8000
+
+# === Health Check ===
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/health || exit 1
+
+# === Start Application ===
+# Universal script auto-detects environment (production mode with multiple workers)
+CMD ["python", "start_app.py"]
