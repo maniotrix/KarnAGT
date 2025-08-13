@@ -147,7 +147,20 @@ class S3StorageBackend(StorageBackend):
     """S3-compatible storage backend (MinIO/AWS S3)"""
     
     def __init__(self, bucket_name: str = settings.S3_BUCKET_NAME):
-        # Use global settings instead of direct os.getenv calls
+        # Strict bucket name validation - fail fast, no object creation on invalid names
+        from app.utils.minio_s3_utils import validate_bucket_name
+        
+        is_valid, errors = validate_bucket_name(bucket_name)
+        if not is_valid:
+            error_msg = f"❌ Cannot create S3StorageBackend: Invalid bucket name '{bucket_name}'\n"
+            for error in errors:
+                error_msg += f"   • {error}\n"
+            error_msg += "\n📋 See S3 bucket naming guidelines: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html"
+            
+            # STRICT: No object creation with invalid bucket names
+            raise ValueError(error_msg)
+        
+        # Only set bucket_name if validation passes
         self.bucket_name = bucket_name
         self.endpoint_url = settings.S3_ENDPOINT_URL
         self.region = settings.S3_REGION
@@ -571,7 +584,11 @@ class ImageStorageService:
         storage_backend = settings.STORAGE_BACKEND.lower()
         
         if storage_backend == "s3" or storage_backend == "minio":
-            self.storage = S3StorageBackend()
+            try:
+                self.storage = S3StorageBackend()
+            except ValueError as e:
+                # Re-raise with more context for service-level errors
+                raise ValueError(f"Failed to initialize {storage_backend.upper()} storage backend: {e}") from e
         else:
             raise ValueError(f"Unsupported storage backend: {storage_backend}")
         

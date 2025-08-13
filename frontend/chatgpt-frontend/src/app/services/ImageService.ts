@@ -1,5 +1,6 @@
 // Application Service: Image Service - Fetch images from backend with caching
 import { ENV } from '../../config/env';
+import { authService } from '../../services/authService';
 
 export interface ImageFetchResult {
   success: boolean;
@@ -20,8 +21,7 @@ export class ImageService {
    */
   async fetchImageDisplayUrl(fileId: string, timeout: number = 10000): Promise<ImageFetchResult> {
     try {
-      const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-      if (!token) {
+      if (!authService.isAuthenticated()) {
         return { success: false, error: 'Authentication required' };
       }
 
@@ -30,8 +30,10 @@ export class ImageService {
 
       const response = await fetch(`${this.baseUrl}/api/v1/files/images/${fileId}`, {
         method: 'HEAD', // Use HEAD to check if image exists without downloading
+        credentials: 'include', // Send httpOnly cookies
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          // No CSRF token needed for HEAD requests (GET-like)
         },
         signal: controller.signal,
       });

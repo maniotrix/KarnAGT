@@ -1,5 +1,5 @@
 """
-ChatGPT Clone Backend - FastAPI Application Entry Point
+App Backend - FastAPI Application Entry Point
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,20 +18,20 @@ validate_api_keys()
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    print("[STARTUP] ChatGPT Clone Backend starting up...")
+    print("[STARTUP] App Backend starting up...")
     print(f"[CONFIG] Environment: {settings.ENVIRONMENT}")
     print(f"[CONFIG] Debug mode: {settings.DEBUG}")
     
     yield
     
     # Shutdown
-    print("[SHUTDOWN] ChatGPT Clone Backend shutting down...")
+    print("[SHUTDOWN] App Backend shutting down...")
 
 
 # Create FastAPI application
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Advanced ChatGPT Clone with Memory Management and Knowledge Integration",
+    description="Advanced App with Memory Management and Knowledge Integration",
     version=settings.VERSION,
     debug=settings.DEBUG,
     lifespan=lifespan,
@@ -76,7 +76,7 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 async def root():
     """Root endpoint"""
     return {
-        "message": "ChatGPT Clone Backend API",
+        "message": "App Backend API",
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT,
         "docs": "/docs" if settings.DEBUG else "disabled",

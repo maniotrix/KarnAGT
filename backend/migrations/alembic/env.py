@@ -1,4 +1,4 @@
-"""Alembic Environment Configuration for ChatGPT Clone Backend"""
+"""Alembic Environment Configuration for App Backend"""
 import asyncio
 import sys
 from pathlib import Path
@@ -11,7 +11,24 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Add the parent directory to the path so we can import our app
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+parent_dir = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(parent_dir))
+print(f"✅ Added {parent_dir} to sys.path")
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    env_file = parent_dir / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"✅ Loaded environment from: {env_file}")
+    else:
+        print(f"⚠️ No .env file found at: {env_file}")
+        raise RuntimeError("No .env file found")
+except ImportError:
+    print("⚠️ python-dotenv not installed, using system environment")
+    raise
+
 
 # Import our application configuration and models
 from app.core.config import settings

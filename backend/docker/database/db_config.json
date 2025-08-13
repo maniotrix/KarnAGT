@@ -1,0 +1,29 @@
+{
+  "description": "Simplified database infrastructure - compose files contain all configuration",
+  "supported_environments": ["dev", "staging", "prod"],
+  "environments": {
+    "dev": {
+      "compose_file": "docker-compose.dev.yml",
+      "description": "Development database with debug settings"
+    },
+    "staging": {
+      "compose_file": "docker-compose.staging.yml",
+      "description": "Staging database - production mirror"
+    },
+    "prod": {
+      "compose_file": "docker-compose.prod.yml",
+      "description": "Production database with high availability"
+    }
+  },
+  "settings": {
+    "docker_compose_timeout": 300,
+    "health_check_timeout": 120,
+    "backup_parallel_jobs": 2
+  },
+  "required_secrets": [
+    "postgres_password.txt",
+    "redis_password.txt",
+    "neo4j_auth.txt",
+    "minio_credentials.txt"
+  ]
+}

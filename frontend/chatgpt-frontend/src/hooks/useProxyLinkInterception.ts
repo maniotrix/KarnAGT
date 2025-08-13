@@ -105,13 +105,13 @@ export function useProxyLinkInterception(options: ProxyLinkInterceptionOptions =
 
           if (result.success) {
             if (debug) {
-              console.log('✅ [ProxyInterception] Download successful:', href);
+              console.log('✅ [ProxyInterception] Proxy link successfully opened for download in new tab:', href);
             }
             
             onDownloadSuccess?.(href);
           } else {
             if (debug) {
-              console.error('❌ [ProxyInterception] Download failed:', href, result.error);
+              console.error('❌ [ProxyInterception] Proxy link failed to open for download in new tab:', href, result.error);
             }
             
             onDownloadError?.(href, result.error || 'Unknown error');

@@ -10,14 +10,27 @@ import {
   MessageCreate
 } from '../../types/chat';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../../config/env';
+import { authService } from '../../services/authService';
 
 export class ChatRepository implements IChatRepository {
-  private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    return {
+  /**
+   * Get headers for authenticated requests
+   * Now uses CSRF token instead of Authorization headers (httpOnly cookies system)
+   */
+  private getAuthHeaders(includeCsrf: boolean = false): HeadersInit {
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
     };
+
+    // Add CSRF token for mutating operations
+    if (includeCsrf) {
+      const csrfToken = authService.getCSRFToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
+    return headers;
   }
 
   // Conversation methods - migrated from existing chatApi.ts
@@ -29,7 +42,8 @@ export class ChatRepository implements IChatRepository {
     
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: this.getAuthHeaders(),
+      credentials: 'include', // Send httpOnly cookies
+      headers: this.getAuthHeaders(), // No CSRF needed for GET
     });
 
     if (!response.ok) {
@@ -48,7 +62,8 @@ export class ChatRepository implements IChatRepository {
       buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATION_DETAIL(conversationId)),
       {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(), // No CSRF needed for GET
       }
     );
 
@@ -74,7 +89,8 @@ export class ChatRepository implements IChatRepository {
     
     const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATIONS), {
       method: 'POST',
-      headers: this.getAuthHeaders(),
+      credentials: 'include', // Send httpOnly cookies
+      headers: this.getAuthHeaders(true), // ✅ CSRF required for POST
       body: JSON.stringify(createData),
     });
 
@@ -96,7 +112,8 @@ export class ChatRepository implements IChatRepository {
       buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATION_DETAIL(conversation.conversationId)),
       {
         method: 'PUT',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for PUT
         body: JSON.stringify(conversation.toBackendResponse()),
       }
     );
@@ -114,7 +131,8 @@ export class ChatRepository implements IChatRepository {
       buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATION_DETAIL(conversationId)),
       {
         method: 'DELETE',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for DELETE
       }
     );
 
@@ -128,7 +146,8 @@ export class ChatRepository implements IChatRepository {
       buildApiUrl(API_ENDPOINTS.CHAT.SHARE_CONVERSATION(conversationId)),
       {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for POST
       }
     );
 
@@ -153,7 +172,8 @@ export class ChatRepository implements IChatRepository {
     
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: this.getAuthHeaders(),
+      credentials: 'include', // Send httpOnly cookies
+      headers: this.getAuthHeaders(), // No CSRF needed for GET
     });
 
     if (!response.ok) {
@@ -182,7 +202,8 @@ export class ChatRepository implements IChatRepository {
       buildApiUrl(API_ENDPOINTS.CHAT.SEND_MESSAGE(conversationId)),
       {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for POST
         body: JSON.stringify(messageCreate),
       }
     );
@@ -215,8 +236,9 @@ export class ChatRepository implements IChatRepository {
       buildApiUrl(API_ENDPOINTS.CHAT.STREAM_MESSAGE(conversationId)),
       {
         method: 'POST',
+        credentials: 'include', // Send httpOnly cookies
         headers: {
-          ...this.getAuthHeaders(),
+          ...this.getAuthHeaders(true), // ✅ CSRF required for POST
           'Accept': 'text/event-stream',
           'Cache-Control': 'no-cache',
         },
@@ -324,8 +346,9 @@ export class ChatRepository implements IChatRepository {
         buildApiUrl(API_ENDPOINTS.CHAT.STREAM_MESSAGE(conversationId)),
         {
           method: 'POST',
+          credentials: 'include', // Send httpOnly cookies
           headers: {
-            ...this.getAuthHeaders(),
+            ...this.getAuthHeaders(true), // ✅ CSRF required for POST
             'Accept': 'text/event-stream',
             'Cache-Control': 'no-cache',
           },

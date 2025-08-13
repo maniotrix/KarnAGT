@@ -2,12 +2,21 @@
 Authentication API Endpoints
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.security import security, create_tokens_for_user, verify_password, get_password_hash
+from app.core.security import (
+    security, 
+    create_tokens_for_user, 
+    verify_password, 
+    get_password_hash,
+    set_auth_cookies,
+    clear_auth_cookies,
+    CSRFProtection
+)
+from app.core.config import get_settings
 from app.core.exceptions import (
     AuthenticationException,
     EmailAlreadyExistsException,
@@ -51,8 +60,10 @@ async def get_auth_status():
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
     user_data: UserRegister,
+    response: Response,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    settings = Depends(get_settings)
 ) -> TokenResponse:
     """Register a new user account"""
     
@@ -92,9 +103,11 @@ async def register_user(
     await db.commit()
     await db.refresh(new_user)
     
-    # Generate tokens
-    tokens = create_tokens_for_user(
-        user_id=new_user.user_id,
+    # Set httpOnly authentication cookies (includes CSRF token)
+    cookies_data = set_auth_cookies(
+        response,
+        new_user.user_id,
+        settings,
         scopes=["chat", "files", "profile"]
     )
     
@@ -120,17 +133,20 @@ async def register_user(
     return TokenResponse(
         success=True,
         message="Account created successfully. Please check your email for verification.",
-        access_token=tokens["access_token"],
-        refresh_token=tokens["refresh_token"],
+        access_token="",  # Empty - tokens are in httpOnly cookies
+        refresh_token="", # Empty - tokens are in httpOnly cookies
         token_type="bearer",
-        expires_in=3600,  # 1 hour
-        user=user_profile
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=user_profile,
+        csrf_token=cookies_data.get("csrf_token")  # Frontend needs this
     )
 
 @router.post("/login", response_model=TokenResponse)
 async def login_user(
     credentials: UserLogin,
-    db: AsyncSession = Depends(get_db)
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    settings = Depends(get_settings)
 ) -> TokenResponse:
     """Authenticate user and return tokens"""
     
@@ -161,13 +177,11 @@ async def login_user(
     await db.commit()
     await db.refresh(user)
     
-    # Generate tokens with appropriate expiry
-    expires_delta = None
-    if credentials.remember_me:
-        expires_delta = 30 * 24 * 60  # 30 days in minutes
-    
-    tokens = create_tokens_for_user(
-        user_id=user.user_id,
+    # Set httpOnly authentication cookies (includes CSRF token)
+    cookies_data = set_auth_cookies(
+        response, 
+        user.user_id, 
+        settings,
         scopes=["chat", "files", "profile", "analytics"]
     )
     
@@ -187,25 +201,37 @@ async def login_user(
         last_login_at=current_time
     )
     
+    # Return success with user profile and CSRF token (for frontend)
     return TokenResponse(
         success=True,
         message="Login successful",
-        access_token=tokens["access_token"],
-        refresh_token=tokens["refresh_token"],
+        access_token="",  # Empty - tokens are in httpOnly cookies
+        refresh_token="", # Empty - tokens are in httpOnly cookies  
         token_type="bearer",
-        expires_in=3600,  # 1 hour
-        user=user_profile
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=user_profile,
+        csrf_token=cookies_data.get("csrf_token")  # Frontend needs this
     )
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
 async def refresh_token(
-    token_data: TokenRefresh,
-    db: AsyncSession = Depends(get_db)
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    settings = Depends(get_settings)
 ) -> TokenRefreshResponse:
-    """Refresh access token using refresh token"""
+    """Refresh access token using refresh token from httpOnly cookie"""
+    
+    # Get refresh token from httpOnly cookie
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found"
+        )
     
     # Verify refresh token
-    payload = security.verify_token(token_data.refresh_token, token_type="refresh")
+    payload = security.verify_token(refresh_token, token_type="refresh")
     
     if not payload:
         raise HTTPException(
@@ -231,28 +257,35 @@ async def refresh_token(
             detail="User not found or account disabled"
         )
     
-    # Generate new access token
-    new_access_token = security.create_access_token(
-        subject=user_id,
+    # Set new httpOnly authentication cookies
+    cookies_data = set_auth_cookies(
+        response,
+        user_id,
+        settings,
         scopes=["chat", "files", "profile", "analytics"]
     )
     
     return TokenRefreshResponse(
         success=True,
         message="Token refreshed successfully",
-        access_token=new_access_token,
-        expires_in=3600
+        access_token="",  # Empty - new tokens are in httpOnly cookies
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        csrf_token=cookies_data.get("csrf_token")  # Frontend needs updated CSRF token
     )
 
 @router.post("/logout", response_model=BaseResponse)
 async def logout_user(
-    logout_data: LogoutRequest,
-    current_user: User = Depends(get_current_user)
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    settings = Depends(get_settings)
 ) -> BaseResponse:
-    """Logout user and invalidate tokens"""
+    """Logout user and clear httpOnly cookies"""
     
-    # TODO: Implement token blacklisting in Redis
-    # For now, we'll just return success since tokens will expire naturally
+    # Clear all authentication cookies
+    clear_auth_cookies(response, settings)
+    
+    # TODO: Implement token blacklisting in Redis for additional security
+    # This would prevent reuse of tokens before they naturally expire
     
     return BaseResponse(
         success=True,

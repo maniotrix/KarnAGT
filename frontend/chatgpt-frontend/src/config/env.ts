@@ -4,10 +4,17 @@ export const ENV = {
   API_BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   API_VERSION: import.meta.env.VITE_API_VERSION || 'v1',
   
-  // Storage Keys
-  ACCESS_TOKEN_KEY: 'chat_access_token',
-  REFRESH_TOKEN_KEY: 'chat_refresh_token',
-  USER_PROFILE_KEY: 'chat_user_profile',
+  // Storage Keys (DEPRECATED - tokens now in httpOnly cookies)
+  ACCESS_TOKEN_KEY: 'chat_access_token', // ⚠️ DEPRECATED: Now in httpOnly cookie
+  REFRESH_TOKEN_KEY: 'chat_refresh_token', // ⚠️ DEPRECATED: Now in httpOnly cookie
+  USER_PROFILE_KEY: 'chat_user_profile', // ⚠️ DEPRECATED: User profiles cached in TanStack Query memory, not localStorage
+  
+  // Cookie Names (for httpOnly cookie + CSRF system)
+  COOKIE_NAMES: {
+    ACCESS_TOKEN: 'access_token',    // httpOnly cookie (backend manages)
+    REFRESH_TOKEN: 'refresh_token',  // httpOnly cookie (backend manages)  
+    CSRF_TOKEN: 'csrf_token',        // Regular cookie (JS reads this)
+  },
   
   // Feature Flags
   ENABLE_ANALYTICS: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',

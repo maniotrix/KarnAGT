@@ -8,21 +8,35 @@ import {
   StreamEvent
 } from '../types/chat';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
+import { authService } from './authService';
 
 class ChatApiService {
-  private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    return {
+  /**
+   * Get headers for authenticated requests
+   * Now uses CSRF token instead of Authorization headers (httpOnly cookies system)
+   */
+  private getAuthHeaders(includeCsrf: boolean = false): HeadersInit {
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
     };
+
+    // Add CSRF token for mutating operations
+    if (includeCsrf) {
+      const csrfToken = authService.getCSRFToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
+    return headers;
   }
 
   // GET /api/v1/chat/conversations
   async getConversations(): Promise<ConversationResponse[]> {
     const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATIONS), {
       method: 'GET',
-      headers: this.getAuthHeaders(),
+      credentials: 'include', // Send httpOnly cookies
+      headers: this.getAuthHeaders(), // No CSRF needed for GET
     });
 
     if (!response.ok) {
@@ -38,7 +52,8 @@ class ChatApiService {
   async createConversation(data: ConversationCreate): Promise<ConversationResponse> {
     const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATIONS), {
       method: 'POST',
-      headers: this.getAuthHeaders(),
+      credentials: 'include', // Send httpOnly cookies
+      headers: this.getAuthHeaders(true), // ✅ CSRF required for POST
       body: JSON.stringify(data),
     });
 
@@ -55,7 +70,8 @@ class ChatApiService {
       buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATION_DETAIL(conversationId)),
       {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(), // No CSRF needed for GET
       }
     );
 
@@ -85,7 +101,8 @@ class ChatApiService {
     
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: this.getAuthHeaders(),
+      credentials: 'include', // Send httpOnly cookies
+      headers: this.getAuthHeaders(), // No CSRF needed for GET
     });
 
     if (!response.ok) {
@@ -105,7 +122,8 @@ class ChatApiService {
       buildApiUrl(API_ENDPOINTS.CHAT.SEND_MESSAGE(conversationId)),
       {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for POST
         body: JSON.stringify(message),
       }
     );
@@ -123,7 +141,8 @@ class ChatApiService {
       buildApiUrl(API_ENDPOINTS.CHAT.CONVERSATION_DETAIL(conversationId)),
       {
         method: 'DELETE',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for DELETE
       }
     );
 
@@ -138,7 +157,8 @@ class ChatApiService {
       buildApiUrl(API_ENDPOINTS.CHAT.SHARE_CONVERSATION(conversationId)),
       {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        credentials: 'include', // Send httpOnly cookies
+        headers: this.getAuthHeaders(true), // ✅ CSRF required for POST
       }
     );
 
@@ -159,8 +179,9 @@ class ChatApiService {
       buildApiUrl(API_ENDPOINTS.CHAT.EDIT_MESSAGE_STREAM(conversationId, messageId)),
       {
         method: 'POST',
+        credentials: 'include', // Send httpOnly cookies
         headers: {
-          ...this.getAuthHeaders(),
+          ...this.getAuthHeaders(true), // ✅ CSRF required for POST
           'Accept': 'text/event-stream',
           'Cache-Control': 'no-cache',
         },
@@ -210,8 +231,9 @@ class ChatApiService {
         buildApiUrl(API_ENDPOINTS.CHAT.STREAM_MESSAGE(conversationId)),
         {
           method: 'POST',
+          credentials: 'include', // Send httpOnly cookies
           headers: {
-            ...this.getAuthHeaders(),
+            ...this.getAuthHeaders(true), // ✅ CSRF required for POST
             'Accept': 'text/event-stream',
             'Cache-Control': 'no-cache',
           },

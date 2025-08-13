@@ -2,6 +2,7 @@
 // Handles downloading files through authenticated proxy endpoints
 
 import { ENV, buildApiUrl } from '../config/env';
+import { authService } from '../services/authService';
 
 export interface DownloadResult {
   success: boolean;
@@ -9,19 +10,16 @@ export interface DownloadResult {
 }
 
 /**
- * Handle authenticated redirect for proxy URLs
- * Gets presigned URL and opens it in a new tab - lets browser handle file naturally
+ * Handle authenticated download for proxy URLs
+ * Opens URL directly in new tab - browser handles auth & redirect automatically
  */
 export async function handleAuthenticatedDownload(url: string): Promise<DownloadResult> {
   try {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    
-    if (!token) {
-      console.error('❌ No authentication token found');
+    // Check authentication status
+    if (!authService.isAuthenticated()) {
+      console.error('❌ Not authenticated (no CSRF token cookie found)');
       return { success: false, error: 'Authentication required. Please log in.' };
     }
-
-    console.log('🔗 Getting presigned URL for:', url);
 
     // Build the full URL - handle both relative and absolute URLs
     let fullUrl: string;
@@ -37,73 +35,22 @@ export async function handleAuthenticatedDownload(url: string): Promise<Download
       fullUrl = buildApiUrl(`/${url}`);
     }
     
-    console.log('🔗 Original URL:', url);
-    console.log('🔗 Full URL for request:', fullUrl);
-
-    // Make authenticated request and follow the redirect to get the presigned URL
-    const response = await fetch(fullUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      redirect: 'follow' // Follow redirects to get final presigned URL
-    });
-
-    console.log('✅ Response status:', response.status);
-    console.log('✅ Final URL:', response.url);
-
-    if (response.status === 401) {
-      console.error('❌ Authentication failed');
-      return { success: false, error: 'Authentication failed. Please log in again.' };
-    }
-
-    if (response.status === 404) {
-      console.error('❌ File not found');
-      return { success: false, error: 'File not found or no longer available.' };
-    }
-
-    if (response.status === 403) {
-      console.error('❌ Access denied');
-      return { success: false, error: 'Access denied. You do not have permission to access this file.' };
-    }
-
-    // If we get a successful response, the final URL is our presigned URL
-    if (response.ok) {
-      const presignedUrl = response.url; // This is the final URL after redirect
-      
-      console.log('✅ Got presigned URL, opening in new tab');
-      console.log('🔗 Presigned URL:', presignedUrl);
-      
-      // Open the presigned URL in a new tab - browser handles the rest!
-      window.open(presignedUrl, '_blank');
-      return { success: true };
-    }
-
-    console.error('❌ Unexpected response status:', response.status);
-    return { success: false, error: `Server returned ${response.status}: ${response.statusText}` };
-
+    console.log('🔗 Opening authenticated URL in new tab:', fullUrl);
+    
+    // Open URL directly in new tab - browser handles everything automatically:
+    // 1. Browser sends cookies automatically in navigation request
+    // 2. Backend authenticates user via httpOnly cookies  
+    // 3. Backend returns 302 redirect to presigned URL
+    // 4. Browser automatically follows redirect in same new tab
+    // 5. File downloads/displays in the new tab
+    // 6. Any errors (401, 404, 403) are shown to user in the new tab
+    window.open(fullUrl, '_blank');
+    
+    return { success: true };
+    
   } catch (error) {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    console.error('❌ Failed to get presigned URL:', error);
-    console.error('❌ Original URL:', url);
-    console.error('❌ Token available:', !!token);
-    
-    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      return { success: false, error: 'Network error. Please check your connection.' };
-    }
-    
-    if (error instanceof TypeError && error.message.includes('Failed to parse URL')) {
-      return { success: false, error: 'Invalid URL format. Please try again.' };
-    }
-    
-    if (error instanceof TypeError && error.message.includes('CORS')) {
-      return { success: false, error: 'CORS error. The file server may need CORS configuration.' };
-    }
-    
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred while accessing file' 
-    };
+    console.error('❌ Failed to open download link:', error);
+    return { success: false, error: 'Failed to open download link.' };
   }
 }
 

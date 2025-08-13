@@ -49,7 +49,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
-      MINIO_DEFAULT_BUCKETS: chatgpt-files
+      MINIO_DEFAULT_BUCKETS: minio-files
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -66,8 +66,8 @@ services:
     entrypoint: >
       /bin/sh -c "
       /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin123;
-      /usr/bin/mc mb myminio/chatgpt-files --ignore-existing;
-      /usr/bin/mc policy set public myminio/chatgpt-files;
+      /usr/bin/mc mb myminio/minio-files --ignore-existing;
+      /usr/bin/mc policy set public myminio/minio-files;
       exit 0;
       "
 
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     THUMBNAIL_SIZE: tuple = (300, 300)  # Max thumbnail dimensions
     
     # S3/MinIO Configuration
-    S3_BUCKET_NAME: str = "chatgpt-files"
+    S3_BUCKET_NAME: str = "minio-files"
     S3_REGION: str = "us-east-1"
     S3_ENDPOINT_URL: Optional[str] = "http://localhost:9000"  # MinIO endpoint
     S3_ACCESS_KEY_ID: str = "minioadmin"
@@ -120,7 +120,7 @@ class Settings(BaseSettings):
 ```bash
 # Image Storage
 STORAGE_BACKEND=minio
-S3_BUCKET_NAME=chatgpt-files
+S3_BUCKET_NAME=minio-files
 S3_ENDPOINT_URL=http://localhost:9000
 S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin123
@@ -768,7 +768,7 @@ STORAGE_BACKEND=s3
 S3_ENDPOINT_URL=  # Empty for AWS S3
 S3_ACCESS_KEY_ID=AKIA...
 S3_SECRET_ACCESS_KEY=...
-S3_BUCKET_NAME=production-chatgpt-files
+S3_BUCKET_NAME=production-minio-files
 ```
 
 ### Monitoring & Metrics

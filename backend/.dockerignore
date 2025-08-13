@@ -1,0 +1,155 @@
+# === Environment Files ===
+.env
+.env.*
+!env.docker.app.example
+
+# === Python Cache ===
+__pycache__/
+*/__pycache__/
+**/__pycache__/
+app/**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.py[cod]
+*$py.class
+
+# === Virtual Environments ===
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# === IDE Files ===
+.vscode/
+.cursor_chats/
+.idea/
+*.swp
+*.swo
+*~
+
+# === Logs and Temp Files ===
+logs/
+*/logs/
+**/logs/
+app/**/logs/
+app/logs/
+*.log
+tmp/
+temp/
+.tmp/
+
+# === Test Files ===
+test_*/
+tests/
+*_test.py
+test_*.py
+pytest_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === Documentation ===
+*.md
+!README.md
+
+# === Database Files ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === Large Assets (Examples/Demos) ===
+fifa_test_image.png
+test_images/
+test_docs/
+test_plots/
+
+# === Build Artifacts ===
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# === Docker Files ===
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# === Backend Docker Infrastructure ===
+backend_docker_manager.py
+backend_docker_config.json
+
+# === Git ===
+.git/
+.gitignore
+.gitkeep
+
+# === Analysis and Planning Files ===
+backend_plan.md
+*_ANALYSIS.md
+*_PLAN.md
+*_STRATEGY.md
+*_ROADMAP.md
+*_IMPLEMENTATION.md
+DOCKER_DATABASE_INTEGRATION.md
+IMAGE_UPLOAD_FEATURE_SPEC.md
+IMPLEMENTATION_PLAN.md
+PDF_PARSING_ANALYSIS_AND_ROADMAP.md
+PRODUCTION_RAG_IMPLEMENTATION.md
+PYTHON_GO_MICROSERVICES_PLAN.md
+SCALING_ANALYSIS_REPORT.md
+SEND_LLM_IMAGES_PLAN.md
+STAGING_API_SCALABILITY_BACKLOG.md
+STREAM_TESTING_README.md
+STREAM_TESTING_RESULTS.md
+TOOL_CALLS_STRUCTURE.md
+USER_MEMORY_IMPLEMENTATION_PLAN.md
+
+# === Scripts (Host-Only Utilities) ===
+# scripts/ folder contains host-side management tools:
+# - setup_minio.py (manual setup tool)
+# - check_docker_services.py (connectivity testing) 
+# - cleanup_*.py (maintenance utilities)
+scripts/
+debug_*.py
+setup_*.py
+check_*.py
+cleanup_*.py
+api_test.py
+add_custom_buckets_demo.py
+run_stream_tests*.py
+setup_stream_tests.py
+test_*.py
+# Keep start_app.py but exclude old startup scripts
+start_dev.py
+start_prod.py
+
+# === MyPy and Type Checking ===
+.mypy_cache/
+mypy.ini
+run_type_check.py
+
+# === Workspaces and Generated Files ===
+workspaces/
+.cache/
+
+# === Docker Database Directory ===
+docker/
+
+# === OS Files ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# === Jupyter ===
+.ipynb_checkpoints/
+*.ipynb
+
+# === Alembic Backup Files ===
+migrations/alembic/versions/*.py.bak

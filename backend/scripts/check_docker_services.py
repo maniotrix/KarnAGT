@@ -9,9 +9,9 @@ from urllib.parse import urlparse
 def check_postgres():
     try:
         conn = psycopg2.connect(
-            dbname=os.getenv("POSTGRES_DB", "chatgpt_clone"),
-            user=os.getenv("POSTGRES_USER", "chatgpt_user"),
-            password=os.getenv("POSTGRES_PASSWORD", "chatgpt_password"),
+            dbname=os.getenv("POSTGRES_DB", "app_local_db"),
+            user=os.getenv("POSTGRES_USER", "app_local_user"),
+            password=os.getenv("POSTGRES_PASSWORD", "app_local_password"),
             host="localhost",
             port=5432
         )
@@ -32,7 +32,7 @@ def check_redis():
 
 def check_qdrant():
     try:
-        res = requests.get("http://localhost:6333/collections")
+        res = requests.get("http://localhost:6333/readyz", timeout=5)
         if res.status_code == 200:
             print("✅ Qdrant is reachable")
         else:

@@ -15,6 +15,7 @@ import {
 import { useUniversalFileUpload } from '../../hooks/useUniversalFileUpload';
 import type { UploadFile } from '../../types/upload';
 import { ENV } from '../../config/env';
+import { authService } from '../../services/authService';
 
 interface UniversalFileUploadProps {
   onFilesSelected?: (files: UploadFile[]) => void;
@@ -65,21 +66,12 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
 
   // Debug authentication status
   useEffect(() => {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    const user = localStorage.getItem(ENV.USER_PROFILE_KEY);
+    const isAuth = authService.isAuthenticated();
+    const csrfToken = authService.getCSRFToken();
     console.log('🔐 [UniversalFileUpload] Auth status check:');
-    console.log('   - Token exists:', !!token);
-    console.log('   - Token preview:', token ? `${token.substring(0, 20)}...` : 'NONE');
-    console.log('   - User profile exists:', !!user);
-    if (user) {
-      try {
-        const userObj = JSON.parse(user);
-        console.log('   - User ID:', userObj.user_id || 'MISSING');
-        console.log('   - Username:', userObj.username || 'MISSING');
-      } catch (e) {
-        console.log('   - User profile parse error:', e);
-      }
-    }
+    console.log('   - Authenticated (has CSRF cookie):', isAuth);
+    console.log('   - CSRF token preview:', csrfToken ? `${csrfToken.substring(0, 20)}...` : 'NONE');
+    console.log('   - ℹ️ Note: Auth via httpOnly cookies, user profile fetched from API & cached in TanStack Query');
   }, []);
 
   // Expose methods to parent component

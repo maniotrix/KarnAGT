@@ -273,7 +273,7 @@ Only extract people explicitly mentioned with clear relationship context.
         elif bucket == "goals":
             return [
                 {
-                    "content": "Building a ChatGPT clone with memory system", 
+                    "content": "Building an App with memory system", 
                     "importance": 0.9, 
                     "confidence": 0.9,
                     "status": "active"

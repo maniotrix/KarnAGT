@@ -2,7 +2,7 @@
 Authentication Dependencies for FastAPI
 """
 from typing import Optional, Dict, Any, Union
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -33,13 +33,22 @@ class ServiceAuth:
 bearer_scheme = HTTPBearer(auto_error=False)
 
 async def get_current_user_id(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
 ) -> str:
-    """Get current user ID from JWT token"""
-    if not credentials:
+    """Get current user ID from JWT token (Authorization header or httpOnly cookie)"""
+    token = None
+    
+    # Try Authorization header first
+    if credentials:
+        token = credentials.credentials
+    else:
+        # Fallback to httpOnly cookie
+        token = request.cookies.get("access_token")
+    
+    if not token:
         raise AuthenticationException("Authentication required")
     
-    token = credentials.credentials
     user_id = security.get_subject_from_token(token)
     
     if not user_id:
@@ -116,21 +125,29 @@ async def get_current_user_optional(
 
 
 async def get_current_user_or_service(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> Union[User, ServiceAuth]:
-    """Get current user or service authentication"""
-    if not credentials:
-        raise AuthenticationException("Authentication required")
-    
-    token = credentials.credentials
+    """Get current user or service authentication (supports both Authorization headers and httpOnly cookies)"""
+    token = None
     settings = get_settings()
     
-    # Check if it's the service token
+    # Try Authorization header first (for service authentication)
+    if credentials:
+        token = credentials.credentials
+    else:
+        # Fallback to httpOnly cookie (for web browser users)
+        token = request.cookies.get("access_token")
+    
+    if not token:
+        raise AuthenticationException("Authentication required")
+    
+    # Check if it's the service token (from Authorization header)
     if token == settings.CODE_EXECUTOR_TOKEN:
         return ServiceAuth(service_name="code_executor", has_full_access=True)
     
-    # Regular user authentication
+    # Regular user authentication (from either Authorization header or httpOnly cookie)
     user_id = security.get_subject_from_token(token)
     if not user_id:
         raise InvalidTokenException("Invalid or expired token")
@@ -259,4 +276,6 @@ class QuotaChecker:
 check_chat_quota = QuotaChecker(0.001)  # Approximate cost per message
 check_image_quota = QuotaChecker(0.005)  # Approximate cost per image upload
 check_embedding_quota = QuotaChecker(0.0001)  # Approximate cost per embedding
-check_file_processing_quota = QuotaChecker(0.01)  # Approximate cost per file processing 
+check_file_processing_quota = QuotaChecker(0.01)  # Approximate cost per file processing
+
+# Note: CSRF Protection is handled at middleware level for all authenticated state-changing requests 

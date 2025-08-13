@@ -1,0 +1,66 @@
+version: '3.8'
+
+networks:
+  app-backend-prod-network:
+    driver: bridge
+    name: app-backend-prod-network
+
+services:
+  app-backend-prod:
+    container_name: app-backend-production
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        BACKEND_USER: app_backend_prod
+    ports:
+      - "8000:8000"  # Fixed port for frontend compatibility
+    networks:
+      - app-backend-prod-network
+    environment:
+      - ENVIRONMENT=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      # Production: Only essential mounts
+      - ./logs:/app/logs:rw
+    depends_on:
+      - database-health-check
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+    
+  # Health check service to ensure databases are ready  
+  database-health-check:
+    image: curlimages/curl:latest
+    container_name: app-backend-db-health-prod
+    networks:
+      - app-backend-prod-network
+    command: >
+      sh -c "
+        echo 'Checking production database connectivity...' &&
+        until curl -f http://host.docker.internal:5432 2>/dev/null || nc -z host.docker.internal 5432; do
+          echo 'Waiting for PostgreSQL (prod:5432)...'
+          sleep 2
+        done &&
+        until curl -f http://host.docker.internal:6379 2>/dev/null || nc -z host.docker.internal 6379; do
+          echo 'Waiting for Redis (prod:6379)...'
+          sleep 2
+        done &&
+        echo 'Production databases are ready!'
+      "
+    restart: "no"
+
+# External network to connect to host databases
+# Backend connects to database containers running on host ports

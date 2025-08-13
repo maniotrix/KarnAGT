@@ -9,227 +9,116 @@ import {
   PasswordResetResponse,
   UserProfile 
 } from '../../types/auth';
-import { API_ENDPOINTS, buildApiUrl, ENV } from '../../config/env';
+import { authService } from '../../services/authService';
 
 export class AuthRepository implements IAuthRepository {
-  private getPrivateHeaders(): HeadersInit {
-    const token = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    return {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-    };
-  }
+  // Note: Headers are now handled by AuthService with httpOnly cookies + CSRF
+  // This method kept for interface compatibility but deprecated
 
   // Authentication methods
   async login(credentials: LoginRequest): Promise<{ user: User; tokens: TokenResponse }> {
-    console.log('🔐 AuthRepository.login called with:', { email: credentials.email, hasPassword: !!credentials.password });
+    console.log('🔐 AuthRepository.login delegating to AuthService');
     
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.LOGIN), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
-    });
-
-    console.log('🔐 Login response status:', response.status);
-    console.log('🔐 Login response headers:', Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('🔐 Login failed with error:', error);
-      throw new Error(error.message || 'Login failed');
-    }
-
-    const tokens: TokenResponse = await response.json();
-    console.log('🔐 Login successful, got tokens:', { hasAccessToken: !!tokens.access_token, user: tokens.user?.email });
-    
+    const tokens = await authService.login(credentials);
     const user = User.fromProfile(tokens.user);
-    console.log('🔐 User entity created:', { userId: user.userId, email: user.email });
+    
+    console.log('🔐 Login successful via AuthService:', { userId: user.userId, email: user.email });
     
     return { user, tokens };
   }
 
   async register(userData: RegisterRequest): Promise<{ user: User; tokens: TokenResponse }> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.REGISTER), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Registration failed');
-    }
-
-    const tokens: TokenResponse = await response.json();
+    console.log('🔐 AuthRepository.register delegating to AuthService');
+    
+    const tokens = await authService.register(userData);
     const user = User.fromProfile(tokens.user);
     
     return { user, tokens };
   }
 
   async logout(): Promise<void> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.LOGOUT), {
-      method: 'POST',
-      headers: this.getPrivateHeaders(),
-      body: JSON.stringify({ refresh_token: null }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Logout failed');
-    }
-
-    this.clearTokens();
+    console.log('🔐 AuthRepository.logout delegating to AuthService');
+    await authService.logout();
   }
 
   // Token management
-  async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.REFRESH), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Token refresh failed');
-    }
-
-    return response.json();
+  async refreshToken(_refreshToken: string): Promise<RefreshTokenResponse> {
+    console.log('🔐 AuthRepository.refreshToken delegating to AuthService (ignoring parameter - using httpOnly cookies)');
+    return authService.refreshTokens();
   }
 
   getStoredTokens(): { accessToken: string | null; refreshToken: string | null } {
-    const accessToken = localStorage.getItem(ENV.ACCESS_TOKEN_KEY);
-    const refreshToken = localStorage.getItem(ENV.REFRESH_TOKEN_KEY);
-    return { accessToken, refreshToken };
+    console.warn('⚠️ getStoredTokens deprecated - tokens are now in httpOnly cookies');
+    return authService.getStoredTokens();
   }
 
   storeTokens(accessToken: string, refreshToken: string): void {
-    localStorage.setItem(ENV.ACCESS_TOKEN_KEY, accessToken);
-    localStorage.setItem(ENV.REFRESH_TOKEN_KEY, refreshToken);
+    console.warn('⚠️ storeTokens deprecated - tokens are now in httpOnly cookies');
+    authService.storeTokens(accessToken, refreshToken);
   }
 
   clearTokens(): void {
-    localStorage.removeItem(ENV.ACCESS_TOKEN_KEY);
-    localStorage.removeItem(ENV.REFRESH_TOKEN_KEY);
-    localStorage.removeItem(ENV.USER_PROFILE_KEY);
+    console.warn('⚠️ clearTokens deprecated - use logout() instead');
+    authService.clearTokens();
   }
 
   // User management
   async getCurrentUser(): Promise<User | null> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.ME), {
-      method: 'GET',
-      headers: this.getPrivateHeaders(),
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        return null; // Not authenticated
-      }
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to get user profile');
+    try {
+      console.log('🔐 AuthRepository.getCurrentUser delegating to AuthService');
+      const profile = await authService.getCurrentUser();
+      return User.fromProfile(profile);
+    } catch (error) {
+      console.log('🔐 getCurrentUser failed:', error);
+      return null; // Not authenticated
     }
-
-    const profile: UserProfile = await response.json();
-    return User.fromProfile(profile);
   }
 
   async updateUser(user: User): Promise<User> {
+    console.log('🔐 AuthRepository.updateUser delegating to AuthService');
     const profile = user.toProfile();
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.ME), {
-      method: 'PUT',
-      headers: this.getPrivateHeaders(),
-      body: JSON.stringify(profile),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update user');
-    }
-
-    const updatedProfile: UserProfile = await response.json();
+    const updatedProfile = await authService.updateUser(profile);
     return User.fromProfile(updatedProfile);
   }
 
   // Password management
   async requestPasswordReset(email: string): Promise<void> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.FORGOT_PASSWORD), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Password reset request failed');
-    }
+    console.log('🔐 AuthRepository.requestPasswordReset delegating to AuthService');
+    await authService.forgotPassword(email);
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.RESET_PASSWORD), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, new_password: newPassword }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Password reset failed');
-    }
+    console.log('🔐 AuthRepository.resetPassword delegating to AuthService');
+    await authService.resetPassword(token, newPassword);
   }
 
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.CHANGE_PASSWORD), {
-      method: 'POST',
-      headers: this.getPrivateHeaders(),
-      body: JSON.stringify({ 
-        current_password: currentPassword, 
-        new_password: newPassword 
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Password change failed');
-    }
+    console.log('🔐 AuthRepository.changePassword delegating to AuthService');
+    await authService.changePassword(currentPassword, newPassword);
   }
 
   // Email verification
   async verifyEmail(token: string): Promise<void> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.VERIFY_EMAIL), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Email verification failed');
-    }
+    console.log('🔐 AuthRepository.verifyEmail delegating to AuthService');
+    await authService.verifyEmail(token);
   }
 
   async resendVerificationEmail(): Promise<void> {
-    const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.RESEND_VERIFICATION), {
-      method: 'POST',
-      headers: this.getPrivateHeaders(),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to resend verification email');
-    }
+    console.log('🔐 AuthRepository.resendVerificationEmail delegating to AuthService');
+    await authService.resendVerificationEmail();
   }
 
   // Session management
   isAuthenticated(): boolean {
-    const { accessToken } = this.getStoredTokens();
-    return !!accessToken;
+    return authService.isAuthenticated();
   }
 
   getAuthHeaders(): Record<string, string> {
-    const { accessToken } = this.getStoredTokens();
+    console.warn('⚠️ getAuthHeaders deprecated - using httpOnly cookies + CSRF');
+    const csrfToken = authService.getCSRFToken();
     return {
       'Content-Type': 'application/json',
-      ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+      ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
     };
   }
 
@@ -237,23 +126,20 @@ export class AuthRepository implements IAuthRepository {
 
   // Additional helper methods for legacy compatibility
   async getAuthStatus(): Promise<{ authenticated: boolean; user?: User }> {
-    try {
-      const user = await this.getCurrentUser();
-      return { authenticated: !!user, user: user || undefined };
-    } catch (error) {
-      return { authenticated: false };
-    }
+    const status = await authService.getAuthStatus();
+    return {
+      authenticated: status.authenticated,
+      user: status.user ? User.fromProfile(status.user) : undefined
+    };
   }
 
   // Store user profile for backwards compatibility
-  storeUserProfile(user: User): void {
-    localStorage.setItem(ENV.USER_PROFILE_KEY, JSON.stringify(user.toProfile()));
+  storeUserProfile(_user: User): void {
+    console.warn('⚠️ storeUserProfile deprecated - user profile managed by httpOnly cookies');
   }
 
   // Store full token response for backwards compatibility
-  storeTokenResponse(tokenResponse: TokenResponse): void {
-    this.storeTokens(tokenResponse.access_token, tokenResponse.refresh_token);
-    const user = User.fromProfile(tokenResponse.user);
-    this.storeUserProfile(user);
+  storeTokenResponse(_tokenResponse: TokenResponse): void {
+    console.warn('⚠️ storeTokenResponse deprecated - tokens managed by httpOnly cookies');
   }
 } 
