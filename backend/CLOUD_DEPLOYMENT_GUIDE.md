@@ -90,19 +90,51 @@ python cloud_env_uploader.py --env=prod --host=user@your-cloud-vm --remote-repo-
 python cloud_env_uploader.py --env=staging --host=user@staging-vm --remote-repo-root-path=/opt/your-project
 ```
 
-### **Step 3: Build & Start Containers**
+### **Step 3: Start Database Containers (REQUIRED FIRST)**
 ```bash
 # Back on cloud VM after env upload
 cd /opt/your-project
 
-# Backend
-cd backend
-python backend_docker_manager.py stop --prod
-python backend_docker_manager.py start --prod --build
+# Start database containers FIRST
+cd backend/docker/database
+python db_manager.py start --env=prod
 
-# CodeSandbox
+# Verify database health
+python db_manager.py health --env=prod
+```
+
+### **Step 4: Build & Start Application Containers**
+```bash
+# Navigate back to project root
+cd /opt/your-project
+
+# Backend Application
+cd backend
+python backend_docker_manager.py restart --prod
+
+# CodeSandbox (CORRECT SCRIPT NAME)
 cd ../CodeSandbox
-python codesandbox_docker_manager.py restart --prod
+python docker_setup_and_run.py restart --env=prod
+```
+
+### **Step 5: Verify Deployment**
+```bash
+# Check backend status
+cd /opt/your-project/backend
+python backend_docker_manager.py status --prod
+python backend_docker_manager.py health --prod
+
+# Check database status  
+cd docker/database
+python db_manager.py status --env=prod
+
+# Check CodeSandbox status
+cd ../../CodeSandbox
+python docker_setup_and_run.py validate --env=prod
+
+# View logs if needed
+cd ../backend
+python backend_docker_manager.py logs --prod
 ```
 
 ---
@@ -254,9 +286,16 @@ git pull origin main
 # 2. Upload environments (from local machine - run from project root)
 python cloud_env_uploader.py --env=prod --host=user@cloud-vm --remote-repo-root-path=/opt/your-project
 
-# 3. Rebuild everything (on cloud VM)
-cd backend && python backend_docker_manager.py restart --prod
-cd ../CodeSandbox && python codesandbox_docker_manager.py restart --prod
+# 3. Start database containers FIRST (on cloud VM)
+cd backend/docker/database && python db_manager.py start --env=prod
+
+# 4. Rebuild application containers (on cloud VM)
+cd ../../ && python backend_docker_manager.py restart --prod
+cd ../CodeSandbox && python docker_setup_and_run.py restart --env=prod
+
+# 5. Verify deployment
+cd ../backend && python backend_docker_manager.py health --prod
+cd docker/database && python db_manager.py health --env=prod
 ```
 
 ### **Staging Deployment**
@@ -264,18 +303,38 @@ cd ../CodeSandbox && python codesandbox_docker_manager.py restart --prod
 # Same process but for staging
 git pull origin main
 python cloud_env_uploader.py --env=staging --host=user@staging-vm --remote-repo-root-path=/opt/your-project
-# ... rebuild staging containers
+
+# Start database containers
+cd backend/docker/database && python db_manager.py start --env=staging
+
+# Rebuild application containers  
+cd ../../ && python backend_docker_manager.py restart --staging
+cd ../CodeSandbox && python docker_setup_and_run.py restart --env=staging
 ```
 
 ---
 
 ## 🔍 **Troubleshooting**
 
+### **Database Container Issues**
+```
+ERROR: Failed to connect to database
+```
+**Solutions:**
+1. **Database containers not started**: Run `cd backend/docker/database && python db_manager.py start --env=prod`
+2. **Database not ready**: Check status with `python db_manager.py health --env=prod`
+3. **Port conflicts**: Ensure database ports aren't already in use
+
 ### **Container Build Failures**
 ```
 Error: .env file not found
 ```
 **Solution:** You forgot Step 2! Upload environment files first.
+
+```
+Error: Could not connect to database during build
+```
+**Solution:** Start database containers first (Step 3) before building application containers.
 
 ### **Missing --remote-repo-root-path Argument**
 ```
@@ -334,17 +393,69 @@ scp: /opt/your-project/backend/.env.docker.app.prod: No such file or directory
 2. Verify env file format and syntax
 3. Check Docker logs: `docker logs container-name`
 
+### **Useful Troubleshooting Commands**
+
+#### **Backend Application:**
+```bash
+cd /opt/your-project/backend
+
+# Check container status
+python backend_docker_manager.py status --prod
+
+# Health check
+python backend_docker_manager.py health --prod
+
+# View logs
+python backend_docker_manager.py logs --prod
+
+# Follow logs in real-time
+python backend_docker_manager.py logs --prod --follow
+
+# Validate environment
+python backend_docker_manager.py validate --prod
+```
+
+#### **Database Containers:**
+```bash
+cd /opt/your-project/backend/docker/database
+
+# Check database status
+python db_manager.py status --env=prod
+
+# Database health check
+python db_manager.py health --env=prod
+
+# View database logs
+python db_manager.py logs --env=prod
+
+# Validate database setup
+python db_manager.py validate --env=prod
+```
+
+#### **CodeSandbox:**
+```bash
+cd /opt/your-project/CodeSandbox
+
+# Validate environment
+python docker_setup_and_run.py validate --env=prod
+
+# Check available environments
+python docker_setup_and_run.py envs
+```
+
 ---
 
 ## 📝 **Important Notes**
 
 1. **Set up SSH keys first** - avoids multiple password prompts during upload
 2. **Test SSH connection** - ensure `ssh user@your-cloud-vm` works before running script
-3. **Never commit `.env` files to git** - they contain secrets
-4. **Always upload env files after git pull** - code won't work without them
-5. **Test locally first** - ensure your env files work before uploading
-6. **Backup important env files** - keep secure local copies
-7. **Use staging first** - test deployments on staging before prod
+3. **Start database containers FIRST** - applications depend on database services
+4. **Never commit `.env` files to git** - they contain secrets
+5. **Always upload env files after git pull** - code won't work without them
+6. **Test locally first** - ensure your env files work before uploading
+7. **Backup important env files** - keep secure local copies
+8. **Use staging first** - test deployments on staging before prod
+9. **Use correct script names** - `docker_setup_and_run.py` for CodeSandbox, not `codesandbox_docker_manager.py`
 
 ---
 
@@ -353,7 +464,9 @@ scp: /opt/your-project/backend/.env.docker.app.prod: No such file or directory
 ### **DON'T:**
 - ❌ Run script without testing SSH connection first
 - ❌ Use password auth if you'll upload frequently (set up SSH keys)
+- ❌ Start application containers before database containers
 - ❌ Start containers without uploading env files first
+- ❌ Use wrong script names (e.g., `codesandbox_docker_manager.py` doesn't exist)
 - ❌ Commit real env files to git repository  
 - ❌ Upload to prod without testing on staging
 - ❌ Forget to rebuild containers after env upload
@@ -361,7 +474,9 @@ scp: /opt/your-project/backend/.env.docker.app.prod: No such file or directory
 ### **DO:**
 - ✅ Set up SSH keys for seamless uploads
 - ✅ Test SSH connection: `ssh user@your-cloud-vm` before running script
-- ✅ Always follow: git pull → env upload → container rebuild
+- ✅ Always follow: git pull → env upload → databases → application containers
+- ✅ Use correct script names: `docker_setup_and_run.py` for CodeSandbox
+- ✅ Start database containers first, then application containers
 - ✅ Test environment files locally first
 - ✅ Use staging environment for testing deployments
 - ✅ Keep secure backups of environment files

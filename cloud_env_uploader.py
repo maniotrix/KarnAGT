@@ -185,11 +185,13 @@ class EnvUploader:
             self._info("To rebuild, SSH into the cloud VM and run:")
             print(f"  {Colors.WHITE}ssh {host}{Colors.END}")
             print(f"  {Colors.WHITE}cd {remote_path}{Colors.END}")
-            print(f"  {Colors.WHITE}# Backend{Colors.END}")
-            print(f"  {Colors.WHITE}cd backend && python backend_docker_manager.py restart --{env}{Colors.END}")
+            print(f"  {Colors.WHITE}# Database containers first{Colors.END}")
+            print(f"  {Colors.WHITE}cd backend/docker/database && python db_manager.py start --env={env}{Colors.END}")
+            print(f"  {Colors.WHITE}# Backend application{Colors.END}")
+            print(f"  {Colors.WHITE}cd ../../ && python backend_docker_manager.py restart --{env}{Colors.END}")
             if env == 'prod':  # Only prod has CodeSandbox env file
                 print(f"  {Colors.WHITE}# CodeSandbox{Colors.END}")
-                print(f"  {Colors.WHITE}cd CodeSandbox && python codesandbox_docker_manager.py restart --{env}{Colors.END}")
+                print(f"  {Colors.WHITE}cd ../CodeSandbox && python docker_setup_and_run.py restart --env={env}{Colors.END}")
         else:
             self._warning("Remember to rebuild and restart containers manually to use new environment files!")
     
