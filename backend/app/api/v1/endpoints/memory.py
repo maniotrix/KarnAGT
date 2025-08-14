@@ -128,7 +128,9 @@ async def get_all_memories(
     
     try:
         memories = await memory_service.get_all_user_memories(
-            user_id, limit=limit, include_archived=include_archived
+            user_id, 
+            # limit=limit, 
+            include_archived=include_archived
         )
         
         return [
