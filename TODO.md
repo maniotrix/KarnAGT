@@ -44,3 +44,6 @@
 * llm trying to directly download proxy file in code sanbox instead of uploading again - {Error: ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/proxy/images/img_8d9d8724} -fixed by llm system prompt
 
 * Fix nested or raw markdown inside llm response on frontend - fixed by llm system prompt
+
+* [PERFORMANCE] Implement Celery for knowledge service document processing to prevent FastAPI blocking
+* Consider migrating knowledge module to separate FastAPI server for better scalability and isolation
