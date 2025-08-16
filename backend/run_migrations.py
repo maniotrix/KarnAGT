@@ -12,6 +12,28 @@ from pathlib import Path
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
+# For running migrations in docker, run:
+# docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
+
+print("🔥" + "="*70 + "🔥")
+print("🚨" + " "*68 + "🚨")
+print("🚨  🐳 DOCKER MIGRATION COMMAND REFERENCE 🐳              🚨")
+print("🚨" + " "*68 + "🚨")
+print("🚨  📋 For running migrations in Docker containers:        🚨")
+print("🚨" + " "*68 + "🚨")
+print("🚨  🔧 Development:                                        🚨")
+print("🚨  docker-compose -f docker-compose.dev.yml run --rm \\   🚨")
+print("🚨    app-backend-dev python run_migrations.py            🚨")
+print("🚨" + " "*68 + "🚨")
+print("🚨  🚀 Production:                                         🚨")
+print("🚨  docker-compose -f docker-compose.prod.yml run --rm \\  🚨")
+print("🚨    app-backend-prod python run_migrations.py           🚨")
+print("🚨" + " "*68 + "🚨")
+print("🚨  ⚠️  IMPORTANT: Run this BEFORE starting containers!    🚨")
+print("🚨" + " "*68 + "🚨")
+print("🔥" + "="*70 + "🔥")
+print("")
+
 # Load environment variables
 try:
     from dotenv import load_dotenv

@@ -239,7 +239,26 @@ cd ../CodeSandbox
 python docker_setup_and_run.py restart --env=prod
 ```
 
-### **Step 5: Verify Deployment**
+### **Step 5: Run Database Migrations (MANUAL - PRODUCTION SAFE)**
+```bash
+# Navigate to backend directory
+cd /opt/your-project/backend
+
+# Run migrations manually using one-time container (RECOMMENDED FOR PRODUCTION)
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+
+# Alternative: Run inside existing container (if already running)
+# docker exec -it app-backend-production python run_migrations.py
+```
+
+**Why Manual Migrations:**
+- ✅ **Production Safe** - You control exactly when migrations run
+- ✅ **No Race Conditions** - Prevents concurrent migration attempts  
+- ✅ **Fail Fast** - Migration failures don't affect container startup
+- ✅ **Audit Trail** - Clear logs of when migrations were executed
+- ✅ **Rollback Ready** - Easy to troubleshoot or rollback if needed
+
+### **Step 6: Verify Deployment**
 ```bash
 # Check backend status
 cd /opt/your-project/backend
@@ -330,6 +349,10 @@ python backend_docker_manager.py restart --prod
 # Deploy CodeSandbox
 cd ../CodeSandbox
 python docker_setup_and_run.py restart --env=prod
+
+# Run database migrations manually (PRODUCTION SAFE)
+cd ../backend
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
 ```
 
 **That's it!** Your existing scripts work exactly the same, but execute on the remote server.
@@ -603,8 +626,12 @@ cd backend/docker/database && python db_manager.py start --env=prod
 cd ../../ && python backend_docker_manager.py restart --prod
 cd ../CodeSandbox && python docker_setup_and_run.py restart --env=prod
 
-# 6. Verify deployment
-cd ../backend && python backend_docker_manager.py health --prod
+# 6. Run database migrations manually (PRODUCTION SAFE)
+cd ../backend
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+
+# 7. Verify deployment
+python backend_docker_manager.py health --prod
 cd docker/database && python db_manager.py health --env=prod
 ```
 
@@ -623,6 +650,10 @@ cd backend/docker/database && python db_manager.py start --env=staging
 # Rebuild application containers with new security features
 cd ../../ && python backend_docker_manager.py restart --staging
 cd ../CodeSandbox && python docker_setup_and_run.py restart --env=staging
+
+# Run database migrations manually
+cd ../backend
+docker-compose -f docker-compose.staging.yml run --rm app-backend-staging python run_migrations.py
 ```
 
 ---

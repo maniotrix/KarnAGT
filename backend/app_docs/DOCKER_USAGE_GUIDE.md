@@ -14,9 +14,14 @@ cd backend
 python backend_docker_manager.py start --dev
 ```
 
-### **3. Run Migrations Manually**
+### **3. Run Migrations Manually (RECOMMENDED APPROACH)**
 ```bash
-docker exec -it app-backend-development python run_migrations.py
+# Using one-time container (RECOMMENDED)
+cd backend
+docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
+
+# Alternative: Using existing container (less reliable)
+# docker exec -it app-backend-development python run_migrations.py
 ```
 
 **✨ That's it!** You have full control over when migrations run.
@@ -33,8 +38,8 @@ python db_manager.py start --env=dev
 cd backend
 python backend_docker_manager.py start --dev
 
-# 3. Run migrations manually
-docker exec -it app-backend-development python run_migrations.py
+# 3. Run migrations manually (RECOMMENDED)
+docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
 
 # 4. Check health
 python backend_docker_manager.py health --dev
@@ -50,8 +55,8 @@ python db_manager.py start --env=prod
 cd backend
 python backend_docker_manager.py start --prod --build
 
-# 3. Run migrations manually
-docker exec -it app-backend-production python run_migrations.py
+# 3. Run migrations manually (PRODUCTION SAFE)
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
 
 # 4. Verify health
 python backend_docker_manager.py health --prod
@@ -76,9 +81,22 @@ docker exec -it app-backend-development python run_migrations.py
 
 ### **🗄️ Migration Commands**
 
-**Run migrations inside container:**
+**Run migrations using one-time containers (RECOMMENDED):**
 ```bash
 # Development
+cd backend
+docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
+
+# Staging  
+docker-compose -f docker-compose.staging.yml run --rm app-backend-staging python run_migrations.py
+
+# Production
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+```
+
+**Alternative - Run migrations inside existing container:**
+```bash
+# Development (if container is already running)
 docker exec -it app-backend-development python run_migrations.py
 
 # Staging  
@@ -90,7 +108,12 @@ docker exec -it app-backend-production python run_migrations.py
 
 **Check migration status:**
 ```bash
-# Inside container
+# Using one-time container
+cd backend
+docker-compose -f docker-compose.dev.yml run --rm app-backend-dev alembic current
+docker-compose -f docker-compose.dev.yml run --rm app-backend-dev alembic history --verbose
+
+# Or using existing container
 docker exec -it app-backend-development alembic current
 docker exec -it app-backend-development alembic history --verbose
 ```
@@ -98,6 +121,10 @@ docker exec -it app-backend-development alembic history --verbose
 **Rollback migrations (if needed):**
 ```bash
 # DANGER: This can cause data loss
+# Using one-time container (RECOMMENDED)
+docker-compose -f docker-compose.dev.yml run --rm app-backend-dev alembic downgrade -1
+
+# Or using existing container
 docker exec -it app-backend-development alembic downgrade -1
 ```
 
@@ -278,7 +305,7 @@ python backend_docker_manager.py start --dev --build
 # Development workflow:
 1. python db_manager.py start --env=dev                     # Databases first
 2. python backend_docker_manager.py start --dev            # Backend container
-3. docker exec -it app-backend-development python run_migrations.py  # Manual migrations
+3. docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py  # Manual migrations (RECOMMENDED)
 ```
 
 ### **Production**
@@ -288,7 +315,7 @@ python backend_docker_manager.py start --dev --build
 2. python db_manager.py backup --env=prod                  # Backup existing data
 3. python db_manager.py start --env=prod                   # Start databases
 4. python backend_docker_manager.py start --prod --build   # Deploy container
-5. docker exec -it app-backend-production python run_migrations.py  # Manual migrations
+5. docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py  # Manual migrations (PRODUCTION SAFE)
 6. python backend_docker_manager.py health --prod          # Verify health
 ```
 
@@ -341,20 +368,34 @@ When the container starts correctly, you'll see:
 ```
 
 ### **Manual Migration**
-When you run migrations separately:
+When you run migrations separately using the recommended approach:
 ```
-$ docker exec -it app-backend-development python run_migrations.py
+$ cd backend
+$ docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
 
+✅ Loaded environment from: /app/.env
+✅ Encoding defaults set
 🗄️ Database Migration Runner
 ========================================
 🔍 Checking database connection...
 ✅ Database connection successful
 
 🔄 Running database migrations...
+==================================================
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0c8c6f5381e8, Initial migration
+==================================================
 ✅ Migrations completed successfully
 
 🎉 Migration process completed successfully!
 You can now start the application containers.
 ```
+
+**Why This Approach Works Better:**
+- ✅ **Automatic Network Connection** - Uses Docker Compose networks automatically
+- ✅ **Environment Inheritance** - Uses same environment as your app containers
+- ✅ **Clean Execution** - Container is removed after completion (`--rm`)
+- ✅ **Production Safe** - Same approach works across all environments
 
 Your backend is now **production-ready with full migration control**! 🎯

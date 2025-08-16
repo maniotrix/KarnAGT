@@ -33,8 +33,14 @@ python db_manager.py health --env=dev
 
 # 3. Start your backend application (in new terminal)
 cd backend
-# Use your backend's development environment configuration
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Option A: Container-based development (recommended)
+python backend_docker_manager.py start --dev
+
+# Option B: Local development 
+# uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 4. Run database migrations manually (ALWAYS MANUAL)
+docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
 ```
 
 ### **Staging Environment**
@@ -48,8 +54,10 @@ python db_manager.py health --env=staging
 
 # 3. Start backend with staging config
 cd backend
-# Use your backend's staging environment configuration
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+python backend_docker_manager.py start --staging
+
+# 4. Run database migrations manually (PRODUCTION SAFE)
+docker-compose -f docker-compose.staging.yml run --rm app-backend-staging python run_migrations.py
 ```
 
 ### **Production Environment**
@@ -69,8 +77,13 @@ python db_manager.py health --env=prod
 
 # 5. Start backend with production config
 cd backend
-# Use your backend's production environment configuration
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+python backend_docker_manager.py start --prod
+
+# 6. Run database migrations manually (CRITICAL - PRODUCTION SAFE)
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+
+# 7. Verify application health
+python backend_docker_manager.py health --prod
 ```
 
 ## 🔌 **Connection Matrix**
