@@ -68,7 +68,7 @@ requirements.in           # ← Add your dependencies here
 ```bash
 # Use these in your .env.docker.app.* files:
 DATABASE_URL=postgresql://user:pass@postgres:5432/db
-REDIS_URL=redis://:password@redis:6379/0
+REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 QDRANT_URL=http://qdrant:6333
 S3_ENDPOINT_URL=http://minio:9000
@@ -657,13 +657,13 @@ Error: connection refused (localhost)
 **❌ Wrong (localhost pattern):**
 ```bash
 DATABASE_URL=postgresql://user:pass@localhost:5433/db
-REDIS_URL=redis://:password@localhost:6380/0
+REDIS_URL=redis://localhost:6380/0
 ```
 
 **✅ Correct (service discovery pattern):**
 ```bash  
 DATABASE_URL=postgresql://user:pass@postgres:5432/db
-REDIS_URL=redis://:password@redis:6379/0
+REDIS_URL=redis://redis:6379/0
 ```
 
 ### **Missing --remote-repo-root-path Argument**

@@ -93,9 +93,9 @@ backend/docker/database/
 ├── 📁 secrets/
 │   ├── 📁 dev/
 │   │   ├── 🔒 postgres_password.txt
-│   │   ├── 🔒 redis_password.txt
 │   │   ├── 🔒 neo4j_auth.txt
-│   │   └── 🔒 minio_credentials.txt
+│   │   ├── 🔒 minio_user.txt
+│   │   └── 🔒 minio_password.txt
 │   ├── 📁 staging/
 │   │   └── (same structure)
 │   └── 📁 prod/
@@ -200,9 +200,9 @@ python db_manager.py cleanup --env=dev    # Clean up old resources
   },
   "required_secrets": [
     "postgres_password.txt",
-    "redis_password.txt",
     "neo4j_auth.txt",
-    "minio_credentials.txt"
+    "minio_user.txt",
+    "minio_password.txt"
   ]
 }
 ```
@@ -393,7 +393,7 @@ DEBUG=true
 
 # 🐳 Database connections (Docker Service Discovery - Internal Ports)
 DATABASE_URL=postgresql://app_dev_user:dev_postgres_password_123@postgres:5432/app_dev_db
-REDIS_URL=redis://:dev_redis_password_123@redis:6379/0
+REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=dev_neo4j_password_123
 QDRANT_URL=http://qdrant:6333
@@ -412,7 +412,7 @@ DEBUG=false
 
 # 🐳 Database connections (Docker Service Discovery - Internal Ports)
 DATABASE_URL=postgresql://app_staging_user:staging_postgres_password_456@postgres:5432/app_staging_db
-REDIS_URL=redis://:staging_redis_password_456@redis:6379/0
+REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=staging_neo4j_password_456
 QDRANT_URL=http://qdrant:6333
@@ -431,7 +431,7 @@ DEBUG=false
 
 # 🐳 Database connections (Docker Service Discovery - Internal Ports)
 DATABASE_URL=postgresql://app_prod_user:ultra_secure_prod_password@postgres:5432/app_prod_db
-REDIS_URL=redis://:ultra_secure_redis_password@redis:6379/0
+REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=ultra_secure_neo4j_password
 QDRANT_URL=http://qdrant:6333
@@ -623,19 +623,19 @@ name: 'app_db_local'
 ```bash
 # File-based secrets (development approach)
 secrets/dev/postgres_password.txt     # PostgreSQL password
-secrets/dev/redis_password.txt        # Redis password  
 secrets/dev/neo4j_auth.txt             # Neo4j credentials (neo4j/password format)
-secrets/dev/minio_credentials.txt      # MinIO root credentials
+secrets/dev/minio_user.txt             # MinIO username
+secrets/dev/minio_password.txt         # MinIO password
 
 secrets/staging/postgres_password.txt  # Staging PostgreSQL password
-secrets/staging/redis_password.txt     # Staging Redis password
 secrets/staging/neo4j_auth.txt         # Staging Neo4j credentials
-secrets/staging/minio_credentials.txt  # Staging MinIO credentials
+secrets/staging/minio_user.txt         # Staging MinIO username
+secrets/staging/minio_password.txt     # Staging MinIO password
 
 secrets/prod/postgres_password.txt     # Production PostgreSQL password (strong)
-secrets/prod/redis_password.txt        # Production Redis password (strong)
 secrets/prod/neo4j_auth.txt            # Production Neo4j credentials (strong)
-secrets/prod/minio_credentials.txt     # Production MinIO credentials (strong)
+secrets/prod/minio_user.txt            # Production MinIO username (strong)
+secrets/prod/minio_password.txt        # Production MinIO password (strong)
 
 # Future: External secret management
 # - AWS Secrets Manager
@@ -1227,7 +1227,7 @@ After implementing and testing various approaches, we've settled on the **simple
     "health_check_timeout": 120,
     "backup_parallel_jobs": 2
   },
-  "required_secrets": ["postgres_password.txt", "redis_password.txt", "neo4j_auth.txt", "minio_credentials.txt"]
+  "required_secrets": ["postgres_password.txt", "neo4j_auth.txt", "minio_user.txt", "minio_password.txt"]
 }
 ```
 

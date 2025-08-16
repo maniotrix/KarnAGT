@@ -128,7 +128,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 DATABASE_URL=postgresql://app_dev_user:dev_postgres_password_123@postgres:5432/app_dev_db
 
 # Redis (Internal Port - All Environments)
-REDIS_URL=redis://:dev_redis_password_123@redis:6379/0
+REDIS_URL=redis://redis:6379/0
 
 # Neo4j (Internal Port - All Environments)  
 NEO4J_URL=bolt://neo4j:7687
@@ -149,7 +149,7 @@ QDRANT_URL=http://qdrant:6333
 ```bash
 # Development Environment
 postgresql://app_dev_user:dev_postgres_password_123@localhost:5433/app_dev_db
-redis://:dev_redis_password_123@localhost:6380/0
+redis://localhost:6380/0
 bolt://localhost:7688
 http://localhost:6335  # Qdrant
 http://localhost:9002  # MinIO
@@ -231,7 +231,7 @@ The database infrastructure now uses a **clean, minimal configuration approach**
     "health_check_timeout": 120,
     "backup_parallel_jobs": 2
   },
-  "required_secrets": ["postgres_password.txt", "redis_password.txt", "neo4j_auth.txt", "minio_credentials.txt"]
+  "required_secrets": ["postgres_password.txt", "neo4j_auth.txt", "minio_user.txt", "minio_password.txt"]
 }
 ```
 

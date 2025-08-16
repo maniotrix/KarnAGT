@@ -52,7 +52,7 @@ python db_manager.py stop --env=dev
 | Service      | External Ports | Purpose                    | Admin Access                          |
 |--------------|---------------|----------------------------|---------------------------------|
 | PostgreSQL   | 5433         | Primary database           | `postgresql://app_dev_user:password@localhost:5433/app_dev_db` |
-| Redis        | 6380         | Cache & sessions           | `redis://:password@localhost:6380` |
+| Redis        | 6380         | Cache & sessions           | `redis://localhost:6380` |
 | Neo4j        | 7475, 7688   | Graph database             | Browser: http://localhost:7475, Bolt: bolt://localhost:7688 |
 | Qdrant       | 6335, 6336   | Vector database            | API: http://localhost:6335 |
 | MinIO        | 9002, 9003   | Object storage             | API: http://localhost:9002, Console: http://localhost:9003 |
@@ -163,9 +163,9 @@ Each environment has isolated volumes:
 Passwords stored in separate files per environment:
 ```
 secrets/dev/postgres_password.txt
-secrets/dev/redis_password.txt
 secrets/dev/neo4j_auth.txt
-secrets/dev/minio_credentials.txt
+secrets/dev/minio_user.txt
+secrets/dev/minio_password.txt
 
 secrets/staging/... (same structure)
 secrets/prod/... (same structure)
@@ -238,9 +238,9 @@ The `db_config.json` file contains only the essential configuration:
   },
   "required_secrets": [
     "postgres_password.txt",
-    "redis_password.txt",
     "neo4j_auth.txt",
-    "minio_credentials.txt"
+    "minio_user.txt",
+    "minio_password.txt"
   ]
 }
 ```
@@ -262,7 +262,7 @@ Your backend application should use **service discovery** for container-to-conta
 ```bash
 # backend/.env.docker.app.dev (Container-to-Container Communication)
 DATABASE_URL=postgresql://app_dev_user:dev_postgres_password_123@postgres:5432/app_dev_db
-REDIS_URL=redis://:dev_redis_password_123@redis:6379/0
+REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=dev_neo4j_password_123
 QDRANT_URL=http://qdrant:6333
@@ -286,14 +286,14 @@ S3_ENDPOINT_URL=http://minio:9000
 ```bash
 # Development - External access for admin tools
 postgresql://app_dev_user:dev_password@localhost:5433/app_dev_db
-redis://:dev_redis_password@localhost:6380/0
+redis://localhost:6380/0
 bolt://localhost:7688
 http://localhost:6335  # Qdrant
 http://localhost:9002  # MinIO
 
 # Production - External access for admin tools  
 postgresql://app_prod_user:strong_password@localhost:5432/app_prod_db
-redis://:strong_redis_password@localhost:6379/0
+redis://localhost:6379/0
 bolt://localhost:7687
 http://localhost:6333  # Qdrant
 http://localhost:9000  # MinIO
@@ -425,15 +425,17 @@ Development secrets are included, but you'll need to create staging/production s
 ```bash
 # Create staging secrets (use strong passwords!)
 echo "strong_staging_postgres_password" > secrets/staging/postgres_password.txt
-echo "strong_staging_redis_password" > secrets/staging/redis_password.txt
+# Redis no longer uses passwords - no secret file needed
 echo "neo4j/strong_staging_neo4j_password" > secrets/staging/neo4j_auth.txt
-echo -e "stagingadmin\nstrong_staging_minio_password" > secrets/staging/minio_credentials.txt
+echo "stagingadmin" > secrets/staging/minio_user.txt
+echo "strong_staging_minio_password" > secrets/staging/minio_password.txt
 
 # Create production secrets (use ultra-strong passwords!)
 echo "ultra_secure_prod_postgres_password" > secrets/prod/postgres_password.txt
-echo "ultra_secure_prod_redis_password" > secrets/prod/redis_password.txt
+# Redis no longer uses passwords - no secret file needed
 echo "neo4j/ultra_secure_prod_neo4j_password" > secrets/prod/neo4j_auth.txt
-echo -e "prodadmin\nultra_secure_prod_minio_password" > secrets/prod/minio_credentials.txt
+echo "prodadmin" > secrets/prod/minio_user.txt
+echo "ultra_secure_prod_minio_password" > secrets/prod/minio_password.txt
 
 # Set proper permissions
 chmod 600 secrets/staging/*.txt secrets/prod/*.txt
