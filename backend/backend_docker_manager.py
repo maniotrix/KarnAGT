@@ -121,6 +121,11 @@ class BackendDockerManager:
         env_config = self._get_env_config(env)
         return env_config.get('database_network')
     
+    def _get_codesandbox_network_name(self, env: str) -> Optional[str]:
+        """Get CodeSandbox network name for environment from JSON config"""
+        env_config = self._get_env_config(env)
+        return env_config.get('codesandbox_network')
+    
     def _check_prerequisites(self, env: str) -> bool:
         """Check if all required files exist for the environment"""
         env_config = self._get_env_config(env)
@@ -151,13 +156,35 @@ class BackendDockerManager:
             except subprocess.CalledProcessError:
                 self._warning(f"Database network '{database_network}' not found")
                 self._info(f"💡 Start database services first: python docker/database/db_manager.py start --env={env}")
-                return False
+                issues.append(f"Database network '{database_network}' not found")
             except Exception as e:
                 self._error(f"Error checking database network: {e}")
-                return False
+                issues.append(f"Error checking database network: {e}")
         else:
             self._warning(f"No database network configured for {env} environment in config file")
-            return False
+            issues.append("No database network configured")
+        
+        # Check CodeSandbox network configuration
+        codesandbox_network = self._get_codesandbox_network_name(env)
+        if codesandbox_network:
+            self._info(f"CodeSandbox network configured: {codesandbox_network}")
+            
+            # Check if network exists
+            try:
+                result = subprocess.run([
+                    'docker', 'network', 'inspect', codesandbox_network
+                ], capture_output=True, check=True)
+                self._success(f"CodeSandbox network '{codesandbox_network}' exists")
+            except subprocess.CalledProcessError:
+                self._warning(f"CodeSandbox network '{codesandbox_network}' not found")
+                self._info(f"💡 Start CodeSandbox services first for {env} environment")
+                issues.append(f"CodeSandbox network '{codesandbox_network}' not found")
+            except Exception as e:
+                self._error(f"Error checking CodeSandbox network: {e}")
+                issues.append(f"Error checking CodeSandbox network: {e}")
+        else:
+            self._warning(f"No CodeSandbox network configured for {env} environment in config file")
+            issues.append("No CodeSandbox network configured")
         
         # Check if Docker is available
         try:
@@ -211,6 +238,13 @@ class BackendDockerManager:
                 print(f"   🔗 Database Network: {db_network}")
             else:
                 print(f"   🔗 Database Network: Not configured")
+            
+            # Show CodeSandbox network info
+            cs_network = self._get_codesandbox_network_name(env_name)
+            if cs_network:
+                print(f"   📦 CodeSandbox Network: {cs_network}")
+            else:
+                print(f"   📦 CodeSandbox Network: Not configured")
             print()
     
     def build(self, env: str) -> None:

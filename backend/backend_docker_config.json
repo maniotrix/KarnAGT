@@ -8,7 +8,8 @@
       "env_file": ".env.docker.app.dev",
       "service_name": "app-backend-dev",
       "description": "Development environment with hot reload and debug logging",
-      "database_network": "app_db_network_dev"
+      "database_network": "app_db_network_dev",
+      "codesandbox_network": "codesandbox-dev-network"
     },
     "staging": {
       "compose_file": "docker-compose.staging.yml",
@@ -16,7 +17,8 @@
       "env_file": ".env.docker.app.staging",
       "service_name": "app-backend-staging",
       "description": "Staging environment for pre-production testing",
-      "database_network": "app_db_network_staging"
+      "database_network": "app_db_network_staging",
+      "codesandbox_network": "codesandbox-prod-network"
     },
     "prod": {
       "compose_file": "docker-compose.prod.yml",
@@ -24,7 +26,8 @@
       "env_file": ".env.docker.app.prod",
       "service_name": "app-backend-prod",
       "description": "Production environment with optimized performance",
-      "database_network": "app_db_network_prod"
+      "database_network": "app_db_network_prod",
+      "codesandbox_network": "codesandbox-prod-network"
     }
   },
   "default_environment": "dev",
