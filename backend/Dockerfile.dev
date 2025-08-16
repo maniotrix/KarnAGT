@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     rm /tmp/requirements.txt
 
 # === Create Application Directories ===
-RUN mkdir -p /app/logs /app/uploads && \
+RUN mkdir -p /app/logs && \
     chown -R ${BACKEND_USER}:${BACKEND_USER} /app
 
 # === Switch to Non-Root User ===
