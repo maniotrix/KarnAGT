@@ -135,7 +135,7 @@ check_redis_health() {
     fi
     
     # Redis ping test
-    if docker exec "$container_name" redis-cli --pass "\$(cat /run/secrets/redis_password)" ping 2>/dev/null | grep -q "PONG"; then
+    if docker exec "$container_name" redis-cli ping 2>/dev/null | grep -q "PONG"; then
         log_success "Redis is responding to ping"
     else
         log_error "Redis is not responding to ping"
@@ -144,8 +144,8 @@ check_redis_health() {
     
     if [ "$DETAILED" = "--detailed" ]; then
         # Get Redis info
-        local memory_usage=$(docker exec "$container_name" redis-cli --pass "\$(cat /run/secrets/redis_password)" info memory 2>/dev/null | grep "used_memory_human" | cut -d: -f2 | tr -d '\r' || echo "N/A")
-        local connected_clients=$(docker exec "$container_name" redis-cli --pass "\$(cat /run/secrets/redis_password)" info clients 2>/dev/null | grep "connected_clients" | cut -d: -f2 | tr -d '\r' || echo "N/A")
+        local memory_usage=$(docker exec "$container_name" redis-cli info memory 2>/dev/null | grep "used_memory_human" | cut -d: -f2 | tr -d '\r' || echo "N/A")
+        local connected_clients=$(docker exec "$container_name" redis-cli info clients 2>/dev/null | grep "connected_clients" | cut -d: -f2 | tr -d '\r' || echo "N/A")
         
         log_detail "Memory usage: $memory_usage"
         log_detail "Connected clients: $connected_clients"

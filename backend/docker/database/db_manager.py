@@ -69,9 +69,9 @@ class DatabaseManager:
             },
             "required_secrets": [
                 "postgres_password.txt",
-                "redis_password.txt",
                 "neo4j_auth.txt",
-                "minio_credentials.txt"
+                "minio_user.txt",
+                "minio_password.txt"
             ]
         }
     
@@ -148,9 +148,9 @@ class DatabaseManager:
             # Check for required secret files
             required_secrets = self.config.get('required_secrets', [
                 'postgres_password.txt',
-                'redis_password.txt', 
                 'neo4j_auth.txt',
-                'minio_credentials.txt'
+                'minio_user.txt',
+                'minio_password.txt'
             ])
             for secret in required_secrets:
                 secret_file = secrets_dir / secret
@@ -427,8 +427,7 @@ class DatabaseManager:
             # Force Redis to create a background save
             cmd_bgsave = [
                 'docker', 'exec', container_name,
-                'redis-cli', '--pass', '$(cat /run/secrets/redis_password)',
-                'BGSAVE'
+                'redis-cli', 'BGSAVE'
             ]
             
             result = subprocess.run(cmd_bgsave, capture_output=True, text=True)

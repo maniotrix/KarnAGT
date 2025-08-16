@@ -22,8 +22,8 @@
   },
   "required_secrets": [
     "postgres_password.txt",
-    "redis_password.txt",
     "neo4j_auth.txt",
-    "minio_credentials.txt"
+    "minio_user.txt",
+    "minio_password.txt"
   ]
 }

@@ -5,12 +5,12 @@ name: 'app_db_dev'
 secrets:
   postgres_password:
     file: ./secrets/dev/postgres_password.txt
-  redis_password:
-    file: ./secrets/dev/redis_password.txt
   neo4j_auth:
     file: ./secrets/dev/neo4j_auth.txt
-  minio_credentials:
-    file: ./secrets/dev/minio_credentials.txt
+  minio_user:
+    file: ./secrets/dev/minio_user.txt
+  minio_password:
+    file: ./secrets/dev/minio_password.txt
 
 # Development environment isolated network
 networks:
@@ -90,11 +90,10 @@ services:
     security_opt:
       - no-new-privileges:true
       
-    # Secure Redis with password from secrets
+    # Redis without password authentication for development
     command: >
       sh -c '
         redis-server 
-        --requirepass "$$(cat /run/secrets/redis_password)"
         --appendonly yes 
         --appendfsync everysec
         --maxmemory 128M
@@ -103,9 +102,6 @@ services:
         --save 300 10  
         --save 60 10000
       '
-      
-    secrets:
-      - redis_password
       
     # Development-specific port mapping (6380 to avoid conflicts)
     ports:
@@ -134,7 +130,7 @@ services:
       - "com.app.backup.enable=true"
       
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --pass $$(cat /run/secrets/redis_password) ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -237,13 +233,14 @@ services:
     restart: unless-stopped
       
     environment:
-      MINIO_ROOT_USER_FILE: /run/secrets/minio_credentials
-      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_credentials
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
       MINIO_BROWSER_REDIRECT_URL: http://localhost:9003
       MINIO_DEFAULT_BUCKETS: app-files-dev
       
     secrets:
-      - minio_credentials
+      - minio_user
+      - minio_password
       
     # Development-specific port mapping (custom ports to avoid conflicts)
     ports:

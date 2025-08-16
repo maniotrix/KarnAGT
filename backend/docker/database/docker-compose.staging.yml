@@ -5,12 +5,12 @@ name: 'app_db_staging'
 secrets:
   postgres_password:
     file: ./secrets/staging/postgres_password.txt
-  redis_password:
-    file: ./secrets/staging/redis_password.txt
   neo4j_auth:
     file: ./secrets/staging/neo4j_auth.txt
-  minio_credentials:
-    file: ./secrets/staging/minio_credentials.txt
+  minio_user:
+    file: ./secrets/staging/minio_user.txt
+  minio_password:
+    file: ./secrets/staging/minio_password.txt
 
 # Staging environment isolated network
 networks:
@@ -90,11 +90,10 @@ services:
     security_opt:
       - no-new-privileges:true
       
-    # Secure Redis with password from secrets
+    # Redis without password authentication for staging
     command: >
       sh -c '
         redis-server 
-        --requirepass "$$(cat /run/secrets/redis_password)"
         --appendonly yes 
         --appendfsync everysec
         --maxmemory 512M
@@ -103,9 +102,6 @@ services:
         --save 300 10  
         --save 60 10000
       '
-      
-    secrets:
-      - redis_password
       
     # Staging-specific port mapping (6381 to avoid conflicts)
     ports:
@@ -134,7 +130,7 @@ services:
       - "com.app.backup.enable=true"
       
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --pass $$(cat /run/secrets/redis_password) ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -237,13 +233,14 @@ services:
     restart: unless-stopped
       
     environment:
-      MINIO_ROOT_USER_FILE: /run/secrets/minio_credentials
-      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_credentials
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
       MINIO_BROWSER_REDIRECT_URL: https://minio-staging.yourdomain.com:9005
       MINIO_DEFAULT_BUCKETS: app-files-staging
       
     secrets:
-      - minio_credentials
+      - minio_user
+      - minio_password
       
     # Staging-specific port mapping (custom ports to avoid conflicts)
     ports:
