@@ -12,7 +12,8 @@ services:
       - "8000:8000"  # Fixed port for frontend compatibility
     networks:
       - app-backend-dev-network
-      - app_db_network_dev  # Connect to database network
+      - app_db_network_dev          # Connect to database network
+      - codesandbox-dev-network     # Connect to CodeSandbox network
     environment:
       - ENVIRONMENT=development
     restart: unless-stopped
@@ -34,3 +35,6 @@ networks:
   app_db_network_dev:
     external: true
     name: app_db_network_dev
+  codesandbox-dev-network:
+    external: true
+    name: codesandbox-dev-network

@@ -6,7 +6,7 @@ networks:
     name: codesandbox-prod-network
 
 services:
-  codesandbox-prod:
+  codesandbox:
     container_name: codesandbox-production
     build: 
       context: .

@@ -12,7 +12,8 @@ services:
       - "8000:8000"  # Fixed port for frontend compatibility
     networks:
       - app-backend-staging-network
-      - app_db_network_staging  # Connect to database network
+      - app_db_network_staging      # Connect to database network
+      - codesandbox-prod-network    # Connect to production CodeSandbox network
     environment:
       - ENVIRONMENT=staging
     restart: unless-stopped
@@ -43,3 +44,6 @@ networks:
   app_db_network_staging:
     external: true
     name: app_db_network_staging
+  codesandbox-prod-network:
+    external: true
+    name: codesandbox-prod-network
