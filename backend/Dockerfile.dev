@@ -66,8 +66,7 @@ ENV PATH="/home/${BACKEND_USER}/.local/bin:${PATH}"
 
 # === Install Python Dependencies (as non-root user) ===
 COPY --chown=${BACKEND_USER}:${BACKEND_USER} requirements-linux.txt /tmp/requirements.txt
-RUN pip install --user --no-cache-dir --upgrade pip && \
-    pip install --user --no-cache-dir -r /tmp/requirements.txt && \
+RUN pip install --user --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 WORKDIR /app
 
