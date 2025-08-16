@@ -18,5 +18,8 @@ services:
     networks:
       - codesandbox-dev-network
     volumes:
-      - ./:/home/${CS_USER:-code_sandbox}  # Mount source code for development (hot reload)
+      # Mount only what's needed for development hot reload
+      - ./app:/home/${CS_USER:-code_sandbox}/app                    # Hot reload (matches uvicorn reload_dirs)  
+      - ./.env.docker.dev:/home/${CS_USER:-code_sandbox}/.env       # Environment config
+      # No need for .local volume - targeted mounts don't overwrite user packages
     # No restart policy in dev mode for easier debugging
