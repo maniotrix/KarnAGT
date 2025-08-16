@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     
     # Vector Database (Qdrant)
     QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_GRPC_PORT: int = 6334  # gRPC port for Qdrant (varies by environment)
     QDRANT_API_KEY: Optional[str] = None
     QDRANT_COLLECTION_CHAT_MEMORIES: str = "chat_memories"
     QDRANT_COLLECTION_KNOWLEDGE_FILES: str = "knowledge_files"
