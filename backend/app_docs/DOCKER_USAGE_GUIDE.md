@@ -167,12 +167,30 @@ python backend_docker_manager.py health --dev
 ```
 ❌ Database connection failed: connection refused
 ```
-**Solution:**
+**Common Causes & Solutions:**
+
+**A) Database containers not running:**
 ```bash
 # Make sure database containers are running
 cd backend/docker/database
 python db_manager.py start --env=dev
 python db_manager.py health --env=dev
+```
+
+**B) Using localhost instead of service names:**
+```bash
+# ❌ WRONG (Will fail in containers):
+DATABASE_URL=postgresql://user:pass@localhost:5433/db
+
+# ✅ CORRECT (Container-to-container communication):
+DATABASE_URL=postgresql://user:pass@postgres:5432/db
+```
+
+**C) Backend container not connected to database network:**
+```bash
+# Check if backend is connected to database network
+docker network ls | grep app_db_network
+python backend_docker_manager.py validate --dev
 ```
 
 #### **2. Migration Failed**
@@ -227,11 +245,31 @@ python backend_docker_manager.py start --dev --build
 
 ## 📊 **Environment Port Matrix**
 
+### **🐳 Container-to-Container Communication (Service Discovery)**
+**Backend containers use these for database connections:**
+
+| Service | Service Name | Internal Port | All Environments |
+|---------|--------------|---------------|-------------------|
+| **PostgreSQL** | `postgres` | 5432 | `postgres:5432` |
+| **Redis** | `redis` | 6379 | `redis:6379` |
+| **Neo4j** | `neo4j` | 7687 | `neo4j:7687` |
+| **Qdrant** | `qdrant` | 6333 | `qdrant:6333` |
+| **MinIO** | `minio` | 9000 | `minio:9000` |
+
+### **🖥️ External Access Ports (Host to Container)**
+**Use these for admin tools and external connections:**
+
 | Environment | Backend | PostgreSQL | Redis | Neo4j | Qdrant | MinIO |
 |-------------|---------|------------|-------|-------|--------|-------|
 | **Development** | 8000 | 5433 | 6380 | 7688 | 6335 | 9002 |
 | **Staging** | 8000 | 5434 | 6381 | 7689 | 6337 | 9004 |
 | **Production** | 8000 | 5432 | 6379 | 7687 | 6333 | 9000 |
+
+**🔑 Key Networking Concepts:**
+- **Service Discovery**: Containers communicate using service names (e.g., `postgres:5432`)
+- **External Access**: Host machine connects using `localhost:port` (e.g., `localhost:5433`)
+- **Same Internal Ports**: All environments use identical internal ports for consistency
+- **Different External Ports**: Each environment uses different external ports to avoid conflicts
 
 ## 🎯 **Best Practices**
 

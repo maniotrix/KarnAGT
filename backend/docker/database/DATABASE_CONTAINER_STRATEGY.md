@@ -33,6 +33,13 @@ This document outlines the complete strategy for implementing database container
 - **Simple container setup** - no complex init containers or permission handling
 - **Project naming** to prevent container grouping conflicts
 
+### **5. Docker Service Discovery Networking**
+- **Container-to-container communication** uses service names (postgres, redis, neo4j, qdrant, minio)
+- **Internal ports** are consistent across all environments (5432, 6379, 7687, 6333, 9000)
+- **External ports** differ per environment for admin access (5433 dev, 5434 staging, 5432 prod)
+- **Network isolation** with environment-specific Docker bridge networks
+- **Dual access pattern** - containers use service discovery, admins use localhost
+
 ---
 
 ## 🏗️ **Architecture Overview**
@@ -378,54 +385,57 @@ Staging:     5434, 6381, 7476, 7689, 6337, 9004, 9005
 
 Your **backend application** needs corresponding environment files to connect to these database containers:
 
-#### **Backend `.env.dev`** (Application Layer)
+#### **Backend `.env.docker.app.dev`** (Container-to-Container Communication)
 ```bash
 # Environment
-ENVIRONMENT=dev
+ENVIRONMENT=development
 DEBUG=true
 
-# Database connections (custom ports match container config)
-DATABASE_URL=postgresql://app_dev_user:dev_password@localhost:5433/app_dev_db
-REDIS_URL=redis://:dev_redis_password@localhost:6380
-NEO4J_URI=bolt://localhost:7688
-QDRANT_URL=http://localhost:6335
-MINIO_ENDPOINT=localhost:9002
+# 🐳 Database connections (Docker Service Discovery - Internal Ports)
+DATABASE_URL=postgresql://app_dev_user:dev_postgres_password_123@postgres:5432/app_dev_db
+REDIS_URL=redis://:dev_redis_password_123@redis:6379/0
+NEO4J_URL=bolt://neo4j:7687
+NEO4J_PASSWORD=dev_neo4j_password_123
+QDRANT_URL=http://qdrant:6333
+S3_ENDPOINT_URL=http://minio:9000
 
 # Application Settings
 CORS_ORIGINS=http://localhost:3000
 MAX_FILE_SIZE_MB=100
 ```
 
-#### **Backend `.env.staging`** (Application Layer)
+#### **Backend `.env.docker.app.staging`** (Container-to-Container Communication)
 ```bash
 # Environment
 ENVIRONMENT=staging
 DEBUG=false
 
-# Database connections (custom ports match container config)
-DATABASE_URL=postgresql://app_staging_user:staging_password@localhost:5434/app_staging_db
-REDIS_URL=redis://:staging_redis_password@localhost:6381
-NEO4J_URI=bolt://localhost:7689
-QDRANT_URL=http://localhost:6337
-MINIO_ENDPOINT=localhost:9004
+# 🐳 Database connections (Docker Service Discovery - Internal Ports)
+DATABASE_URL=postgresql://app_staging_user:staging_postgres_password_456@postgres:5432/app_staging_db
+REDIS_URL=redis://:staging_redis_password_456@redis:6379/0
+NEO4J_URL=bolt://neo4j:7687
+NEO4J_PASSWORD=staging_neo4j_password_456
+QDRANT_URL=http://qdrant:6333
+S3_ENDPOINT_URL=http://minio:9000
 
 # Application Settings
 CORS_ORIGINS=https://staging.yourapp.com
 MAX_FILE_SIZE_MB=200
 ```
 
-#### **Backend `.env.prod`** (Application Layer)
+#### **Backend `.env.docker.app.prod`** (Container-to-Container Communication)
 ```bash
 # Environment
-ENVIRONMENT=prod
+ENVIRONMENT=production
 DEBUG=false
 
-# Database connections (DEFAULT ports - standard production)
-DATABASE_URL=postgresql://app_prod_user:strong_prod_password@localhost:5432/app_prod_db
-REDIS_URL=redis://:strong_redis_password@localhost:6379
-NEO4J_URI=bolt://localhost:7687
-QDRANT_URL=http://localhost:6333
-MINIO_ENDPOINT=localhost:9000
+# 🐳 Database connections (Docker Service Discovery - Internal Ports)
+DATABASE_URL=postgresql://app_prod_user:ultra_secure_prod_password@postgres:5432/app_prod_db
+REDIS_URL=redis://:ultra_secure_redis_password@redis:6379/0
+NEO4J_URL=bolt://neo4j:7687
+NEO4J_PASSWORD=ultra_secure_neo4j_password
+QDRANT_URL=http://qdrant:6333
+S3_ENDPOINT_URL=http://minio:9000
 
 # Application Settings
 CORS_ORIGINS=https://yourapp.com
@@ -453,21 +463,20 @@ def start(self, env: str):
 
 ### **Coordinated Deployment Workflow**
 ```bash
-# Development (uses docker-compose.dev.yml)
+# Development (uses docker-compose.dev.yml for databases)
 cd backend/docker/database/ && python db_manager.py start --env=dev
-cd ../../ && export $(cat .env.dev | xargs) && uvicorn app.main:app --reload
+cd ../../ && python backend_docker_manager.py start --dev
+# Backend container connects via service discovery: postgres:5432, redis:6379, etc.
 
-# Staging (uses docker-compose.staging.yml)
+# Staging (uses docker-compose.staging.yml for databases)
 cd backend/docker/database/ && python db_manager.py start --env=staging
-cd ../../ && export $(cat .env.staging | xargs) && uvicorn app.main:app
+cd ../../ && python backend_docker_manager.py start --staging
+# Backend container connects via service discovery: postgres:5432, redis:6379, etc.
 
-# Production (uses docker-compose.prod.yml)
+# Production (uses docker-compose.prod.yml for databases)
 cd backend/docker/database/ && python db_manager.py start --env=prod
-cd ../../ && export $(cat .env.prod | xargs) && uvicorn app.main:app
-
-# Local testing (uses docker-compose.local.yml)
-cd backend/docker/database/ && python db_manager.py start --env=local
-cd ../../ && export $(cat .env.local | xargs) && uvicorn app.main:app --reload
+cd ../../ && python backend_docker_manager.py start --prod
+# Backend container connects via service discovery: postgres:5432, redis:6379, etc.
 ```
 
 ### **Manual Docker Compose Commands**
@@ -1012,13 +1021,30 @@ This strategy provides a **robust database infrastructure foundation** with **co
 
 ### **🔗 BACKEND APPLICATION COORDINATION MATRIX**
 
+#### **🐳 Container-to-Container Communication (Docker Service Discovery)**
+
+| **Backend App Config** | **All Environments** | **Why Same** |
+|------------------------|----------------------|--------------|
+| **Database URL Pattern** | `postgresql://user:pass@postgres:5432/db` | Service discovery uses same internal port |
+| **Redis URL Pattern** | `redis://redis:6379/0` | Service discovery uses same internal port |
+| **Neo4j URL Pattern** | `bolt://neo4j:7687` | Service discovery uses same internal port |
+| **Qdrant URL Pattern** | `http://qdrant:6333` | Service discovery uses same internal port |
+| **MinIO URL Pattern** | `http://minio:9000` | Service discovery uses same internal port |
+
+#### **🖥️ External Access (Admin Tools Only)**
+
+| **Admin Tool Access** | **Development** | **Staging** | **Production** |
+|----------------------|-----------------|-------------|----------------|
+| **PostgreSQL** | `postgresql://app_dev_user:dev_pass@localhost:5433/app_dev_db` | `postgresql://app_staging_user:staging_pass@localhost:5434/app_staging_db` | `postgresql://app_prod_user:prod_pass@localhost:5432/app_prod_db` |
+| **Redis** | `redis://:dev_redis_pass@localhost:6380` | `redis://:staging_redis_pass@localhost:6381` | `redis://:prod_redis_pass@localhost:6379` |
+| **Neo4j** | `bolt://localhost:7688` | `bolt://localhost:7689` | `bolt://localhost:7687` |
+| **Qdrant** | `http://localhost:6335` | `http://localhost:6337` | `http://localhost:6333` |
+| **MinIO** | `localhost:9002` | `localhost:9004` | `localhost:9000` |
+
+#### **🔧 Environment-Specific Settings**
+
 | **Backend App Config** | **Development** | **Staging** | **Production** |
 |------------------------|-----------------|-------------|----------------|
-| **Database URL** | `postgresql://app_dev_user:dev_pass@localhost:5433/app_dev_db` | `postgresql://app_staging_user:staging_pass@localhost:5434/app_staging_db` | `postgresql://app_prod_user:prod_pass@localhost:5432/app_prod_db` |
-| **Redis URL** | `redis://:dev_redis_pass@localhost:6380` | `redis://:staging_redis_pass@localhost:6381` | `redis://:prod_redis_pass@localhost:6379` |
-| **Neo4j URI** | `bolt://localhost:7688` | `bolt://localhost:7689` | `bolt://localhost:7687` |
-| **Qdrant URL** | `http://localhost:6335` | `http://localhost:6337` | `http://localhost:6333` |
-| **MinIO Endpoint** | `localhost:9002` | `localhost:9004` | `localhost:9000` |
 | **Debug Mode** | `DEBUG=true` | `DEBUG=false` | `DEBUG=false` |
 | **CORS Origins** | `http://localhost:3000` | `https://staging.yourapp.com` | `https://yourapp.com` |
 | **File Size Limits** | 100MB (permissive) | 200MB (moderate) | 500MB (production) |

@@ -75,13 +75,27 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## 🔌 **Connection Matrix**
 
-| Service | Development | Staging | Production | Backend Variable |
-|---------|-------------|---------|------------|------------------|
-| **PostgreSQL** | `localhost:5433` | `localhost:5434` | `localhost:5432` | `DATABASE_URL` |
-| **Redis** | `localhost:6380` | `localhost:6381` | `localhost:6379` | `REDIS_URL` |
-| **Neo4j** | `localhost:7688` | `localhost:7689` | `localhost:7687` | `NEO4J_URL` |
-| **Qdrant** | `localhost:6335` | `localhost:6337` | `localhost:6333` | `QDRANT_URL` |
-| **MinIO** | `localhost:9002` | `localhost:9004` | `localhost:9000` | `S3_ENDPOINT_URL` |
+### **🐳 Container-to-Container (Docker Service Discovery)**
+**Use these for your backend application environment files:**
+
+| Service | All Environments | Backend Variable | Internal Port |
+|---------|-------------------|------------------|---------------|
+| **PostgreSQL** | `postgres:5432` | `DATABASE_URL` | 5432 |
+| **Redis** | `redis:6379` | `REDIS_URL` | 6379 |
+| **Neo4j** | `neo4j:7687` | `NEO4J_URL` | 7687 |
+| **Qdrant** | `qdrant:6333` | `QDRANT_URL` | 6333 |
+| **MinIO** | `minio:9000` | `S3_ENDPOINT_URL` | 9000 |
+
+### **🖥️ External Access (Admin Tools from Host)**
+**Use these for database administration from your local machine:**
+
+| Service | Development | Staging | Production |
+|---------|-------------|---------|------------|
+| **PostgreSQL** | `localhost:5433` | `localhost:5434` | `localhost:5432` |
+| **Redis** | `localhost:6380` | `localhost:6381` | `localhost:6379` |
+| **Neo4j** | `localhost:7688` | `localhost:7689` | `localhost:7687` |
+| **Qdrant** | `localhost:6335` | `localhost:6337` | `localhost:6333` |
+| **MinIO** | `localhost:9002` | `localhost:9004` | `localhost:9000` |
 
 ## 🔐 **Security & Credentials**
 
@@ -106,22 +120,39 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## 📊 **Database Credentials Reference**
 
-### **Development Environment**
+### **🐳 Backend Application Environment (Docker Service Discovery)**
+**Use these in your `.env.docker.app.*` files:**
+
 ```bash
-# PostgreSQL
-DATABASE_URL=postgresql://app_dev_user:dev_postgres_password_123@localhost:5433/app_dev_db
+# PostgreSQL (Internal Port - All Environments)
+DATABASE_URL=postgresql://app_dev_user:dev_postgres_password_123@postgres:5432/app_dev_db
 
-# Redis  
-REDIS_URL=redis://:dev_redis_password_123@localhost:6380/0
+# Redis (Internal Port - All Environments)
+REDIS_URL=redis://:dev_redis_password_123@redis:6379/0
 
-# Neo4j
-NEO4J_URL=bolt://localhost:7688
+# Neo4j (Internal Port - All Environments)  
+NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=dev_neo4j_password_123
 
-# MinIO
-S3_ENDPOINT_URL=http://localhost:9002
+# MinIO (Internal Port - All Environments)
+S3_ENDPOINT_URL=http://minio:9000
 S3_ACCESS_KEY_ID=devuser
 S3_SECRET_ACCESS_KEY=devpassword123
+
+# Qdrant (Internal Port - All Environments)
+QDRANT_URL=http://qdrant:6333
+```
+
+### **🖥️ External Access (Admin Tools from Host)**
+**Use these for database administration:**
+
+```bash
+# Development Environment
+postgresql://app_dev_user:dev_postgres_password_123@localhost:5433/app_dev_db
+redis://:dev_redis_password_123@localhost:6380/0
+bolt://localhost:7688
+http://localhost:6335  # Qdrant
+http://localhost:9002  # MinIO
 ```
 
 
@@ -149,15 +180,25 @@ python db_manager.py start --env=prod
 async def database_health():
     return {
         "environment": os.getenv("ENVIRONMENT"),
-        "postgres_host": os.getenv("DATABASE_URL").split("@")[1].split("/")[0],
-        "redis_host": os.getenv("REDIS_URL").split("@")[1].split("/")[0], 
-        "neo4j_host": os.getenv("NEO4J_URL").replace("bolt://", ""),
-        "qdrant_host": os.getenv("QDRANT_URL").replace("http://", ""),
-        "minio_host": os.getenv("S3_ENDPOINT_URL").replace("http://", "")
+        "postgres_host": os.getenv("DATABASE_URL").split("@")[1].split("/")[0],  # Should show "postgres:5432"
+        "redis_host": os.getenv("REDIS_URL").split("@")[1].split("/")[0],        # Should show "redis:6379"
+        "neo4j_host": os.getenv("NEO4J_URL").replace("bolt://", ""),            # Should show "neo4j:7687"
+        "qdrant_host": os.getenv("QDRANT_URL").replace("http://", ""),          # Should show "qdrant:6333"
+        "minio_host": os.getenv("S3_ENDPOINT_URL").replace("http://", "")       # Should show "minio:9000"
     }
 ```
 
-**Note**: Configure your backend environment variables to match the database ports shown in the Connection Matrix above.
+**✅ Expected Output (Container-to-Container Communication):**
+```json
+{
+    "environment": "development",
+    "postgres_host": "postgres:5432",
+    "redis_host": "redis:6379", 
+    "neo4j_host": "neo4j:7687",
+    "qdrant_host": "qdrant:6333",
+    "minio_host": "minio:9000"
+}
+```
 
 ## 📋 **Minimal Configuration Benefits**
 

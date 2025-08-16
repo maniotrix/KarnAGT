@@ -34,23 +34,43 @@ python db_manager.py stop --env=dev
 
 ## 📊 Services & Ports
 
-### Development Environment
-| Service      | Port(s)      | Purpose                    | Access                          |
-|--------------|--------------|----------------------------|---------------------------------|
+### **🐳 Container-to-Container Communication (Service Discovery)**
+**Backend containers use these for database connections:**
+
+| Service | Service Name | Internal Port | All Environments |
+|---------|--------------|---------------|-------------------|
+| **PostgreSQL** | `postgres` | 5432 | `postgres:5432` |
+| **Redis** | `redis` | 6379 | `redis:6379` |
+| **Neo4j** | `neo4j` | 7687 | `neo4j:7687` |
+| **Qdrant** | `qdrant` | 6333 | `qdrant:6333` |
+| **MinIO** | `minio` | 9000 | `minio:9000` |
+
+### **🖥️ External Access Ports (Host to Container)**
+**Use these for admin tools and direct connections from host:**
+
+#### Development Environment
+| Service      | External Ports | Purpose                    | Admin Access                          |
+|--------------|---------------|----------------------------|---------------------------------|
 | PostgreSQL   | 5433         | Primary database           | `postgresql://app_dev_user:password@localhost:5433/app_dev_db` |
 | Redis        | 6380         | Cache & sessions           | `redis://:password@localhost:6380` |
 | Neo4j        | 7475, 7688   | Graph database             | Browser: http://localhost:7475, Bolt: bolt://localhost:7688 |
 | Qdrant       | 6335, 6336   | Vector database            | API: http://localhost:6335 |
 | MinIO        | 9002, 9003   | Object storage             | API: http://localhost:9002, Console: http://localhost:9003 |
 
-### Production Environment
-| Service      | Port(s)      | Purpose                    |
-|--------------|--------------|----------------------------|
+#### Production Environment
+| Service      | External Ports | Purpose                    |
+|--------------|---------------|----------------------------|
 | PostgreSQL   | 5432         | Primary database (standard port) |
 | Redis        | 6379         | Cache & sessions (standard port) |
 | Neo4j        | 7474, 7687   | Graph database (standard ports) |
 | Qdrant       | 6333, 6334   | Vector database (standard ports) |
 | MinIO        | 9000, 9001   | Object storage (standard ports) |
+
+**🔑 Key Networking Concepts:**
+- **Service Discovery**: Containers communicate using service names (e.g., `postgres:5432`)
+- **External Access**: Host machine connects using `localhost:port` (e.g., `localhost:5433`)
+- **Same Internal Ports**: All environments use identical internal ports for consistency
+- **Different External Ports**: Each environment uses different external ports to avoid conflicts
 
 ## 🔧 Database Manager Commands
 
@@ -233,27 +253,55 @@ The `db_config.json` file contains only the essential configuration:
 
 ## 🔄 Backend Application Integration
 
-Your backend application should use corresponding environment files:
+Your backend application should use **service discovery** for container-to-container communication:
 
-### Development
+### **🐳 Backend Environment Files (Docker Service Discovery)**
+**Use these in your `.env.docker.app.*` files:**
+
+#### Development
 ```bash
-# backend/.env.dev
-DATABASE_URL=postgresql://app_dev_user:dev_neo4j_password_123@localhost:5433/app_dev_db
-REDIS_URL=redis://:dev_redis_password_789@localhost:6380
-NEO4J_URI=bolt://neo4j:dev_neo4j_password_123@localhost:7688
-QDRANT_URL=http://localhost:6335
-MINIO_ENDPOINT=localhost:9002
+# backend/.env.docker.app.dev (Container-to-Container Communication)
+DATABASE_URL=postgresql://app_dev_user:dev_postgres_password_123@postgres:5432/app_dev_db
+REDIS_URL=redis://:dev_redis_password_123@redis:6379/0
+NEO4J_URL=bolt://neo4j:7687
+NEO4J_PASSWORD=dev_neo4j_password_123
+QDRANT_URL=http://qdrant:6333
+S3_ENDPOINT_URL=http://minio:9000
 ```
 
-### Production
+#### Production  
 ```bash
-# backend/.env.prod
-DATABASE_URL=postgresql://app_prod_user:strong_password@localhost:5432/app_prod_db
-REDIS_URL=redis://:strong_redis_password@localhost:6379
-NEO4J_URI=bolt://neo4j:strong_neo4j_password@localhost:7687
-QDRANT_URL=http://localhost:6333
-MINIO_ENDPOINT=localhost:9000
+# backend/.env.docker.app.prod (Container-to-Container Communication)
+DATABASE_URL=postgresql://app_prod_user:strong_prod_password@postgres:5432/app_prod_db
+REDIS_URL=redis://:strong_redis_password@redis:6379/0
+NEO4J_URL=bolt://neo4j:7687
+NEO4J_PASSWORD=strong_neo4j_password
+QDRANT_URL=http://qdrant:6333
+S3_ENDPOINT_URL=http://minio:9000
 ```
+
+### **🖥️ External Access (Admin Tools Only)**
+**Use these for database administration from host machine:**
+
+```bash
+# Development - External access for admin tools
+postgresql://app_dev_user:dev_password@localhost:5433/app_dev_db
+redis://:dev_redis_password@localhost:6380/0
+bolt://localhost:7688
+http://localhost:6335  # Qdrant
+http://localhost:9002  # MinIO
+
+# Production - External access for admin tools  
+postgresql://app_prod_user:strong_password@localhost:5432/app_prod_db
+redis://:strong_redis_password@localhost:6379/0
+bolt://localhost:7687
+http://localhost:6333  # Qdrant
+http://localhost:9000  # MinIO
+```
+
+**🎯 Key Principle:**
+- **Containers ↔ Containers**: Use service names (`postgres:5432`, `redis:6379`)
+- **Host ↔ Containers**: Use localhost with external ports (`localhost:5433`, `localhost:6380`)
 
 ## 🚀 Deployment Workflow
 
@@ -263,10 +311,10 @@ MINIO_ENDPOINT=localhost:9000
 cd backend/docker/database
 python db_manager.py start --env=dev
 
-# 2. Start backend application (in separate terminal)
+# 2. Start backend application (in separate terminal) 
 cd backend
-export $(cat .env.dev | xargs)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Backend container connects to databases via service names (postgres:5432, redis:6379, etc.)
+python backend_docker_manager.py start --dev
 ```
 
 ### Production
@@ -284,7 +332,9 @@ python db_manager.py start --env=prod
 python db_manager.py health --env=prod
 
 # 5. Start backend application
-cd ../../ && export $(cat .env.prod | xargs) && uvicorn app.main:app
+cd ../../
+# Backend container connects to databases via service names (postgres:5432, redis:6379, etc.)
+python backend_docker_manager.py start --prod
 ```
 
 ## 🔧 Manual Docker Commands (Alternative)

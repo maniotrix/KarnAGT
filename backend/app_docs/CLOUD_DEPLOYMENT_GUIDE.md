@@ -61,6 +61,33 @@ requirements.in           # ← Add your dependencies here
 - **Stateless containers** - No local file persistence required
 - **Cloud-native design** - Follows 12-factor app principles
 
+### **🔗 Docker Service Discovery**
+**CRITICAL: Environment files now use service names, not localhost**
+
+**✅ Container-to-Container Communication (New Pattern):**
+```bash
+# Use these in your .env.docker.app.* files:
+DATABASE_URL=postgresql://user:pass@postgres:5432/db
+REDIS_URL=redis://:password@redis:6379/0
+NEO4J_URL=bolt://neo4j:7687
+QDRANT_URL=http://qdrant:6333
+S3_ENDPOINT_URL=http://minio:9000
+```
+
+**🖥️ External Access (Admin Tools Only):**
+```bash
+# Use these for database administration from host:
+localhost:5433  # PostgreSQL (dev)
+localhost:6380  # Redis (dev)
+localhost:7688  # Neo4j (dev)
+```
+
+**Key Benefits:**
+- ✅ **Production-ready networking** - Uses Docker's internal DNS
+- ✅ **Environment consistency** - Same internal ports everywhere
+- ✅ **Independent container startup** - No health check dependencies
+- ✅ **Network segmentation** - Isolated service networks
+
 ---
 
 ## 🚨 **CRITICAL: Environment Upload First! (Git-based method only)**
@@ -621,6 +648,24 @@ Error: Could not connect to database during build
 ```
 **Solution:** Start database containers first (Step 3) before building application containers.
 
+### **Docker Networking Issues**
+```
+Error: connection refused (localhost)
+```
+**Solution:** Environment files are using localhost instead of service names.
+
+**❌ Wrong (localhost pattern):**
+```bash
+DATABASE_URL=postgresql://user:pass@localhost:5433/db
+REDIS_URL=redis://:password@localhost:6380/0
+```
+
+**✅ Correct (service discovery pattern):**
+```bash  
+DATABASE_URL=postgresql://user:pass@postgres:5432/db
+REDIS_URL=redis://:password@redis:6379/0
+```
+
 ### **Missing --remote-repo-root-path Argument**
 ```
 Error: --remote-repo-root-path is required for upload operation
@@ -759,6 +804,8 @@ python docker_setup_and_run.py envs
 ### **DON'T:**
 - ❌ Use old `requirements.txt` - Use platform-specific `requirements-linux.txt`
 - ❌ Install packages as root in containers - Use non-root user installation
+- ❌ Use `localhost` in environment files - Use service names (`postgres`, `redis`, etc.)
+- ❌ Mix external ports in environment files - Use internal ports (5432, 6379, etc.)
 - ❌ Run script without testing SSH connection first
 - ❌ Use password auth if you'll upload frequently (set up SSH keys)
 - ❌ Start application containers before database containers
@@ -772,6 +819,8 @@ python docker_setup_and_run.py envs
 ### **DO:**
 - ✅ Generate requirements with uv: `uv pip compile --python-platform linux requirements.in -o requirements-linux.txt`
 - ✅ Commit `requirements-linux.txt` and `requirements-windows.txt` to git
+- ✅ Use Docker service discovery: `postgres:5432`, `redis:6379`, `neo4j:7687`, `qdrant:6333`, `minio:9000`
+- ✅ Use internal ports in environment files for container-to-container communication
 - ✅ Use S3 for all file uploads (cloud-native architecture)
 - ✅ Set up SSH keys for seamless uploads
 - ✅ Test SSH connection: `ssh user@your-cloud-vm` before running script
