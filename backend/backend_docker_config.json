@@ -7,21 +7,24 @@
       "dockerfile": "Dockerfile.dev",
       "env_file": ".env.docker.app.dev",
       "service_name": "app-backend-dev",
-      "description": "Development environment with hot reload and debug logging"
+      "description": "Development environment with hot reload and debug logging",
+      "database_network": "app_db_network_dev"
     },
     "staging": {
       "compose_file": "docker-compose.staging.yml",
       "dockerfile": "Dockerfile.staging",
       "env_file": ".env.docker.app.staging",
       "service_name": "app-backend-staging",
-      "description": "Staging environment for pre-production testing"
+      "description": "Staging environment for pre-production testing",
+      "database_network": "app_db_network_staging"
     },
     "prod": {
       "compose_file": "docker-compose.prod.yml",
       "dockerfile": "Dockerfile.prod",
       "env_file": ".env.docker.app.prod",
       "service_name": "app-backend-prod",
-      "description": "Production environment with optimized performance"
+      "description": "Production environment with optimized performance",
+      "database_network": "app_db_network_prod"
     }
   },
   "default_environment": "dev",

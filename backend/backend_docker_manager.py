@@ -116,6 +116,11 @@ class BackendDockerManager:
             sys.exit(1)
         return self.config['environments'][env]
     
+    def _get_database_network_name(self, env: str) -> Optional[str]:
+        """Get database network name for environment from JSON config"""
+        env_config = self._get_env_config(env)
+        return env_config.get('database_network')
+    
     def _check_prerequisites(self, env: str) -> bool:
         """Check if all required files exist for the environment"""
         env_config = self._get_env_config(env)
@@ -131,6 +136,28 @@ class BackendDockerManager:
         for file_path in required_files:
             if not (self.base_dir / file_path).exists():
                 issues.append(f"Missing file: {file_path}")
+        
+        # Check database network configuration
+        database_network = self._get_database_network_name(env)
+        if database_network:
+            self._info(f"Database network configured: {database_network}")
+            
+            # Check if network exists
+            try:
+                result = subprocess.run([
+                    'docker', 'network', 'inspect', database_network
+                ], capture_output=True, check=True)
+                self._success(f"Database network '{database_network}' exists")
+            except subprocess.CalledProcessError:
+                self._warning(f"Database network '{database_network}' not found")
+                self._info(f"💡 Start database services first: python docker/database/db_manager.py start --env={env}")
+                return False
+            except Exception as e:
+                self._error(f"Error checking database network: {e}")
+                return False
+        else:
+            self._warning(f"No database network configured for {env} environment in config file")
+            return False
         
         # Check if Docker is available
         try:
@@ -177,6 +204,13 @@ class BackendDockerManager:
             print(f"   📄 Compose: {env_config['compose_file']}")
             print(f"   🐳 Service: {env_config['service_name']}")  
             print(f"   📝 Description: {env_config['description']}")
+            
+            # Show database network info
+            db_network = self._get_database_network_name(env_name)
+            if db_network:
+                print(f"   🔗 Database Network: {db_network}")
+            else:
+                print(f"   🔗 Database Network: Not configured")
             print()
     
     def build(self, env: str) -> None:

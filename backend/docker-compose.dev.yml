@@ -1,10 +1,5 @@
 version: '3.8'
 
-networks:
-  app-backend-dev-network:
-    driver: bridge
-    name: app-backend-dev-network
-
 services:
   app-backend-dev:
     container_name: app-backend-development
@@ -17,6 +12,7 @@ services:
       - "8000:8000"  # Fixed port for frontend compatibility
     networks:
       - app-backend-dev-network
+      - app_db_network_dev  # Connect to database network
     environment:
       - ENVIRONMENT=development
     restart: unless-stopped
@@ -30,29 +26,11 @@ services:
       # Temporary: Mount logs for early development debugging
       # TODO: Remove when centralized logging is implemented (CloudWatch, Datadog, etc.)
       - ./logs:/app/logs
-    depends_on:
-      - database-health-check
-    
-  # Health check service to ensure databases are ready
-  database-health-check:
-    image: curlimages/curl:latest
-    container_name: app-backend-db-health-dev
-    networks:
-      - app-backend-dev-network
-    command: >
-      sh -c "
-        echo 'Checking database connectivity...' &&
-        until curl -f http://host.docker.internal:5433 2>/dev/null || nc -z host.docker.internal 5433; do
-          echo 'Waiting for PostgreSQL (dev:5433)...'
-          sleep 2
-        done &&
-        until curl -f http://host.docker.internal:6380 2>/dev/null || nc -z host.docker.internal 6380; do  
-          echo 'Waiting for Redis (dev:6380)...'
-          sleep 2
-        done &&
-        echo 'Databases are ready!'
-      "
-    restart: "no"
 
-# External network to connect to host databases
-# Backend connects to database containers running on host ports
+networks:
+  app-backend-dev-network:
+    driver: bridge
+    name: app-backend-dev-network
+  app_db_network_dev:
+    external: true
+    name: app_db_network_dev

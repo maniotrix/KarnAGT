@@ -1,10 +1,5 @@
 version: '3.8'
 
-networks:
-  app-backend-staging-network:
-    driver: bridge
-    name: app-backend-staging-network
-
 services:
   app-backend-staging:
     container_name: app-backend-staging
@@ -17,6 +12,7 @@ services:
       - "8000:8000"  # Fixed port for frontend compatibility
     networks:
       - app-backend-staging-network
+      - app_db_network_staging  # Connect to database network
     environment:
       - ENVIRONMENT=staging
     restart: unless-stopped
@@ -30,8 +26,6 @@ services:
       # Temporary: Mount logs for early staging debugging
       # TODO: Remove when centralized logging is implemented (CloudWatch, Datadog, etc.)
       - ./logs:/app/logs:rw
-    depends_on:
-      - database-health-check
     # Staging resource limits (between dev and prod)
     deploy:
       resources:
@@ -41,27 +35,11 @@ services:
         reservations:
           memory: 512M
           cpus: '0.5'
-    
-  # Health check service to ensure databases are ready
-  database-health-check:
-    image: curlimages/curl:latest
-    container_name: app-backend-db-health-staging
-    networks:
-      - app-backend-staging-network
-    command: >
-      sh -c "
-        echo 'Checking staging database connectivity...' &&
-        until curl -f http://host.docker.internal:5434 2>/dev/null || nc -z host.docker.internal 5434; do
-          echo 'Waiting for PostgreSQL (staging:5434)...'
-          sleep 2
-        done &&
-        until curl -f http://host.docker.internal:6381 2>/dev/null || nc -z host.docker.internal 6381; do
-          echo 'Waiting for Redis (staging:6381)...'
-          sleep 2
-        done &&
-        echo 'Staging databases are ready!'
-      "
-    restart: "no"
 
-# External network to connect to host databases
-# Backend connects to database containers running on host ports
+networks:
+  app-backend-staging-network:
+    driver: bridge
+    name: app-backend-staging-network
+  app_db_network_staging:
+    external: true
+    name: app_db_network_staging

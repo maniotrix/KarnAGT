@@ -1,10 +1,5 @@
 version: '3.8'
 
-networks:
-  app-backend-prod-network:
-    driver: bridge
-    name: app-backend-prod-network
-
 services:
   app-backend-prod:
     container_name: app-backend-production
@@ -17,6 +12,7 @@ services:
       - "8000:8000"  # Fixed port for frontend compatibility
     networks:
       - app-backend-prod-network
+      - app_db_network_prod  # Connect to database network
     environment:
       - ENVIRONMENT=production
     restart: unless-stopped
@@ -30,8 +26,6 @@ services:
       # Temporary: Mount logs for early production debugging
       # TODO: Remove when centralized logging is implemented (CloudWatch, Datadog, etc.)
       - ./logs:/app/logs:rw
-    depends_on:
-      - database-health-check
     # Production resource limits
     deploy:
       resources:
@@ -41,27 +35,10 @@ services:
         reservations:
           memory: 1G
           cpus: '1.0'
-    
-  # Health check service to ensure databases are ready  
-  database-health-check:
-    image: curlimages/curl:latest
-    container_name: app-backend-db-health-prod
-    networks:
-      - app-backend-prod-network
-    command: >
-      sh -c "
-        echo 'Checking production database connectivity...' &&
-        until curl -f http://host.docker.internal:5432 2>/dev/null || nc -z host.docker.internal 5432; do
-          echo 'Waiting for PostgreSQL (prod:5432)...'
-          sleep 2
-        done &&
-        until curl -f http://host.docker.internal:6379 2>/dev/null || nc -z host.docker.internal 6379; do
-          echo 'Waiting for Redis (prod:6379)...'
-          sleep 2
-        done &&
-        echo 'Production databases are ready!'
-      "
-    restart: "no"
-
-# External network to connect to host databases
-# Backend connects to database containers running on host ports
+networks:
+  app-backend-prod-network:
+    driver: bridge
+    name: app-backend-prod-network
+  app_db_network_prod:
+    external: true
+    name: app_db_network_prod
