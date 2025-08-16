@@ -6,21 +6,21 @@
       "compose_file": "docker-compose.dev.yml",
       "dockerfile": "Dockerfile.dev",
       "env_file": ".env.docker.dev",
-      "service_name": "codesandbox-dev",
+      "service_name": "codesandbox",
       "description": "Development environment with hot reload and volume mounts"
     },
     "prod": {
       "compose_file": "docker-compose.prod.yml",
       "dockerfile": "Dockerfile.prod", 
       "env_file": ".env.docker.prod",
-      "service_name": "codesandbox-prod",
+      "service_name": "codesandbox",
       "description": "Production environment with optimized builds"
     },
     "test": {
       "compose_file": "docker-compose.test.yml",
       "dockerfile": "Dockerfile.test",
       "env_file": ".env.docker.test", 
-      "service_name": "codesandbox-test",
+      "service_name": "codesandbox",
       "description": "Testing environment for CI/CD pipelines"
     }
   },
