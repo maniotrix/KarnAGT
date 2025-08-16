@@ -288,8 +288,8 @@ BASE_URL=https://your-domain.com  # ← UNCHANGED
 DATABASE_URL=postgresql://user:pass@pgbouncer:6432/prod  # ← proxy endpoint
 REDIS_URL=redis://redis-proxy:6379  # ← proxy endpoint
 
-# Internal service communication (unchanged)
-CODESANDBOX_URL=http://localhost:8080  # ← same server, unchanged
+# Internal service communication (Docker service discovery)
+CODESANDBOX_URL=http://codesandbox:8080/api/v1  # ← Docker service discovery pattern
 ```
 
 ---

@@ -72,6 +72,7 @@ REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 QDRANT_URL=http://qdrant:6333
 S3_ENDPOINT_URL=http://minio:9000
+CODESANDBOX_URL=http://codesandbox:8080/api/v1
 ```
 
 **🖥️ External Access (Admin Tools Only):**
@@ -795,7 +796,7 @@ python docker_setup_and_run.py envs
 11. **Clean container logs** - Set up centralized logging when ready
 12. **Test locally first** - ensure your env files work before uploading
 13. **Backup important env files** - keep secure local copies
-14. **Use correct script names** - `docker_setup_and_run.py` for CodeSandbox, not `codesandbox_docker_manager.py`
+14. **Use correct script names** - `docker_setup_and_run.py` for CodeSandbox with service name `codesandbox`
 
 ---
 
@@ -811,7 +812,7 @@ python docker_setup_and_run.py envs
 - ❌ Start application containers before database containers
 - ❌ Start containers without uploading env files first
 - ❌ Create local upload directories - Use S3 instead
-- ❌ Use wrong script names (e.g., `codesandbox_docker_manager.py` doesn't exist)
+- ❌ Use wrong script names or service names (service is `codesandbox`, not `codesandbox-dev`)
 - ❌ Commit real env files to git repository  
 - ❌ Upload to prod without testing on staging
 - ❌ Forget to rebuild containers after env upload
@@ -825,7 +826,7 @@ python docker_setup_and_run.py envs
 - ✅ Set up SSH keys for seamless uploads
 - ✅ Test SSH connection: `ssh user@your-cloud-vm` before running script
 - ✅ Always follow: requirements generation → git pull → env upload → databases → application containers
-- ✅ Use correct script names: `docker_setup_and_run.py` for CodeSandbox
+- ✅ Use correct script names: `docker_setup_and_run.py` for CodeSandbox with service name `codesandbox`
 - ✅ Start database containers first, then application containers
 - ✅ Test environment files locally first
 - ✅ Use staging environment for testing deployments
