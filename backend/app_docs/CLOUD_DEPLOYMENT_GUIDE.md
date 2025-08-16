@@ -1,8 +1,15 @@
 # ☁️ Cloud Deployment Guide
 
-## 🚀 **NEW: Choose Your Deployment Method**
+## 🚀 **Updated for Modern Docker Security & uv Package Management**
 
-> **💡 TL;DR:** Use [Docker Context](#-alternative-docker-context-direct-deployment) for streamlined deployment directly from your local machine. No more SSH, git pulls, or manual file copying!
+> **💡 Latest Updates:**
+> - ✅ **Security Best Practices** - All containers now use non-root pip installation
+> - ✅ **Platform-Specific Requirements** - Linux/Windows requirements generated with uv
+> - ✅ **S3 Integration** - No more local upload directories
+> - ✅ **Comprehensive Dependencies** - Enhanced for AI/ML workloads
+> - ✅ **Clean Container Architecture** - Minimal bind mounts, stateless design
+
+## 🚀 **NEW: Choose Your Deployment Method**
 
 ### **⭐ RECOMMENDED: [Docker Context Direct Deployment](#-alternative-docker-context-direct-deployment)**
 - 🏠 **Work entirely from local machine** - no SSH required
@@ -10,12 +17,49 @@
 - 🚫 **No git operations** on remote server
 - ✅ **Same scripts work** - zero code changes needed
 - ⚡ **3-4 simple steps** vs 6-8 manual steps
+- 🔐 **Automatic security** - Uses latest Docker security practices
 
 ### **🔄 Traditional: [Git-based Deployment](#-deployment-workflow)**
 - 📡 Requires SSH into remote server
 - 🔄 Manual git pull + environment file upload
 - 📋 Multi-step process with intermediate steps
 - ⏳ **6-8 manual steps** with context switching
+
+---
+
+## 🔒 **NEW: Docker Security & Platform-Specific Requirements**
+
+### **🔐 Enhanced Security (Applied Across All Environments)**
+All Docker containers now follow production security best practices:
+- **Non-root pip installation** - Packages installed as application user (not root)
+- **User-space package management** - All dependencies in `~/.local/` directories  
+- **Minimal attack surface** - No unnecessary root privileges during runtime
+- **Clean PATH configuration** - User packages properly accessible
+
+### **🐍 Platform-Specific Python Requirements**
+We now use **uv** to generate platform-optimized requirements files:
+
+```bash
+# For Linux containers (Docker/Production)
+requirements-linux.txt    # ← Used in all Docker builds
+
+# For Windows development (Local)
+requirements-windows.txt   # ← Used for local Windows development
+
+# Source file (edit this one)
+requirements.in           # ← Add your dependencies here
+```
+
+**Key Benefits:**
+- ✅ **No pywin32 errors** in Linux containers
+- ✅ **CUDA packages** included for Linux AI/ML workloads  
+- ✅ **Platform optimization** for better performance
+- ✅ **Consistent deployments** across environments
+
+### **☁️ S3-Native Architecture**
+- **No upload bind mounts** - All file uploads go directly to S3
+- **Stateless containers** - No local file persistence required
+- **Cloud-native design** - Follows 12-factor app principles
 
 ---
 
@@ -101,7 +145,22 @@ ls CodeSandbox/.env.docker.*
 
 ## 📋 **Deployment Workflow**
 
-### **Step 1: Update Code on Cloud VM**
+### **Step 1: Prepare Platform-Specific Requirements (One-Time Setup)**
+```bash
+# On your LOCAL development machine
+cd your-project/backend
+
+# Generate platform-specific requirements (if not already done)
+uv pip compile --python-platform linux --python-version 3.10 requirements.in -o requirements-linux.txt --upgrade
+uv pip compile --python-platform windows --python-version 3.10 requirements.in -o requirements-windows.txt --upgrade
+
+# Commit the new requirements files
+git add requirements-linux.txt requirements-windows.txt
+git commit -m "Update platform-specific requirements"
+git push origin main
+```
+
+### **Step 2: Update Code on Cloud VM**
 ```bash
 # SSH into your cloud VM
 ssh user@your-cloud-vm
@@ -109,11 +168,11 @@ ssh user@your-cloud-vm
 # Navigate to project directory  
 cd /opt/your-project  # or wherever you cloned
 
-# Pull latest code
+# Pull latest code (includes new requirements-linux.txt)
 git pull origin main
 ```
 
-### **Step 2: Upload Environment Files (REQUIRED)**
+### **Step 3: Upload Environment Files (REQUIRED)**
 ```bash
 # From your LOCAL machine (not on cloud VM)  
 cd your-project
@@ -500,34 +559,40 @@ Old Container ← Old Image ← Old Env Files
 
 ### **Full Production Deployment**
 ```bash
-# 1. Update code (on cloud VM)
+# 1. Generate requirements (LOCAL - one-time setup)
+cd backend && uv pip compile --python-platform linux --python-version 3.10 requirements.in -o requirements-linux.txt --upgrade
+
+# 2. Update code (on cloud VM)
 git pull origin main
 
-# 2. Upload environments (from local machine - run from project root)
+# 3. Upload environments (from local machine - run from project root)
 python cloud_env_uploader.py --env=prod --host=user@cloud-vm --remote-repo-root-path=/opt/your-project
 
-# 3. Start database containers FIRST (on cloud VM)
+# 4. Start database containers FIRST (on cloud VM)
 cd backend/docker/database && python db_manager.py start --env=prod
 
-# 4. Rebuild application containers (on cloud VM)
+# 5. Rebuild application containers with new security features (on cloud VM)
 cd ../../ && python backend_docker_manager.py restart --prod
 cd ../CodeSandbox && python docker_setup_and_run.py restart --env=prod
 
-# 5. Verify deployment
+# 6. Verify deployment
 cd ../backend && python backend_docker_manager.py health --prod
 cd docker/database && python db_manager.py health --env=prod
 ```
 
 ### **Staging Deployment**
 ```bash
-# Same process but for staging
+# Generate requirements (LOCAL - if not already done)
+cd backend && uv pip compile --python-platform linux --python-version 3.10 requirements.in -o requirements-linux.txt --upgrade
+
+# Same process but for staging (on cloud VM)
 git pull origin main
 python cloud_env_uploader.py --env=staging --host=user@staging-vm --remote-repo-root-path=/opt/your-project
 
 # Start database containers
 cd backend/docker/database && python db_manager.py start --env=staging
 
-# Rebuild application containers  
+# Rebuild application containers with new security features
 cd ../../ && python backend_docker_manager.py restart --staging
 cd ../CodeSandbox && python docker_setup_and_run.py restart --env=staging
 ```
@@ -667,36 +732,53 @@ python docker_setup_and_run.py envs
 
 ## 📝 **Important Notes**
 
-1. **Set up SSH keys first** - avoids multiple password prompts during upload
-2. **Test SSH connection** - ensure `ssh user@your-cloud-vm` works before running script
-3. **Start database containers FIRST** - applications depend on database services
-4. **Never commit `.env` files to git** - they contain secrets
-5. **Always upload env files after git pull** - code won't work without them
-6. **Test locally first** - ensure your env files work before uploading
-7. **Backup important env files** - keep secure local copies
-8. **Use staging first** - test deployments on staging before prod
-9. **Use correct script names** - `docker_setup_and_run.py` for CodeSandbox, not `codesandbox_docker_manager.py`
+### **🔐 Security & Requirements:**
+1. **Use uv for requirements** - Generate platform-specific requirements with `uv pip compile --python-platform linux`
+2. **Commit platform requirements** - Add `requirements-linux.txt` to git for deployments  
+3. **Never commit `.env` files to git** - they contain secrets
+4. **All containers use non-root users** - Enhanced security across all environments
+
+### **🚀 Deployment Best Practices:**
+5. **Set up SSH keys first** - avoids multiple password prompts during upload
+6. **Test SSH connection** - ensure `ssh user@your-cloud-vm` works before running script
+7. **Start database containers FIRST** - applications depend on database services
+8. **Always upload env files after git pull** - code won't work without them
+9. **Use staging first** - test deployments on staging before prod
+
+### **📁 File Management:**
+10. **Files go to S3** - No local upload directories, everything cloud-native
+11. **Clean container logs** - Set up centralized logging when ready
+12. **Test locally first** - ensure your env files work before uploading
+13. **Backup important env files** - keep secure local copies
+14. **Use correct script names** - `docker_setup_and_run.py` for CodeSandbox, not `codesandbox_docker_manager.py`
 
 ---
 
 ## ❌ **Common Mistakes**
 
 ### **DON'T:**
+- ❌ Use old `requirements.txt` - Use platform-specific `requirements-linux.txt`
+- ❌ Install packages as root in containers - Use non-root user installation
 - ❌ Run script without testing SSH connection first
 - ❌ Use password auth if you'll upload frequently (set up SSH keys)
 - ❌ Start application containers before database containers
 - ❌ Start containers without uploading env files first
+- ❌ Create local upload directories - Use S3 instead
 - ❌ Use wrong script names (e.g., `codesandbox_docker_manager.py` doesn't exist)
 - ❌ Commit real env files to git repository  
 - ❌ Upload to prod without testing on staging
 - ❌ Forget to rebuild containers after env upload
 
 ### **DO:**
+- ✅ Generate requirements with uv: `uv pip compile --python-platform linux requirements.in -o requirements-linux.txt`
+- ✅ Commit `requirements-linux.txt` and `requirements-windows.txt` to git
+- ✅ Use S3 for all file uploads (cloud-native architecture)
 - ✅ Set up SSH keys for seamless uploads
 - ✅ Test SSH connection: `ssh user@your-cloud-vm` before running script
-- ✅ Always follow: git pull → env upload → databases → application containers
+- ✅ Always follow: requirements generation → git pull → env upload → databases → application containers
 - ✅ Use correct script names: `docker_setup_and_run.py` for CodeSandbox
 - ✅ Start database containers first, then application containers
 - ✅ Test environment files locally first
 - ✅ Use staging environment for testing deployments
 - ✅ Keep secure backups of environment files
+- ✅ Trust the non-root security setup in all containers

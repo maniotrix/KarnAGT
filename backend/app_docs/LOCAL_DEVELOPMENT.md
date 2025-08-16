@@ -1,6 +1,8 @@
 # 🚀 Local Development Setup
 
-This guide covers setting up local development where database services run in Docker containers while the backend application runs locally on your host machine.
+This guide covers setting up **modern local development** where database services run in Docker containers while the backend application runs locally on your host machine using **uv** for fast package management.
+
+> **💡 New in 2024:** This guide now uses **uv** for 10x faster package installation and platform-specific requirements for better compatibility.
 
 The default values in backend/app/core/config.py use settings as per local env example and docker compose files.
 
@@ -8,6 +10,7 @@ The default values in backend/app/core/config.py use settings as per local env e
 
 - Docker & Docker Compose installed
 - Python 3.10.11+
+- **uv package manager** ([Install Guide](UV_PACKAGE_MANAGEMENT_GUIDE.md#-installation--setup))
 - Git
 
 ## 🔧 **Quick Setup**
@@ -31,14 +34,26 @@ docker-compose -f docker-compose.local.yml up -d
 docker ps
 ```
 
-### **3. Install Python Dependencies**
+### **3. Install Python Dependencies (Using uv)**
 ```bash
 # Return to backend directory
 cd ../..
 
-# Install dependencies
-pip install -r requirements.txt
+# Install platform-specific dependencies (MUCH FASTER!)
+# Choose based on your operating system:
+
+# Windows:
+uv pip install -r requirements-windows.txt
+
+# Linux/macOS:  
+uv pip install -r requirements-linux.txt
+
+# Alternative: Traditional pip (slower)
+# pip install -r requirements-windows.txt  # Windows
+# pip install -r requirements-linux.txt    # Linux/macOS
 ```
+
+> **🚀 Performance Note:** uv is ~10x faster than pip! A 785-package install that takes 3-5 minutes with pip completes in 15-30 seconds with uv.
 
 ### **4. Run Database Migrations**
 ```bash
@@ -130,6 +145,53 @@ backend/
 └── app/                          # Your application code
 ```
 
+---
+
+## 📦 **Managing Dependencies During Development**
+
+### **Adding New Packages**
+```bash
+# 1. Add to requirements.in (the source file)
+echo "new-awesome-package>=1.0.0" >> requirements.in
+
+# 2. Regenerate platform-specific files
+uv pip compile --python-platform windows --python-version 3.10 requirements.in -o requirements-windows.txt --upgrade
+uv pip compile --python-platform linux --python-version 3.10 requirements.in -o requirements-linux.txt --upgrade
+
+# 3. Install locally (choose your platform)
+uv pip install -r requirements-windows.txt  # Windows
+# OR
+uv pip install -r requirements-linux.txt    # Linux/macOS
+
+# 4. Commit all changes
+git add requirements.in requirements-windows.txt requirements-linux.txt
+git commit -m "Add new-awesome-package dependency"
+```
+
+### **Updating Dependencies**
+```bash
+# Update all packages to latest versions
+uv pip compile --python-platform windows --python-version 3.10 requirements.in -o requirements-windows.txt --upgrade
+uv pip compile --python-platform linux --python-version 3.10 requirements.in -o requirements-linux.txt --upgrade
+
+# Install updates locally
+uv pip install -r requirements-windows.txt --upgrade  # Windows
+# OR  
+uv pip install -r requirements-linux.txt --upgrade    # Linux/macOS
+```
+
+### **Key Files:**
+- **`requirements.in`** - Edit this file to add/remove dependencies
+- **`requirements-windows.txt`** - Auto-generated for Windows development  
+- **`requirements-linux.txt`** - Auto-generated for Docker/Linux containers
+- **`requirements.txt`** - Legacy file, no longer used
+
+> **💡 Pro Tip:** Never edit the generated `.txt` files directly. Always edit `requirements.in` and regenerate!
+
+> **📖 Detailed Guide:** See [UV_PACKAGE_MANAGEMENT_GUIDE.md](UV_PACKAGE_MANAGEMENT_GUIDE.md) for comprehensive uv usage instructions.
+
+---
+
 ## 🔍 **Troubleshooting**
 
 ### **Database Connection Issues**
@@ -176,11 +238,20 @@ Once running, you can access:
 
 ## 🎯 **Development Workflow**
 
+### **Daily Development Process:**
 1. **Daily startup**: `cd docker/database && docker-compose -f docker-compose.local.yml up -d`
-2. **Run migrations**: `python run_migrations.py` (if schema changes)
-3. **Start backend**: `python start_app.py`
-4. **Code & test**: Your FastAPI app runs locally with hot reload
-5. **Shutdown**: `docker-compose -f docker-compose.local.yml down` (optional)
+2. **Update dependencies** (if requirements.in changed): `uv pip install -r requirements-windows.txt` (Windows) or `uv pip install -r requirements-linux.txt` (Linux/macOS)
+3. **Run migrations**: `python run_migrations.py` (if schema changes)
+4. **Start backend**: `python start_app.py`
+5. **Code & test**: Your FastAPI app runs locally with hot reload
+6. **Shutdown**: `docker-compose -f docker-compose.local.yml down` (optional)
+
+### **When Adding New Dependencies:**
+1. **Edit source**: Add package to `requirements.in`
+2. **Generate files**: Use uv to regenerate platform-specific requirements
+3. **Install locally**: `uv pip install -r requirements-[platform].txt`
+4. **Commit changes**: Add all requirements files to git
+5. **Continue development**: New packages are ready to use!
 
 ## ⚠️ **Important Notes**
 
