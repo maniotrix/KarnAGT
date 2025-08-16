@@ -27,10 +27,9 @@ services:
       retries: 3
       start_period: 30s
     volumes:
-      # Optional: Mount logs for development debugging
+      # Temporary: Mount logs for early development debugging
+      # TODO: Remove when centralized logging is implemented (CloudWatch, Datadog, etc.)
       - ./logs:/app/logs
-      # Optional: Mount uploads for development  
-      - ./uploads:/app/uploads
     depends_on:
       - database-health-check
     

@@ -1,7 +1,7 @@
 # === Environment Files ===
 .env
-.env.*
-!env.docker.app.example
+# Include Docker environment files (needed for builds)
+!.env.docker.app.*
 
 # === Python Cache ===
 __pycache__/

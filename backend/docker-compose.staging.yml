@@ -27,9 +27,9 @@ services:
       retries: 3
       start_period: 30s
     volumes:
-      # Staging: Balanced approach
+      # Temporary: Mount logs for early staging debugging
+      # TODO: Remove when centralized logging is implemented (CloudWatch, Datadog, etc.)
       - ./logs:/app/logs:rw
-      - ./uploads:/app/uploads:rw
     depends_on:
       - database-health-check
     # Staging resource limits (between dev and prod)

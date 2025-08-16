@@ -30,18 +30,21 @@ ARG BACKEND_USER=app_backend_prod
 ENV BACKEND_USER=${BACKEND_USER}
 RUN useradd --create-home --shell /bin/bash ${BACKEND_USER}
 
-# === Install Python Dependencies (as root) ===
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
-
 # === Create Application Directories ===
-RUN mkdir -p /app/logs /app/uploads && \
+RUN mkdir -p /app/logs && \
     chown -R ${BACKEND_USER}:${BACKEND_USER} /app
 
-# === Switch to Non-Root User ===
+# === Switch to Non-Root User BEFORE installing Python packages ===
 USER ${BACKEND_USER}
+
+# === Ensure user-installed packages are in PATH ===
+ENV PATH="/home/${BACKEND_USER}/.local/bin:${PATH}"
+
+# === Install Python Dependencies (as non-root user) ===
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} requirements.txt /tmp/requirements.txt
+RUN pip install --user --no-cache-dir --upgrade pip && \
+    pip install --user --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
 WORKDIR /app
 
 # === Copy Environment Configuration ===

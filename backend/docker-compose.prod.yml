@@ -27,7 +27,8 @@ services:
       retries: 3
       start_period: 30s
     volumes:
-      # Production: Only essential mounts
+      # Temporary: Mount logs for early production debugging
+      # TODO: Remove when centralized logging is implemented (CloudWatch, Datadog, etc.)
       - ./logs:/app/logs:rw
     depends_on:
       - database-health-check
