@@ -5,6 +5,7 @@ Auto-detects environment and configures accordingly
 """
 import os
 import sys
+import time
 from pathlib import Path
 from typing import List, Tuple
 import re
@@ -398,6 +399,26 @@ if __name__ == "__main__":
         # Setup MinIO buckets
         setup_minio_if_needed()
         print("")
+        
+        # ⚠️ CRITICAL DATABASE MIGRATION REMINDER ⚠️
+        print("🔥" + "="*70 + "🔥")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  ⚠️  IMPORTANT: DATABASE MIGRATIONS REQUIRED  ⚠️         🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  Before using the application, ensure you have:          🚨")
+        print("🚨  1. 📋 Applied all database migrations                   🚨")
+        print("🚨  2. 🗃️  Created required database tables                 🚨")
+        print("🚨  3. 🔧 Set up initial database schema                   🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  🛠️  Run: cd backend && alembic upgrade head              🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  ❌ Missing migrations = Application will fail!         🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🔥" + "="*70 + "🔥")
+        print("")
+        
+        # Brief pause to ensure the message is seen
+        time.sleep(2)
         
         # Environment-specific configuration  
         print(f"🌐 Starting server on 0.0.0.0:8000")
