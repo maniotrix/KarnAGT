@@ -190,7 +190,92 @@ python backend_docker_manager.py health --dev
 
 ### **Common Issues & Solutions**
 
-#### **1. Database Connection Failed**
+#### **1. Frontend Health Check Failures**
+```
+❌ Container shows as "unhealthy" despite running correctly
+```
+**Common Causes & Solutions:**
+
+**A) BusyBox wget compatibility issues:**
+```bash
+# ❌ WRONG (BusyBox wget doesn't support these flags):
+healthcheck:
+  test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+
+# ✅ CORRECT (Use curl instead):
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://127.0.0.1:3000"]
+```
+
+**B) localhost vs 127.0.0.1 in containers:**
+```bash
+# Test both inside container to identify the issue
+docker exec container-name curl -f http://localhost:3000    # May fail
+docker exec container-name curl -f http://127.0.0.1:3000   # Usually works
+
+# Use 127.0.0.1 for health checks in containers
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://127.0.0.1:3000"]
+```
+
+**C) Check what ports nginx/service is actually listening on:**
+```bash
+docker exec container-name netstat -tuln
+# Should show: 0.0.0.0:3000   LISTEN
+```
+
+#### **2. Traefik IP Caching and Routing Issues**
+```
+❌ Error while Peeking first byte error="read tcp 172.19.0.8:8000->172.19.0.1:54574: i/o timeout"
+❌ Can't access frontend through https://localhost/
+```
+**Root Cause:** Traefik caches container IP addresses, but container restarts assign new IPs.
+
+**Solution A - Restart Traefik (Quick Fix):**
+```bash
+docker restart traefik-dev
+# Forces Traefik to rediscover all container IPs
+```
+
+**Solution B - Start containers together (Recommended):**
+```bash
+# Start all containers from the same compose file
+cd backend && docker-compose -f docker-compose.dev.yml up -d
+# This ensures Traefik and backend start together
+```
+
+**Debug Traefik routing:**
+```bash
+# Check Traefik dashboard
+curl http://localhost:8080/dashboard/
+
+# Check container network IPs
+docker network inspect dev-network --format '{{json .Containers}}'
+
+# View Traefik logs
+docker logs traefik-dev --tail 20
+```
+
+#### **3. Container Startup Order Issues**
+```
+❌ Frontend can't connect to backend through Traefik
+❌ Services started but routing not working
+```
+**Problem:** Starting containers from different compose files causes timing issues.
+
+**Solution - Proper startup sequence:**
+```bash
+# 1. Start main infrastructure (backend + traefik)
+cd backend && docker-compose -f docker-compose.dev.yml up -d
+
+# 2. Then start frontend (connects to existing network)
+cd frontend/chatgpt-frontend && docker-compose -f docker-compose.dev.yml up -d
+
+# 3. If routing fails, restart Traefik
+docker restart traefik-dev
+```
+
+#### **4. Database Connection Failed**
 ```
 ❌ Database connection failed: connection refused
 ```

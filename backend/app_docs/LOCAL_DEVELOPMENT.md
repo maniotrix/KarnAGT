@@ -272,6 +272,33 @@ alembic downgrade base
 alembic upgrade head
 ```
 
+### **Container Health Check Issues**
+```bash
+# If Docker containers show as "unhealthy":
+docker ps  # Check STATUS column
+
+# Debug health checks manually
+docker exec container-name curl -f http://127.0.0.1:PORT
+
+# Common fix for BusyBox containers (nginx/Alpine):
+# Use curl instead of wget in health checks
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://127.0.0.1:3000"]
+```
+
+### **Network Connectivity Issues**
+```bash
+# Check container network connectivity
+docker network ls | grep local
+
+# Test service discovery (containers talking to each other)
+docker exec backend-container ping postgres
+docker exec backend-container ping redis
+
+# Check what ports services are actually listening on
+docker exec container-name netstat -tuln
+```
+
 ## 🌐 **Access Services**
 
 Once running, you can access:

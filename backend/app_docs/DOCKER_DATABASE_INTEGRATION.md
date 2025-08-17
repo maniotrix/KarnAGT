@@ -321,6 +321,139 @@ Your backend application will now:
 
 **This achieves true environment parity** - database containers are identical across environments, only ports, passwords, and resources differ!
 
+## 🔧 **Docker Network Troubleshooting**
+
+### **Container Network Communication Issues**
+
+#### **Traefik IP Caching Problems**
+```
+❌ Error while Peeking first byte error="read tcp 172.19.0.X:8000->172.19.0.1:XXXXX: i/o timeout"
+```
+
+**Root Cause:** When containers restart, Docker assigns new IP addresses, but Traefik continues trying to reach the old cached IPs.
+
+**Quick Fix:**
+```bash
+docker restart traefik-dev
+# Forces Traefik to rediscover all container IPs on dev-network
+```
+
+**Best Practice:**
+```bash
+# Start backend + Traefik together to avoid IP mismatches
+cd backend && docker-compose -f docker-compose.dev.yml up -d
+```
+
+#### **Network Connectivity Debugging**
+```bash
+# Check network topology and IPs
+docker network inspect dev-network --format '{{json .Containers}}'
+
+# Test inter-container connectivity  
+docker exec traefik-dev ping -c 2 app-backend-development
+docker exec traefik-dev ping -c 2 app-frontend-development
+
+# Check if containers are on the correct network
+docker ps --format "table {{.Names}}\t{{.Networks}}"
+```
+
+#### **Frontend-Backend Communication Through Traefik**
+```
+❌ Frontend can't reach backend APIs
+❌ CORS errors or 404 responses
+```
+
+**Common Issues:**
+1. **Traefik routing rules conflict** - Check priority settings
+2. **SSL redirect loops** - Verify security headers middleware
+3. **Container startup order** - Frontend starts before backend is ready
+
+**Debug Steps:**
+```bash
+# 1. Verify Traefik dashboard shows all services
+curl http://localhost:8080/api/rawdata | jq '.http.services'
+
+# 2. Test direct access (bypass Traefik)
+docker exec app-backend-development curl -f http://127.0.0.1:8000/api/v1/health
+
+# 3. Test Traefik routing
+curl -H "Host: localhost" http://localhost:8000/api/v1/health  # Backend
+curl -H "Host: localhost" http://localhost/  # Frontend
+
+# 4. Check security headers middleware
+curl -I https://localhost/api/v1/health 2>&1 | grep -E "(X-|Strict-)"
+```
+
+### **Container Health Check Issues**
+
+#### **Health Checks Failing Inside Containers**
+```
+❌ Container shows "unhealthy" despite service running
+```
+
+**BusyBox vs Full Linux containers:**
+```bash
+# Identify container base image
+docker exec container-name cat /etc/os-release
+
+# BusyBox containers (Alpine/nginx):
+# - Limited wget support
+# - Use curl instead of wget
+# - Use 127.0.0.1 instead of localhost
+
+# Full Linux containers:
+# - Full wget/curl support  
+# - localhost usually works fine
+```
+
+**Testing health checks manually:**
+```bash
+# Test the exact health check command
+docker exec container-name curl -f http://127.0.0.1:3000
+docker exec container-name wget --spider http://127.0.0.1:3000
+
+# Check what's actually listening
+docker exec container-name netstat -tuln
+```
+
+### **Multi-Compose File Architecture**
+
+**Understanding Your Setup:**
+```
+backend/docker-compose.dev.yml          ← Contains: Traefik + Backend + Databases
+frontend/chatgpt-frontend/docker-compose.dev.yml  ← Contains: Frontend only
+```
+
+**Network Connection Strategy:**
+```yaml
+# Backend compose creates the network
+networks:
+  dev-network:
+    driver: bridge
+    name: dev-network
+
+# Frontend compose connects to existing network  
+networks:
+  dev-network:
+    external: true
+    name: dev-network
+```
+
+**Startup Order Best Practices:**
+```bash
+# 1. Start infrastructure first (creates network + traefik)
+cd backend && docker-compose -f docker-compose.dev.yml up -d
+
+# 2. Wait for Traefik to be ready
+docker logs traefik-dev --tail 5
+
+# 3. Start frontend (connects to existing network)
+cd frontend/chatgpt-frontend && docker-compose -f docker-compose.dev.yml up -d
+
+# 4. If routing issues persist, restart Traefik
+docker restart traefik-dev
+```
+
 ## 🔐 **Git Security & Team Collaboration**
 
 ### **🚨 Smart Security Protection**
