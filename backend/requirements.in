@@ -53,6 +53,7 @@ pydantic
 pydantic[email]
 
 passlib
+bcrypt
 
 
 redis
