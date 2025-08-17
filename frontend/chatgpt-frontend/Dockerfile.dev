@@ -13,10 +13,17 @@ COPY package.json package-lock.json* ./
 # Install dependencies
 RUN npm ci && npm cache clean --force
 
+# Accept build argument
+ARG VITE_API_URL=https://localhost
+
+# Set as environment variable for build process  
+ENV VITE_API_URL=$VITE_API_URL
+
 # Copy application code
 COPY . .
 
 # Build the application (skip TypeScript check for now)
+# Now vite build will use the correct VITE_API_URL
 RUN npx vite build
 
 # Production stage - lightweight HTTP server
