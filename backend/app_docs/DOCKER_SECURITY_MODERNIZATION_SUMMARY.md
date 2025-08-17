@@ -35,6 +35,54 @@ All containers now run with minimal privileges:
 - **CodeSandbox containers:** Run as `code_sandbox` user  
 - **No unnecessary root access** during package installation or runtime
 
+### **🛡️ Traefik Security Headers Middleware (Global Implementation)**
+**Problem Solved:** Security headers were scattered across multiple compose files with inconsistent middleware references causing `middleware does not exist` errors.
+
+**Solution Implemented:** Industry-standard file provider approach for global security headers.
+
+**File Structure:**
+```
+backend/
+├── docker-compose.dev.yml
+├── docker-compose.staging.yml  
+├── docker-compose.prod.yml
+└── traefik/
+    └── middlewares.yml  ← Global middleware definitions
+```
+
+**Implementation:**
+```dockerfile
+# Traefik Configuration (All Environments)
+volumes:
+  - ./traefik:/etc/traefik:ro  # Middleware definitions
+command:
+  - --providers.file.directory=/etc/traefik
+  - --providers.file.watch=true
+  # Global application
+  - --entrypoints.websecure.http.middlewares=security-headers@file
+```
+
+**Security Headers Applied:**
+- `browserXssFilter: true` - XSS protection
+- `contentTypeNosniff: true` - MIME sniffing protection
+- `frameDeny: true` - Clickjacking protection
+- `sslRedirect: true` - Force HTTPS
+- `stsSeconds: 31536000` - HSTS for 1 year
+- `stsIncludeSubdomains: true` - HSTS for subdomains
+- `stsPreload: true` - HSTS preload list
+
+**Benefits:**
+- ✅ **DRY Principle:** Define once, apply everywhere
+- ✅ **Zero maintenance:** New services inherit headers automatically
+- ✅ **Hot reload:** Middleware changes without container restart
+- ✅ **Production grade:** Industry standard file provider approach
+- ✅ **Consistent security:** All HTTPS requests get security headers
+
+**Applied to:**
+- ✅ `backend/docker-compose.dev.yml`
+- ✅ `backend/docker-compose.staging.yml`
+- ✅ `backend/docker-compose.prod.yml`
+
 ---
 
 ## 🐍 **Platform-Specific Requirements (uv Integration)**

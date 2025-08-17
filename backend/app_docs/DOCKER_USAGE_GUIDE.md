@@ -399,3 +399,67 @@ You can now start the application containers.
 - ✅ **Production Safe** - Same approach works across all environments
 
 Your backend is now **production-ready with full migration control**! 🎯
+
+---
+
+## 🛡️ **Traefik Security Headers Middleware**
+
+### **📁 File Structure**
+```
+backend/
+├── docker-compose.dev.yml
+├── docker-compose.staging.yml
+├── docker-compose.prod.yml
+└── traefik/
+    └── middlewares.yml  ← Global security headers
+```
+
+### **🔧 Configuration**
+Security headers are applied globally using Traefik's file provider:
+
+**Middleware Definition (`backend/traefik/middlewares.yml`):**
+```yaml
+http:
+  middlewares:
+    security-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true
+        sslRedirect: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+```
+
+**Docker Compose Configuration:**
+```yaml
+traefik:
+  volumes:
+    - ./traefik:/etc/traefik:ro  # Load middleware files
+  command:
+    - --providers.file.directory=/etc/traefik
+    - --providers.file.watch=true
+    # Apply globally to all HTTPS routes
+    - --entrypoints.websecure.http.middlewares=security-headers@file
+```
+
+### **✨ Benefits**
+- 🔒 **Automatic Security:** All HTTPS routes get security headers
+- 🔄 **Hot Reload:** Edit `middlewares.yml` without restart
+- 🎯 **DRY Principle:** Define once, apply everywhere
+- 🏭 **Production Grade:** Industry standard approach
+
+### **🧪 Testing Security Headers**
+```bash
+# Test any HTTPS endpoint
+curl -I https://localhost/api/v1/health
+
+# Should return headers like:
+# X-Xss-Protection: 1; mode=block
+# X-Content-Type-Options: nosniff
+# X-Frame-Options: DENY
+# Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+```
+
+**Your application now has enterprise-level security headers! 🛡️**

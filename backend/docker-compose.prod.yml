@@ -18,6 +18,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro  # IDENTICAL security
       - ./data:/data  # For Let's Encrypt certificates
+      - ./traefik:/etc/traefik:ro  # Middleware definitions
     command:
       # NO dashboard in production - SECURITY
       - --api.dashboard=false
@@ -26,6 +27,10 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=prod-network
+      
+      # File provider for middlewares
+      - --providers.file.directory=/etc/traefik
+      - --providers.file.watch=true
       
       # IDENTICAL entry points
       - --entrypoints.web.address=:80
@@ -42,7 +47,7 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       
       # Global security headers (applied to all routes)
-      - --entrypoints.websecure.http.middlewares=security-headers@docker
+      - --entrypoints.websecure.http.middlewares=security-headers@file
       
       # Production logging
       - --log.level=WARN
@@ -50,14 +55,6 @@ services:
       - prod-network
     labels:
       - "traefik.enable=true"
-      # IDENTICAL security headers to dev
-      - "traefik.http.middlewares.security-headers.headers.browserxssfilter=true"
-      - "traefik.http.middlewares.security-headers.headers.contenttypenosniff=true"
-      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
-      - "traefik.http.middlewares.security-headers.headers.sslredirect=true"
-      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.security-headers.headers.stsPreload=true" 
-      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "traefik", "healthcheck"]

@@ -19,6 +19,7 @@ services:
       - "8080:8080"   # Dashboard (DEV ONLY)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro  # Read-only for security
+      - ./traefik:/etc/traefik:ro  # Middleware definitions
     command:
       # Dashboard - DEVELOPMENT ONLY
       - --api.dashboard=true
@@ -28,6 +29,10 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false  # SECURITY: Explicit labels only
       - --providers.docker.network=dev-network
+      
+      # File provider for middlewares
+      - --providers.file.directory=/etc/traefik
+      - --providers.file.watch=true
       
       # Entry points
       - --entrypoints.web.address=:80
@@ -43,8 +48,8 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       
       # Global security headers (applied to all routes)
-      - --entrypoints.websecure.http.middlewares=security-headers@docker
-      - --entrypoints.api.http.middlewares=security-headers@docker
+      - --entrypoints.websecure.http.middlewares=security-headers@file
+      - --entrypoints.api.http.middlewares=security-headers@file
       
       # Logging for development
       - --log.level=INFO
@@ -52,14 +57,6 @@ services:
       - dev-network
     labels:
       - "traefik.enable=true"
-      # Security headers middleware
-      - "traefik.http.middlewares.security-headers.headers.browserxssfilter=true"
-      - "traefik.http.middlewares.security-headers.headers.contenttypenosniff=true"
-      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
-      - "traefik.http.middlewares.security-headers.headers.sslredirect=true"
-      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.security-headers.headers.stsPreload=true" 
-      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "traefik", "healthcheck"]
