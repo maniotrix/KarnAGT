@@ -33,12 +33,14 @@ This document outlines the complete strategy for implementing database container
 - **Simple container setup** - no complex init containers or permission handling
 - **Project naming** to prevent container grouping conflicts
 
-### **5. Docker Service Discovery Networking**
+### **5. Modern Networking with Traefik Integration**
+- **Traefik reverse proxy** handles external routing and SSL termination
+- **Unified networks per environment** - `dev-network`, `staging-network`, `prod-network`
 - **Container-to-container communication** uses service names (postgres, redis, neo4j, qdrant, minio)
 - **Internal ports** are consistent across all environments (5432, 6379, 7687, 6333, 9000)
-- **External ports** differ per environment for admin access (5433 dev, 5434 staging, 5432 prod)
-- **Network isolation** with environment-specific Docker bridge networks
-- **Dual access pattern** - containers use service discovery, admins use localhost
+- **External access via Traefik** - HTTP (80), HTTPS (443), API (8000), Files (9000), Dashboard (8080)
+- **Network isolation** with environment-specific unified networks
+- **SSL/TLS support** - Self-signed for dev, Let's Encrypt for staging/prod
 
 ---
 
@@ -59,20 +61,23 @@ MinIO (Object Storage for Files)
 Backup Service (On-demand)
 ```
 
-### **Environment Isolation**
+### **Environment Isolation with Traefik**
 ```
 Development Environment:
-├── Network: app_db_network_dev
+├── Network: dev-network (unified)
+├── Traefik: HTTP(80), HTTPS(443), API(8000), Files(9000), Dashboard(8080)
 ├── Containers: postgres_dev, redis_dev, qdrant_dev, neo4j_dev, minio_dev
 └── Volumes: pgdata_dev, redisdata_dev, qdrantdata_dev, neo4jdata_dev, etc.
 
 Staging Environment:
-├── Network: app_db_network_staging
+├── Network: staging-network (unified) 
+├── Traefik: api-staging.yourdomain.com, files-staging.yourdomain.com
 ├── Containers: postgres_staging, redis_staging, qdrant_staging, neo4j_staging, minio_staging
 └── Volumes: pgdata_staging, redisdata_staging, qdrantdata_staging, neo4jdata_staging, etc.
 
 Production Environment:
-├── Network: app_db_network_prod  
+├── Network: prod-network (unified)
+├── Traefik: api.yourdomain.com, files.yourdomain.com
 ├── Containers: postgres_prod, redis_prod, qdrant_prod, neo4j_prod, minio_prod
 └── Volumes: pgdata_prod, redisdata_prod, qdrantdata_prod, neo4jdata_prod, etc.
 ```
@@ -369,16 +374,24 @@ BACKUP_S3_BUCKET=app-prod-backups
 
 ## 🔌 **Port Allocation & Backend Coordination Strategy**
 
-### **Port Allocation Logic**
+### **Modern Port Allocation with Traefik**
 ```bash
-# Production gets DEFAULT ports (industry standard)
-Production:  5432, 6379, 7474, 7687, 6333, 9000, 9001
+# Traefik Ports (All Environments)
+HTTP:         80    (Traefik web entrypoint)
+HTTPS:        443   (Traefik websecure entrypoint)  
+Backend API:  8000  (Traefik api entrypoint)
+MinIO Files:  9000  (Traefik files entrypoint)
+Dashboard:    8080  (Traefik dashboard - dev only)
 
-# Development gets CUSTOM ports (avoid conflicts)  
+# Database Direct Access Ports (Admin Tools Only)
+# Development: Custom ports (avoid conflicts)
 Development: 5433, 6380, 7475, 7688, 6335, 9002, 9003
 
-# Staging gets CUSTOM ports (can run simultaneously with dev)
+# Staging: Custom ports (can run with dev)  
 Staging:     5434, 6381, 7476, 7689, 6337, 9004, 9005
+
+# Production: Standard ports (industry default)
+Production:  5432, 6379, 7474, 7687, 6333, 9000, 9001
 ```
 
 ### **Backend Application Environment Coordination**
@@ -397,7 +410,10 @@ REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=dev_neo4j_password_123
 QDRANT_URL=http://qdrant:6333
-S3_ENDPOINT_URL=http://minio:9000
+
+# 🗄️ MinIO Configuration (Dual Endpoint Strategy)
+S3_ENDPOINT_URL=http://minio:9000                    # Internal operations
+S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000     # Browser-accessible URLs
 
 # Application Settings
 CORS_ORIGINS=http://localhost:3000
@@ -416,7 +432,10 @@ REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=staging_neo4j_password_456
 QDRANT_URL=http://qdrant:6333
-S3_ENDPOINT_URL=http://minio:9000
+
+# 🗄️ MinIO Configuration (Dual Endpoint Strategy)
+S3_ENDPOINT_URL=http://minio:9000                           # Internal operations
+S3_PRESIGNED_URL_ENDPOINT=https://files-staging.yourdomain.com  # Browser-accessible URLs
 
 # Application Settings
 CORS_ORIGINS=https://staging.yourapp.com
@@ -435,7 +454,10 @@ REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=ultra_secure_neo4j_password
 QDRANT_URL=http://qdrant:6333
-S3_ENDPOINT_URL=http://minio:9000
+
+# 🗄️ MinIO Configuration (Dual Endpoint Strategy)
+S3_ENDPOINT_URL=http://minio:9000                    # Internal operations  
+S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Browser-accessible URLs
 
 # Application Settings
 CORS_ORIGINS=https://yourapp.com
@@ -495,16 +517,26 @@ docker-compose -f docker-compose.local.yml up -d
 ```
 
 ### **Complete Port Reference Table**
+
+#### **🌐 Traefik External Ports (All Environments)**
 | Service           | Development | Staging | Production | Purpose                    |
 |-------------------|-------------|---------|------------|----------------------------|
-| PostgreSQL        | 5433        | 5434    | **5432**   | Primary database           |
-| Redis             | 6380        | 6381    | **6379**   | Cache & sessions           |
+| **HTTP**          | 80          | 80      | **80**     | Web traffic (redirects to HTTPS) |
+| **HTTPS**         | 443         | 443     | **443**    | Secure web traffic         |
+| **Backend API**   | 8000        | 8000    | **8000**   | FastAPI application        |
+| **MinIO Files**   | 9000        | 9000    | **9000**   | Object storage API         |
+| **Traefik Dashboard** | 8080    | -       | -          | Admin dashboard (dev only) |
+
+#### **🔧 Database Direct Access (Admin Tools Only)**
+| Service           | Development | Staging | Production | Purpose                    |
+|-------------------|-------------|---------|------------|----------------------------|
+| PostgreSQL        | 5433        | 5434    | **5432**   | Database management        |
+| Redis             | 6380        | 6381    | **6379**   | Cache inspection           |
 | Neo4j HTTP        | 7475        | 7476    | **7474**   | Graph database browser     |
 | Neo4j Bolt        | 7688        | 7689    | **7687**   | Graph database driver      |
 | Qdrant API        | 6335        | 6337    | **6333**   | Vector database API        |
 | Qdrant gRPC       | 6336        | 6338    | **6334**   | Vector database gRPC       |
-| MinIO API         | 9002        | 9004    | **9000**   | Object storage API         |
-| MinIO Console     | 9003        | 9005    | **9001**   | Object storage console     |
+| MinIO Console     | 9003        | 9005    | **9001**   | Storage admin console      |
 
 ### **Benefits of Separate Environment Files**
 - **Environment-appropriate configurations** - dev uses bind mounts, prod uses named volumes
@@ -643,20 +675,22 @@ secrets/prod/minio_password.txt        # Production MinIO password (strong)
 # - Azure Key Vault
 ```
 
-### **2. Network Security**
+### **2. Network Security with Traefik**
 ```yaml
-# Each environment gets isolated network (hardcoded names)
+# Each environment gets unified network with Traefik integration
 networks:
-  app_db_network_dev:        # Development network
+  dev-network:               # Development unified network
     driver: bridge
-    name: app_db_network_dev
-  app_db_network_staging:    # Staging network  
+    name: dev-network
+    
+  staging-network:           # Staging unified network
     driver: bridge
-    name: app_db_network_staging
-  app_db_network_prod:       # Production network
+    name: staging-network
+    
+  prod-network:              # Production unified network
     driver: bridge
-    name: app_db_network_prod
-    # No external internet access by default
+    name: prod-network
+    # Traefik handles SSL/TLS termination and external routing
 ```
 
 ### **3. Container Security**
@@ -1001,7 +1035,8 @@ This strategy provides a **robust database infrastructure foundation** with **co
 |------------|-----------------|-------------|----------------|-------------------|
 | **Database Names** | `app_dev_db` | `app_staging_db` | `app_prod_db` | Complete data isolation |
 | **Container Names** | `postgres_dev`, `redis_dev`, `neo4j_dev`, `qdrant_dev`, `minio_dev` | `postgres_staging`, `redis_staging`, `neo4j_staging`, `qdrant_staging`, `minio_staging` | `postgres_prod`, `redis_prod`, `neo4j_prod`, `qdrant_prod`, `minio_prod` | Environment identification |
-| **Network Names** | `app_db_network_dev` | `app_db_network_staging` | `app_db_network_prod` | Network isolation |
+| **Network Names** | `dev-network` | `staging-network` | `prod-network` | Unified network isolation |
+| **Traefik Domains** | `localhost` | `*.yourdomain.com` (staging) | `*.yourdomain.com` (prod) | Environment-specific routing |
 | **Volume Names** | `pgdata_dev`, `redisdata_dev`, `neo4jdata_dev`, `qdrantdata_dev`, `minio_data_dev` | `pgdata_staging`, `redisdata_staging`, `neo4jdata_staging`, `qdrantdata_staging`, `minio_data_staging` | `pgdata_prod`, `redisdata_prod`, `neo4jdata_prod`, `qdrantdata_prod`, `minio_data_prod` | Separate data storage |
 | **PostgreSQL Port** | **5433** (custom) | **5434** (custom) | **5432** (default) | Prod gets standard, others avoid conflicts |
 | **Redis Port** | **6380** (custom) | **6381** (custom) | **6379** (default) | Prod gets standard, others avoid conflicts |

@@ -34,6 +34,17 @@ python db_manager.py stop --env=dev
 
 ## 📊 Services & Ports
 
+### **🌐 External Access via Traefik (All Environments)**
+**Modern reverse proxy handles all external routing:**
+
+| Service | Port | Purpose | Development | Production |
+|---------|------|---------|-------------|------------|
+| **HTTP** | 80 | Web traffic | ✅ Redirects to HTTPS | ✅ Redirects to HTTPS |
+| **HTTPS** | 443 | Secure web traffic | ✅ Self-signed SSL | ✅ Let's Encrypt SSL |
+| **Backend API** | 8000 | FastAPI application | ✅ localhost:8000 | ✅ api.yourdomain.com |
+| **MinIO Files** | 9000 | Object storage API | ✅ localhost:9000 | ✅ files.yourdomain.com |
+| **Dashboard** | 8080 | Traefik admin | ✅ Dev only | ❌ Disabled |
+
 ### **🐳 Container-to-Container Communication (Service Discovery)**
 **Backend containers use these for database connections:**
 
@@ -142,11 +153,16 @@ python db_manager.py health --env=dev
 
 ## 🏗️ Architecture
 
-### Environment Isolation
+### Modern Environment Isolation with Traefik
 ```
-Development:     app_db_network_dev     (ports: 5433, 6380, 7475, 7688, 6335, 9002, 9003)
-Staging:         app_db_network_staging (ports: 5434, 6381, 7476, 7689, 6337, 9004, 9005)
-Production:      app_db_network_prod    (ports: 5432, 6379, 7474, 7687, 6333, 9000, 9001)
+Development:     dev-network (unified)     + Traefik (80,443,8000,9000,8080)
+Staging:         staging-network (unified) + Traefik (api-staging.yourdomain.com)
+Production:      prod-network (unified)    + Traefik (api.yourdomain.com)
+
+Database Direct Access (Admin Only):
+Development:     (ports: 5433, 6380, 7475, 7688, 6335, 9002, 9003)
+Staging:         (ports: 5434, 6381, 7476, 7689, 6337, 9004, 9005)  
+Production:      (ports: 5432, 6379, 7474, 7687, 6333, 9000, 9001)
 ```
 
 ### Volume Management
@@ -156,6 +172,24 @@ Each environment has isolated volumes:
 - `neo4jdata_dev` / `neo4jdata_staging` / `neo4jdata_prod`
 - `qdrantdata_dev` / `qdrantdata_staging` / `qdrantdata_prod`
 - `minio_data_dev` / `minio_data_staging` / `minio_data_prod`
+
+### MinIO Dual Endpoint Architecture
+MinIO uses a **dual endpoint strategy** to solve presigned URL browser access issues:
+
+```bash
+# Internal operations (container-to-container)
+S3_ENDPOINT_URL=http://minio:9000
+
+# Presigned URLs (browser access via Traefik)
+S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000     # Development
+S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Production
+```
+
+**Why This Works:**
+- ✅ Backend operations use internal Docker networking (`minio:9000`)
+- ✅ Presigned URLs work from browsers via Traefik routing
+- ✅ Perfect signature matching for all environments
+- ✅ No deprecated MinIO environment variables needed
 
 ## 🔐 Security
 
@@ -266,7 +300,10 @@ REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=dev_neo4j_password_123
 QDRANT_URL=http://qdrant:6333
-S3_ENDPOINT_URL=http://minio:9000
+
+# MinIO Dual Endpoint Strategy
+S3_ENDPOINT_URL=http://minio:9000                    # Internal operations
+S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000     # Browser-accessible URLs
 ```
 
 #### Production  
@@ -277,7 +314,10 @@ REDIS_URL=redis://:strong_redis_password@redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=strong_neo4j_password
 QDRANT_URL=http://qdrant:6333
-S3_ENDPOINT_URL=http://minio:9000
+
+# MinIO Dual Endpoint Strategy
+S3_ENDPOINT_URL=http://minio:9000                        # Internal operations
+S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Browser-accessible URLs
 ```
 
 ### **🖥️ External Access (Admin Tools Only)**
@@ -460,13 +500,18 @@ This prevents container mixing and makes environment management clearer.
 
 ## 🎯 Recent Updates & Features
 
+✅ **Traefik Reverse Proxy Integration** - Modern routing with SSL/TLS support  
+✅ **Unified Network Architecture** - Single network per environment (dev-network, staging-network, prod-network)  
+✅ **MinIO Dual Endpoint Solution** - Fixed presigned URL browser access issues  
+✅ **Modern Port Structure** - Traefik handles external routing (80,443,8000,9000,8080)  
 ✅ **Minimal Configuration** - Clean `db_config.json` with only essential keys (28 lines vs 107 lines)  
 ✅ **Configuration-Driven Compose Files** - `db_manager.py` reads compose file paths from config instead of hardcoding  
-✅ **Multi-Environment Support** - Dev, staging, prod environments  
+✅ **Multi-Environment Support** - Dev, staging, prod environments with perfect isolation  
 ✅ **Maximum Compatibility** - Simple container setup works everywhere  
 ✅ **Project Naming** - Unique Docker Compose project names prevent conflicts  
 ✅ **Simplified Authentication** - Direct environment variables, no complex commands  
 ✅ **Self-Contained Configuration** - All config embedded in compose files  
+✅ **Enhanced Security** - Traefik with SSL/TLS, secure headers, exposedByDefault=false  
 ✅ **Enhanced backup system** - Comprehensive backup/restore for all services  
 ✅ **No Resource Limits** - Services can use whatever resources they need  
 ✅ **Development-Friendly** - Simple setup like your original working compose file  

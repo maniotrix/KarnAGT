@@ -22,6 +22,11 @@ cp env.local.example .env
 
 # Edit .env and add your API keys (especially OPENAI_API_KEY)
 nano .env  # or your preferred editor
+
+# CRITICAL: Update MinIO configuration for dual endpoint strategy
+# Add to your .env file:
+# S3_ENDPOINT_URL=http://localhost:9000
+# S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000  # Browser access
 ```
 
 ### **2. Start Database Services**
@@ -70,6 +75,22 @@ python start_app.py
 python start_dev.py
 ```
 
+### **6. (Optional) Start CodeSandbox for Local Development**
+If your backend needs CodeSandbox integration, you have two options:
+
+```bash
+# Option A: Direct port access (recommended for local backend development)
+cd ../CodeSandbox
+python docker_setup_and_run.py start --local
+
+# Option B: Full Traefik integration (use when backend is also in Docker)
+python docker_setup_and_run.py start --dev
+```
+
+**CodeSandbox Local vs Dev:**
+- **Local**: Direct port mapping (8080), perfect for host-based backend development
+- **Dev**: Traefik integration, use when backend runs in Docker containers
+
 ## 🗄️ **Database Services Architecture**
 
 ### **Local Development Ports**
@@ -86,8 +107,16 @@ python start_dev.py
 PostgreSQL: app_local_user:app_local_password@localhost:5432/app_local_db
 Redis: redis://localhost:6379/0 (no auth)
 Neo4j: neo4j:neo4j_password@bolt://localhost:7687
-MinIO: minioadmin:minioadmin123@http://localhost:9000
 Qdrant: http://localhost:6333 (no auth)
+
+# MinIO (Local Development - Single Endpoint)
+MinIO API: http://localhost:9000
+MinIO Console: http://localhost:9001
+Credentials: minioadmin:minioadmin123
+
+# Environment Configuration:
+S3_ENDPOINT_URL=http://localhost:9000
+S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000  # Same for local development
 ```
 
 ## 🛠️ **Database Management Commands**
@@ -129,6 +158,23 @@ docker logs redis
 docker logs neo4j
 docker logs qdrant
 docker logs minio
+```
+
+### **CodeSandbox Management (Optional)**
+```bash
+cd ../CodeSandbox
+
+# Start CodeSandbox for local backend development
+python docker_setup_and_run.py start --local
+
+# Check available environments
+python docker_setup_and_run.py envs
+
+# View CodeSandbox logs  
+docker-compose -f docker-compose.local.yml logs -f
+
+# Stop CodeSandbox
+docker-compose -f docker-compose.local.yml down
 ```
 
 ## 📁 **Project Structure for Local Dev**
@@ -257,6 +303,8 @@ Once running, you can access:
 
 - **Environment File**: Always use `.env` created from `env.local.example`
 - **API Keys**: Add your actual OpenAI API key to `.env`
+- **MinIO Configuration**: Include both `S3_ENDPOINT_URL` and `S3_PRESIGNED_URL_ENDPOINT` for proper file access
+- **CodeSandbox Options**: Choose `--local` for host-based backend, `--dev` for containerized backend
 - **Data Persistence**: Database data persists in Docker volumes
 - **Network**: Services communicate via `localhost` (not Docker networking)
 - **Hot Reload**: Application supports hot reload for development

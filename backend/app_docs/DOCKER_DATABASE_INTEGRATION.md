@@ -7,14 +7,19 @@ This document shows how to use your backend application with the database contai
 Your database containers are managed by **minimal configuration** and **environment-specific Docker Compose files**:
 
 ```
-Database Infrastructure (Simplified & Clean)
+Modern Database Infrastructure with Traefik
 ├── db_config.json              (Minimal configuration - 28 lines, only essentials)
-├── docker-compose.dev.yml      (Development containers)
-├── docker-compose.staging.yml  (Staging containers)  
-└── docker-compose.prod.yml     (Production containers)
+├── docker-compose.dev.yml      (Development containers + Traefik)
+├── docker-compose.staging.yml  (Staging containers + Traefik)  
+└── docker-compose.prod.yml     (Production containers + Traefik)
+├── Unified Networks: dev-network, staging-network, prod-network
+└── Traefik Integration: SSL/TLS, routing, security headers
 ```
 
 **Key Features:**
+- ✅ **Traefik Reverse Proxy** - Modern SSL/TLS termination and routing
+- ✅ **Unified Network Architecture** - Single network per environment for simplicity
+- ✅ **MinIO Dual Endpoint Solution** - Fixed presigned URL browser access issues
 - ✅ **Minimal Configuration** - Clean `db_config.json` with no unused resource profiles
 - ✅ **Configuration-Driven** - `db_manager.py` reads compose file paths from config
 - ✅ **No Resource Limits** - Services can use whatever resources they need
@@ -97,7 +102,8 @@ python backend_docker_manager.py health --prod
 | **Redis** | `redis:6379` | `REDIS_URL` | 6379 |
 | **Neo4j** | `neo4j:7687` | `NEO4J_URL` | 7687 |
 | **Qdrant** | `qdrant:6333` | `QDRANT_URL` | 6333 |
-| **MinIO** | `minio:9000` | `S3_ENDPOINT_URL` | 9000 |
+| **MinIO Operations** | `minio:9000` | `S3_ENDPOINT_URL` | 9000 |
+| **MinIO Presigned URLs** | External Endpoint | `S3_PRESIGNED_URL_ENDPOINT` | Via Traefik |
 
 ### **🖥️ External Access (Admin Tools from Host)**
 **Use these for database administration from your local machine:**
@@ -147,8 +153,10 @@ REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 NEO4J_PASSWORD=dev_neo4j_password_123
 
-# MinIO (Internal Port - All Environments)
-S3_ENDPOINT_URL=http://minio:9000
+# MinIO Dual Endpoint Configuration (CRITICAL UPDATE)
+S3_ENDPOINT_URL=http://minio:9000                    # Internal operations
+S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000     # Development browser access
+# S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Production browser access
 S3_ACCESS_KEY_ID=devuser
 S3_SECRET_ACCESS_KEY=devpassword123
 
@@ -213,6 +221,43 @@ async def database_health():
 }
 ```
 
+## 🔗 **MinIO Dual Endpoint Solution**
+
+### **The Problem We Solved**
+MinIO presigned URLs were failing in browsers with `SignatureDoesNotMatch` errors because:
+- Backend generates URLs with internal hostname (`http://minio:9000`)  
+- Browsers access via external hostname (`http://localhost:9000`)
+- Signature mismatch causes authentication failures
+
+### **Our Solution: Dual S3 Clients**
+The backend now uses **two separate boto3 clients**:
+
+```python
+# Internal operations client (uploads, deletes, etc.)
+self.s3_client = boto3.client('s3', endpoint_url='http://minio:9000')
+
+# Presigned URL generation client (browser access)  
+self.s3_presigned_client = boto3.client('s3', endpoint_url='http://localhost:9000')
+```
+
+### **Environment Configuration**
+```bash
+# Development
+S3_ENDPOINT_URL=http://minio:9000                    # Container operations
+S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000     # Browser access
+
+# Production  
+S3_ENDPOINT_URL=http://minio:9000                        # Container operations
+S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Browser access via Traefik
+```
+
+### **Why This Works Perfectly**
+- ✅ **Signature consistency** - URLs generated with correct endpoint hostname
+- ✅ **No deprecated variables** - Avoids deprecated `MINIO_SERVER_URL`
+- ✅ **Environment flexibility** - Works in dev, staging, and production
+- ✅ **Traefik compatibility** - Integrates seamlessly with reverse proxy routing
+- ✅ **Automatic fallback** - Uses main client if presigned endpoint not configured
+
 ## 📋 **Minimal Configuration Benefits**
 
 The database infrastructure now uses a **clean, minimal configuration approach**:
@@ -260,6 +305,9 @@ The database infrastructure now uses a **clean, minimal configuration approach**
 ✅ **Same Docker Images**: All environments use identical database versions
 ✅ **Same Container Structure**: Identical volumes, networks, health checks  
 ✅ **Same Operational Commands**: `db_manager.py` works identically everywhere
+✅ **Modern Reverse Proxy**: Traefik integration across all environments
+✅ **Unified Network Architecture**: Single network per environment for simplicity
+✅ **MinIO Dual Endpoint**: Consistent presigned URL solution everywhere
 ✅ **Environment-Specific Settings**: Only ports, passwords, and resources differ
 ✅ **Perfect Coordination**: Database containers use consistent, conflict-free ports
 
