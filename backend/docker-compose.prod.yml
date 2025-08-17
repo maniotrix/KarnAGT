@@ -1,6 +1,68 @@
 version: '3.8'
 
+# Unified production network - ONLY NETWORK NAME CHANGES
+networks:
+  prod-network:
+    driver: bridge
+    name: prod-network
+
 services:
+  # Traefik - PRODUCTION SECURITY (IDENTICAL to dev except certificates)
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik-prod
+    ports:
+      - "80:80"       # HTTP
+      - "443:443"     # HTTPS
+      # NO dashboard port in production for security
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # IDENTICAL security
+      - ./data:/data  # For Let's Encrypt certificates
+    command:
+      # NO dashboard in production - SECURITY
+      - --api.dashboard=false
+      
+      # IDENTICAL security to dev
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=prod-network
+      
+      # IDENTICAL entry points
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      
+      # ONLY DIFFERENCE: Let's Encrypt instead of self-signed
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=admin@yourdomain.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      
+      # IDENTICAL security redirects
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      
+      # Production logging
+      - --log.level=WARN
+    networks:
+      - prod-network
+    labels:
+      - "traefik.enable=true"
+      # IDENTICAL security headers to dev
+      - "traefik.http.middlewares.security-headers.headers.browserxssfilter=true"
+      - "traefik.http.middlewares.security-headers.headers.contenttypenosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.security-headers.headers.sslredirect=true"
+      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.security-headers.headers.stsPreload=true" 
+      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Backend Application - IDENTICAL except domain
   app-backend-prod:
     container_name: app-backend-production
     build: 
@@ -8,26 +70,25 @@ services:
       dockerfile: Dockerfile.prod
       args:
         BACKEND_USER: app_backend_prod
-    ports:
-      - "8000:8000"  # Fixed port for frontend compatibility
     networks:
-      - app-backend-prod-network
-      - app_db_network_prod         # Connect to database network
-      - codesandbox-prod-network    # Connect to CodeSandbox network
+      - prod-network  # ONLY network needed
     environment:
       - ENVIRONMENT=production
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    labels:
+      - "traefik.enable=true"  # IDENTICAL
+      # ONLY DIFFERENCE: Domain name
+      - "traefik.http.routers.backend.rule=Host(`api.yourdomain.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
+      - "traefik.http.routers.backend.middlewares=security-headers"  # IDENTICAL
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
+      - "traefik.docker.network=prod-network"  # Network name only
+      # PRODUCTION: Let's Encrypt SSL
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
     volumes:
-      # Temporary: Mount logs for early production debugging
-      # TODO: Remove when centralized logging is implemented (CloudWatch, Datadog, etc.)
+      # Production logs
       - ./logs:/app/logs:rw
-    # Production resource limits
+    # Production resource limits - IDENTICAL to original
     deploy:
       resources:
         limits:
@@ -36,13 +97,11 @@ services:
         reservations:
           memory: 1G
           cpus: '1.0'
-networks:
-  app-backend-prod-network:
-    driver: bridge
-    name: app-backend-prod-network
-  app_db_network_prod:
-    external: true
-    name: app_db_network_prod
-  codesandbox-prod-network:
-    external: true
-    name: codesandbox-prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - traefik

@@ -126,6 +126,11 @@ class Settings(BaseSettings):
     S3_SECRET_ACCESS_KEY: str = "minioadmin123"
     S3_REGION: str = "us-east-1"
     
+    # Presigned URL Configuration
+    # If None, falls back to S3_ENDPOINT_URL (for local development)
+    # Set to external endpoint for Docker/production environments
+    S3_PRESIGNED_URL_ENDPOINT: Optional[str] = None
+    
     # Image Processing
     MAX_IMAGE_SIZE: int = 20 * 1024 * 1024  # 20MB (OpenAI limit)
     ALLOWED_IMAGE_TYPES: str = ".png,.jpg,.jpeg,.gif,.webp,.bmp"

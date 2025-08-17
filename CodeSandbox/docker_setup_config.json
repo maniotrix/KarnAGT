@@ -1,33 +1,78 @@
 {
   "project_name": "codesandbox",
-  "description": "CodeSandbox Docker Environment Configuration",
+  "description": "CodeSandbox Docker Environment Configuration with Traefik Integration",
   "environments": {
     "dev": {
       "compose_file": "docker-compose.dev.yml",
       "dockerfile": "Dockerfile.dev",
       "env_file": ".env.docker.dev",
       "service_name": "codesandbox",
-      "description": "Development environment with hot reload and volume mounts"
+      "description": "Development environment with hot reload and volume mounts",
+      "network": "dev-network",
+      "domain": "localhost",
+      "ssl_mode": "self-signed"
+    },
+    "staging": {
+      "compose_file": "docker-compose.staging.yml",
+      "dockerfile": "Dockerfile.staging",
+      "env_file": ".env.docker.staging",
+      "service_name": "codesandbox",
+      "description": "Staging environment for pre-production testing - production-like",
+      "network": "staging-network", 
+      "domain": "sandbox-staging.yourdomain.com",
+      "ssl_mode": "letsencrypt"
     },
     "prod": {
       "compose_file": "docker-compose.prod.yml",
       "dockerfile": "Dockerfile.prod", 
       "env_file": ".env.docker.prod",
       "service_name": "codesandbox",
-      "description": "Production environment with optimized builds"
+      "description": "Production environment with optimized builds",
+      "network": "prod-network",
+      "domain": "sandbox.yourdomain.com", 
+      "ssl_mode": "letsencrypt"
     },
     "test": {
       "compose_file": "docker-compose.test.yml",
       "dockerfile": "Dockerfile.test",
       "env_file": ".env.docker.test", 
       "service_name": "codesandbox",
-      "description": "Testing environment for CI/CD pipelines"
+      "description": "Testing environment for CI/CD pipelines",
+      "network": "test-network",
+      "domain": "localhost",
+      "ssl_mode": "self-signed"
     }
   },
   "default_environment": "prod",
+  "service": {
+    "internal_port": 8080,
+    "path_prefix": "/sandbox",
+    "health_check": "/health",
+    "traefik_enabled": true,
+    "description": "Code execution service - accessible via Traefik"
+  },
+  "traefik_integration": {
+    "enabled": true,
+    "routing_strategy": "path_prefix",
+    "strip_prefix": true,
+    "security": {
+      "authentication_required": false,
+      "rate_limiting": true,
+      "security_headers": true
+    }
+  },
+  "security": {
+    "network_isolation": true,
+    "external_network_access": false,
+    "resource_limits": {
+      "memory": "1g",
+      "cpu": "0.5"
+    }
+  },
   "settings": {
     "docker_compose_timeout": 300,
     "build_timeout": 600,
-    "startup_wait_time": 5
+    "startup_wait_time": 5,
+    "execution_timeout": 30
   }
 }

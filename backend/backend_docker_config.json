@@ -1,6 +1,6 @@
 {
   "project_name": "app-backend",
-  "description": "Application Backend Docker Environment Configuration",
+  "description": "Application Backend Docker Environment Configuration with Traefik Integration",
   "environments": {
     "dev": {
       "compose_file": "docker-compose.dev.yml",
@@ -8,8 +8,9 @@
       "env_file": ".env.docker.app.dev",
       "service_name": "app-backend-dev",
       "description": "Development environment with hot reload and debug logging",
-      "database_network": "app_db_network_dev",
-      "codesandbox_network": "codesandbox-dev-network"
+      "network": "dev-network",
+      "domain": "localhost",
+      "ssl_mode": "self-signed"
     },
     "staging": {
       "compose_file": "docker-compose.staging.yml",
@@ -17,8 +18,9 @@
       "env_file": ".env.docker.app.staging",
       "service_name": "app-backend-staging",
       "description": "Staging environment for pre-production testing",
-      "database_network": "app_db_network_staging",
-      "codesandbox_network": "codesandbox-prod-network"
+      "network": "staging-network",
+      "domain": "api-staging.yourdomain.com",
+      "ssl_mode": "letsencrypt"
     },
     "prod": {
       "compose_file": "docker-compose.prod.yml",
@@ -26,15 +28,51 @@
       "env_file": ".env.docker.app.prod",
       "service_name": "app-backend-prod",
       "description": "Production environment with optimized performance",
-      "database_network": "app_db_network_prod",
-      "codesandbox_network": "codesandbox-prod-network"
+      "network": "prod-network",
+      "domain": "api.yourdomain.com",
+      "ssl_mode": "letsencrypt"
     }
   },
   "default_environment": "dev",
+  "traefik": {
+    "enabled": true,
+    "version": "v3.0",
+    "security": {
+      "exposed_by_default": false,
+      "dashboard_enabled": false,
+      "docker_socket_readonly": true,
+      "security_headers": true
+    },
+    "ports": {
+      "http": 80,
+      "https": 443,
+      "api": 8000,
+      "files": 9000,
+      "dashboard": 8080
+    },
+    "ssl": {
+      "redirect_http_to_https": true,
+      "hsts_enabled": true,
+      "letsencrypt_email": "admin@yourdomain.com"
+    }
+  },
+  "services": {
+    "backend": {
+      "internal_port": 8000,
+      "path_prefix": "/api",
+      "health_check": "/api/v1/health"
+    },
+    "minio": {
+      "internal_port": 9000,
+      "path_prefix": "/files",
+      "service_name": "minio"
+    }
+  },
   "settings": {
     "docker_compose_timeout": 300,
     "build_timeout": 600,
     "startup_wait_time": 10,
-    "health_check_timeout": 120
+    "health_check_timeout": 120,
+    "network_isolation": true
   }
 }

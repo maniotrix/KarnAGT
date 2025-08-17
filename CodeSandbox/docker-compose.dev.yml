@@ -1,9 +1,10 @@
 version: '3.8'
 
+# Unified development network - created by database compose
 networks:
-  codesandbox-dev-network:
-    driver: bridge
-    name: codesandbox-dev-network
+  dev-network:
+    name: dev-network
+    external: true
 
 services:
   codesandbox:
@@ -13,13 +14,31 @@ services:
       dockerfile: Dockerfile.dev
       args:
         CS_USER: code_sandbox
-    ports:
-      - "8080:8080"  # Fixed port since no env_file to interpolate
     networks:
-      - codesandbox-dev-network
+      - dev-network  # Unified network
+    labels:
+      - "traefik.enable=true"  # Explicit exposure
+      - "traefik.http.routers.codesandbox.rule=Host(`localhost`) && PathPrefix(`/sandbox`)"
+      - "traefik.http.routers.codesandbox.entrypoints=web"
+      - "traefik.http.routers.codesandbox.middlewares=security-headers,sandbox-stripprefix"
+      - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"
+      - "traefik.docker.network=dev-network"
+      # HTTPS configuration
+      - "traefik.http.routers.codesandbox.tls=true"
+      # Strip /sandbox prefix when routing to CodeSandbox
+      - "traefik.http.middlewares.sandbox-stripprefix.stripprefix.prefixes=/sandbox"
+      # Metadata labels
+      - "com.app.environment=dev"
+      - "com.app.service=code_execution"
+      - "com.app.component=codesandbox"
     volumes:
       # Mount only what's needed for development hot reload
-      - ./app:/home/${CS_USER:-code_sandbox}/app                    # Hot reload (matches uvicorn reload_dirs)  
-      - ./.env.docker.dev:/home/${CS_USER:-code_sandbox}/.env       # Environment config
-      # No need for .local volume - targeted mounts don't overwrite user packages
+      - ./app:/home/code_sandbox/app                    # Hot reload (matches uvicorn reload_dirs)  
+      - ./.env.docker.dev:/home/code_sandbox/.env       # Environment config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     # No restart policy in dev mode for easier debugging

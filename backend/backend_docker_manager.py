@@ -116,15 +116,18 @@ class BackendDockerManager:
             sys.exit(1)
         return self.config['environments'][env]
     
-    def _get_database_network_name(self, env: str) -> Optional[str]:
-        """Get database network name for environment from JSON config"""
+    def _get_network_name(self, env: str) -> Optional[str]:
+        """Get unified network name for environment from JSON config"""
         env_config = self._get_env_config(env)
-        return env_config.get('database_network')
+        return env_config.get('network')
+    
+    def _get_database_network_name(self, env: str) -> Optional[str]:
+        """Get database network name for environment - now uses unified network"""
+        return self._get_network_name(env)
     
     def _get_codesandbox_network_name(self, env: str) -> Optional[str]:
-        """Get CodeSandbox network name for environment from JSON config"""
-        env_config = self._get_env_config(env)
-        return env_config.get('codesandbox_network')
+        """Get CodeSandbox network name for environment - now uses unified network"""
+        return self._get_network_name(env)
     
     def _check_prerequisites(self, env: str) -> bool:
         """Check if all required files exist for the environment"""
@@ -142,49 +145,28 @@ class BackendDockerManager:
             if not (self.base_dir / file_path).exists():
                 issues.append(f"Missing file: {file_path}")
         
-        # Check database network configuration
-        database_network = self._get_database_network_name(env)
-        if database_network:
-            self._info(f"Database network configured: {database_network}")
+        # Check unified network configuration (used by database and CodeSandbox services)
+        unified_network = self._get_network_name(env)
+        if unified_network:
+            self._info(f"Unified network configured: {unified_network}")
             
             # Check if network exists
             try:
                 result = subprocess.run([
-                    'docker', 'network', 'inspect', database_network
+                    'docker', 'network', 'inspect', unified_network
                 ], capture_output=True, check=True)
-                self._success(f"Database network '{database_network}' exists")
+                self._success(f"Unified network '{unified_network}' exists")
             except subprocess.CalledProcessError:
-                self._warning(f"Database network '{database_network}' not found")
+                self._warning(f"Unified network '{unified_network}' not found")
                 self._info(f"💡 Start database services first: python docker/database/db_manager.py start --env={env}")
-                issues.append(f"Database network '{database_network}' not found")
+                self._info(f"💡 This will create the unified network for all services")
+                issues.append(f"Unified network '{unified_network}' not found")
             except Exception as e:
-                self._error(f"Error checking database network: {e}")
-                issues.append(f"Error checking database network: {e}")
+                self._error(f"Error checking unified network: {e}")
+                issues.append(f"Error checking unified network: {e}")
         else:
-            self._warning(f"No database network configured for {env} environment in config file")
-            issues.append("No database network configured")
-        
-        # Check CodeSandbox network configuration
-        codesandbox_network = self._get_codesandbox_network_name(env)
-        if codesandbox_network:
-            self._info(f"CodeSandbox network configured: {codesandbox_network}")
-            
-            # Check if network exists
-            try:
-                result = subprocess.run([
-                    'docker', 'network', 'inspect', codesandbox_network
-                ], capture_output=True, check=True)
-                self._success(f"CodeSandbox network '{codesandbox_network}' exists")
-            except subprocess.CalledProcessError:
-                self._warning(f"CodeSandbox network '{codesandbox_network}' not found")
-                self._info(f"💡 Start CodeSandbox services first for {env} environment")
-                issues.append(f"CodeSandbox network '{codesandbox_network}' not found")
-            except Exception as e:
-                self._error(f"Error checking CodeSandbox network: {e}")
-                issues.append(f"Error checking CodeSandbox network: {e}")
-        else:
-            self._warning(f"No CodeSandbox network configured for {env} environment in config file")
-            issues.append("No CodeSandbox network configured")
+            self._warning(f"No unified network configured for {env} environment in config file")
+            issues.append("No unified network configured")
         
         # Check if Docker is available
         try:
@@ -232,19 +214,13 @@ class BackendDockerManager:
             print(f"   🐳 Service: {env_config['service_name']}")  
             print(f"   📝 Description: {env_config['description']}")
             
-            # Show database network info
-            db_network = self._get_database_network_name(env_name)
-            if db_network:
-                print(f"   🔗 Database Network: {db_network}")
+            # Show unified network info
+            unified_network = self._get_network_name(env_name)
+            if unified_network:
+                print(f"   🔗 Unified Network: {unified_network}")
+                print(f"   🏗️ Services: Backend, Database services, CodeSandbox, Traefik")
             else:
-                print(f"   🔗 Database Network: Not configured")
-            
-            # Show CodeSandbox network info
-            cs_network = self._get_codesandbox_network_name(env_name)
-            if cs_network:
-                print(f"   📦 CodeSandbox Network: {cs_network}")
-            else:
-                print(f"   📦 CodeSandbox Network: Not configured")
+                print(f"   🔗 Unified Network: Not configured")
             print()
     
     def build(self, env: str) -> None:
