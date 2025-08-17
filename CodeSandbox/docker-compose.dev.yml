@@ -20,7 +20,7 @@ services:
       - "traefik.enable=true"  # Explicit exposure
       - "traefik.http.routers.codesandbox.rule=Host(`localhost`) && PathPrefix(`/sandbox`)"
       - "traefik.http.routers.codesandbox.entrypoints=web"
-      - "traefik.http.routers.codesandbox.middlewares=security-headers,sandbox-stripprefix"
+      - "traefik.http.routers.codesandbox.middlewares=sandbox-stripprefix"
       - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"
       - "traefik.docker.network=dev-network"
       # HTTPS configuration

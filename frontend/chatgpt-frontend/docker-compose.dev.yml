@@ -25,7 +25,7 @@ services:
       # Route all non-API requests to frontend
       - "traefik.http.routers.frontend.rule=Host(`localhost`) && !PathPrefix(`/api`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"  # HTTPS port 443
-      - "traefik.http.routers.frontend.middlewares=security-headers"
+
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       - "traefik.docker.network=dev-network"
       # HTTPS configuration (matches backend), self-signed certificate

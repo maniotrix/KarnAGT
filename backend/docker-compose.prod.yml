@@ -41,6 +41,9 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       
+      # Global security headers (applied to all routes)
+      - --entrypoints.websecure.http.middlewares=security-headers@docker
+      
       # Production logging
       - --log.level=WARN
     networks:
@@ -80,7 +83,7 @@ services:
       # ONLY DIFFERENCE: Domain name
       - "traefik.http.routers.backend.rule=Host(`api.yourdomain.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
-      - "traefik.http.routers.backend.middlewares=security-headers"  # IDENTICAL
+
       - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
       - "traefik.docker.network=prod-network"  # Network name only
       # PRODUCTION: Let's Encrypt SSL

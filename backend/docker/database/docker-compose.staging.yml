@@ -264,7 +264,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.minio.rule=Host(`files-staging.yourdomain.com`)"
       - "traefik.http.routers.minio.entrypoints=websecure"
-      - "traefik.http.routers.minio.middlewares=security-headers"
+
       - "traefik.http.services.minio.loadbalancer.server.port=9000"
       - "traefik.docker.network=staging-network"
       # STAGING: Let's Encrypt SSL

@@ -41,6 +41,9 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       
+      # Global security headers (applied to all routes)
+      - --entrypoints.websecure.http.middlewares=security-headers@docker
+      
       # Staging logging
       - --log.level=INFO
     networks:
@@ -80,7 +83,7 @@ services:
       # STAGING DOMAIN
       - "traefik.http.routers.backend.rule=Host(`api-staging.yourdomain.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
-      - "traefik.http.routers.backend.middlewares=security-headers"  # IDENTICAL
+
       - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
       - "traefik.docker.network=staging-network"  # Network name only
       # STAGING: Let's Encrypt SSL

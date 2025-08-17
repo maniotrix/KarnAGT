@@ -42,6 +42,10 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       
+      # Global security headers (applied to all routes)
+      - --entrypoints.websecure.http.middlewares=security-headers@docker
+      - --entrypoints.api.http.middlewares=security-headers@docker
+      
       # Logging for development
       - --log.level=INFO
     networks:
@@ -80,7 +84,7 @@ services:
       - "traefik.enable=true"  # Explicit exposure
       - "traefik.http.routers.backend.rule=Host(`localhost`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=api"
-      - "traefik.http.routers.backend.middlewares=security-headers"
+
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
       - "traefik.docker.network=dev-network"  # Explicit network
       # HTTPS configuration

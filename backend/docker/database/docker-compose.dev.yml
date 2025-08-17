@@ -257,7 +257,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.minio.rule=Host(`localhost`)"
       - "traefik.http.routers.minio.entrypoints=files"  # Port 9000
-      - "traefik.http.routers.minio.middlewares=security-headers"
+
       - "traefik.http.services.minio.loadbalancer.server.port=9000"
       - "traefik.docker.network=dev-network"
       - "traefik.http.routers.minio.tls=true"

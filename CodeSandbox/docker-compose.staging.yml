@@ -22,7 +22,7 @@ services:
       - "traefik.enable=true"  # Explicit exposure
       - "traefik.http.routers.codesandbox.rule=Host(`sandbox-staging.yourdomain.com`)"
       - "traefik.http.routers.codesandbox.entrypoints=websecure"
-      - "traefik.http.routers.codesandbox.middlewares=security-headers"
+
       - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"
       - "traefik.docker.network=staging-network"
       # STAGING: Let's Encrypt SSL

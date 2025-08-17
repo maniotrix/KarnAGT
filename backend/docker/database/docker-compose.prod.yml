@@ -276,7 +276,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.minio.rule=Host(`files.yourdomain.com`)"
       - "traefik.http.routers.minio.entrypoints=websecure"
-      - "traefik.http.routers.minio.middlewares=security-headers"
+
       - "traefik.http.services.minio.loadbalancer.server.port=9000"
       - "traefik.docker.network=prod-network"
       # PRODUCTION: Let's Encrypt SSL
