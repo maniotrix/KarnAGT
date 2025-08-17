@@ -72,10 +72,10 @@ REDIS_URL=redis://redis:6379/0
 NEO4J_URL=bolt://neo4j:7687
 QDRANT_URL=http://qdrant:6333
 
-# MinIO Dual Endpoint Strategy (CRITICAL UPDATE)
-S3_ENDPOINT_URL=http://minio:9000                    # Internal operations
-S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000     # Development
-S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Production
+# MinIO Internal/External URL Architecture (MODERN SOLUTION)
+S3_ENDPOINT_URL=http://minio:9000                           # Internal container operations
+S3_PRESIGNED_URL_ENDPOINT=https://files-staging.yourdomain.com  # External browser access (staging)
+S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com     # External browser access (production)
 
 CODESANDBOX_URL=http://codesandbox:8080/api/v1
 ```
@@ -863,8 +863,8 @@ python docker_setup_and_run.py envs
 - ❌ Install packages as root in containers - Use non-root user installation
 - ❌ Use `localhost` in environment files - Use service names (`postgres`, `redis`, etc.)
 - ❌ Mix external ports in environment files - Use internal ports (5432, 6379, etc.)
-- ❌ **Use deprecated MinIO settings** - Avoid `MINIO_SERVER_URL`, use dual endpoint strategy instead
-- ❌ **Use single S3 endpoint** - Always configure both `S3_ENDPOINT_URL` and `S3_PRESIGNED_URL_ENDPOINT`
+- ❌ **Use deprecated MinIO workarounds** - Avoid `extra_hosts`, `MINIO_SERVER_URL`, or SSL bypass hacks
+- ❌ **Use external URLs for internal calls** - Backend should use `http://minio:9000` for container communication
 - ❌ Run script without testing SSH connection first
 - ❌ Use password auth if you'll upload frequently (set up SSH keys)
 - ❌ Start application containers before database containers
@@ -880,7 +880,8 @@ python docker_setup_and_run.py envs
 - ✅ Generate requirements with uv: `uv pip compile --python-platform linux requirements.in -o requirements-linux.txt`
 - ✅ Commit `requirements-linux.txt` and `requirements-windows.txt` to git
 - ✅ Use Docker service discovery: `postgres:5432`, `redis:6379`, `neo4j:7687`, `qdrant:6333`, `minio:9000`
-- ✅ **Use dual MinIO endpoints**: `S3_ENDPOINT_URL=http://minio:9000` + `S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com`
+- ✅ **Use smart MinIO URL architecture**: Internal services use `http://minio:9000`, browsers use `https://files.yourdomain.com`
+- ✅ **Let file proxy handle URL selection**: ServiceAuth gets internal URLs, User auth gets external URLs
 - ✅ Use internal ports in environment files for container-to-container communication
 - ✅ Use S3 for all file uploads (cloud-native architecture)
 - ✅ Set up SSH keys for seamless uploads

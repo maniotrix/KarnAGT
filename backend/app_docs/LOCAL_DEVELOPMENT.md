@@ -23,10 +23,13 @@ cp env.local.example .env
 # Edit .env and add your API keys (especially OPENAI_API_KEY)
 nano .env  # or your preferred editor
 
-# CRITICAL: Update MinIO configuration for dual endpoint strategy
+# CRITICAL: Update MinIO configuration for internal/external URL architecture
 # Add to your .env file:
-# S3_ENDPOINT_URL=http://localhost:9000
-# S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000  # Browser access
+S3_ENDPOINT_URL=http://localhost:9000                    # Internal backend operations
+S3_PRESIGNED_URL_ENDPOINT=https://localhost:9000        # Browser downloads (via Traefik)
+
+# Frontend build-time environment (for containerized frontend):
+VITE_API_URL=https://localhost
 ```
 
 ### **2. Start Database Services**
@@ -100,7 +103,7 @@ python docker_setup_and_run.py start --dev
 | **Redis** | 6379 | `redis` | Caching & sessions |
 | **Qdrant** | 6333 | `qdrant` | Vector database |
 | **Neo4j** | 7687/7474 | `neo4j` | Graph database |
-| **MinIO** | 9000/9001 | `minio` | Object storage |
+| **MinIO** | 9000 | `minio` | Object storage (internal: 9000, external: 9002/9003, proxy: 9000) |
 
 ### **Database Credentials (Local)**
 ```bash
@@ -109,10 +112,15 @@ Redis: redis://localhost:6379/0 (no auth)
 Neo4j: neo4j:neo4j_password@bolt://localhost:7687
 Qdrant: http://localhost:6333 (no auth)
 
-# MinIO (Local Development - Single Endpoint)
-MinIO API: http://localhost:9000
-MinIO Console: http://localhost:9001
-Credentials: minioadmin:minioadmin123
+# MinIO (Local Development - Dual URL Architecture)
+MinIO API (Direct): http://localhost:9002              # Direct container access
+MinIO Console: http://localhost:9003                   # Web interface
+MinIO API (via Traefik): https://localhost:9000        # Browser downloads
+Credentials: devuser:devpassword123
+
+# URL Architecture:
+- Internal operations: http://localhost:9002 or minio:9000 (service name)
+- Browser downloads: https://localhost:9000 (via Traefik with SSL)
 
 # Environment Configuration:
 S3_ENDPOINT_URL=http://localhost:9000
@@ -317,13 +325,23 @@ grep "entrypoints" backend/docker-compose.dev.yml
 - "traefik.http.routers.backend.entrypoints=websecure"
 
 # CORS issues: Frontend calling localhost:8000 instead of https://localhost
+# Root cause: VITE_API_URL not passed at build time
+
 # Check built frontend contains correct API URLs:
 docker exec app-frontend-development grep -r "localhost:8000" /usr/share/nginx/html/assets/ || echo "No hardcoded URLs found"
 
-# If hardcoded URLs found, rebuild frontend with correct build arguments:
+# ✅ NEW SOLUTION - Rebuild with build-time arguments:
 cd frontend/chatgpt-frontend
+# Ensure args section exists in docker-compose.dev.yml:
+# build:
+#   args:
+#     VITE_API_URL: https://localhost
 docker-compose -f docker-compose.dev.yml build --no-cache
 docker-compose -f docker-compose.dev.yml up -d
+
+# ❌ OLD SOLUTION (No longer needed):
+# - Changing fallback URLs in frontend code
+# - Using extra_hosts workarounds
 
 # Verify Traefik dashboard shows both services:
 curl http://localhost:8080/api/rawdata | grep -E "(frontend|backend)"
@@ -336,7 +354,9 @@ Once running, you can access:
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 - **Neo4j Browser**: http://localhost:7474
-- **MinIO Console**: http://localhost:9001
+- **MinIO Console**: http://localhost:9003
+- **MinIO Direct API**: http://localhost:9002
+- **MinIO via Traefik**: https://localhost:9000
 - **Qdrant Dashboard**: http://localhost:6333/dashboard
 
 ## 🎯 **Development Workflow**
@@ -360,7 +380,9 @@ Once running, you can access:
 
 - **Environment File**: Always use `.env` created from `env.local.example`
 - **API Keys**: Add your actual OpenAI API key to `.env`
-- **MinIO Configuration**: Include both `S3_ENDPOINT_URL` and `S3_PRESIGNED_URL_ENDPOINT` for proper file access
+- **MinIO Configuration**: Use internal URLs for backend operations, external URLs for browser downloads
+- **Frontend Build**: Ensure `VITE_API_URL` is passed at build time for containerized frontend
+- **No extra_hosts**: Clean Docker networking eliminates need for host gateway workarounds
 - **CodeSandbox Options**: Choose `--local` for host-based backend, `--dev` for containerized backend
 - **Data Persistence**: Database data persists in Docker volumes
 - **Network**: Services communicate via `localhost` (not Docker networking)

@@ -19,9 +19,10 @@ docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 ### Access Points
-- **Frontend App**: http://localhost
-- **Backend API**: http://localhost/api/v1/
+- **Frontend App**: https://localhost (HTTPS via Traefik)
+- **Backend API**: https://localhost/api/v1/ (HTTPS via Traefik)
 - **Traefik Dashboard**: http://localhost:8080
+- **MinIO Files**: https://localhost:9000/ (File downloads)
 
 ## Management Commands
 
@@ -44,14 +45,32 @@ python frontend_docker_manager.py status
 
 ## How Routing Works
 
-**Traefik automatically routes based on URL path:**
+**Traefik automatically routes HTTPS traffic based on URL path:**
 
 ```
-http://localhost/              → Frontend Container (React app)
-http://localhost/dashboard     → Frontend Container  
-http://localhost/api/v1/auth   → Backend Container
-http://localhost/api/v1/chat   → Backend Container
+https://localhost/              → Frontend Container (React app)
+https://localhost/dashboard     → Frontend Container  
+https://localhost/api/v1/auth   → Backend Container
+https://localhost/api/v1/chat   → Backend Container
+https://localhost:9000/         → MinIO (file downloads)
 ```
+
+### Environment Variable Configuration
+
+The frontend container requires build-time environment variables for API communication:
+
+```yaml
+# docker-compose.dev.yml
+services:
+  app-frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        VITE_API_URL: https://localhost  # Build-time variable
+```
+
+**Important:** `VITE_API_URL` must be passed at **build time**, not runtime, because Vite embeds environment variables during the build process.
 
 ## Development Workflow
 
@@ -63,7 +82,7 @@ cd backend && python backend_docker_manager.py start --env=dev
 # Start frontend  
 cd frontend/chatgpt-frontend && python frontend_docker_manager.py start
 
-# Access: http://localhost
+# Access: https://localhost
 ```
 
 ### Option 2: Local Frontend + Container Backend
@@ -81,12 +100,19 @@ cd frontend/chatgpt-frontend && npm run dev
 ## Network Architecture
 
 ```
-Browser
+Browser (HTTPS)
    ↓
-Traefik (Port 80)
-   ├── frontend → app-frontend-development:3000
-   └── /api     → app-backend-development:8000
+Traefik (Port 443 - HTTPS, Port 80 - HTTP redirect)
+   ├── https://localhost/          → app-frontend-development:3000
+   ├── https://localhost/api/      → app-backend-development:8000
+   └── https://localhost:9000/     → minio:9000 (file downloads)
 ```
+
+**Key Features:**
+- **SSL Termination**: Traefik handles HTTPS certificates and SSL termination
+- **Automatic HTTP→HTTPS**: HTTP requests redirect to HTTPS
+- **Service Discovery**: Containers communicate using service names
+- **File Proxy**: MinIO files accessible via HTTPS for browser compatibility
 
 ## Troubleshooting
 
@@ -104,6 +130,33 @@ cd ../../backend && python backend_docker_manager.py start --env=dev
 - Look for "frontend" router in HTTP section
 - Check container logs: `python frontend_docker_manager.py logs`
 
-**API calls failing:**
-- Backend should be accessible at: http://localhost/api/v1/health
+**API calls failing (CORS errors):**
+- Backend should be accessible at: https://localhost/api/v1/health  
 - Check backend logs: `cd ../../backend && python backend_docker_manager.py logs --env=dev`
+
+**Frontend calling localhost:8000 instead of https://localhost:**
+```bash
+# Root cause: VITE_API_URL not passed at build time
+# Check built frontend for hardcoded URLs:
+docker exec app-frontend-development grep -r "localhost:8000" /usr/share/nginx/html/assets/
+
+# Solution: Rebuild with correct build arguments
+docker-compose -f docker-compose.dev.yml build --no-cache
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+**Build-time environment variable issues:**
+```bash
+# Ensure docker-compose.dev.yml has build args:
+# build:
+#   args:
+#     VITE_API_URL: https://localhost
+
+# Force rebuild to pick up new build args:
+docker-compose -f docker-compose.dev.yml build --no-cache --pull
+```
+
+**SSL/Certificate warnings:**
+- Browsers may show SSL warnings for localhost self-signed certificates
+- Click "Advanced" → "Proceed to localhost (unsafe)" to continue
+- This is normal for local development with HTTPS

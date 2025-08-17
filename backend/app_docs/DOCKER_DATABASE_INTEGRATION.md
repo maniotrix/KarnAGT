@@ -221,42 +221,58 @@ async def database_health():
 }
 ```
 
-## 🔗 **MinIO Dual Endpoint Solution**
+## 🔗 **MinIO Internal/External URL Architecture**
 
-### **The Problem We Solved**
-MinIO presigned URLs were failing in browsers with `SignatureDoesNotMatch` errors because:
-- Backend generates URLs with internal hostname (`http://minio:9000`)  
-- Browsers access via external hostname (`http://localhost:9000`)
-- Signature mismatch causes authentication failures
+### **Modern Container Networking Solution**
+MinIO now uses **clean internal/external URL separation** without complex workarounds:
 
-### **Our Solution: Dual S3 Clients**
-The backend now uses **two separate boto3 clients**:
+### **🎯 Smart URL Selection**
+The file proxy automatically selects the correct URL based on the caller:
 
 ```python
-# Internal operations client (uploads, deletes, etc.)
-self.s3_client = boto3.client('s3', endpoint_url='http://minio:9000')
+# File proxy endpoints (app/api/v1/file_proxy.py)
+if isinstance(auth, ServiceAuth):
+    # Backend service calls - use internal container networking
+    url = await storage.get_internal_presigned_url(key)  # http://minio:9000
+else:
+    # Browser requests - use external proxy URLs
+    url = await storage.get_presigned_url(key)           # https://localhost:9000
+```
 
-# Presigned URL generation client (browser access)  
-self.s3_presigned_client = boto3.client('s3', endpoint_url='http://localhost:9000')
+### **🏗️ Storage Service Architecture**  
+```python
+# Storage service has dual URL capability
+class S3StorageBackend:
+    def __init__(self):
+        # Internal operations client (container-to-container)
+        self.s3_client = boto3.client('s3', endpoint_url='http://minio:9000')
+        
+        # External presigned URLs client (browser access)
+        self.s3_presigned_client = boto3.client('s3', endpoint_url='https://localhost:9000')
 ```
 
 ### **Environment Configuration**
 ```bash
-# Development
-S3_ENDPOINT_URL=http://minio:9000                    # Container operations
-S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000     # Browser access
+# Development (All environments use HTTPS for browser access)
+S3_ENDPOINT_URL=http://minio:9000                    # Internal container operations  
+S3_PRESIGNED_URL_ENDPOINT=https://localhost:9000    # Browser access via Traefik
+
+# Staging
+S3_ENDPOINT_URL=http://minio:9000                           # Internal container operations
+S3_PRESIGNED_URL_ENDPOINT=https://files-staging.yourdomain.com  # Browser access via load balancer
 
 # Production  
-S3_ENDPOINT_URL=http://minio:9000                        # Container operations
-S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Browser access via Traefik
+S3_ENDPOINT_URL=http://minio:9000                        # Internal container operations
+S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Browser access via load balancer
 ```
 
-### **Why This Works Perfectly**
-- ✅ **Signature consistency** - URLs generated with correct endpoint hostname
-- ✅ **No deprecated variables** - Avoids deprecated `MINIO_SERVER_URL`
-- ✅ **Environment flexibility** - Works in dev, staging, and production
-- ✅ **Traefik compatibility** - Integrates seamlessly with reverse proxy routing
-- ✅ **Automatic fallback** - Uses main client if presigned endpoint not configured
+### **Why This Architecture is Superior**
+- ✅ **Pure Docker Networking** - No `extra_hosts` or SSL workarounds needed
+- ✅ **Zero SSL Overhead** - Internal service calls use direct HTTP container communication
+- ✅ **Secure Browser Access** - External URLs go through Traefik with proper SSL termination
+- ✅ **Automatic Caller Detection** - ServiceAuth vs User authentication determines URL type
+- ✅ **Clean Separation of Concerns** - Internal services vs external user access handled separately
+- ✅ **Production Ready** - Same architecture works across dev/staging/prod environments
 
 ## 📋 **Minimal Configuration Benefits**
 

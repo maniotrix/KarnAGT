@@ -128,7 +128,7 @@ docker-compose -f docker-compose.dev.yml run --rm app-backend-dev alembic downgr
 docker exec -it app-backend-development alembic downgrade -1
 ```
 
-## 🪣 **MinIO Setup**
+## 🪣 **MinIO Setup & URL Architecture**
 
 ### **Automatic Container Setup**
 MinIO buckets are created automatically inside containers by `start_app.py`:
@@ -142,6 +142,51 @@ MinIO buckets are created automatically inside containers by `start_app.py`:
 - Creates the required bucket if it doesn't exist  
 - Gracefully handles bucket creation failures
 - No manual intervention required
+
+### **🔗 Internal vs External URL Architecture**
+
+**MinIO uses dual URL architecture for optimal performance:**
+
+#### **Internal Service Communication** (Container-to-Container)
+```bash
+# Backend services use direct container networking
+S3_ENDPOINT_URL=http://minio:9000
+
+# Examples:
+- File uploads: Backend → http://minio:9000
+- Internal downloads: Backend → http://minio:9000/bucket/file.pdf
+- Storage operations: Direct container communication
+```
+
+#### **External Browser Access** (User-facing)
+```bash
+# External presigned URLs for browser downloads
+S3_PRESIGNED_URL_ENDPOINT=https://localhost:9000        # Development
+S3_PRESIGNED_URL_ENDPOINT=https://files.yourdomain.com  # Production
+
+# Examples:
+- User file downloads: Browser → https://localhost:9000/bucket/file.pdf
+- Image displays: Frontend → https://localhost:9000/images/photo.jpg
+- Proxy redirects: 302 redirect to presigned URL
+```
+
+#### **🎯 Smart URL Selection**
+The file proxy automatically selects the right URL type:
+```python
+# Service calls (backend-to-backend)
+if isinstance(auth, ServiceAuth):
+    return await get_internal_presigned_url()  # http://minio:9000
+    
+# Browser requests (user-facing) 
+else:
+    return await get_presigned_url()  # https://localhost:9000
+```
+
+**Benefits:**
+- ✅ **No SSL overhead** for internal service communication
+- ✅ **No `extra_hosts` workarounds** needed
+- ✅ **Pure Docker networking** for backend services
+- ✅ **Secure HTTPS** for browser requests
 
 ## 🔧 **Docker Manager Commands**
 
@@ -360,7 +405,9 @@ alembic downgrade base
 alembic upgrade head
 ```
 
-#### **3. MinIO Bucket Creation Failed**
+#### **3. MinIO Connection Issues**
+
+**A) MinIO Bucket Creation Failed:**
 ```
 ⚠️ Could not create bucket 'app-files-dev' - will try at runtime
 ```
@@ -378,6 +425,43 @@ from app.core.config import settings
 print('MinIO Endpoint:', settings.S3_ENDPOINT_URL)
 print('MinIO Bucket:', settings.S3_BUCKET_NAME)
 "
+```
+
+**B) File Download/Upload Failures:**
+```
+❌ SSLCertVerificationError: self signed certificate
+❌ Cannot connect to host localhost:9000
+```
+**Root Cause:** Backend trying to use external URLs for internal operations.
+
+**✅ Solution - Verify URL Architecture:**
+```bash
+# Check environment configuration
+docker exec app-backend-development env | grep S3
+
+# Should show:
+S3_ENDPOINT_URL=http://minio:9000              # Internal operations
+S3_PRESIGNED_URL_ENDPOINT=https://localhost:9000  # Browser access
+```
+
+**✅ Test Internal Container Communication:**
+```bash
+# Backend should reach MinIO directly
+docker exec app-backend-development curl -I http://minio:9000
+# Expected: HTTP/1.1 400 Bad Request (MinIO responding)
+
+# Browser access should work via Traefik
+curl -I https://localhost:9000
+# Expected: HTTP/2 response via Traefik
+```
+
+**❌ Deprecated Solutions (No Longer Needed):**
+```bash
+# ❌ DON'T add extra_hosts - not needed with new architecture
+# extra_hosts:
+#   - "localhost:host-gateway"
+
+# ❌ DON'T disable SSL globally - use internal URLs instead
 ```
 
 #### **4. Container Build Failed**
@@ -410,17 +494,39 @@ python backend_docker_manager.py start --dev --build
 ### **🖥️ External Access Ports (Host to Container)**
 **Use these for admin tools and external connections:**
 
-| Environment | Backend | PostgreSQL | Redis | Neo4j | Qdrant | MinIO |
-|-------------|---------|------------|-------|-------|--------|-------|
-| **Development** | 8000 | 5433 | 6380 | 7688 | 6335 | 9002 |
-| **Staging** | 8000 | 5434 | 6381 | 7689 | 6337 | 9004 |
-| **Production** | 8000 | 5432 | 6379 | 7687 | 6333 | 9000 |
+| Environment | Backend | PostgreSQL | Redis | Neo4j | Qdrant | MinIO API | MinIO Console |
+|-------------|---------|------------|-------|-------|--------|-----------|---------------|
+| **Development** | 8000 | 5433 | 6380 | 7688 | 6335 | 9002 | 9003 |
+| **Staging** | 8000 | 5434 | 6381 | 7689 | 6337 | 9004 | 9005 |
+| **Production** | 8000 | 5432 | 6379 | 7687 | 6333 | 9000 | 9001 |
+
+### **🔗 Traefik Reverse Proxy Ports (External Access)**
+**Browser and API access through Traefik:**
+
+| Environment | Frontend | Backend API | MinIO Files |
+|-------------|----------|-------------|-------------|
+| **Development** | `https://localhost/` | `https://localhost/api/` | `https://localhost:9000/` |
+| **Staging** | `https://app-staging.yourdomain.com/` | `https://api-staging.yourdomain.com/api/` | `https://files-staging.yourdomain.com/` |
+| **Production** | `https://app.yourdomain.com/` | `https://api.yourdomain.com/api/` | `https://files.yourdomain.com/` |
 
 **🔑 Key Networking Concepts:**
-- **Service Discovery**: Containers communicate using service names (e.g., `postgres:5432`)
-- **External Access**: Host machine connects using `localhost:port` (e.g., `localhost:5433`)
+- **Service Discovery**: Containers communicate using service names (e.g., `postgres:5432`, `minio:9000`)
+- **External Access**: Host machine connects using `localhost:port` (e.g., `localhost:5433`, `localhost:9002`)
+- **Reverse Proxy**: Browser requests go through Traefik (e.g., `https://localhost/api/`)
+- **Internal vs External URLs**: Services use internal URLs, browsers use external URLs
 - **Same Internal Ports**: All environments use identical internal ports for consistency
 - **Different External Ports**: Each environment uses different external ports to avoid conflicts
+
+**🎯 URL Selection Logic:**
+```bash
+# Internal service communication (backend-to-backend)
+Backend Service → http://minio:9000/bucket/file.pdf
+                  ↑ Direct container networking, no SSL overhead
+
+# External user access (browser downloads)
+Browser → https://localhost:9000/bucket/file.pdf
+          ↑ Through Traefik reverse proxy with SSL termination
+```
 
 ## 🎯 **Best Practices**
 
