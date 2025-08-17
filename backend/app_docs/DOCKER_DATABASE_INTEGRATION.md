@@ -344,6 +344,48 @@ docker restart traefik-dev
 cd backend && docker-compose -f docker-compose.dev.yml up -d
 ```
 
+#### **Frontend-Backend Routing Issues**
+```
+❌ Frontend gets 404 errors, no logs in backend container
+❌ CORS errors: localhost:8000 vs https://localhost origin mismatch
+```
+
+**Root Cause:** Traefik entrypoint configuration mismatch between frontend and backend.
+
+**Diagnostic Steps:**
+```bash
+# 1. Check if requests reach backend
+docker logs app-backend-development --tail 20
+
+# 2. If no logs, check entrypoint configuration
+grep "entrypoints.*websecure" backend/docker-compose.dev.yml
+grep "entrypoints.*websecure" frontend/chatgpt-frontend/docker-compose.dev.yml
+
+# 3. Both should use websecure entrypoint for HTTPS (port 443)
+```
+
+**Solution:**
+```yaml
+# Ensure backend uses same entrypoint as frontend
+- "traefik.http.routers.backend.entrypoints=websecure"  # Not "api"
+- "traefik.http.routers.frontend.entrypoints=websecure" # Match this
+```
+
+**Environment Variable Issues:**
+```bash
+# Frontend calling wrong API URLs due to build-time environment variables
+# Check if frontend uses correct VITE_API_URL
+docker exec app-frontend-development printenv VITE_API_URL
+# Should show: https://localhost
+
+# Check built assets don't contain hardcoded localhost:8000
+docker exec app-frontend-development grep -r "localhost:8000" /usr/share/nginx/html/assets/
+
+# If found, frontend needs rebuild with correct build arguments:
+cd frontend/chatgpt-frontend
+docker-compose -f docker-compose.dev.yml build --no-cache
+```
+
 #### **Network Connectivity Debugging**
 ```bash
 # Check network topology and IPs

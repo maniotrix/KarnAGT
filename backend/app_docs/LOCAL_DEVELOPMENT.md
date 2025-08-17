@@ -297,6 +297,36 @@ docker exec backend-container ping redis
 
 # Check what ports services are actually listening on
 docker exec container-name netstat -tuln
+
+# Test service discovery between frontend, backend, and traefik
+docker exec app-frontend-development ping app-backend-development
+docker exec traefik-dev ping app-backend-development
+```
+
+### **Traefik Routing and CORS Issues**
+```bash
+# 404 errors with no backend logs = entrypoint configuration mismatch
+# Frontend calls https://localhost/api/* but backend not receiving requests
+
+# Check if frontend and backend use same entrypoint:
+grep "entrypoints" frontend/chatgpt-frontend/docker-compose.dev.yml
+grep "entrypoints" backend/docker-compose.dev.yml
+
+# Should both show: websecure (for HTTPS on port 443)
+# Fix: Ensure backend uses websecure entrypoint
+- "traefik.http.routers.backend.entrypoints=websecure"
+
+# CORS issues: Frontend calling localhost:8000 instead of https://localhost
+# Check built frontend contains correct API URLs:
+docker exec app-frontend-development grep -r "localhost:8000" /usr/share/nginx/html/assets/ || echo "No hardcoded URLs found"
+
+# If hardcoded URLs found, rebuild frontend with correct build arguments:
+cd frontend/chatgpt-frontend
+docker-compose -f docker-compose.dev.yml build --no-cache
+docker-compose -f docker-compose.dev.yml up -d
+
+# Verify Traefik dashboard shows both services:
+curl http://localhost:8080/api/rawdata | grep -E "(frontend|backend)"
 ```
 
 ## 🌐 **Access Services**

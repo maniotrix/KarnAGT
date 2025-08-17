@@ -224,7 +224,46 @@ docker exec container-name netstat -tuln
 # Should show: 0.0.0.0:3000   LISTEN
 ```
 
-#### **2. Traefik IP Caching and Routing Issues**
+#### **2. Traefik Entrypoint Configuration Issues**
+```
+❌ Frontend calls HTTPS but backend configured for HTTP entrypoint
+❌ 404 errors with no backend logs - requests never reach backend
+```
+
+**Root Cause:** Entrypoint mismatch between frontend and backend routing.
+
+**Example Problem:**
+```yaml
+# Frontend serves on websecure (port 443)
+frontend.entrypoints=websecure
+
+# Backend misconfigured for api entrypoint (port 8000)  
+backend.entrypoints=api          # ❌ WRONG
+
+# Result: Frontend calls https://localhost/api/* (port 443)
+#         But Traefik routes backend to port 8000 
+#         = 404 errors, no backend logs
+```
+
+**Solution:**
+```yaml
+# Fix backend to use same entrypoint as frontend
+- "traefik.http.routers.backend.entrypoints=websecure"  # ✅ CORRECT
+
+# Both frontend and backend now on same entrypoint (port 443)
+# Result: Proper routing, same origin, no CORS issues
+```
+
+**Diagnostic Commands:**
+```bash
+# Check if backend receives requests
+docker logs app-backend-development --tail 20
+
+# No logs = routing issue, check entrypoint configuration
+grep "entrypoints" docker-compose.dev.yml
+```
+
+#### **3. Traefik IP Caching and Routing Issues**
 ```
 ❌ Error while Peeking first byte error="read tcp 172.19.0.8:8000->172.19.0.1:54574: i/o timeout"
 ❌ Can't access frontend through https://localhost/
