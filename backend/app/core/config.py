@@ -321,6 +321,24 @@ class Settings(BaseSettings):
         path = path.lstrip('/')
         return f"{self.server_base_url}/{path}" if path else self.server_base_url
     
+    def resolve_internal_url(self, url: str) -> str:
+        """
+        Convert public proxy URL to internal URL for same-container calls.
+        
+        This allows the backend to access its own proxy endpoints directly
+        without going through external reverse proxy (Traefik/load balancer).
+        
+        Args:
+            url: Public proxy URL (e.g., https://api.company.com/api/v1/proxy/files/123)
+            
+        Returns:
+            Internal URL (e.g., http://localhost:8000/api/v1/proxy/files/123)
+        """
+        if self.is_internal_proxy_url(url):
+            # Replace public base URL with localhost:PORT for internal calls
+            return url.replace(self.server_base_url, f"http://localhost:{self.PORT}")
+        return url
+    
     def get_cookie_settings(self) -> dict:
         """Get cookie settings based on environment"""
         return {
