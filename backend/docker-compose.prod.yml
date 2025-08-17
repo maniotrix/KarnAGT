@@ -1,11 +1,68 @@
 version: '3.8'
 
+# Unified production network - ONLY NETWORK NAME CHANGES
 networks:
-  app-backend-prod-network:
+  prod-network:
     driver: bridge
-    name: app-backend-prod-network
+    name: prod-network
 
 services:
+  # Traefik - PRODUCTION SECURITY (IDENTICAL to dev except certificates)
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik-prod
+    ports:
+      - "80:80"       # HTTP
+      - "443:443"     # HTTPS
+      # NO dashboard port in production for security
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # IDENTICAL security
+      - ./data:/data  # For Let's Encrypt certificates
+      - ./traefik:/etc/traefik:ro  # Middleware definitions
+    command:
+      # NO dashboard in production - SECURITY
+      - --api.dashboard=false
+      
+      # IDENTICAL security to dev
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=prod-network
+      
+      # File provider for middlewares
+      - --providers.file.directory=/etc/traefik
+      - --providers.file.watch=true
+      
+      # IDENTICAL entry points
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      
+      # ONLY DIFFERENCE: Let's Encrypt instead of self-signed
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=admin@yourdomain.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      
+      # IDENTICAL security redirects
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      
+      # Global security headers (applied to all routes)
+      - --entrypoints.websecure.http.middlewares=security-headers@file
+      
+      # Production logging
+      - --log.level=WARN
+    networks:
+      - prod-network
+    labels:
+      - "traefik.enable=true"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Backend Application - IDENTICAL except domain
   app-backend-prod:
     container_name: app-backend-production
     build: 
@@ -13,25 +70,25 @@ services:
       dockerfile: Dockerfile.prod
       args:
         BACKEND_USER: app_backend_prod
-    ports:
-      - "8000:8000"  # Fixed port for frontend compatibility
     networks:
-      - app-backend-prod-network
+      - prod-network  # ONLY network needed
     environment:
       - ENVIRONMENT=production
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    labels:
+      - "traefik.enable=true"  # IDENTICAL
+      # ONLY DIFFERENCE: Domain name
+      - "traefik.http.routers.backend.rule=Host(`api.yourdomain.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
+
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
+      - "traefik.docker.network=prod-network"  # Network name only
+      # PRODUCTION: Let's Encrypt SSL
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
     volumes:
-      # Production: Only essential mounts
+      # Production logs
       - ./logs:/app/logs:rw
-    depends_on:
-      - database-health-check
-    # Production resource limits
+    # Production resource limits - IDENTICAL to original
     deploy:
       resources:
         limits:
@@ -40,27 +97,11 @@ services:
         reservations:
           memory: 1G
           cpus: '1.0'
-    
-  # Health check service to ensure databases are ready  
-  database-health-check:
-    image: curlimages/curl:latest
-    container_name: app-backend-db-health-prod
-    networks:
-      - app-backend-prod-network
-    command: >
-      sh -c "
-        echo 'Checking production database connectivity...' &&
-        until curl -f http://host.docker.internal:5432 2>/dev/null || nc -z host.docker.internal 5432; do
-          echo 'Waiting for PostgreSQL (prod:5432)...'
-          sleep 2
-        done &&
-        until curl -f http://host.docker.internal:6379 2>/dev/null || nc -z host.docker.internal 6379; do
-          echo 'Waiting for Redis (prod:6379)...'
-          sleep 2
-        done &&
-        echo 'Production databases are ready!'
-      "
-    restart: "no"
-
-# External network to connect to host databases
-# Backend connects to database containers running on host ports
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - traefik

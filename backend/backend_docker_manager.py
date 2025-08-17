@@ -116,6 +116,19 @@ class BackendDockerManager:
             sys.exit(1)
         return self.config['environments'][env]
     
+    def _get_network_name(self, env: str) -> Optional[str]:
+        """Get unified network name for environment from JSON config"""
+        env_config = self._get_env_config(env)
+        return env_config.get('network')
+    
+    def _get_database_network_name(self, env: str) -> Optional[str]:
+        """Get database network name for environment - now uses unified network"""
+        return self._get_network_name(env)
+    
+    def _get_codesandbox_network_name(self, env: str) -> Optional[str]:
+        """Get CodeSandbox network name for environment - now uses unified network"""
+        return self._get_network_name(env)
+    
     def _check_prerequisites(self, env: str) -> bool:
         """Check if all required files exist for the environment"""
         env_config = self._get_env_config(env)
@@ -131,6 +144,29 @@ class BackendDockerManager:
         for file_path in required_files:
             if not (self.base_dir / file_path).exists():
                 issues.append(f"Missing file: {file_path}")
+        
+        # Check unified network configuration (used by database and CodeSandbox services)
+        unified_network = self._get_network_name(env)
+        if unified_network:
+            self._info(f"Unified network configured: {unified_network}")
+            
+            # Check if network exists
+            try:
+                result = subprocess.run([
+                    'docker', 'network', 'inspect', unified_network
+                ], capture_output=True, check=True)
+                self._success(f"Unified network '{unified_network}' exists")
+            except subprocess.CalledProcessError:
+                self._warning(f"Unified network '{unified_network}' not found")
+                self._info(f"💡 Start database services first: python docker/database/db_manager.py start --env={env}")
+                self._info(f"💡 This will create the unified network for all services")
+                issues.append(f"Unified network '{unified_network}' not found")
+            except Exception as e:
+                self._error(f"Error checking unified network: {e}")
+                issues.append(f"Error checking unified network: {e}")
+        else:
+            self._warning(f"No unified network configured for {env} environment in config file")
+            issues.append("No unified network configured")
         
         # Check if Docker is available
         try:
@@ -177,6 +213,14 @@ class BackendDockerManager:
             print(f"   📄 Compose: {env_config['compose_file']}")
             print(f"   🐳 Service: {env_config['service_name']}")  
             print(f"   📝 Description: {env_config['description']}")
+            
+            # Show unified network info
+            unified_network = self._get_network_name(env_name)
+            if unified_network:
+                print(f"   🔗 Unified Network: {unified_network}")
+                print(f"   🏗️ Services: Backend, Database services, CodeSandbox, Traefik")
+            else:
+                print(f"   🔗 Unified Network: Not configured")
             print()
     
     def build(self, env: str) -> None:

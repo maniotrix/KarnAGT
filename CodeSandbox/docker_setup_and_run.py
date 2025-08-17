@@ -300,7 +300,7 @@ def main():
 {Colors.CYAN}{Colors.BOLD}Minimal Docker Manager{Colors.END}
 
 {Colors.YELLOW}Usage:{Colors.END}
-    python minimal_docker_manager.py <command> [--env=<environment>]
+    python docker_setup_and_run.py <command> [--env=<environment>]
 
 {Colors.YELLOW}Commands:{Colors.END}
     {Colors.GREEN}build{Colors.END}      Build image for environment
@@ -310,11 +310,11 @@ def main():
     {Colors.GREEN}envs{Colors.END}       Show available environments with validation status
 
 {Colors.YELLOW}Examples:{Colors.END}
-    python minimal_docker_manager.py start --env=dev
-    python minimal_docker_manager.py build --env=prod  
-    python minimal_docker_manager.py restart --env=test
-    python minimal_docker_manager.py validate --dev
-    python minimal_docker_manager.py envs
+    python docker_setup_and_run.py start --env=dev
+    python docker_setup_and_run.py build --env=prod  
+    python docker_setup_and_run.py restart --env=test
+    python docker_setup_and_run.py validate --dev
+    python docker_setup_and_run.py envs
         """)
         sys.exit(1)
     

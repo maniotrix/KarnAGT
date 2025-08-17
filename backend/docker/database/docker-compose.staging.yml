@@ -5,18 +5,18 @@ name: 'app_db_staging'
 secrets:
   postgres_password:
     file: ./secrets/staging/postgres_password.txt
-  redis_password:
-    file: ./secrets/staging/redis_password.txt
   neo4j_auth:
     file: ./secrets/staging/neo4j_auth.txt
-  minio_credentials:
-    file: ./secrets/staging/minio_credentials.txt
+  minio_user:
+    file: ./secrets/staging/minio_user.txt
+  minio_password:
+    file: ./secrets/staging/minio_password.txt
 
-# Staging environment isolated network
+# Unified staging network
 networks:
-  app_db_network_staging:
+  staging-network:
     driver: bridge
-    name: app_db_network_staging
+    name: staging-network
 
 services:
   postgres:
@@ -56,7 +56,7 @@ services:
       - ./backups/staging:/backups
       
     networks:
-      - app_db_network_staging
+      - staging-network
       
     # Structured logging with rotation
     logging:
@@ -68,6 +68,7 @@ services:
         
     # Metadata labels for organization
     labels:
+      - "traefik.enable=false"  # SECURITY: Database not exposed
       - "com.app.environment=staging"
       - "com.app.service=database"
       - "com.app.component=postgres"
@@ -90,11 +91,10 @@ services:
     security_opt:
       - no-new-privileges:true
       
-    # Secure Redis with password from secrets
+    # Redis without password authentication for staging
     command: >
       sh -c '
         redis-server 
-        --requirepass "$$(cat /run/secrets/redis_password)"
         --appendonly yes 
         --appendfsync everysec
         --maxmemory 512M
@@ -103,9 +103,6 @@ services:
         --save 300 10  
         --save 60 10000
       '
-      
-    secrets:
-      - redis_password
       
     # Staging-specific port mapping (6381 to avoid conflicts)
     ports:
@@ -117,7 +114,7 @@ services:
       # - ./config/staging/redis.conf:/etc/redis/redis.conf:ro
       
     networks:
-      - app_db_network_staging
+      - staging-network
       
     # Structured logging
     logging:
@@ -128,13 +125,14 @@ services:
         labels: "environment=staging,service=redis"
         
     labels:
+      - "traefik.enable=false"  # SECURITY: Cache not exposed
       - "com.app.environment=staging"
       - "com.app.service=cache"
       - "com.app.component=redis"
       - "com.app.backup.enable=true"
       
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --pass $$(cat /run/secrets/redis_password) ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -165,7 +163,7 @@ services:
       # - ./config/staging/neo4j.conf:/etc/neo4j/neo4j.conf:ro
       
     networks:
-      - app_db_network_staging
+      - staging-network
       
     logging:
       driver: "json-file"
@@ -175,6 +173,7 @@ services:
         labels: "environment=staging,service=neo4j"
         
     labels:
+      - "traefik.enable=false"  # SECURITY: Graph database not exposed
       - "com.app.environment=staging"
       - "com.app.service=graph_database"
       - "com.app.component=neo4j"
@@ -209,7 +208,7 @@ services:
       # - ./config/staging/qdrant_config.yaml:/qdrant/config/production.yaml:ro
       
     networks:
-      - app_db_network_staging
+      - staging-network
       
     logging:
       driver: "json-file"
@@ -219,6 +218,7 @@ services:
         labels: "environment=staging,service=qdrant"
         
     labels:
+      - "traefik.enable=false"  # SECURITY: Vector database not exposed
       - "com.app.environment=staging"
       - "com.app.service=vector_database"
       - "com.app.component=qdrant"
@@ -237,28 +237,43 @@ services:
     restart: unless-stopped
       
     environment:
-      MINIO_ROOT_USER_FILE: /run/secrets/minio_credentials
-      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_credentials
-      MINIO_BROWSER_REDIRECT_URL: https://minio-staging.yourdomain.com:9005
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
       MINIO_DEFAULT_BUCKETS: app-files-staging
+      MINIO_BROWSER_REDIRECT_URL: https://console-staging.yourdomain.com
       
     secrets:
-      - minio_credentials
+      - minio_user
+      - minio_password
       
     # Staging-specific port mapping (custom ports to avoid conflicts)
     ports:
-      - "9004:9000"
-      - "9005:9001"
+      - "9004:9000"  # API port
+      - "9005:9001"  # Console port
       
     volumes:
       - minio_data_staging:/data
-      # Optional: Custom policy file (uncomment if needed)
-      # - ./config/staging/minio_policy.json:/policies/default.json:ro
       
     networks:
-      - app_db_network_staging
+      - staging-network  # Unified network
       
     command: server /data --console-address ":9001"
+    
+    # Traefik labels - Direct routing for presigned URLs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`files-staging.yourdomain.com`)"
+      - "traefik.http.routers.minio.entrypoints=websecure"
+
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.docker.network=staging-network"
+      # STAGING: Let's Encrypt SSL
+      - "traefik.http.routers.minio.tls.certresolver=letsencrypt"
+      # Metadata labels
+      - "com.app.environment=staging"
+      - "com.app.service=object_storage"
+      - "com.app.component=minio"
+      - "com.app.backup.enable=true"
     
     logging:
       driver: "json-file"
@@ -267,12 +282,6 @@ services:
         max-file: "3"
         labels: "environment=staging,service=minio"
         
-    labels:
-      - "com.app.environment=staging"
-      - "com.app.service=object_storage"
-      - "com.app.component=minio"
-      - "com.app.backup.enable=true"
-      
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 60s

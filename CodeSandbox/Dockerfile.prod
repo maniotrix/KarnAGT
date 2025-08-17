@@ -21,16 +21,19 @@ ARG CS_USER=code_sandbox
 ENV CS_USER=${CS_USER}
 RUN useradd --create-home --shell /bin/bash ${CS_USER}
 
-# Copy and install requirements as root (avoids PATH warnings)
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
-
 # Create user temp directory with proper permissions
 # Application will create subdirectories (workspaces, logs) as needed
 RUN mkdir -p /tmp/${CS_USER} && chown ${CS_USER}:${CS_USER} /tmp/${CS_USER}
 
-# Switch to user
+# Switch to non-root user BEFORE installing Python packages
 USER ${CS_USER}
+
+# Ensure user-installed packages are in PATH (set before installation)
+ENV PATH="/home/${CS_USER}/.local/bin:${PATH}"
+
+# Copy and install requirements as non-root user (security best practice)
+COPY --chown=${CS_USER}:${CS_USER} requirements.txt /tmp/requirements.txt
+RUN pip install --user --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Go to user home
 WORKDIR /home/${CS_USER}

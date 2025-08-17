@@ -1,0 +1,42 @@
+version: '3.8'
+
+# Connect to existing backend network
+networks:
+  dev-network:
+    external: true
+    name: dev-network
+
+services:
+  # Frontend Application
+  app-frontend-dev:
+    container_name: app-frontend-development
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        VITE_API_URL: https://localhost
+    networks:
+      - dev-network
+    environment:
+      - NODE_ENV=development
+      - DOCKER_ENV=true
+      - VITE_API_URL=https://localhost
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # Route all non-API requests to frontend
+      - "traefik.http.routers.frontend.rule=Host(`localhost`) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"  # HTTPS port 443
+
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.docker.network=dev-network"
+      # HTTPS configuration (matches backend), self-signed certificate
+      - "traefik.http.routers.frontend.tls=true"
+      # Priority to ensure frontend routing works correctly
+      - "traefik.http.routers.frontend.priority=1"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"] 
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

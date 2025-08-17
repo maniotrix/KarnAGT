@@ -1,11 +1,70 @@
 version: '3.8'
 
+# Unified development network
 networks:
-  app-backend-dev-network:
+  dev-network:
     driver: bridge
-    name: app-backend-dev-network
+    name: dev-network
 
 services:
+  # Traefik - Reverse Proxy with Security Best Practices
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik-dev
+    ports:
+      - "80:80"       # HTTP
+      - "443:443"     # HTTPS
+      - "8000:8000"   # Backend API 
+      - "9000:9000"   # MinIO Files
+      - "8080:8080"   # Dashboard (DEV ONLY)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Read-only for security
+      - ./traefik:/etc/traefik:ro  # Middleware definitions
+    command:
+      # Dashboard - DEVELOPMENT ONLY
+      - --api.dashboard=true
+      - --api.insecure=true  # ⚠️ DEV ONLY - disable in production
+      
+      # Docker provider with security
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false  # SECURITY: Explicit labels only
+      - --providers.docker.network=dev-network
+      
+      # File provider for middlewares
+      - --providers.file.directory=/etc/traefik
+      - --providers.file.watch=true
+      
+      # Entry points
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.api.address=:8000
+      - --entrypoints.files.address=:9000
+      
+      # HTTPS Configuration - Self-signed for development
+      - --entrypoints.websecure.http.tls=true
+      
+      # Security - HTTP to HTTPS redirect
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      
+      # Global security headers (applied to all routes)
+      - --entrypoints.websecure.http.middlewares=security-headers@file
+      - --entrypoints.api.http.middlewares=security-headers@file
+      
+      # Logging for development
+      - --log.level=INFO
+    networks:
+      - dev-network
+    labels:
+      - "traefik.enable=true"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Backend Application
   app-backend-dev:
     container_name: app-backend-development
     build: 
@@ -13,47 +72,28 @@ services:
       dockerfile: Dockerfile.dev
       args:
         BACKEND_USER: app_backend_dev
-    ports:
-      - "8000:8000"  # Fixed port for frontend compatibility
     networks:
-      - app-backend-dev-network
+      - dev-network  # ONLY network needed
     environment:
       - ENVIRONMENT=development
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"  # Explicit exposure
+      - "traefik.http.routers.backend.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "traefik.docker.network=dev-network"  # Explicit network
+      # HTTPS configuration
+      - "traefik.http.routers.backend.tls=true"
+    volumes:
+      # Development logs
+      - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
-    volumes:
-      # Optional: Mount logs for development debugging
-      - ./logs:/app/logs
-      # Optional: Mount uploads for development  
-      - ./uploads:/app/uploads
     depends_on:
-      - database-health-check
-    
-  # Health check service to ensure databases are ready
-  database-health-check:
-    image: curlimages/curl:latest
-    container_name: app-backend-db-health-dev
-    networks:
-      - app-backend-dev-network
-    command: >
-      sh -c "
-        echo 'Checking database connectivity...' &&
-        until curl -f http://host.docker.internal:5433 2>/dev/null || nc -z host.docker.internal 5433; do
-          echo 'Waiting for PostgreSQL (dev:5433)...'
-          sleep 2
-        done &&
-        until curl -f http://host.docker.internal:6380 2>/dev/null || nc -z host.docker.internal 6380; do  
-          echo 'Waiting for Redis (dev:6380)...'
-          sleep 2
-        done &&
-        echo 'Databases are ready!'
-      "
-    restart: "no"
-
-# External network to connect to host databases
-# Backend connects to database containers running on host ports
+      - traefik

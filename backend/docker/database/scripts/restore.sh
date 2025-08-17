@@ -145,7 +145,7 @@ restore_redis() {
     fi
     
     # Stop Redis temporarily
-    docker exec "$container_name" redis-cli --pass "\$(cat /run/secrets/redis_password)" SHUTDOWN NOSAVE || true
+    docker exec "$container_name" redis-cli SHUTDOWN NOSAVE || true
     
     # Copy backup file
     docker cp "$backup_file" "${container_name}:/data/dump.rdb"

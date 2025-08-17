@@ -363,13 +363,13 @@ def get_error_details(error: Exception) -> Dict[str, Any]:
     """
     Extract error details from OpenAI exceptions
     
-    Args:
+    Args:   
         error: The OpenAI exception
         
     Returns:
         Dictionary with error details
     """
-    details = {
+    details : Dict[str, Any] = {
         "error_type": type(error).__name__,
         "message": str(error),
         "timestamp": datetime.utcnow().isoformat()
@@ -384,6 +384,7 @@ def get_error_details(error: Exception) -> Dict[str, Any]:
     
     # Add status code if available
     if hasattr(error, 'status_code'):
-        details["status_code"] = error.status_code
+        status_code = getattr(error, 'status_code', None)
+        details["status_code"] = status_code
     
     return details 

@@ -1,22 +1,34 @@
 version: '3.8'
 
+# Unified production network - created by database compose
 networks:
-  codesandbox-prod-network:
-    driver: bridge
-    name: codesandbox-prod-network
+  prod-network:
+    name: prod-network
+    external: true
 
 services:
-  codesandbox-prod:
+  codesandbox:
     container_name: codesandbox-production
     build: 
       context: .
       dockerfile: Dockerfile.prod
       args:
         CS_USER: code_sandbox
-    ports:
-      - "8080:8080"  # Fixed port since no env_file to interpolate
     networks:
-      - codesandbox-prod-network
+      - prod-network  # Unified network
+    labels:
+      - "traefik.enable=true"  # Explicit exposure
+      - "traefik.http.routers.codesandbox.rule=Host(`sandbox.yourdomain.com`)"
+      - "traefik.http.routers.codesandbox.entrypoints=websecure"
+
+      - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"
+      - "traefik.docker.network=prod-network"
+      # PRODUCTION: Let's Encrypt SSL
+      - "traefik.http.routers.codesandbox.tls.certresolver=letsencrypt"
+      # Metadata labels
+      - "com.app.environment=prod"
+      - "com.app.service=code_execution"
+      - "com.app.component=codesandbox"
     # No volume mounts for production - code is baked into image
     restart: unless-stopped
     healthcheck:

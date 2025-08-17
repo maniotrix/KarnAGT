@@ -1,0 +1,41 @@
+version: '3.8'
+
+# Unified staging network - created by database compose
+networks:
+  staging-network:
+    name: staging-network
+    external: true
+
+services:
+  codesandbox:
+    container_name: codesandbox-staging
+    build: 
+      context: .
+      dockerfile: Dockerfile.staging  # Use staging dockerfile for staging
+      args:
+        CS_USER: code_sandbox
+    networks:
+      - staging-network  # Unified network
+    environment:
+      - NODE_ENV=staging
+    labels:
+      - "traefik.enable=true"  # Explicit exposure
+      - "traefik.http.routers.codesandbox.rule=Host(`sandbox-staging.yourdomain.com`)"
+      - "traefik.http.routers.codesandbox.entrypoints=websecure"
+
+      - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"
+      - "traefik.docker.network=staging-network"
+      # STAGING: Let's Encrypt SSL
+      - "traefik.http.routers.codesandbox.tls.certresolver=letsencrypt"
+      # Metadata labels
+      - "com.app.environment=staging"
+      - "com.app.service=code_execution"
+      - "com.app.component=codesandbox"
+    # No volume mounts for staging - code is baked into image like prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

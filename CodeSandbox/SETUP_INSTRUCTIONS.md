@@ -37,25 +37,44 @@ CodeSandbox/
 python docker_setup_and_run.py envs
 
 # Validate environment setup (check files, Docker availability)
+python docker_setup_and_run.py validate --env=local
 python docker_setup_and_run.py validate --env=dev
 python docker_setup_and_run.py validate --prod  # shorthand
 
 # Build image only
-python docker_setup_and_run.py build --dev
+python docker_setup_and_run.py build --local    # Local development
+python docker_setup_and_run.py build --dev      # Traefik integration
 python docker_setup_and_run.py build --env=prod
 
 # Build and start containers (most common)
-python docker_setup_and_run.py start --dev
+python docker_setup_and_run.py start --local    # Local backend development
+python docker_setup_and_run.py start --dev      # Docker backend integration
 python docker_setup_and_run.py start --prod
 
 # Stop, rebuild, and start (fresh restart)
+python docker_setup_and_run.py restart --local
 python docker_setup_and_run.py restart --dev
 python docker_setup_and_run.py restart --prod
 ```
 
-### **Development Mode** (with hot reload)
+### **Local Development Mode** (for host-based backend)
 ```bash
-# Start development environment
+# Start local CodeSandbox (direct port access - perfect for local backend)
+python docker_setup_and_run.py start --local
+
+# View logs (use native Docker commands)
+docker-compose -f docker-compose.local.yml logs -f
+
+# Open shell (use native Docker commands)
+docker-compose -f docker-compose.local.yml exec codesandbox-local bash
+
+# Stop containers (use native Docker commands)
+docker-compose -f docker-compose.local.yml down
+```
+
+### **Development Mode** (with Traefik integration)
+```bash
+# Start development environment (for Docker-based backend)
 python docker_setup_and_run.py start --dev
 
 # View logs (use native Docker commands)
@@ -83,22 +102,31 @@ docker-compose -f docker-compose.prod.yml exec codesandbox-prod bash
 docker-compose -f docker-compose.prod.yml down
 ```
 
+### **Environment Selection Guide**
+Choose the right environment based on your backend setup:
+
+| Environment | Use When | Backend Type | Access Method |
+|-------------|----------|--------------|---------------|
+| **`--local`** | Backend runs on host machine | Local Python/uv setup | Direct port 8080 |
+| **`--dev`** | Backend runs in Docker container | Docker Compose setup | Traefik routing |
+| **`--prod`** | Production deployment | Containerized deployment | Domain routing |
+
 ### **Environment Validation**
 The script provides detailed validation logging:
 ```bash
-python docker_setup_and_run.py validate --dev
+python docker_setup_and_run.py validate --local
 ```
 **Output:**
 ```
-[14:23:45] 🔍 Validating 'dev' environment...
-[14:23:45]    ✅ Environment 'dev' found in config
+[14:23:45] 🔍 Validating 'local' environment...
+[14:23:45]    ✅ Environment 'local' found in config
 [14:23:45]    🐳 Checking Docker availability...
 [14:23:45]    ✅ Docker and docker-compose are available
 [14:23:45]    📁 Validating required files...
-[14:23:45]    ✅ Docker Compose file: docker-compose.dev.yml
+[14:23:45]    ✅ Docker Compose file: docker-compose.local.yml
 [14:23:45]    ✅ Dockerfile: Dockerfile.dev
 [14:23:45]    ✅ Environment file: .env.docker.dev
-[14:23:45] ✅ Environment 'dev' validation passed
+[14:23:45] ✅ Environment 'local' validation passed
 ```
 
 ## ⚙️ **Configuration**
@@ -160,11 +188,22 @@ python docker_setup_and_run.py envs
 [14:26:30]      ❌ Missing: Env file
 ```
 
-### **Local Development**
+### **Local Backend Development (Host-based)**
 ```bash
-# Validate and start development
+# Perfect for when your backend runs locally (not in Docker)
+python docker_setup_and_run.py validate --local  # Optional check first
+python docker_setup_and_run.py start --local
+
+# Your backend can now connect to: http://localhost:8080/api/v1
+```
+
+### **Docker-based Development**
+```bash
+# Perfect for when your backend also runs in Docker containers
 python docker_setup_and_run.py validate --dev  # Optional check first
 python docker_setup_and_run.py start --dev
+
+# Backend connects via Docker service discovery: http://codesandbox:8080/api/v1
 ```
 
 ### **Production Deployment**

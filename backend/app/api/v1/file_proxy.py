@@ -116,11 +116,19 @@ async def proxy_image_file(
         
         # Generate short-lived presigned URL for proxy access
         try:
-            presigned_url = await image_storage_service.get_presigned_url(
-                str(image_record.s3_key),  # Ensure it's a string value
-                expire_seconds=min(cache or FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY, 
-                                 FileProxyConfig.MAX_PRESIGNED_EXPIRY)
-            )
+            # Use internal URL for service calls, external URL for browser requests
+            if isinstance(auth, ServiceAuth):
+                presigned_url = await image_storage_service.get_internal_presigned_url(
+                    str(image_record.s3_key),  # Ensure it's a string value
+                    expire_seconds=min(cache or FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY, 
+                                     FileProxyConfig.MAX_PRESIGNED_EXPIRY)
+                )
+            else:
+                presigned_url = await image_storage_service.get_presigned_url(
+                    str(image_record.s3_key),  # Ensure it's a string value
+                    expire_seconds=min(cache or FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY, 
+                                     FileProxyConfig.MAX_PRESIGNED_EXPIRY)
+                )
         except Exception as e:
             logger.error(f"Failed to generate presigned URL for {file_id}: {e}")
             raise HTTPException(
@@ -252,12 +260,19 @@ async def proxy_knowledge_file(
             # Get S3 key from knowledge file
             s3_key = str(knowledge_file.file_path)
             
-            # Use image storage service for S3 operations (it's generic enough)
-            presigned_url = await image_storage_service.get_presigned_url(
-                s3_key,
-                expire_seconds=min(cache or FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY,
-                                 FileProxyConfig.MAX_PRESIGNED_EXPIRY)
-            )
+            # Use internal URL for service calls, external URL for browser requests
+            if isinstance(auth, ServiceAuth):
+                presigned_url = await image_storage_service.get_internal_presigned_url(
+                    s3_key,
+                    expire_seconds=min(cache or FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY,
+                                     FileProxyConfig.MAX_PRESIGNED_EXPIRY)
+                )
+            else:
+                presigned_url = await image_storage_service.get_presigned_url(
+                    s3_key,
+                    expire_seconds=min(cache or FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY,
+                                     FileProxyConfig.MAX_PRESIGNED_EXPIRY)
+                )
         except Exception as e:
             logger.error(f"Failed to generate presigned URL for knowledge_file_id={knowledge_file_id}: {e}")
             raise HTTPException(
@@ -345,10 +360,17 @@ async def proxy_code_generated_file(
         
         # Generate presigned URL directly (no ownership checks for code-generated files)
         try:
-            presigned_url = await image_storage_service.get_presigned_url(
-                s3_key,
-                expire_seconds=FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY
-            )
+            # Use internal URL for service calls, external URL for browser requests
+            if isinstance(auth, ServiceAuth):
+                presigned_url = await image_storage_service.get_internal_presigned_url(
+                    s3_key,
+                    expire_seconds=FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY
+                )
+            else:
+                presigned_url = await image_storage_service.get_presigned_url(
+                    s3_key,
+                    expire_seconds=FileProxyConfig.DEFAULT_PRESIGNED_EXPIRY
+                )
         except Exception as e:
             logger.error(f"Failed to generate presigned URL for code-generated file {file_id}: {e}")
             raise HTTPException(

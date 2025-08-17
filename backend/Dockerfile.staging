@@ -1,26 +1,41 @@
 # Application Backend - Staging Docker Image (Production-like)
-FROM python:3.10.11-slim
+FROM python:3.10.11
 
 # === System Dependencies ===
-# Based on requirements.txt analysis and common backend needs
+# Comprehensive packages for heavy ML/AI backend with 785+ dependencies
+# Includes build tools, runtime libraries, and specialized dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        # === Build Tools (Critical - Not included by default) ===
         build-essential \
-        curl \
-        git \
-        # PDF processing (for file uploads)
-        poppler-utils \
-        # OCR capabilities  
-        tesseract-ocr tesseract-ocr-eng \
-        # File type detection
-        libmagic1 \
-        # PostgreSQL client (for debugging)
+        gcc \
+        g++ \
+        make \
+        python3-dev \
+        # === PostgreSQL Dependencies ===
+        libpq-dev \
         postgresql-client \
-        # Image processing
+        # === ML/AI Runtime Libraries ===
+        # System libraries for PyTorch, OpenCV, transformers
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender-dev \
+        libgomp1 \
+        # === Document & File Processing ===
+        poppler-utils \
+        tesseract-ocr tesseract-ocr-eng \
+        libmagic1 \
+        # === Image & Media Processing ===
         libjpeg-dev \
         libpng-dev \
         libwebp-dev \
-        # Additional system libs for Python packages
+        libavcodec-dev \
+        libavformat-dev \
+        libswscale-dev \
+        # === Network & System Tools ===
+        curl \
+        git \
         pkg-config \
         libffi-dev \
         && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -30,18 +45,20 @@ ARG BACKEND_USER=app_backend_staging
 ENV BACKEND_USER=${BACKEND_USER}
 RUN useradd --create-home --shell /bin/bash ${BACKEND_USER}
 
-# === Install Python Dependencies (as root) ===
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
-
-# === Create Application Directories ===
-RUN mkdir -p /app/logs /app/uploads && \
+# === Create Application Directories === 
+RUN mkdir -p /app/logs && \
     chown -R ${BACKEND_USER}:${BACKEND_USER} /app
 
-# === Switch to Non-Root User ===
+# === Switch to Non-Root User BEFORE installing Python packages ===
 USER ${BACKEND_USER}
+
+# === Ensure user-installed packages are in PATH ===
+ENV PATH="/home/${BACKEND_USER}/.local/bin:${PATH}"
+
+# === Install Python Dependencies (as non-root user) ===
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} requirements-linux.txt /tmp/requirements.txt
+RUN pip install --user --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
 WORKDIR /app
 
 # === Copy Environment Configuration ===

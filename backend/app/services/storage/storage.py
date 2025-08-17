@@ -165,7 +165,7 @@ class S3StorageBackend(StorageBackend):
         self.endpoint_url = settings.S3_ENDPOINT_URL
         self.region = settings.S3_REGION
         
-        # Create S3 client
+        # Create main S3 client for operations (internal endpoint)
         self.s3_client = boto3.client(
             's3',
             endpoint_url=self.endpoint_url,
@@ -174,6 +174,25 @@ class S3StorageBackend(StorageBackend):
             config=Config(signature_version='s3v4'),
             region_name=self.region
         )
+        
+        # Create separate client for presigned URLs if different endpoint is configured
+        self.presigned_url_endpoint = settings.S3_PRESIGNED_URL_ENDPOINT or self.endpoint_url
+        
+        if self.presigned_url_endpoint != self.endpoint_url:
+            # Different endpoint for presigned URLs (Docker/production)
+            self.s3_presigned_client = boto3.client(
+                's3',
+                endpoint_url=self.presigned_url_endpoint,
+                aws_access_key_id=settings.S3_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
+                config=Config(signature_version='s3v4'),
+                region_name=self.region
+            )
+            logger.info(f"Created separate presigned URL client: {self.presigned_url_endpoint}")
+        else:
+            # Same endpoint, use main client (local development)
+            self.s3_presigned_client = self.s3_client
+            logger.info(f"Using main S3 client for presigned URLs: {self.endpoint_url}")
         
     def clear_bucket(self, bucket_name: str) -> bool:
         """Clear bucket of all files"""
@@ -542,16 +561,33 @@ class S3StorageBackend(StorageBackend):
             return False
     
     async def generate_presigned_url(self, key: str, expire_seconds: int = 3600) -> str:
-        """Generate presigned URL for secure access"""
+        """Generate presigned URL using appropriate client for browser access"""
         try:
+            # Use the presigned URL client (either separate or main client)
+            response = self.s3_presigned_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket_name, 'Key': key},
+                ExpiresIn=expire_seconds
+            )
+            logger.debug(f"Generated presigned URL for {key} using endpoint: {self.presigned_url_endpoint}")
+            return response
+        except ClientError as e:
+            logger.error(f"Failed to generate presigned URL for {key}: {e}")
+            raise
+    
+    async def generate_internal_presigned_url(self, key: str, expire_seconds: int = 3600) -> str:
+        """Generate presigned URL using internal endpoint for container-to-container access"""
+        try:
+            # Use the internal S3 client for container-to-container downloads
             response = self.s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': self.bucket_name, 'Key': key},
                 ExpiresIn=expire_seconds
             )
+            logger.debug(f"Generated internal presigned URL for {key} using endpoint: {self.endpoint_url}")
             return response
         except ClientError as e:
-            logger.error(f"Failed to generate presigned URL for {key}: {e}")
+            logger.error(f"Failed to generate internal presigned URL for {key}: {e}")
             raise
     
     def get_direct_s3_url(self, key: str) -> str:
@@ -813,6 +849,10 @@ class ImageStorageService:
     async def get_presigned_url(self, s3_key: str, expire_seconds: int = 3600) -> str:
         """Get presigned URL for secure access"""
         return await self.storage.generate_presigned_url(s3_key, expire_seconds)
+    
+    async def get_internal_presigned_url(self, s3_key: str, expire_seconds: int = 3600) -> str:
+        """Get internal presigned URL for container-to-container access"""
+        return await self.storage.generate_internal_presigned_url(s3_key, expire_seconds)
     
     def get_direct_s3_url(self, s3_key: str) -> str:
         """Get direct S3 URL for document loading (use with caution - requires proper access)"""

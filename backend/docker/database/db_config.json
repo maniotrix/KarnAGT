@@ -1,29 +1,94 @@
 {
-  "description": "Simplified database infrastructure - compose files contain all configuration",
+  "description": "Database infrastructure with Traefik integration and unified networking",
   "supported_environments": ["dev", "staging", "prod"],
   "environments": {
     "dev": {
       "compose_file": "docker-compose.dev.yml",
-      "description": "Development database with debug settings"
+      "description": "Development database with debug settings",
+      "network": "dev-network",
+      "domain": "localhost",
+      "ssl_mode": "self-signed"
     },
     "staging": {
       "compose_file": "docker-compose.staging.yml",
-      "description": "Staging database - production mirror"
+      "description": "Staging database - production mirror",
+      "network": "staging-network",
+      "domain": "staging.yourdomain.com",
+      "ssl_mode": "letsencrypt"
     },
     "prod": {
       "compose_file": "docker-compose.prod.yml",
-      "description": "Production database with high availability"
+      "description": "Production database with high availability",
+      "network": "prod-network",
+      "domain": "yourdomain.com",
+      "ssl_mode": "letsencrypt"
+    }
+  },
+  "services": {
+    "postgres": {
+      "container_name_suffix": "_dev|_staging|_prod",
+      "internal_port": 5432,
+      "traefik_enabled": false,
+      "description": "PostgreSQL database - internal only"
+    },
+    "redis": {
+      "container_name_suffix": "_dev|_staging|_prod",
+      "internal_port": 6379,
+      "traefik_enabled": false,
+      "description": "Redis cache - internal only"
+    },
+    "neo4j": {
+      "container_name_suffix": "_dev|_staging|_prod",
+      "internal_ports": [7474, 7687],
+      "traefik_enabled": false,
+      "description": "Neo4j graph database - internal only"
+    },
+    "qdrant": {
+      "container_name_suffix": "_dev|_staging|_prod",
+      "internal_ports": [6333, 6334],
+      "traefik_enabled": false,
+      "description": "Qdrant vector database - internal only"
+    },
+    "minio": {
+      "container_name_suffix": "_dev|_staging|_prod",
+      "internal_port": 9000,
+      "console_port": 9001,
+      "traefik_enabled": true,
+      "path_prefix": "/files",
+      "description": "MinIO object storage - public file access via Traefik"
+    }
+  },
+  "traefik_integration": {
+    "enabled": true,
+    "network_isolation": true,
+    "security": {
+      "expose_databases": false,
+      "minio_public_access": true,
+      "security_headers": true
     }
   },
   "settings": {
     "docker_compose_timeout": 300,
     "health_check_timeout": 120,
-    "backup_parallel_jobs": 2
+    "backup_parallel_jobs": 2,
+    "network_isolation_enforced": true
   },
   "required_secrets": [
     "postgres_password.txt",
-    "redis_password.txt",
     "neo4j_auth.txt",
-    "minio_credentials.txt"
-  ]
+    "minio_user.txt",
+    "minio_password.txt"
+  ],
+  "minio_configuration": {
+    "bucket_naming": {
+      "dev": "app-files-dev",
+      "staging": "app-files-staging", 
+      "prod": "app-files-prod"
+    },
+    "server_urls": {
+      "dev": "http://localhost:9000",
+      "staging": "https://files-staging.yourdomain.com",
+      "prod": "https://files.yourdomain.com"
+    }
+  }
 }

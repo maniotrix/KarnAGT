@@ -5,6 +5,7 @@ Auto-detects environment and configures accordingly
 """
 import os
 import sys
+import time
 from pathlib import Path
 from typing import List, Tuple
 import re
@@ -250,17 +251,56 @@ def check_minio_health():
         print(f"⚠️ MinIO ({settings.S3_ENDPOINT_URL}) - Unhealthy: {e}")
         return False
 
+def check_codesandbox_health():
+    """Check CodeSandbox connection health using settings"""
+    try:
+        print(f"🔍 Checking CodeSandbox health...")
+        import requests
+        
+        # Only check if CodeSandbox URL is configured
+        if not settings.CODESANDBOX_URL or settings.CODESANDBOX_URL.strip() == "":
+            print("ℹ️ CodeSandbox URL not configured - skipping check")
+            return True
+        
+        # CodeSandbox health endpoint
+        health_url = f"{settings.CODESANDBOX_URL}/health"
+        response = requests.get(health_url, timeout=10)
+        response.raise_for_status()
+        
+        # Try to parse response as JSON for more detailed info
+        try:
+            health_data = response.json()
+            status = health_data.get('status', 'unknown')
+            if status.lower() in ['healthy', 'ok', 'up']:
+                print(f"✅ CodeSandbox ({settings.CODESANDBOX_URL}) - Healthy")
+                return True
+            else:
+                print(f"⚠️ CodeSandbox ({settings.CODESANDBOX_URL}) - Status: {status}")
+                return False
+        except ValueError:
+            # Response is not JSON, but HTTP 200 means healthy
+            print(f"✅ CodeSandbox ({settings.CODESANDBOX_URL}) - Healthy")
+            return True
+        
+    except ImportError:
+        print("⚠️ requests not available - CodeSandbox check skipped")
+        return False
+    except Exception as e:
+        print(f"⚠️ CodeSandbox ({settings.CODESANDBOX_URL}) - Unhealthy: {e}")
+        return False
+
 def check_all_database_services():
-    """Check health of all configured database services"""
-    print("🏥 Database Services Health Check")
-    print("=" * 40)
+    """Check health of all configured database and external services"""
+    print("🏥 Database & External Services Health Check")
+    print("=" * 50)
     
     services = [
         ("PostgreSQL", check_postgresql_health),
         ("Redis", check_redis_health),
         ("Neo4j", check_neo4j_health),
         ("Qdrant", check_qdrant_health),
-        ("MinIO", check_minio_health)
+        ("MinIO", check_minio_health),
+        ("CodeSandbox", check_codesandbox_health)
     ]
     
     results = {}
@@ -359,6 +399,26 @@ if __name__ == "__main__":
         # Setup MinIO buckets
         setup_minio_if_needed()
         print("")
+        
+        # ⚠️ CRITICAL DATABASE MIGRATION REMINDER ⚠️
+        print("🔥" + "="*70 + "🔥")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  ⚠️  IMPORTANT: DATABASE MIGRATIONS REQUIRED  ⚠️         🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  Before using the application, ensure you have:          🚨")
+        print("🚨  1. 📋 Applied all database migrations                   🚨")
+        print("🚨  2. 🗃️  Created required database tables                 🚨")
+        print("🚨  3. 🔧 Set up initial database schema                   🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  🛠️  Run: cd backend && alembic upgrade head              🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🚨  ❌ Missing migrations = Application will fail!         🚨")
+        print("🚨" + " "*68 + "🚨")
+        print("🔥" + "="*70 + "🔥")
+        print("")
+        
+        # Brief pause to ensure the message is seen
+        time.sleep(2)
         
         # Environment-specific configuration  
         print(f"🌐 Starting server on 0.0.0.0:8000")

@@ -24,7 +24,7 @@ class QdrantConfig:
     
     # gRPC settings
     prefer_grpc: bool = False
-    grpc_port: int = 6334
+    grpc_port: int = field(default_factory=lambda: settings.QDRANT_GRPC_PORT)
     grpc_options: Optional[Dict[str, Any]] = None
     
     # Vector settings

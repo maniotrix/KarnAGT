@@ -84,7 +84,7 @@ result = {"rows": len(df), "plot_saved": True}
         else:
             print(f"Execution failed: {result.error}")
     """
-    return await _execution_service.execute_code(workspace_id, code, timeout)
+    return await _execution_service.execute_code(workspace_id, code)
 
 
 @function_tool(strict_mode=False)

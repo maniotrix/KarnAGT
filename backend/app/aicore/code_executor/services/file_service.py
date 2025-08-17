@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from app.logging.logger import get_logger
 from app.utils.async_http_client import AsyncHTTPClient, DownloadError, FileTooLargeError, HTTPClientError
 from app.utils.file_utils import get_file_content
+from app.core.config import settings
 from app.aicore.code_executor.clients import (
     SandboxClient, 
     WorkspaceNotFoundError, 
@@ -64,12 +65,6 @@ class FileService:
         Returns:
             Dictionary of headers to include in the request
         """
-        from app.core.config import get_settings
-        import logging
-        
-        logger = logging.getLogger(__name__)
-        settings = get_settings()
-        
         # Debug logging
         is_internal = settings.is_internal_proxy_url(url)
         token_available = bool(settings.CODE_EXECUTOR_TOKEN)
@@ -120,9 +115,12 @@ class FileService:
                     # Get authentication headers for internal URLs
                     auth_headers = self._get_auth_headers_for_url(source)
                     
+                    # Resolve internal URL for same-container calls
+                    resolved_url = settings.resolve_internal_url(source)
+                    
                     async with AsyncHTTPClient() as http_client:
                         content, extracted_filename = await http_client.download_file(
-                            url=source,
+                            url=resolved_url,
                             max_size_mb=max_size_mb,
                             filename=file_name,
                             headers=auth_headers

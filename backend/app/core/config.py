@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     
     # Vector Database (Qdrant)
     QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_GRPC_PORT: int = 6334  # gRPC port for Qdrant (varies by environment)
     QDRANT_API_KEY: Optional[str] = None
     QDRANT_COLLECTION_CHAT_MEMORIES: str = "chat_memories"
     QDRANT_COLLECTION_KNOWLEDGE_FILES: str = "knowledge_files"
@@ -124,6 +125,11 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY_ID: str = "minioadmin"
     S3_SECRET_ACCESS_KEY: str = "minioadmin123"
     S3_REGION: str = "us-east-1"
+    
+    # Presigned URL Configuration
+    # If None, falls back to S3_ENDPOINT_URL (for local development)
+    # Set to external endpoint for Docker/production environments
+    S3_PRESIGNED_URL_ENDPOINT: Optional[str] = None
     
     # Image Processing
     MAX_IMAGE_SIZE: int = 20 * 1024 * 1024  # 20MB (OpenAI limit)
@@ -314,6 +320,24 @@ class Settings(BaseSettings):
         """Get a full URL for a given path"""
         path = path.lstrip('/')
         return f"{self.server_base_url}/{path}" if path else self.server_base_url
+    
+    def resolve_internal_url(self, url: str) -> str:
+        """
+        Convert public proxy URL to internal URL for same-container calls.
+        
+        This allows the backend to access its own proxy endpoints directly
+        without going through external reverse proxy (Traefik/load balancer).
+        
+        Args:
+            url: Public proxy URL (e.g., https://api.company.com/api/v1/proxy/files/123)
+            
+        Returns:
+            Internal URL (e.g., http://localhost:8000/api/v1/proxy/files/123)
+        """
+        if self.is_internal_proxy_url(url):
+            # Replace public base URL with localhost:PORT for internal calls
+            return url.replace(self.server_base_url, f"http://localhost:{self.PORT}")
+        return url
     
     def get_cookie_settings(self) -> dict:
         """Get cookie settings based on environment"""

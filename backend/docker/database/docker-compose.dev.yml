@@ -1,22 +1,22 @@
 version: '3.9'
 name: 'app_db_dev'
 
-# File-based secrets for database credentials
+# File-based secrets for database credentials (unchanged)
 secrets:
   postgres_password:
     file: ./secrets/dev/postgres_password.txt
-  redis_password:
-    file: ./secrets/dev/redis_password.txt
   neo4j_auth:
     file: ./secrets/dev/neo4j_auth.txt
-  minio_credentials:
-    file: ./secrets/dev/minio_credentials.txt
+  minio_user:
+    file: ./secrets/dev/minio_user.txt
+  minio_password:
+    file: ./secrets/dev/minio_password.txt
 
-# Development environment isolated network
+# Unified development network
 networks:
-  app_db_network_dev:
+  dev-network:
     driver: bridge
-    name: app_db_network_dev
+    name: dev-network
 
 services:
   postgres:
@@ -43,20 +43,24 @@ services:
     secrets:
       - postgres_password
       
-    # Development-specific port mapping (5433 to avoid conflicts)
+    # Development-specific port mapping (5433 to avoid conflicts with local postgres)
     ports:
       - "5433:5432"
       
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
-      # Optional: Custom config files (uncomment if needed)
-      # - ./config/dev/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      # - ./config/dev/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-      # - ./init-scripts:/docker-entrypoint-initdb.d:ro
       - ./backups/dev:/backups
       
     networks:
-      - app_db_network_dev
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Database not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=database" 
+      - "com.app.component=postgres"
+      - "com.app.backup.enable=true"
       
     # Structured logging with rotation
     logging:
@@ -66,13 +70,6 @@ services:
         max-file: "3"
         labels: "environment=dev,service=postgres"
         
-    # Metadata labels for organization
-    labels:
-      - "com.app.environment=dev"
-      - "com.app.service=database"
-      - "com.app.component=postgres"
-      - "com.app.backup.enable=true"
-      
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app_dev_user -d app_dev_db"]
       interval: 30s
@@ -90,11 +87,10 @@ services:
     security_opt:
       - no-new-privileges:true
       
-    # Secure Redis with password from secrets
+    # Redis without password authentication for development
     command: >
       sh -c '
         redis-server 
-        --requirepass "$$(cat /run/secrets/redis_password)"
         --appendonly yes 
         --appendfsync everysec
         --maxmemory 128M
@@ -104,20 +100,23 @@ services:
         --save 60 10000
       '
       
-    secrets:
-      - redis_password
-      
-    # Development-specific port mapping (6380 to avoid conflicts)
+    # Development-specific port mapping (6380 to avoid conflicts with local redis)
     ports:
       - "6380:6379"
       
     volumes:
       - redisdata_dev:/data
-      # Optional: Custom config file (uncomment if needed)
-      # - ./config/dev/redis.conf:/etc/redis/redis.conf:ro
       
     networks:
-      - app_db_network_dev
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Cache not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=cache"
+      - "com.app.component=redis"
+      - "com.app.backup.enable=true"
       
     # Structured logging
     logging:
@@ -127,14 +126,8 @@ services:
         max-file: "3"
         labels: "environment=dev,service=redis"
         
-    labels:
-      - "com.app.environment=dev"
-      - "com.app.service=cache"
-      - "com.app.component=redis"
-      - "com.app.backup.enable=true"
-      
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --pass $$(cat /run/secrets/redis_password) ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -153,7 +146,7 @@ services:
     environment:
       NEO4J_AUTH: "neo4j/dev_neo4j_password_123"
       
-    # Development-specific port mapping (custom ports to avoid conflicts)
+    # Development-specific port mapping (custom ports to avoid conflicts with local neo4j)
     ports:
       - "7475:7474"   # HTTP Browser
       - "7688:7687"   # Bolt Driver
@@ -161,11 +154,17 @@ services:
     volumes:
       - neo4jdata_dev:/data
       - neo4jlogs_dev:/logs
-      # Optional: Custom config file (uncomment if needed)
-      # - ./config/dev/neo4j.conf:/etc/neo4j/neo4j.conf:ro
       
     networks:
-      - app_db_network_dev
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Graph database not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=graph_database"
+      - "com.app.component=neo4j"
+      - "com.app.backup.enable=true"
       
     logging:
       driver: "json-file"
@@ -174,12 +173,6 @@ services:
         max-file: "3"
         labels: "environment=dev,service=neo4j"
         
-    labels:
-      - "com.app.environment=dev"
-      - "com.app.service=graph_database"
-      - "com.app.component=neo4j"
-      - "com.app.backup.enable=true"
-      
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell 'RETURN 1;' || exit 1"]
       interval: 30s
@@ -192,10 +185,10 @@ services:
     container_name: qdrant_dev
     restart: unless-stopped
       
-    # Development-specific port mapping (custom ports to avoid conflicts)
+    # Development-specific port mapping (custom ports to avoid conflicts with local qdrant)
     ports:
-      - "6335:6333"
-      - "6336:6334"
+      - "6335:6333"  # HTTP API
+      - "6336:6334"  # gRPC API
       
     environment:
       QDRANT__SERVICE__HOST: 0.0.0.0
@@ -205,11 +198,17 @@ services:
       
     volumes:
       - qdrantdata_dev:/qdrant/storage
-      # Optional: Custom config file (uncomment if needed)
-      # - ./config/dev/qdrant_config.yaml:/qdrant/config/production.yaml:ro
       
     networks:
-      - app_db_network_dev
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Vector database not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=vector_database"
+      - "com.app.component=qdrant"
+      - "com.app.backup.enable=true"
       
     logging:
       driver: "json-file"
@@ -218,12 +217,6 @@ services:
         max-file: "3"
         labels: "environment=dev,service=qdrant"
         
-    labels:
-      - "com.app.environment=dev"
-      - "com.app.service=vector_database"
-      - "com.app.component=qdrant"
-      - "com.app.backup.enable=true"
-      
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/health || exit 1"]
       interval: 60s
@@ -237,28 +230,42 @@ services:
     restart: unless-stopped
       
     environment:
-      MINIO_ROOT_USER_FILE: /run/secrets/minio_credentials
-      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_credentials
-      MINIO_BROWSER_REDIRECT_URL: http://localhost:9003
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
       MINIO_DEFAULT_BUCKETS: app-files-dev
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:9003
       
     secrets:
-      - minio_credentials
+      - minio_user
+      - minio_password
       
-    # Development-specific port mapping (custom ports to avoid conflicts)
+    # Development-specific port mapping (9002 -> 9000 for external access)
     ports:
-      - "9002:9000"
-      - "9003:9001"
+      - "9002:9000"  # API port
+      - "9003:9001"  # Console port
       
     volumes:
       - minio_data_dev:/data
-      # Optional: Custom policy file (uncomment if needed)
-      # - ./config/dev/minio_policy.json:/policies/default.json:ro
       
     networks:
-      - app_db_network_dev
+      - dev-network  # Unified network
       
     command: server /data --console-address ":9001"
+    
+    # Traefik labels - Direct routing for presigned URLs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`localhost`)"
+      - "traefik.http.routers.minio.entrypoints=files"  # Port 9000
+
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.docker.network=dev-network"
+      - "traefik.http.routers.minio.tls=true"
+      # Metadata labels
+      - "com.app.environment=dev"
+      - "com.app.service=object_storage"
+      - "com.app.component=minio"
+      - "com.app.backup.enable=true"
     
     logging:
       driver: "json-file"
@@ -267,12 +274,6 @@ services:
         max-file: "3"
         labels: "environment=dev,service=minio"
         
-    labels:
-      - "com.app.environment=dev"
-      - "com.app.service=object_storage"
-      - "com.app.component=minio"
-      - "com.app.backup.enable=true"
-      
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 60s

@@ -1,7 +1,7 @@
 # === Environment Files ===
 .env
-.env.*
-!env.docker.app.example
+# Include Docker environment files (needed for builds)
+!.env.docker.app.*
 
 # === Python Cache ===
 __pycache__/
@@ -53,7 +53,8 @@ htmlcov/
 
 # === Documentation ===
 *.md
-!README.md
+docs/
+README*
 
 # === Database Files ===
 *.db
@@ -86,26 +87,19 @@ backend_docker_config.json
 .gitignore
 .gitkeep
 
-# === Analysis and Planning Files ===
-backend_plan.md
-*_ANALYSIS.md
-*_PLAN.md
-*_STRATEGY.md
-*_ROADMAP.md
-*_IMPLEMENTATION.md
-DOCKER_DATABASE_INTEGRATION.md
-IMAGE_UPLOAD_FEATURE_SPEC.md
-IMPLEMENTATION_PLAN.md
-PDF_PARSING_ANALYSIS_AND_ROADMAP.md
-PRODUCTION_RAG_IMPLEMENTATION.md
-PYTHON_GO_MICROSERVICES_PLAN.md
-SCALING_ANALYSIS_REPORT.md
-SEND_LLM_IMAGES_PLAN.md
-STAGING_API_SCALABILITY_BACKLOG.md
-STREAM_TESTING_README.md
-STREAM_TESTING_RESULTS.md
-TOOL_CALLS_STRUCTURE.md
-USER_MEMORY_IMPLEMENTATION_PLAN.md
+# === Documentation Directory ===
+app_docs/
+
+# === Type Checking Configuration ===
+pyrightconfig.json
+
+# === Package Lock Files ===
+requirements.in
+uv.lock
+*.lock
+
+# === Project Configuration (if not needed for build) ===
+pyproject.toml
 
 # === Scripts (Host-Only Utilities) ===
 # scripts/ folder contains host-side management tools:
