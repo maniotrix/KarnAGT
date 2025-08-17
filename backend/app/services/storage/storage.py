@@ -575,6 +575,21 @@ class S3StorageBackend(StorageBackend):
             logger.error(f"Failed to generate presigned URL for {key}: {e}")
             raise
     
+    async def generate_internal_presigned_url(self, key: str, expire_seconds: int = 3600) -> str:
+        """Generate presigned URL using internal endpoint for container-to-container access"""
+        try:
+            # Use the internal S3 client for container-to-container downloads
+            response = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket_name, 'Key': key},
+                ExpiresIn=expire_seconds
+            )
+            logger.debug(f"Generated internal presigned URL for {key} using endpoint: {self.endpoint_url}")
+            return response
+        except ClientError as e:
+            logger.error(f"Failed to generate internal presigned URL for {key}: {e}")
+            raise
+    
     def get_direct_s3_url(self, key: str) -> str:
         """
         Get direct S3 URL (for public buckets or when you have proper IAM access)
@@ -834,6 +849,10 @@ class ImageStorageService:
     async def get_presigned_url(self, s3_key: str, expire_seconds: int = 3600) -> str:
         """Get presigned URL for secure access"""
         return await self.storage.generate_presigned_url(s3_key, expire_seconds)
+    
+    async def get_internal_presigned_url(self, s3_key: str, expire_seconds: int = 3600) -> str:
+        """Get internal presigned URL for container-to-container access"""
+        return await self.storage.generate_internal_presigned_url(s3_key, expire_seconds)
     
     def get_direct_s3_url(self, s3_key: str) -> str:
         """Get direct S3 URL for document loading (use with caution - requires proper access)"""
