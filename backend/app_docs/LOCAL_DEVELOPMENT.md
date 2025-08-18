@@ -185,6 +185,64 @@ docker-compose -f docker-compose.local.yml logs -f
 docker-compose -f docker-compose.local.yml down
 ```
 
+---
+
+## 🌐 **Universal Network Principles (Local Development)**
+
+### **🎯 Network Configuration Consistency**
+
+Even in local development, we follow the **same universal network principles** used in Docker and cloud deployments:
+
+**✅ Internal URL Resolution (Self-Calls)**
+```python
+# If backend calls its own proxy endpoints, automatic conversion happens:
+Input:  http://localhost:8000/api/v1/proxy/files/123
+Output: http://127.0.0.1:8000/api/v1/proxy/files/123
+
+# Benefits in local development:
+✅ Same code behavior as production
+✅ No special localhost handling needed
+✅ Consistent with Docker container behavior
+✅ Works with any local reverse proxy setup
+```
+
+**✅ Predictable HOST Binding**
+```python
+# start_app.py always binds consistently:
+host="0.0.0.0"  # ← Allows external connections (frontend, tools, etc.)
+port=8000       # ← Consistent port across all environments
+
+# Result: 
+# - Backend accessible via http://localhost:8000 (browser, frontend)
+# - Backend accessible via http://127.0.0.1:8000 (internal calls)
+# - Backend accessible via http://your-ip:8000 (network devices)
+```
+
+**✅ Environment Simplification**
+```bash
+# Local .env file (simplified - no HOST configuration):
+PORT=8000                                       # Port only (HOST hardcoded)
+S3_ENDPOINT_URL=http://localhost:9000           # MinIO internal operations  
+S3_PRESIGNED_URL_ENDPOINT=http://localhost:9000 # MinIO browser downloads
+VITE_API_URL=http://localhost:8000              # Frontend API calls
+```
+
+### **🔧 Why This Matters for Local Development**
+
+**Consistency Benefits:**
+- 🚫 **No local-specific configurations** - Same network logic everywhere
+- ✅ **Easy debugging** - Local behavior matches production exactly
+- ✅ **Smooth transitions** - Code works identically when moved to Docker
+- ✅ **Future-proof** - Works with any containerization or deployment strategy
+
+**Development Workflow Benefits:**
+- ✅ **Frontend integration** - Can call backend via localhost:8000 or 127.0.0.1:8000
+- ✅ **Proxy testing** - Internal URL resolution works the same as production
+- ✅ **Network tools** - Can access from other devices on network via your-ip:8000
+- ✅ **Local Docker services** - Backend can reach database containers reliably
+
+---
+
 ## 📁 **Project Structure for Local Dev**
 
 ```

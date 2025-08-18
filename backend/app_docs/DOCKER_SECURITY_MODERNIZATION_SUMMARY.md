@@ -85,6 +85,54 @@ command:
 
 ---
 
+## 🌐 **Universal Network Architecture Improvements**
+
+### **🎯 Internal URL Resolution & HOST Configuration Cleanup**
+
+**Problem Solved:** Inconsistent network configuration and internal URL resolution failures across different deployment environments.
+
+**Solution Implemented:**
+```python
+# OLD (Environment-dependent, unreliable):
+HOST=0.0.0.0  # In env files but sometimes ignored
+# Internal calls: http://localhost:8000 (failed in Docker containers)
+
+# NEW (Universal, predictable):  
+# HOST removed from all environment files
+# Hard-coded in start_app.py: host="0.0.0.0", port=8000
+# Internal calls: http://127.0.0.1:8000 (works everywhere)
+```
+
+**Applied to:**
+- ✅ `backend/env.docker.app.prod` - HOST removed
+- ✅ `backend/env.local.example` - HOST removed  
+- ✅ `backend/env.docker.app.example` - HOST removed
+- ✅ `backend/start_app.py` - Uses settings.HOST consistently
+- ✅ `backend/app/core/config.py` - Internal URL resolution uses 127.0.0.1
+
+### **🔧 Smart Internal URL Resolution**
+**Problem Solved:** Backend trying to call its own proxy endpoints via external URLs caused SSL errors and proxy bypass issues.
+
+**Solution Implemented:**
+```python
+# FileService internal URL conversion:
+def resolve_internal_url(self, url: str) -> str:
+    if self.is_internal_proxy_url(url):
+        # Convert: https://api.yourdomain.com/api/v1/proxy/files/123
+        # To:     http://127.0.0.1:8000/api/v1/proxy/files/123
+        return url.replace(self.server_base_url, f"http://127.0.0.1:{self.PORT}")
+    return url
+```
+
+**Benefits:**
+- ✅ **Works in ALL environments** - Docker, local, cloud, any infrastructure
+- ✅ **Load balancer agnostic** - Bypasses Traefik, Nginx, AWS ALB, etc. for self-calls
+- ✅ **No SSL overhead** - Internal calls use plain HTTP to 127.0.0.1
+- ✅ **No DNS resolution** - 127.0.0.1 always resolves immediately
+- ✅ **Eliminates proxy issues** - Direct container-to-self communication
+
+---
+
 ## 🐍 **Platform-Specific Requirements (uv Integration)**
 
 ### **Problem Solved: Cross-Platform Dependency Conflicts**
@@ -194,6 +242,12 @@ python backend_docker_manager.py restart --prod
 - **Eliminated supply chain attack vectors** from root pip installs
 - **Industry-standard container security** across all environments
 
+### **🌐 Network Architecture Improvements:**
+- **Universal internal URL resolution** - 127.0.0.1 for all self-calls
+- **Eliminated proxy bypass issues** - Works with any load balancer or reverse proxy
+- **Clean HOST configuration** - Removed confusing environment variables
+- **Infrastructure agnostic** - Same code works in Docker, local, cloud, etc.
+
 ### **⚡ Performance Improvements:**
 - **10x faster** local dependency installation (uv vs pip)
 - **4x faster** Docker builds with optimized requirements
@@ -250,6 +304,16 @@ backend/
 ├── requirements-linux.txt   ✅ Generated for Docker/Linux
 ├── requirements-windows.txt  ✅ Generated for Windows development
 └── .dockerignore            ✅ Fixed to include Docker env files
+```
+
+### **Network Configuration:**
+```
+backend/
+├── env.docker.app.prod      ✅ HOST configuration removed
+├── env.local.example        ✅ HOST configuration removed
+├── env.docker.app.example   ✅ HOST configuration removed
+├── start_app.py            ✅ Consistent HOST usage from settings
+└── app/core/config.py      ✅ Smart internal URL resolution with 127.0.0.1
 ```
 
 ### **Documentation:**

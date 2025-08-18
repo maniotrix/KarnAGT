@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+    
+    # Network Configuration
+    # NOTE: HOST is hardcoded to "0.0.0.0" in start_app.py (primary startup)
+    # This setting is only used for:
+    # 1. Direct app/main.py execution (fallback startup)
+    # 2. URL generation logic in server_host property
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
@@ -332,11 +338,12 @@ class Settings(BaseSettings):
             url: Public proxy URL (e.g., https://api.company.com/api/v1/proxy/files/123)
             
         Returns:
-            Internal URL (e.g., http://localhost:8000/api/v1/proxy/files/123)
+            Internal URL (e.g., http://127.0.0.1:8000/api/v1/proxy/files/123)
         """
         if self.is_internal_proxy_url(url):
-            # Replace public base URL with localhost:PORT for internal calls
-            return url.replace(self.server_base_url, f"http://localhost:{self.PORT}")
+            # Replace public base URL with 127.0.0.1:PORT for internal calls
+            # 127.0.0.1 works reliably in both Docker containers and local development
+            return url.replace(self.server_base_url, f"http://127.0.0.1:{self.PORT}")
         return url
     
     def get_cookie_settings(self) -> dict:
