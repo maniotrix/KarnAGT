@@ -188,6 +188,69 @@ else:
 - ✅ **Pure Docker networking** for backend services
 - ✅ **Secure HTTPS** for browser requests
 
+## 🌐 **Universal Network Configuration**
+
+### **🎯 Internal URL Resolution (Self-Calls)**
+
+**Problem Solved:** Backend services trying to call their own proxy endpoints via external URLs.
+
+**Solution:** Smart internal URL resolution that works universally:
+
+```python
+# Example: FileService downloading from own proxy endpoint
+Input:  https://api.yourdomain.com/api/v1/proxy/files/123
+Output: http://127.0.0.1:8000/api/v1/proxy/files/123
+
+# How it works:
+def resolve_internal_url(self, url: str) -> str:
+    if self.is_internal_proxy_url(url):
+        # Convert external URL to internal loopback
+        return url.replace(self.server_base_url, f"http://127.0.0.1:{self.PORT}")
+    return url
+```
+
+**Universal Compatibility:**
+```bash
+✅ Docker production    (app-backend-production container)
+✅ Docker development   (app-backend-development container)  
+✅ Docker staging       (app-backend-staging container)
+✅ Local development    (host machine Python process)
+✅ Cloud deployments    (any infrastructure)
+✅ CI/CD environments   (any testing setup)
+```
+
+### **🔧 Clean HOST Configuration**
+
+**Simplified Architecture:**
+- **HOST removed** from all environment files (no longer configurable)
+- **Hard-coded** in `start_app.py` for predictable behavior
+- **Consistent binding** to `0.0.0.0:8000` in all environments
+
+```python
+# start_app.py (Primary startup method):
+uvicorn.run(
+    "app.main:app",
+    host="0.0.0.0",  # ← Hard-coded, consistent across environments
+    port=8000,
+    # ... other settings
+)
+
+# app/main.py (Fallback startup method):  
+uvicorn.run(
+    "app.main:app", 
+    host=settings.HOST,  # ← Uses internal default "0.0.0.0"
+    port=settings.PORT,
+    # ... other settings  
+)
+```
+
+**Benefits:**
+- 🚫 **No configuration confusion** - HOST not in environment files
+- ✅ **Predictable startup** - Always binds to all interfaces
+- ✅ **Infrastructure agnostic** - Works with any reverse proxy or load balancer
+- ✅ **Docker compatible** - Allows container external access
+- ✅ **Self-call guaranteed** - 127.0.0.1 always available for internal communication
+
 ## 🔧 **Docker Manager Commands**
 
 ### **Environment Management**

@@ -27,6 +27,50 @@
 
 ---
 
+## 🌐 **Universal Network Configuration Architecture**
+
+### **🎯 Network Configuration Improvements (All Deployments)**
+All deployment methods now use consistent, universal network architecture:
+
+**✅ Internal URL Resolution (Self-Calls)**
+```python
+# Backend makes internal proxy calls to itself using 127.0.0.1
+# Examples: file downloads, health checks, internal API calls
+https://api.yourdomain.com/api/v1/proxy/files/123
+    ↓ (automatically converted)
+http://127.0.0.1:8000/api/v1/proxy/files/123
+
+# Works reliably in ALL environments:
+✅ Docker containers (production/staging)  
+✅ Local development
+✅ Cloud deployments  
+✅ Any load balancer or reverse proxy setup
+```
+
+**✅ Clean HOST Configuration**
+```bash
+# HOST removed from all environment files (no longer configurable)
+# Hard-coded in start_app.py for predictable behavior:
+
+# Primary startup (Production/Docker)
+start_app.py: host="0.0.0.0", port=8000  # ← Always binds to all interfaces
+
+# Fallback startup (Development/Testing)  
+app/main.py: host="0.0.0.0", port=8000   # ← Uses internal default
+
+# Result: Consistent network behavior across ALL deployment methods
+```
+
+**✅ Benefits:**
+- 🚫 **No proxy bypass issues** - Internal calls always work
+- 🚫 **No hostname resolution failures** - 127.0.0.1 is always available
+- 🚫 **No environment-specific configuration** - Universal architecture
+- ✅ **Load balancer agnostic** - Works with Traefik, Nginx, AWS ALB, etc.
+- ✅ **Docker networking compatible** - No extra_hosts needed
+- ✅ **Cloud deployment ready** - Same code works everywhere
+
+---
+
 ## 🔒 **NEW: Docker Security & Platform-Specific Requirements**
 
 ### **🔐 Enhanced Security (Applied Across All Environments)**
