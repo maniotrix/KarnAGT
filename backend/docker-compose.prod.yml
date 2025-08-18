@@ -104,15 +104,6 @@ services:
     volumes:
       # Production logs
       - ./logs:/app/logs:rw
-    # Production resource limits - IDENTICAL to original
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-        reservations:
-          memory: 1G
-          cpus: '1.0'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s

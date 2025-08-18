@@ -2,42 +2,55 @@
 FROM python:3.10.11
 
 # === System Dependencies ===
-# Comprehensive packages for heavy ML/AI backend with 785+ dependencies
-# Includes build tools, runtime libraries, and specialized dependencies
+# Comprehensive package installation for heavy ML/AI backend requirements
+# IDENTICAL TO DEV/PROD - ensures staging compatibility
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        # === Build Tools (Critical - Not included by default) ===
+        # Build tools (NOT guaranteed in full Python image)
         build-essential \
         gcc \
         g++ \
         make \
-        python3-dev \
-        # === PostgreSQL Dependencies ===
+        # PostgreSQL development headers (for psycopg2 compilation) - REQUIRED
         libpq-dev \
+        # Python development headers (for C extensions)
+        python3-dev \
+        # PDF processing (for file uploads)
+        poppler-utils \
+        # OCR capabilities  
+        tesseract-ocr tesseract-ocr-eng \
+        # File type detection
+        libmagic1 \
+        # PostgreSQL client (for debugging)
         postgresql-client \
-        # === ML/AI Runtime Libraries ===
-        # System libraries for PyTorch, OpenCV, transformers
+        # Image processing libraries (for OpenCV, Pillow, scikit-image)
+        libjpeg-dev \
+        libpng-dev \
+        libwebp-dev \
+        libtiff-dev \
+        libopenjp2-7-dev \
+        # System libraries for ML/AI packages (PyTorch, OpenCV)
         libglib2.0-0 \
         libsm6 \
         libxext6 \
         libxrender-dev \
         libgomp1 \
-        # === Document & File Processing ===
-        poppler-utils \
-        tesseract-ocr tesseract-ocr-eng \
-        libmagic1 \
-        # === Image & Media Processing ===
-        libjpeg-dev \
-        libpng-dev \
-        libwebp-dev \
-        libavcodec-dev \
-        libavformat-dev \
-        libswscale-dev \
-        # === Network & System Tools ===
-        curl \
-        git \
+        libgfortran5 \
+        # Additional system libs for Python packages
         pkg-config \
         libffi-dev \
+        # Font support (for matplotlib, document processing)
+        libfreetype6-dev \
+        # XML processing (for lxml, document parsing)
+        libxml2-dev \
+        libxslt1-dev \
+        # SSL/crypto support
+        libssl-dev \
+        # Audio/video processing (if needed for ML models)
+        libsndfile1 \
+        # Network tools
+        curl \
+        git \
         && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # === Create Non-Root User ===
@@ -45,7 +58,7 @@ ARG BACKEND_USER=app_backend_staging
 ENV BACKEND_USER=${BACKEND_USER}
 RUN useradd --create-home --shell /bin/bash ${BACKEND_USER}
 
-# === Create Application Directories === 
+# === Create Application Directories ===
 RUN mkdir -p /app/logs && \
     chown -R ${BACKEND_USER}:${BACKEND_USER} /app
 
@@ -85,5 +98,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
 # === Start Application ===
-# Universal script auto-detects environment (staging mode)
 CMD ["python", "start_app.py"]

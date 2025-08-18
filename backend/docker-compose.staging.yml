@@ -75,7 +75,7 @@ services:
     container_name: app-backend-staging
     build: 
       context: .
-      dockerfile: Dockerfile.prod  # Use prod dockerfile for staging
+      dockerfile: Dockerfile.staging  # Use staging-specific dockerfile
       args:
         BACKEND_USER: app_backend_staging
     networks:
@@ -104,15 +104,6 @@ services:
     volumes:
       # Staging logs
       - ./logs:/app/logs:rw
-    # Staging resource limits (between dev and prod) - UNCHANGED
-    deploy:
-      resources:
-        limits:
-          memory: 1.5G
-          cpus: '1.5'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
