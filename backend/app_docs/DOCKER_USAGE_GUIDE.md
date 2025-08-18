@@ -332,7 +332,56 @@ docker exec container-name netstat -tuln
 # Should show: 0.0.0.0:3000   LISTEN
 ```
 
-#### **2. Traefik Entrypoint Configuration Issues**
+#### **2. Backend Health Check Failures with Strict Host Validation**
+```
+❌ Backend container shows as "unhealthy" with repeated 400 Bad Request errors
+❌ Health check logs: "GET /api/v1/health HTTP/1.1" 400 Bad Request
+```
+
+**Root Cause:** Production and staging environments use strict `ALLOWED_HOSTS` validation that rejects health checks with `localhost` host headers.
+
+**Environment Differences:**
+```bash
+# Development (permissive)
+ALLOWED_HOSTS=*                    # ✅ Accepts any host including localhost
+
+# Production/Staging (strict)  
+ALLOWED_HOSTS=api.yourdomain.com   # ❌ Rejects localhost host headers
+```
+
+**Problem Health Check:**
+```yaml
+# ❌ This fails in production/staging:
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+  # Sends Host: localhost:8000 header → 400 Bad Request
+```
+
+**Solution:**
+```yaml
+# ✅ Include proper Host header for domain validation:
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health", "-H", "Host: api.yourdomain.com"]
+  # Sends Host: api.yourdomain.com header → 200 OK
+```
+
+**Implementation Examples:**
+```yaml
+# Production
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health", "-H", "Host: api.yourdomain.com"]
+
+# Staging
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health", "-H", "Host: api-staging.yourdomain.com"]
+```
+
+**Why This Works:**
+- ✅ **Network Access**: Still connects to `localhost:8000` (internal container access)
+- ✅ **Host Validation**: Sends proper domain in Host header (passes ALLOWED_HOSTS check)
+- ✅ **Security Maintained**: Preserves strict host validation in production environments
+
+#### **3. Traefik Entrypoint Configuration Issues**
 ```
 ❌ Frontend calls HTTPS but backend configured for HTTP entrypoint
 ❌ 404 errors with no backend logs - requests never reach backend
@@ -371,7 +420,7 @@ docker logs app-backend-development --tail 20
 grep "entrypoints" docker-compose.dev.yml
 ```
 
-#### **3. Traefik IP Caching and Routing Issues**
+#### **4. Traefik IP Caching and Routing Issues**
 ```
 ❌ Error while Peeking first byte error="read tcp 172.19.0.8:8000->172.19.0.1:54574: i/o timeout"
 ❌ Can't access frontend through https://localhost/
@@ -403,7 +452,7 @@ docker network inspect dev-network --format '{{json .Containers}}'
 docker logs traefik-dev --tail 20
 ```
 
-#### **3. Container Startup Order Issues**
+#### **5. Container Startup Order Issues**
 ```
 ❌ Frontend can't connect to backend through Traefik
 ❌ Services started but routing not working
@@ -422,7 +471,7 @@ cd frontend/chatgpt-frontend && docker-compose -f docker-compose.dev.yml up -d
 docker restart traefik-dev
 ```
 
-#### **4. Database Connection Failed**
+#### **6. Database Connection Failed**
 ```
 ❌ Database connection failed: connection refused
 ```
@@ -452,7 +501,7 @@ docker network ls | grep app_db_network
 python backend_docker_manager.py validate --dev
 ```
 
-#### **2. Migration Failed**
+#### **7. Migration Failed**
 ```
 ❌ Migration failed: target database is not up to date
 ```
@@ -468,7 +517,7 @@ alembic downgrade base
 alembic upgrade head
 ```
 
-#### **3. MinIO Connection Issues**
+#### **8. MinIO Connection Issues**
 
 **A) MinIO Bucket Creation Failed:**
 ```
@@ -527,7 +576,7 @@ curl -I https://localhost:9000
 # ❌ DON'T disable SSL globally - use internal URLs instead
 ```
 
-#### **4. Container Build Failed**
+#### **9. Container Build Failed**
 ```
 ❌ Build dev failed: No such file or directory
 ```
