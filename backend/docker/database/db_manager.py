@@ -7,15 +7,16 @@ This tool manages database container infrastructure across all environments (dev
 It focuses exclusively on container lifecycle - does NOT handle application migrations.
 
 Usage:
-    python db_manager.py start --env=dev      # Start all database containers
-    python db_manager.py stop --env=dev       # Stop all containers  
-    python db_manager.py restart --env=dev    # Restart containers
-    python db_manager.py status --env=dev     # Container status
-    python db_manager.py health --env=dev     # Health check all services
-    python db_manager.py logs --env=dev       # View container logs
-    python db_manager.py backup --env=dev     # Backup everything
-    python db_manager.py validate --env=dev   # Pre-deployment validation
-    python db_manager.py cleanup --env=dev    # Clean up old resources
+    python db_manager.py start --env=dev              # Start all database containers
+    python db_manager.py stop --env=dev               # Stop all containers  
+    python db_manager.py restart --env=dev            # Restart containers
+    python db_manager.py status --env=dev             # Container status
+    python db_manager.py health --env=dev             # Health check all services
+    python db_manager.py logs --env=dev               # View container logs
+    python db_manager.py backup --env=dev             # Backup everything
+    python db_manager.py validate --env=dev           # Pre-deployment validation
+    python db_manager.py validate-passwords --env=dev # Validate password security
+    python db_manager.py cleanup --env=dev            # Clean up old resources
 
 Author: Database Infrastructure Team
 Version: 1.0.0
@@ -23,6 +24,7 @@ Version: 1.0.0
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -130,6 +132,150 @@ class DatabaseManager:
         compose_file = env_config.get('compose_file', f"docker-compose.{env}.yml")
         return self.base_dir / compose_file
     
+    def _validate_password(self, password: str, service: str, env: str) -> Tuple[bool, List[str]]:
+        """
+        Validate password against security requirements.
+        
+        Args:
+            password: Password to validate
+            service: Service name (postgres, neo4j, minio)
+            env: Environment (dev, staging, prod)
+            
+        Returns:
+            Tuple of (is_valid, list_of_errors)
+        """
+        password_config = self.config.get('password_validation', {})
+        
+        if not password_config.get('enabled', False):
+            return True, []
+        
+        requirements = password_config.get('requirements', {})
+        errors = []
+        
+        # Check pattern (lowercase alphanumeric only)
+        pattern = requirements.get('pattern', '^[a-z0-9]+$')
+        if not re.match(pattern, password):
+            description = requirements.get('description', 'lowercase alphanumeric only')
+            reason = requirements.get('reason', 'Invalid character format')
+            errors.append(f"Password must be {description}. {reason}")
+        
+        # Check length
+        min_length = requirements.get('min_length', 12)
+        max_length = requirements.get('max_length', 128)
+        
+        if len(password) < min_length:
+            errors.append(f"Password too short (minimum {min_length} characters)")
+        elif len(password) > max_length:
+            errors.append(f"Password too long (maximum {max_length} characters)")
+        
+        # Check forbidden characters
+        forbidden_chars = requirements.get('forbidden_chars', [])
+        found_forbidden = [char for char in forbidden_chars if char in password]
+        if found_forbidden:
+            errors.append(f"Password contains forbidden characters: {', '.join(found_forbidden)}")
+        
+        # Service-specific validation
+        if service == 'neo4j' and ':' in password:
+            errors.append("Neo4j passwords cannot contain ':' (conflicts with auth format)")
+        
+        return len(errors) == 0, errors
+    
+    def _validate_all_passwords(self, env: str) -> bool:
+        """
+        Validate all passwords for an environment.
+        
+        Args:
+            env: Environment to validate
+            
+        Returns:
+            True if all passwords are valid
+        """
+        password_config = self.config.get('password_validation', {})
+        
+        if not password_config.get('enabled', False):
+            print("ℹ️  Password validation disabled")
+            return True
+        
+        print(f"🔐 Validating passwords for {env} environment...")
+        
+        secrets_dir = self.base_dir / 'secrets' / env
+        if not secrets_dir.exists():
+            print(f"❌ Secrets directory not found: {secrets_dir}")
+            return False
+        
+        affected_services = password_config.get('affected_services', ['postgres', 'neo4j', 'minio'])
+        all_valid = True
+        
+        # Validate PostgreSQL password
+        if 'postgres' in affected_services:
+            postgres_file = secrets_dir / 'postgres_password.txt'
+            if postgres_file.exists():
+                try:
+                    password = postgres_file.read_text().strip()
+                    is_valid, errors = self._validate_password(password, 'postgres', env)
+                    if is_valid:
+                        print(f"   ✅ PostgreSQL password: Valid")
+                    else:
+                        print(f"   ❌ PostgreSQL password: Invalid")
+                        for error in errors:
+                            print(f"      - {error}")
+                        all_valid = False
+                except Exception as e:
+                    print(f"   ❌ PostgreSQL password: Error reading file - {e}")
+                    all_valid = False
+        
+        # Validate Neo4j password
+        if 'neo4j' in affected_services:
+            neo4j_file = secrets_dir / 'neo4j_auth.txt'
+            if neo4j_file.exists():
+                try:
+                    auth_content = neo4j_file.read_text().strip()
+                    if '/' in auth_content:
+                        _, password = auth_content.split('/', 1)
+                        is_valid, errors = self._validate_password(password, 'neo4j', env)
+                        if is_valid:
+                            print(f"   ✅ Neo4j password: Valid")
+                        else:
+                            print(f"   ❌ Neo4j password: Invalid")
+                            for error in errors:
+                                print(f"      - {error}")
+                            all_valid = False
+                    else:
+                        print(f"   ❌ Neo4j auth file: Invalid format (expected neo4j/password)")
+                        all_valid = False
+                except Exception as e:
+                    print(f"   ❌ Neo4j password: Error reading file - {e}")
+                    all_valid = False
+        
+        # Validate MinIO password
+        if 'minio' in affected_services:
+            minio_file = secrets_dir / 'minio_password.txt'
+            if minio_file.exists():
+                try:
+                    password = minio_file.read_text().strip()
+                    is_valid, errors = self._validate_password(password, 'minio', env)
+                    if is_valid:
+                        print(f"   ✅ MinIO password: Valid")
+                    else:
+                        print(f"   ❌ MinIO password: Invalid")
+                        for error in errors:
+                            print(f"      - {error}")
+                        all_valid = False
+                except Exception as e:
+                    print(f"   ❌ MinIO password: Error reading file - {e}")
+                    all_valid = False
+        
+        if all_valid:
+            print(f"✅ All passwords validated successfully")
+        else:
+            print(f"❌ Password validation failed")
+            requirements = password_config.get('requirements', {})
+            print(f"📋 Password requirements:")
+            print(f"   - Format: {requirements.get('description', 'lowercase alphanumeric only')}")
+            print(f"   - Length: {requirements.get('min_length', 12)}-{requirements.get('max_length', 128)} characters")
+            print(f"   - Reason: {requirements.get('reason', 'Security requirement')}")
+        
+        return all_valid
 
     
     def _check_prerequisites(self, env: str) -> bool:
@@ -162,6 +308,17 @@ class DatabaseManager:
             for item in missing:
                 print(f"   - {item}")
             return False
+        
+        # Validate passwords if enabled
+        password_config = self.config.get('password_validation', {})
+        if password_config.get('validation_on_startup', True):
+            if not self._validate_all_passwords(env):
+                if password_config.get('fail_on_invalid_passwords', True):
+                    print(f"❌ Password validation failed - startup aborted")
+                    print(f"💡 Fix passwords or disable validation in db_config.json")
+                    return False
+                else:
+                    print(f"⚠️ Password validation failed - continuing anyway")
             
         return True
     
@@ -705,6 +862,21 @@ class DatabaseManager:
         print(f"✅ {env} environment validation passed")
         return True
     
+    def validate_passwords(self, env: str) -> bool:
+        """
+        Validate passwords for an environment (public method).
+        
+        Args:
+            env: Environment to validate
+            
+        Returns:
+            True if all passwords are valid
+        """
+        if not self._validate_environment(env):
+            return False
+        
+        return self._validate_all_passwords(env)
+    
     def cleanup(self, env: str) -> bool:
         """Clean up old resources for environment."""
         print(f"🧹 Cleaning up old resources for {env} environment...")
@@ -737,16 +909,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python db_manager.py start --env=dev      # Start development databases
-  python db_manager.py health --env=prod    # Check production health
-  python db_manager.py backup --env=staging # Backup staging databases
+  python db_manager.py start --env=dev              # Start development databases
+  python db_manager.py health --env=prod            # Check production health
+  python db_manager.py validate-passwords --env=prod # Validate production passwords
+  python db_manager.py backup --env=staging         # Backup staging databases
   python db_manager.py logs --env=dev --service=postgres  # View PostgreSQL logs
         """
     )
     
     parser.add_argument(
         'action',
-        choices=['start', 'stop', 'restart', 'status', 'health', 'logs', 'backup', 'validate', 'cleanup'],
+        choices=['start', 'stop', 'restart', 'status', 'health', 'logs', 'backup', 'validate', 'validate-passwords', 'cleanup'],
         help='Action to perform'
     )
     
@@ -792,6 +965,8 @@ Examples:
             success = db_manager.backup(args.env, args.service)
         elif args.action == 'validate':
             success = db_manager.validate(args.env)
+        elif args.action == 'validate-passwords':
+            success = db_manager.validate_passwords(args.env)
         elif args.action == 'cleanup':
             success = db_manager.cleanup(args.env)
         else:

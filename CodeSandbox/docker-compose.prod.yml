@@ -18,7 +18,7 @@ services:
       - prod-network  # Unified network
     labels:
       - "traefik.enable=true"  # Explicit exposure
-      - "traefik.http.routers.codesandbox.rule=Host(`sandbox.yourdomain.com`)"
+      - "traefik.http.routers.codesandbox.rule=Host(`sandbox.myappdomain.com`)"
       - "traefik.http.routers.codesandbox.entrypoints=websecure"
 
       - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"

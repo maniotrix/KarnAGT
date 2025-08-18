@@ -14,19 +14,19 @@ services:
       context: .
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL: https://api.yourdomain.com
+        VITE_API_URL: https://api.myappdomain.com
         NODE_ENV: production
     networks:
       - prod-network  # Unified network with all services
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
-      - VITE_API_URL=https://api.yourdomain.com
+      - VITE_API_URL=https://api.myappdomain.com
     restart: unless-stopped
     labels:
       - "traefik.enable=true"  # Explicit exposure to Traefik
       # MAIN DOMAIN - Frontend gets all non-API traffic
-      - "traefik.http.routers.frontend.rule=Host(`yourdomain.com`)"
+      - "traefik.http.routers.frontend.rule=Host(`myappdomain.com`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"  # HTTPS only
 
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
