@@ -51,3 +51,4 @@
 * Need to revisit proxy url generation/access/display internally as well as publicly.
   - uses 127.0.0.1 for transforming internally, COMPLETED: Universal network architecture - 127.0.0.1 internal URL resolution + HOST config cleanup implemented
 * need to revisit minio routing(external as well internal) in docker and in general in chrome
+* llm using knowledge search tool instead of web search
