@@ -56,6 +56,14 @@ services:
     labels:
       - "traefik.enable=true"
     restart: unless-stopped
+    # Staging logging configuration (balanced monitoring)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "75m"
+        max-file: "7"
+        labels: "environment=staging,service=traefik"
+        compress: "true"
     healthcheck:
       test: ["CMD", "traefik", "healthcheck"]
       interval: 30s
@@ -85,6 +93,14 @@ services:
       - "traefik.docker.network=staging-network"  # Network name only
       # STAGING: Let's Encrypt SSL
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+    # Staging logging configuration (pre-production monitoring)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=staging,service=backend"
+        compress: "true"
     volumes:
       # Staging logs
       - ./logs:/app/logs:rw

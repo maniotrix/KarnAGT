@@ -56,6 +56,14 @@ services:
     labels:
       - "traefik.enable=true"
     restart: unless-stopped
+    # Production logging configuration (controlled growth)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+        labels: "environment=prod,service=traefik"
+        compress: "true"
     healthcheck:
       test: ["CMD", "traefik", "healthcheck"]
       interval: 30s
@@ -85,6 +93,14 @@ services:
       - "traefik.docker.network=prod-network"  # Network name only
       # PRODUCTION: Let's Encrypt SSL
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+    # Production logging configuration (critical service monitoring)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=prod,service=backend"
+        compress: "true"
     volumes:
       # Production logs
       - ./logs:/app/logs:rw

@@ -35,6 +35,14 @@ services:
       # Mount only what's needed for development hot reload
       - ./app:/home/code_sandbox/app                    # Hot reload (matches uvicorn reload_dirs)  
       - ./.env.docker.dev:/home/code_sandbox/.env       # Environment config
+    # Development logging configuration (code execution can be verbose)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "3"
+        labels: "environment=dev,service=codesandbox"
+        compress: "true"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
