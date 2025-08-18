@@ -113,12 +113,11 @@ services:
       args:
         VITE_API_URL: https://localhost  # Build-time variable
         NODE_ENV: development            # Environment setting
-        FRONTEND_USER: app_frontend_dev  # Security user
 ```
 
 **Important:** 
 - `VITE_API_URL` must be passed at **build time**, not runtime, because Vite embeds environment variables during the build process
-- Uses **Node.js 20.18.0 LTS** and **nginx 1.25.3** for stability and security
+- Uses **Node.js 20.18.0 LTS** and **nginxinc/nginx-unprivileged 1.25-alpine** for stability and security
 - **Multi-stage builds** optimize image size and layer caching
 - **Console Logs**: Browser console logs are **enabled** in development for debugging (automatically disabled in production builds)
 
@@ -174,8 +173,8 @@ Traefik (Port 443 - HTTPS, Port 80 - HTTP redirect)
 
 ### Docker Optimizations
 - **Node.js 20.18.0 LTS**: Long-term support with security patches (supported until April 2026)
-- **nginx 1.25.3**: Latest stable with performance improvements and security fixes
-- **Optimized Layers**: Reduced from 9 to 6 Docker layers for faster builds and smaller images
+- **nginxinc/nginx-unprivileged 1.25-alpine**: Official nginx unprivileged image with built-in non-root security
+- **Simplified Architecture**: Eliminated custom user management and permission configuration
 - **Industry-Standard .dockerignore**: Comprehensive file exclusion for build optimization
 
 ### Development/Production Consistency
@@ -185,10 +184,11 @@ Traefik (Port 443 - HTTPS, Port 80 - HTTP redirect)
 - **Multi-Stage Builds**: Separate build and runtime stages for optimal image sizes
 
 ### Security Enhancements
-- **Non-Root Execution**: All containers run as dedicated users (app_frontend_dev/prod)
+- **Non-Root Execution**: Official nginx unprivileged image runs as 'nginx' user by default
 - **Version Pinning**: Exact image versions prevent supply chain attacks
 - **Security Headers**: X-Frame-Options, X-XSS-Protection, referrer policy via nginx
 - **Health Monitoring**: Built-in health checks with proper endpoints
+- **Simplified Permissions**: No custom user creation or permission management required
 
 ## Troubleshooting
 
@@ -230,7 +230,6 @@ docker-compose -f docker-compose.dev.yml up -d
 #   args:
 #     VITE_API_URL: https://localhost
 #     NODE_ENV: development
-#     FRONTEND_USER: app_frontend_dev
 
 # Force rebuild to pick up new build args:
 python frontend_docker_manager.py restart --build

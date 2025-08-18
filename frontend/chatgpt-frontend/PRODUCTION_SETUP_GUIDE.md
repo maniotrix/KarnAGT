@@ -50,7 +50,7 @@ python frontend_docker_manager.py start --env=prod
 
 #### Docker Files
 - `docker-compose.prod.yml` - Production container orchestration
-- `Dockerfile.prod` - Multi-stage build for optimized production image (Node.js 20.18.0 LTS + nginx 1.25.3)
+- `Dockerfile.prod` - Multi-stage build for optimized production image (Node.js 20.18.0 LTS + nginxinc/nginx-unprivileged)
 - `nginx.conf` - Unified nginx configuration for React SPA routing (shared with dev)
 
 #### Environment Variables
@@ -94,9 +94,9 @@ python frontend_docker_manager.py stop --env=prod
 - All routing handled by Traefik reverse proxy
 
 ### Security
-- Non-root user in production containers (app_frontend_prod)
-- Latest LTS versions (Node.js 20.18.0, nginx 1.25.3) with security patches
-- Optimized Docker layers (reduced attack surface)
+- Official nginx unprivileged image runs as 'nginx' user by default (no custom user creation needed)
+- Latest LTS versions (Node.js 20.18.0, nginxinc/nginx-unprivileged 1.25-alpine) with security patches
+- Simplified architecture with reduced attack surface
 - Security headers via Nginx (X-Frame-Options, X-XSS-Protection, etc.)
 - SSL/TLS termination at Traefik level
 - **Controlled Log Growth**: Automatic log rotation prevents disk exhaustion attacks (10MB max files, 50MB total in prod)
@@ -138,7 +138,7 @@ frontend/chatgpt-frontend/
 
 4. **Version mismatch issues**
    - Local Node.js vs Docker: Use `node --version` to compare
-   - Docker images: Both environments use Node.js 20.18.0 LTS + nginx 1.25.3
+   - Docker images: Both environments use Node.js 20.18.0 LTS + nginxinc/nginx-unprivileged 1.25-alpine
    - Rebuild if versions don't match: `--build --no-cache` flags
 
 5. **Log-related issues**
