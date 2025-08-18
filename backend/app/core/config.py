@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+    
+    # Network Configuration
+    # NOTE: HOST is hardcoded to "0.0.0.0" in start_app.py (primary startup)
+    # This setting is only used for:
+    # 1. Direct app/main.py execution (fallback startup)
+    # 2. URL generation logic in server_host property
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
