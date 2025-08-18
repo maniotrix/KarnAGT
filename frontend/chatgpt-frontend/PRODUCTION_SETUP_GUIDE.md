@@ -99,6 +99,8 @@ python frontend_docker_manager.py stop --env=prod
 - Optimized Docker layers (reduced attack surface)
 - Security headers via Nginx (X-Frame-Options, X-XSS-Protection, etc.)
 - SSL/TLS termination at Traefik level
+- **Controlled Log Growth**: Automatic log rotation prevents disk exhaustion attacks (10MB max files, 50MB total in prod)
+- **Browser Console Logs**: Automatically disabled in production builds to prevent information leakage
 
 ## File Structure
 ```
@@ -139,11 +141,58 @@ frontend/chatgpt-frontend/
    - Docker images: Both environments use Node.js 20.18.0 LTS + nginx 1.25.3
    - Rebuild if versions don't match: `--build --no-cache` flags
 
+5. **Log-related issues**
+   - **Logs not visible**: Check if containers are running with `docker ps`
+   - **Log files too large**: Automatic rotation prevents this (max 50MB in prod)
+   - **Performance impact**: Logs are JSON structured and efficiently rotated
+   - **Missing browser logs**: Production builds automatically remove console.log (security feature)
+
 ### Health Checks
 - Frontend: `curl -f http://localhost:3000/`
 - External: `https://yourdomain.com/`
 
-## Monitoring
-- Container logs: `python frontend_docker_manager.py logs --env=prod`
-- Docker stats: `docker stats app-frontend-production`
-- Traefik dashboard (development): `http://localhost:8080`
+## Logging & Monitoring
+
+### Container Log Management
+Both development and production environments include automated log rotation to prevent disk space issues:
+
+**Production Logging:**
+```yaml
+logging:
+  driver: "json-file"
+  options:
+    max-size: "10m"         # Smaller files for production efficiency
+    max-file: "5"           # Keep 5 files for troubleshooting (50MB total)
+    labels: "environment=prod,service=frontend"
+```
+
+**Development Logging:**
+```yaml
+logging:
+  driver: "json-file" 
+  options:
+    max-size: "50m"         # Larger files for detailed debugging
+    max-file: "3"           # 3 files total (150MB total)
+    labels: "environment=dev,service=frontend"
+```
+
+### Monitoring Commands
+```bash
+# View container logs
+python frontend_docker_manager.py logs --env=prod
+
+# Follow logs in real-time
+python frontend_docker_manager.py logs --env=prod --follow
+
+# Check container performance
+docker stats app-frontend-production
+
+# Access Traefik dashboard (development only)
+# http://localhost:8080
+```
+
+### Log Benefits
+- **Automatic Rotation**: Prevents unlimited disk growth
+- **Structured Logging**: JSON format with environment labels
+- **Easy Integration**: Compatible with log aggregation tools (ELK, Splunk, etc.)
+- **Environment Optimized**: Different limits for dev vs prod needs

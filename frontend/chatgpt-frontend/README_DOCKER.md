@@ -42,8 +42,48 @@ python frontend_docker_manager.py restart
 # View logs
 python frontend_docker_manager.py logs
 
+# Follow logs in real-time
+python frontend_docker_manager.py logs --follow
+
 # Check status
 python frontend_docker_manager.py status
+
+# Health check
+python frontend_docker_manager.py health
+```
+
+## Log Management
+
+### Automatic Log Rotation
+Both development and production containers include smart log rotation to prevent disk space issues:
+
+**Development Environment:**
+```yaml
+logging:
+  driver: "json-file"
+  options:
+    max-size: "50m"         # Large files for debugging
+    max-file: "3"           # 150MB total storage
+    labels: "environment=dev,service=frontend"
+```
+
+**Benefits:**
+- ✅ **Detailed Debugging**: Larger 50MB files capture more context
+- ✅ **Controlled Storage**: Maximum 150MB total log storage
+- ✅ **Easy Identification**: Labeled with environment and service tags
+- ✅ **JSON Structured**: Compatible with log analysis tools
+
+### Log Commands
+```bash
+# View recent logs
+python frontend_docker_manager.py logs
+
+# Follow logs in real-time (great for debugging)
+python frontend_docker_manager.py logs --follow
+
+# Direct Docker commands
+docker logs app-frontend-development
+docker logs app-frontend-development --follow --tail=100
 ```
 
 ## How Routing Works
@@ -80,6 +120,7 @@ services:
 - `VITE_API_URL` must be passed at **build time**, not runtime, because Vite embeds environment variables during the build process
 - Uses **Node.js 20.18.0 LTS** and **nginx 1.25.3** for stability and security
 - **Multi-stage builds** optimize image size and layer caching
+- **Console Logs**: Browser console logs are **enabled** in development for debugging (automatically disabled in production builds)
 
 ## Development Workflow
 
@@ -201,3 +242,21 @@ docker-compose -f docker-compose.dev.yml build --no-cache --pull
 - Browsers may show SSL warnings for localhost self-signed certificates
 - Click "Advanced" → "Proceed to localhost (unsafe)" to continue
 - This is normal for local development with HTTPS
+
+**Understanding Different Log Types:**
+```bash
+# 1. Browser Console Logs (React app logs)
+# - Open browser DevTools → Console tab
+# - Shows React component errors, API call logs, etc.
+# - Enabled in development, disabled in production builds
+
+# 2. Container Logs (nginx, system logs) 
+python frontend_docker_manager.py logs --follow
+# - Shows nginx access/error logs, container startup logs
+# - Managed by Docker log rotation (50MB max in dev)
+# - Always available for debugging container issues
+
+# 3. Direct Docker inspection
+docker logs app-frontend-development --tail=50
+docker exec -it app-frontend-development cat /var/log/nginx/error.log
+```
