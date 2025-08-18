@@ -42,6 +42,11 @@
     "description": "React frontend application served via Traefik"
   },
   "build": {
+    "versions": {
+      "node": "20.18.0",
+      "nginx": "1.25.3",
+      "alpine": "alpine"
+    },
     "target": {
       "dev": "development",
       "prod": "production"
@@ -49,11 +54,13 @@
     "args": {
       "dev": {
         "VITE_API_URL": "https://localhost",
-        "NODE_ENV": "development"
+        "NODE_ENV": "development",
+        "FRONTEND_USER": "app_frontend_dev"
       },
       "prod": {
         "VITE_API_URL": "https://api.yourdomain.com", 
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "FRONTEND_USER": "app_frontend_prod"
       }
     }
   },
@@ -78,5 +85,19 @@
       "memory": "512m",
       "cpu": "0.5"
     }
+  },
+  "optimizations": {
+    "multi_stage_builds": true,
+    "layer_caching": true,
+    "dockerignore_enabled": true,
+    "security_non_root": true,
+    "version_pinning": true,
+    "unified_nginx_config": true
+  },
+  "compatibility": {
+    "docker_version_min": "20.10.0",
+    "docker_compose_version_min": "2.0.0",
+    "node_lts_version": "20.18.0",
+    "local_dev_tested": ["Windows", "macOS", "Linux"]
   }
 }
