@@ -171,6 +171,9 @@ export class Conversation implements ConversationData {
   addMessage(message: Message): Conversation {
     const updatedMessages = [...(this.messages || []), message];
     
+    // Extract latest user message content for the latestUserMessage field
+    const latestUserMessage = message.role === 'user' ? message.content : this.latestUserMessage;
+    
     return new Conversation(
       this.id,
       this.conversationId,
@@ -193,6 +196,7 @@ export class Conversation implements ConversationData {
       this.createdAt,
       new Date(),
       new Date(),
+      latestUserMessage,
       updatedMessages
     );
   }

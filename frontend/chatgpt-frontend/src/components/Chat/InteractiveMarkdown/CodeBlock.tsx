@@ -122,7 +122,7 @@ export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...prop
   const getLanguageIcon = (lang: string | null) => {
     if (!lang) return Code2;
     
-    const langMap: Record<string, React.ComponentType<any>> = {
+    const langMap: Record<string, any> = {
       // JavaScript/TypeScript
       'javascript': DiJavascript1,
       'js': DiJavascript1,
