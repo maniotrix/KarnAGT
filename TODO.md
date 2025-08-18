@@ -47,4 +47,6 @@
 
 * [PERFORMANCE] Implement Celery for knowledge service document processing to prevent FastAPI blocking
 * Consider migrating knowledge module to separate FastAPI server for better scalability and isolation
-* Concurreny in backend not implemented properly 
+* Concurreny in backend not implemented properly
+* Need to revisit proxy url generation/access/display internally as well as publicly.
+* need to revisit minio routing(external as well internal) in docker and in general in chrome
