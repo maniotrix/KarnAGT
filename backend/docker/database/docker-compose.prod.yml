@@ -152,7 +152,7 @@ services:
       
     # Simple environment-based authentication (from secrets folder)
     environment:
-      NEO4J_AUTH: "neo4j/Pr0d_N30j4_Gr@ph_M@st3r_K3y_2024_Kn8dV7rQ2sF9"
+      NEO4J_AUTH: "neo4j/prod3w9q8e5r7t2y1u6i4o9p3a8s5d7f2g4h9j6k3l8z1x7c2v5b9n6m4q8w3e"
       
     # Production-specific port mapping (7474, 7687 - standard Neo4j ports)
     ports:

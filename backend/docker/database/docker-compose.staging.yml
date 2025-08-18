@@ -149,7 +149,7 @@ services:
       
     # Simple environment-based authentication (from secrets folder)
     environment:
-      NEO4J_AUTH: "neo4j/St@g1ng_N30j4_Adm1n_K3y_2024_Lp3mX8qR7vW"
+      NEO4J_AUTH: "neo4j/stag5u2i9o8p7a6s5d4f3g2h9j8k7l6z5x4c3v2b9n8m7q6w5e4r3t2y9u8i7o"
       
     # Staging-specific port mapping (custom ports to avoid conflicts)
     ports:

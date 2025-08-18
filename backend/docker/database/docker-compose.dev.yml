@@ -144,7 +144,7 @@ services:
       
     # Simple environment-based authentication (from secrets folder)
     environment:
-      NEO4J_AUTH: "neo4j/dev_neo4j_password_123"
+      NEO4J_AUTH: "neo4j/devneo4jpassword123"
       
     # Development-specific port mapping (custom ports to avoid conflicts with local neo4j)
     ports:
