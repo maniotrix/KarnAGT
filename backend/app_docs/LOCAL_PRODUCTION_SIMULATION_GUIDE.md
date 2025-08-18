@@ -468,6 +468,80 @@ python backend_docker_manager.py logs --prod
 python backend_docker_manager.py restart --prod
 ```
 
+## 🔐 SSL Certificate Troubleshooting
+
+### The SSL Certificate Issue
+
+When running production simulation locally, you'll encounter SSL certificate errors because:
+
+1. **Let's Encrypt certificates can't be generated** → Domains only exist in your hosts file, not real DNS
+2. **Chrome blocks API calls with invalid certificates** → Frontend loads, but API calls fail silently  
+3. **Backend logs remain empty** → Requests never reach backend due to SSL validation failures
+
+### Problem Symptoms
+
+```
+✅ Frontend accessible → Can navigate to https://myappdomain.com (with manual "Proceed")
+❌ API calls fail → Chrome DevTools shows: "Failed to load resource"  
+❌ Backend has no logs → Requests blocked before reaching container
+```
+
+### Solution: Dedicated Development Chrome
+
+Create an isolated Chrome instance with disabled SSL validation:
+
+```powershell
+# Launch Chrome with disabled certificate validation
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\temp\chrome-prod-test" --ignore-certificate-errors --disable-web-security --allow-running-insecure-content --ignore-ssl-errors
+```
+
+**Benefits:**
+- ✅ **Production config unchanged** → No modifications to docker-compose files
+- ✅ **SSL validation bypassed** → API calls work immediately  
+- ✅ **Main browser secure** → Regular Chrome unaffected
+- ✅ **Easy cleanup** → Delete temp folder when done
+
+### Alternative: Chrome Flags
+
+1. Go to `chrome://flags/`
+2. Search for **"Insecure origins treated as secure"**
+3. Add: `https://api.myappdomain.com,https://myappdomain.com`
+4. Restart Chrome
+
+### Running Database Migrations
+
+**IMPORTANT:** Always run migrations from the `backend/` directory:
+
+```powershell  
+# Navigate to backend directory first
+cd C:\Users\Prince\Documents\GitHub\ChatGPT_Clone\backend
+
+# Run production migrations (requires database containers running)
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+```
+
+**Why directory matters:**
+- Docker-compose networking requires correct working directory
+- Service names (`postgres`, `redis`) only resolve within Docker networks
+- Direct `docker run` commands fail due to network isolation
+
+### Common Migration Errors
+
+**Error:** `Name or service not known`
+```bash
+❌ Database connection failed: [Errno -2] Name or service not known
+```
+
+**Solution:** Use docker-compose approach from backend directory:
+```bash
+# ❌ Wrong: Direct docker run (no network)
+docker run --rm backend-app-backend-prod:latest python run_migrations.py
+
+# ✅ Correct: Docker-compose networking
+cd backend
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+```
+
 ## Security Considerations
 
 ### What This Simulation Tests

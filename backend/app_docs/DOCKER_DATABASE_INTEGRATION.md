@@ -45,6 +45,8 @@ python backend_docker_manager.py start --dev
 # uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # 4. Run database migrations manually (ALWAYS MANUAL)
+# IMPORTANT: Must be in backend directory for networking
+cd backend
 docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
 ```
 
@@ -62,6 +64,8 @@ cd backend
 python backend_docker_manager.py start --staging
 
 # 4. Run database migrations manually (PRODUCTION SAFE)
+# IMPORTANT: Must be in backend directory for networking
+cd backend
 docker-compose -f docker-compose.staging.yml run --rm app-backend-staging python run_migrations.py
 ```
 
@@ -84,7 +88,9 @@ python db_manager.py health --env=prod
 cd backend
 python backend_docker_manager.py start --prod
 
-# 6. Run database migrations manually (CRITICAL - PRODUCTION SAFE)
+# 6. Run database migrations manually (CRITICAL - PRODUCTION SAFE)  
+# IMPORTANT: Must be in backend directory for networking
+cd backend
 docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
 
 # 7. Verify application health
@@ -510,6 +516,66 @@ cd frontend/chatgpt-frontend && docker-compose -f docker-compose.dev.yml up -d
 
 # 4. If routing issues persist, restart Traefik
 docker restart traefik-dev
+```
+
+## 🚨 **Migration Troubleshooting**
+
+### **Common Directory Issues**
+
+**Problem:** Migration commands fail with network errors
+```bash
+❌ Database connection failed: [Errno -2] Name or service not known
+```
+
+**Root Cause:** Migration container not connected to Docker network
+
+**Solution:** Always run migration commands from the `backend/` directory
+```bash
+# ❌ Wrong: From project root
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+
+# ✅ Correct: From backend directory
+cd backend
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+```
+
+### **Why Directory Matters**
+
+1. **Docker-compose networking** → Requires correct working directory for network resolution
+2. **Service name resolution** → Database hostnames (`postgres`, `redis`) only exist within networks
+3. **Volume mounts** → Migration files and configuration must be accessible
+4. **Environment inheritance** → Container gets same config as production app
+
+### **Alternative Solutions**
+
+If you must run from different directory, use absolute path to compose file:
+```bash
+# From anywhere - specify full path to compose file
+docker-compose -f /full/path/to/backend/docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+```
+
+Or use direct docker run with network:
+```bash
+# Direct docker run with network (less preferred)  
+docker run --rm --network prod-network backend-app-backend-prod:latest python run_migrations.py
+```
+
+### **Debugging Network Issues**
+
+Check if container can reach database:
+```bash
+# Test network connectivity
+cd backend
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod ping postgres
+
+# Check DNS resolution
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod nslookup postgres
+
+# List available networks
+docker network ls
+
+# Inspect specific network
+docker network inspect prod-network
 ```
 
 ## 🔐 **Git Security & Team Collaboration**

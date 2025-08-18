@@ -16,13 +16,15 @@ python backend_docker_manager.py start --dev
 
 ### **3. Run Migrations Manually (RECOMMENDED APPROACH)**
 ```bash
-# Using one-time container (RECOMMENDED)
+# IMPORTANT: Must be in backend directory for docker-compose networking
 cd backend
 docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
 
 # Alternative: Using existing container (less reliable)
 # docker exec -it app-backend-development python run_migrations.py
 ```
+
+> **⚠️ CRITICAL**: Always run migration commands from the `backend/` directory. The docker-compose files are configured for this working directory.
 
 **✨ That's it!** You have full control over when migrations run.
 
@@ -83,8 +85,10 @@ docker exec -it app-backend-development python run_migrations.py
 
 **Run migrations using one-time containers (RECOMMENDED):**
 ```bash
-# Development
+# IMPORTANT: Always change to backend directory first!
 cd backend
+
+# Development
 docker-compose -f docker-compose.dev.yml run --rm app-backend-dev python run_migrations.py
 
 # Staging  
@@ -93,6 +97,12 @@ docker-compose -f docker-compose.staging.yml run --rm app-backend-staging python
 # Production
 docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
 ```
+
+> **🔧 Why docker-compose approach?**
+> - ✅ **Automatic networking** → Container joins correct network (dev-network, prod-network)
+> - ✅ **Environment inheritance** → Same database connection config as production app  
+> - ✅ **Volume mounts** → Access to migration files and logs
+> - ✅ **Service name resolution** → Database hostnames (`postgres`, `redis`) resolve correctly
 
 **Alternative - Run migrations inside existing container:**
 ```bash
@@ -105,6 +115,28 @@ docker exec -it app-backend-staging python run_migrations.py
 # Production
 docker exec -it app-backend-production python run_migrations.py
 ```
+
+### **🚨 Common Migration Issues**
+
+**Problem:** `Name or service not known` database connection error
+```bash
+❌ Database connection failed: [Errno -2] Name or service not known
+```
+
+**Solution:** Migration container not connected to Docker network
+```bash
+# ❌ WRONG: Direct docker run (no network access)
+docker run --rm backend-app-backend-prod:latest python run_migrations.py
+
+# ✅ CORRECT: Use docker-compose (automatic networking)
+cd backend
+docker-compose -f docker-compose.prod.yml run --rm app-backend-prod python run_migrations.py
+```
+
+**Why this happens:**
+- Database hostnames like `postgres`, `redis` only exist within Docker networks
+- Direct `docker run` creates isolated container with no network access
+- `docker-compose run` automatically connects to the correct network
 
 **Check migration status:**
 ```bash
