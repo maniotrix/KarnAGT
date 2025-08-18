@@ -11,15 +11,6 @@
       "domain": "localhost",
       "ssl_mode": "self-signed"
     },
-    "staging": {
-      "compose_file": "docker-compose.staging.yml",
-      "dockerfile": "Dockerfile.staging",
-      "service_name": "app-frontend-staging",
-      "description": "Staging environment for pre-production testing",
-      "network": "staging-network",
-      "domain": "staging.yourdomain.com",
-      "ssl_mode": "letsencrypt"
-    },
     "prod": {
       "compose_file": "docker-compose.prod.yml",
       "dockerfile": "Dockerfile.prod",
@@ -42,7 +33,6 @@
     },
     "routing": {
       "dev": "Host(`localhost`) && !PathPrefix(`/api`)",
-      "staging": "Host(`staging.yourdomain.com`)",
       "prod": "Host(`yourdomain.com`)"
     }
   },
@@ -54,17 +44,12 @@
   "build": {
     "target": {
       "dev": "development",
-      "staging": "production", 
       "prod": "production"
     },
     "args": {
       "dev": {
         "VITE_API_URL": "https://localhost",
         "NODE_ENV": "development"
-      },
-      "staging": {
-        "VITE_API_URL": "https://api-staging.yourdomain.com",
-        "NODE_ENV": "production"
       },
       "prod": {
         "VITE_API_URL": "https://api.yourdomain.com", 
@@ -75,12 +60,10 @@
   "dependencies": {
     "required_networks": {
       "dev": "dev-network",
-      "staging": "staging-network", 
       "prod": "prod-network"
     },
     "created_by": {
       "dev": "Database services (db_manager.py)",
-      "staging": "Database services (db_manager.py)",
       "prod": "Database services (db_manager.py)"
     },
     "startup_order": ["database", "codesandbox", "backend", "frontend"]
