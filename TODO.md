@@ -47,3 +47,4 @@
 
 * [PERFORMANCE] Implement Celery for knowledge service document processing to prevent FastAPI blocking
 * Consider migrating knowledge module to separate FastAPI server for better scalability and isolation
+* Concurreny in backend not implemented properly 

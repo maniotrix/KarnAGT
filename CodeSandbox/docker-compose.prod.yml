@@ -30,6 +30,14 @@ services:
       - "com.app.service=code_execution"
       - "com.app.component=codesandbox"
     # No volume mounts for production - code is baked into image
+    # Production logging configuration (controlled code execution logs)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=prod,service=codesandbox"
+        compress: "true"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

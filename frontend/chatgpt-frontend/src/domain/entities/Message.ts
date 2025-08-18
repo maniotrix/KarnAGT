@@ -32,7 +32,7 @@ export class Message implements MessageData {
     public readonly totalTokens?: number,
     public readonly costUsd?: number,
     public readonly modelName?: string,
-    public readonly attachments?: string[],
+    public readonly attachments?: string[] | any[],
     public readonly metadata?: Record<string, any>,
     public readonly stagingFiles?: Record<string, any> // New format: {"images": [...], "vectors": [...], "unknown": [...]}
   ) {}
@@ -51,7 +51,7 @@ export class Message implements MessageData {
       response.total_tokens,
       response.cost_usd,
       response.model_name,
-      response.attachments,
+      response.attachments as any,
       response.metadata,
       undefined // stagingFiles are not part of backend responses
     );

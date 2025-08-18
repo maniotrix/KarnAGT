@@ -11,7 +11,16 @@ export default defineConfig({
   },
   build: {
     outDir: 'build',
-    sourcemap: true
+    sourcemap: true,
+    // Remove console logs in production
+    minify: 'esbuild',
+    rollupOptions: {
+      external: [],
+    }
+  },
+  esbuild: {
+    // Remove console.log in production builds
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
   },
   resolve: {
     alias: {

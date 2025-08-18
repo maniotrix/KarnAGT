@@ -32,6 +32,14 @@ services:
       - "com.app.service=code_execution"
       - "com.app.component=codesandbox"
     # No volume mounts for staging - code is baked into image like prod
+    # Staging logging configuration (pre-production testing)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "150m"
+        max-file: "4"
+        labels: "environment=staging,service=codesandbox"
+        compress: "true"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

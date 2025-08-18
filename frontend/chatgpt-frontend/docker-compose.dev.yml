@@ -13,8 +13,10 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.dev
+      target: development
       args:
         VITE_API_URL: https://localhost
+        NODE_ENV: development
     networks:
       - dev-network
     environment:
@@ -34,6 +36,13 @@ services:
       - "traefik.http.routers.frontend.tls=true"
       # Priority to ensure frontend routing works correctly
       - "traefik.http.routers.frontend.priority=1"
+    # Development logging configuration (more verbose)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "environment=dev,service=frontend"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"] 
       interval: 30s

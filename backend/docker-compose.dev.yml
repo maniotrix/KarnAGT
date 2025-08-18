@@ -58,6 +58,14 @@ services:
     labels:
       - "traefik.enable=true"
     restart: unless-stopped
+    # Development logging configuration (verbose for debugging)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+        labels: "environment=dev,service=traefik"
+        compress: "true"
     healthcheck:
       test: ["CMD", "traefik", "healthcheck"]
       interval: 30s
@@ -86,6 +94,14 @@ services:
       - "traefik.docker.network=dev-network"  # Explicit network
       # HTTPS configuration
       - "traefik.http.routers.backend.tls=true"
+    # Development logging configuration (high activity backend)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=dev,service=backend"
+        compress: "true"
     volumes:
       # Development logs
       - ./logs:/app/logs
