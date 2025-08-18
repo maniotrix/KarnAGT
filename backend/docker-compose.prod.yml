@@ -1,10 +1,10 @@
 version: '3.8'
 
-# Unified production network - ONLY NETWORK NAME CHANGES
+# Unified production network - EXTERNAL (created by database services)
 networks:
   prod-network:
-    driver: bridge
     name: prod-network
+    external: true
 
 services:
   # Traefik - PRODUCTION SECURITY (IDENTICAL to dev except certificates)
@@ -86,7 +86,7 @@ services:
     labels:
       - "traefik.enable=true"  # IDENTICAL
       # ONLY DIFFERENCE: Domain name
-      - "traefik.http.routers.backend.rule=Host(`api.yourdomain.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.rule=Host(`api.myappdomain.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
 
       - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
