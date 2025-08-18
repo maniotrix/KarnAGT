@@ -16,7 +16,6 @@ services:
       args:
         VITE_API_URL: https://api.yourdomain.com
         NODE_ENV: production
-        FRONTEND_USER: app_frontend_prod
     networks:
       - prod-network  # Unified network with all services
     environment:

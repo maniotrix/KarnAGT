@@ -17,7 +17,6 @@ services:
       args:
         VITE_API_URL: https://localhost
         NODE_ENV: development
-        FRONTEND_USER: app_frontend_dev
     networks:
       - dev-network
     environment:
