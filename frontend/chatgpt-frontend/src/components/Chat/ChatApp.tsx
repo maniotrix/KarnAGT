@@ -33,7 +33,7 @@ export const ChatApp: React.FC = () => {
   const navigate = useNavigate();
 
   // Clean Architecture Hooks
-  const { data: conversations, isLoading: conversationsLoading } = useConversations();
+  const { data: conversations, isLoading: conversationsLoading, error: conversationsError } = useConversations();
   const { data: user } = useCurrentUser();
   const deleteConversationMutation = useDeleteConversation();
   const createConversationMutation = useCreateConversation();
@@ -44,6 +44,13 @@ export const ChatApp: React.FC = () => {
   const setSidebarOpen = useUiStore(state => state.setSidebarOpen);
   const toggleSidebar = useUiStore(state => state.toggleSidebar);
   const toast = useToast();
+
+  // Handle API errors with toast notifications
+  useEffect(() => {
+    if (conversationsError) {
+      toast.error('Failed to load conversations', conversationsError.message);
+    }
+  }, [conversationsError, toast]);
 
   // Update currentConversationId when URL param changes
   useEffect(() => {
