@@ -52,8 +52,7 @@ psycopg2
 pydantic
 pydantic[email]
 
-passlib
-bcrypt
+passlib[bcrypt]
 
 
 redis
