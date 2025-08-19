@@ -53,7 +53,9 @@ pydantic
 pydantic[email]
 
 passlib
-bcrypt
+
+# passlib latest version is 1.7.4, which support bcrypt up to 4.0.1
+bcrypt==4.0.1
 
 
 redis
