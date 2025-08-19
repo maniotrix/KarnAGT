@@ -495,7 +495,7 @@ You should now have accepted certificates for:
 ✅ https://files.myappdomain.com/minio/health/live (MinIO files)
 
 Also do this: 
-Option 2: Chrome Settings Flag
+Optional: Chrome Settings Flag
 Go to chrome://flags/
 Search for "Insecure origins treated as secure"
 Add: https://myappdomain.com,https://api.myappdomain.com,https://files.myappdomain.com
