@@ -19,8 +19,8 @@ from app.core.exceptions import (
     PermissionDeniedException
 )
 from app.models.database.user import User
-
-
+from app.logging.logger import get_logger
+logger = get_logger(__name__)
 class ServiceAuth:
     """Service authentication for internal service-to-service calls"""
     def __init__(self, service_name: str, has_full_access: bool = True):
@@ -85,9 +85,20 @@ async def get_current_verified_user(
     """Get current verified user (email must be verified if required by config)"""
     settings = get_settings()
     
+    # Log email verification status for debugging
+    if not current_user.is_verified:
+        logger.warning(f"⚠️ User {current_user.email} (ID: {current_user.user_id}) is NOT email verified")
+    
     # Only check email verification if it's required in settings
     if settings.REQUIRE_EMAIL_VERIFICATION and not current_user.is_verified:
+        logger.error(f"🚨 Email verification required but user {current_user.email} is not verified")
         raise EmailNotVerifiedException("Email address not verified")
+    
+    # Log successful verification check
+    if settings.REQUIRE_EMAIL_VERIFICATION:
+        logger.info(f"✅ Email verification check passed for user {current_user.email}")
+    else:
+        logger.info(f"ℹ️ Email verification not required (REQUIRE_EMAIL_VERIFICATION=False)")
     
     return current_user
 

@@ -12,9 +12,13 @@ from app.core.security import security
 from app.core.exceptions import (
     AuthenticationException,
     InvalidTokenException,
-    TokenExpiredException
+    TokenExpiredException,
+    AccountDisabledException,
+    EmailNotVerifiedException,
+    PermissionDeniedException
 )
-
+from app.logging.logger import get_logger
+logger = get_logger(__name__)
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
     """Middleware to handle JWT authentication and add user context to requests"""
@@ -120,7 +124,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             return response
         except Exception as e:
             # Handle authentication exceptions
-            if isinstance(e, (AuthenticationException, InvalidTokenException, TokenExpiredException)):
+            if isinstance(e, (AuthenticationException, InvalidTokenException, TokenExpiredException, 
+                             AccountDisabledException, EmailNotVerifiedException, PermissionDeniedException)):
+                # Log the authentication error for debugging
+                logger.warning(f"Authentication error: {type(e).__name__}: {e.detail}")
+                
                 return JSONResponse(
                     status_code=e.status_code,
                     content={

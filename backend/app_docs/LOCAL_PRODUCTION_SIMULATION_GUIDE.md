@@ -486,14 +486,26 @@ When running production simulation locally, you'll encounter SSL certificate err
 ❌ Backend has no logs → Requests blocked before reaching container
 ```
 
-### Solution: Dedicated Development Chrome
+### Solution: Go to frontend, backend and minio health check urls in chrome
 
-Create an isolated Chrome instance with disabled SSL validation:
-
-```powershell
-# Launch Chrome with disabled certificate validation
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\temp\chrome-prod-test" --ignore-certificate-errors --disable-web-security --allow-running-insecure-content --ignore-ssl-errors
 ```
+You should now have accepted certificates for:
+✅ https://myappdomain.com (frontend)
+✅ https://api.myappdomain.com/api/v1/health (backend API)
+✅ https://files.myappdomain.com/minio/health/live (MinIO files)
+
+Also do this: 
+Optional: Chrome Settings Flag
+Go to chrome://flags/
+Search for "Insecure origins treated as secure"
+Add: https://myappdomain.com,https://api.myappdomain.com,https://files.myappdomain.com
+Restart Chrome
+
+and make sure 
+REQUIRE_EMAIL_VERIFICATION=false in the production env file for backend, as its not implemented yet in backend
+
+```
+
 
 **Benefits:**
 - ✅ **Production config unchanged** → No modifications to docker-compose files
