@@ -49,7 +49,7 @@ attrs==25.3.0
 banks==2.2.0
     # via llama-index-core
 bcrypt==4.0.1
-    # via -r requirements.in
+    # via passlib
 beautifulsoup4==4.13.4
     # via llama-index-readers-file
 billiard==4.2.1
