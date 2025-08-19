@@ -55,3 +55,4 @@
 * fix frontend input typing slow and stuck and laggy and also improve chrome action to paint latency in chrome dev tools
 * recheck bcrypt issue in prod container via registering new user
 * make sure REQUIRE_EMAIL_VERIFICATION=false in the production env file for backend, as its not implemented yet in backend
+* add google sign in 
