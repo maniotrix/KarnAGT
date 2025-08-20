@@ -14,8 +14,8 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Accept build arguments from docker-compose
-ARG VITE_API_URL=https://api.yourdomain.com
-ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_API_URL=https://api.myappdomain.com
+ARG VITE_GOOGLE_CLIENT_ID=504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com
 ARG NODE_ENV=production
 
 # Copy package files for efficient caching
