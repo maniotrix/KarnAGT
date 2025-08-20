@@ -15,7 +15,7 @@ services:
       dockerfile: Dockerfile.prod
       args:
         VITE_API_URL: https://api.myappdomain.com
-        VITE_GOOGLE_CLIENT_ID: your-prod-client-id.apps.googleusercontent.com
+        VITE_GOOGLE_CLIENT_ID: 504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com
         NODE_ENV: production
     networks:
       - prod-network  # Unified network with all services
@@ -23,7 +23,7 @@ services:
       - NODE_ENV=production
       - DOCKER_ENV=true
       - VITE_API_URL=https://api.myappdomain.com
-      - VITE_GOOGLE_CLIENT_ID=your-prod-client-id.apps.googleusercontent.com
+      - VITE_GOOGLE_CLIENT_ID=504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com
     restart: unless-stopped
     labels:
       - "traefik.enable=true"  # Explicit exposure to Traefik

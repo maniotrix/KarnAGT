@@ -5,7 +5,7 @@ export const ENV = {
   API_VERSION: import.meta.env.VITE_API_VERSION || 'v1',
   
   // Google OAuth Configuration
-  GOOGLE_CLIENT_ID: import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id.apps.googleusercontent.com',
+  GOOGLE_CLIENT_ID: import.meta.env.VITE_GOOGLE_CLIENT_ID || '504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com',
   
   // Storage Keys (DEPRECATED - tokens now in httpOnly cookies)
   ACCESS_TOKEN_KEY: 'chat_access_token', // ⚠️ DEPRECATED: Now in httpOnly cookie
