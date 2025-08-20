@@ -57,6 +57,43 @@ python frontend_docker_manager.py start --env=prod
 - Environment variables are passed as build arguments in docker-compose.yml
 - No separate .env files required - configured directly in compose files
 - `VITE_API_URL` and `NODE_ENV` set at build time for optimal performance
+- `VITE_GOOGLE_CLIENT_ID` set for Google OAuth authentication (production Client ID)
+
+## Google OAuth Configuration
+
+### Production Setup Requirements
+
+**1. Google Cloud Console Configuration:**
+- Create OAuth 2.0 Client ID in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- **Authorized JavaScript origins:** `https://yourdomain.com`, `https://app.yourdomain.com`
+- **Authorized redirect URIs:** Not required (using popup-based flow)
+- **Client Type:** Web application
+
+**2. Environment Configuration:**
+```yaml
+# docker-compose.prod.yml - Update with your production Client ID
+build:
+  args:
+    VITE_GOOGLE_CLIENT_ID: your-prod-client-id.apps.googleusercontent.com
+environment:
+  - VITE_GOOGLE_CLIENT_ID=your-prod-client-id.apps.googleusercontent.com
+```
+
+**3. Security Notes:**
+- ✅ **Client ID is public by design** - Safe to include in frontend builds
+- ✅ **No client secret needed** - Frontend-only OAuth flow
+- ✅ **Domain validation** - Google restricts usage to authorized origins
+- ✅ **Backend validates tokens** - Server-side verification with Google's API
+
+### Testing Google Login
+```bash
+# After production deployment
+curl -X POST https://api.yourdomain.com/api/v1/auth/google-login \
+  -H "Content-Type: application/json" \
+  -d '{"google_id_token": "test_token"}'
+
+# Expected: Backend validates with https://oauth2.googleapis.com/tokeninfo
+```
 
 ## Manager Commands
 

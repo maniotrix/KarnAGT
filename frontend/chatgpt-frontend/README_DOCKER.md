@@ -112,8 +112,29 @@ services:
       target: development  # Multi-stage build target
       args:
         VITE_API_URL: https://localhost  # Build-time variable
+        VITE_GOOGLE_CLIENT_ID: your-dev-client-id.apps.googleusercontent.com  # Google OAuth
         NODE_ENV: development            # Environment setting
 ```
+
+### Google OAuth Development Setup
+
+**1. Google Cloud Console:**
+- **Authorized JavaScript origins:** `http://localhost:3000`, `https://localhost`
+- **Client ID configured in:** `docker-compose.dev.yml` and `env.ts`
+
+**2. Testing Google Login:**
+```bash
+# Frontend accessible at both:
+http://localhost:3000  # If running local Vite server
+https://localhost      # If running in Docker container
+
+# Backend API validation endpoint:
+https://localhost/api/v1/auth/google-login
+```
+
+**3. Environment Variables:**
+- `VITE_GOOGLE_CLIENT_ID` - Google OAuth Client ID
+- Falls back to hardcoded default in `env.ts` if not set
 
 **Important:** 
 - `VITE_API_URL` must be passed at **build time**, not runtime, because Vite embeds environment variables during the build process
@@ -241,6 +262,29 @@ docker-compose -f docker-compose.dev.yml build --no-cache --pull
 - Browsers may show SSL warnings for localhost self-signed certificates
 - Click "Advanced" → "Proceed to localhost (unsafe)" to continue
 - This is normal for local development with HTTPS
+
+**Google OAuth Issues:**
+```bash
+# Google login button doesn't appear
+# - Check browser console for @react-oauth/google errors
+# - Verify VITE_GOOGLE_CLIENT_ID is set correctly
+# - Check if GoogleOAuthProvider is wrapping the app
+
+# Google login shows "popup blocked" or fails
+# - Allow popups for localhost in browser settings
+# - Check Google Console authorized origins match your URL
+# - Verify Client ID is active and not restricted
+
+# Google login succeeds but user not authenticated
+# - Check network tab for /api/v1/auth/google-login POST request
+# - Backend should validate token with https://oauth2.googleapis.com/tokeninfo  
+# - Check backend logs for Google token validation errors
+
+# "Invalid Google ID token" error
+# - Check if Client ID matches between frontend and Google Console
+# - Verify authorized JavaScript origins are configured correctly
+# - Check token isn't expired (Google ID tokens expire quickly)
+```
 
 **Understanding Different Log Types:**
 ```bash
