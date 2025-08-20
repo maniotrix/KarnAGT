@@ -6,6 +6,7 @@ export interface IAuthRepository {
   // Authentication
   login(credentials: LoginRequest): Promise<{ user: User; tokens: TokenResponse }>;
   register(userData: RegisterRequest): Promise<{ user: User; tokens: TokenResponse }>;
+  googleLogin(googleIdToken: string): Promise<{ user: User; tokens: TokenResponse }>;
   logout(): Promise<void>;
   
   // Token management

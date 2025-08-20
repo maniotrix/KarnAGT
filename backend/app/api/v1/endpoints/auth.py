@@ -5,6 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import httpx
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.security import (
@@ -47,6 +49,12 @@ from app.api.v1.dependencies.auth import (
     get_current_active_user,
     get_current_verified_user
 )
+
+from app.logging.logger import get_logger
+
+# Get logger with class-specific name
+logger = get_logger(__name__)
+
 
 router = APIRouter()
 
@@ -222,13 +230,11 @@ async def google_login(
     settings = Depends(get_settings)
 ) -> TokenResponse:
     """Login with Google ID token (frontend-only OAuth)"""
-    
-    import httpx
-    from datetime import datetime
-    
+    logger.info(f"🔐 Starting Google OAuth login process")
     # Validate Google ID token with Google's API (no library needed)
     async with httpx.AsyncClient() as client:
         try:
+            logger.info(f"🔍 Validating Google ID token: {google_request.google_id_token[:50]}...")
             google_response = await client.get(
                 f"https://oauth2.googleapis.com/tokeninfo?id_token={google_request.google_id_token}"
             )
@@ -238,8 +244,9 @@ async def google_login(
                     detail="Invalid Google ID token"
                 )
             google_data = google_response.json()
-            
+            logger.info(f"🔍 Google user info: {google_data}")
         except Exception as e:
+            logger.error(f"🚨 Failed to validate Google token: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Failed to validate Google token: {str(e)}"
@@ -252,6 +259,7 @@ async def google_login(
     email_verified = google_data.get("email_verified", "false") == "true"
     
     if not email:
+        logger.error(f"🚨 No email provided by Google")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email not provided by Google"
@@ -264,6 +272,7 @@ async def google_login(
     
     if user:
         # Update existing user with Google info
+        logger.info(f"🔍 Found existing user: {user.email}")
         if user.oauth_provider == "email":
             user.oauth_provider = "both"
         elif not user.oauth_provider:
@@ -275,12 +284,15 @@ async def google_login(
         if not user.avatar_url and picture:
             user.avatar_url = picture
         if email_verified:
+            logger.info(f"✅ Marking user as verified (Google verified email)")
             user.is_verified = True
             
         is_new_user = False
+        logger.info(f"✅ User updated with Google info")
         
     else:
         # Create new user
+        logger.info(f"🆕 Creating new user")
         user = User(
             email=email.lower(),
             username=email.lower().split('@')[0][:100],  # Simple username from email
@@ -293,13 +305,14 @@ async def google_login(
         )
         db.add(user)
         is_new_user = True
+        logger.info(f"✅ New user created with Google info")
     
     # Update last login
     current_time = datetime.utcnow()
     user.last_login_at = current_time
     await db.commit()
     await db.refresh(user)
-    
+    logger.info(f"✅ Last login updated")
     # Set httpOnly authentication cookies (same as email login)
     cookies_data = set_auth_cookies(
         response,
@@ -307,7 +320,7 @@ async def google_login(
         settings,
         scopes=["chat", "files", "profile", "analytics"]
     )
-    
+    logger.info(f"✅ Cookies data set")
     # Create user profile for response
     user_profile = UserProfile(
         id=user.id,
@@ -325,8 +338,9 @@ async def google_login(
     )
     
     success_message = "Google registration successful" if is_new_user else "Google login successful"
-    
+    logger.info(f"✅ Returning success message: {success_message}")
     # Return exact same response as email login
+    logger.info(f"✅ Returning TokenResponse")
     return TokenResponse(
         success=True,
         message=success_message,
