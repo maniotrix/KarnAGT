@@ -36,6 +36,17 @@ export class AuthRepository implements IAuthRepository {
     return { user, tokens };
   }
 
+  async googleLogin(googleIdToken: string): Promise<{ user: User; tokens: TokenResponse }> {
+    console.log('🔐 AuthRepository.googleLogin delegating to AuthService');
+    
+    const tokens = await authService.googleLogin(googleIdToken);
+    const user = User.fromProfile(tokens.user);
+    
+    console.log('🔐 Google login successful via AuthService:', { userId: user.userId, email: user.email });
+    
+    return { user, tokens };
+  }
+
   async logout(): Promise<void> {
     console.log('🔐 AuthRepository.logout delegating to AuthService');
     await authService.logout();

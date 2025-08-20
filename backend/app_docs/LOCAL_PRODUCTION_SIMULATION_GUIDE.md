@@ -110,8 +110,10 @@ In `frontend/chatgpt-frontend/docker-compose.prod.yml`, update these values:
 **Lines 17, 24, 29:** Change from:
 ```yaml
 VITE_API_URL: https://api.yourdomain.com
+VITE_GOOGLE_CLIENT_ID: your-prod-client-id.apps.googleusercontent.com
 # and
 VITE_API_URL=https://api.yourdomain.com
+VITE_GOOGLE_CLIENT_ID=your-prod-client-id.apps.googleusercontent.com
 # and
 - "traefik.http.routers.frontend.rule=Host(`yourdomain.com`)"
 ```
@@ -119,11 +121,15 @@ VITE_API_URL=https://api.yourdomain.com
 **To:**
 ```yaml
 VITE_API_URL: https://api.myappdomain.com
+VITE_GOOGLE_CLIENT_ID: your-prod-client-id.apps.googleusercontent.com
 # and
 VITE_API_URL=https://api.myappdomain.com
+VITE_GOOGLE_CLIENT_ID=your-prod-client-id.apps.googleusercontent.com
 # and
 - "traefik.http.routers.frontend.rule=Host(`myappdomain.com`)"
 ```
+
+**Note:** Keep the Google Client ID unchanged - it should work with both real and local domains during testing.
 
 ### 2.4 CodeSandbox Docker Compose
 In `CodeSandbox/docker-compose.prod.yml`, update line 21:
@@ -303,6 +309,34 @@ curl -k https://sandbox.myappdomain.com/health
 Invoke-WebRequest -Uri "https://sandbox.myappdomain.com/health" -SkipCertificateCheck
 ```
 
+### 5.5 Test Google OAuth Authentication
+
+**Google Console Configuration Required:**
+1. Add `https://myappdomain.com` to **Authorized JavaScript origins**
+2. No redirect URIs needed (popup-based flow)
+
+**Testing Steps:**
+```powershell
+# 1. Test Google login endpoint exists
+curl -k https://api.myappdomain.com/api/v1/auth/google-login
+
+# 2. Open frontend and test Google login button
+# Navigate to: https://myappdomain.com
+# Click "Sign in with Google"
+# Complete OAuth flow in popup
+
+# 3. Verify backend token validation
+# Check backend logs for Google tokeninfo API calls
+python backend_docker_manager.py logs --prod | findstr "google"
+```
+
+**Expected Behavior:**
+- ✅ **Google popup opens** (may show SSL warnings - accept them)
+- ✅ **User authenticates** with Google account  
+- ✅ **Frontend navigates** to home page after success
+- ✅ **Backend logs** show token validation with `oauth2.googleapis.com/tokeninfo`
+- ✅ **User profile** shows Google avatar and name
+
 ## Step 6: Understanding SSL Behavior
 
 ### 6.1 What Happens with Let's Encrypt
@@ -466,6 +500,37 @@ python backend_docker_manager.py logs --prod
 
 # Restart backend if needed
 python backend_docker_manager.py restart --prod
+```
+
+#### Issue 6: Google OAuth Not Working
+**Symptoms:**
+- Google login button doesn't appear
+- "Invalid Google ID token" errors
+- Popup blocked or fails to authenticate
+
+**Solutions:**
+```powershell
+# 1. Check Google Console configuration
+# - Authorized JavaScript origins should include: https://myappdomain.com
+# - Client ID must match docker-compose.prod.yml configuration
+# - OAuth consent screen must be configured
+
+# 2. Check browser console for errors
+# Open https://myappdomain.com → DevTools → Console
+# Look for @react-oauth/google or authentication errors
+
+# 3. Verify backend Google token validation
+python backend_docker_manager.py logs --prod | findstr "google"
+# Should see: "Validating Google ID token" and "Google user info"
+
+# 4. Allow popups for myappdomain.com
+# Browser Settings → Privacy → Popups → Allow for myappdomain.com
+
+# 5. Test API endpoint directly
+curl -k -X POST https://api.myappdomain.com/api/v1/auth/google-login \
+  -H "Content-Type: application/json" \
+  -d '{"google_id_token": "test_token"}'
+# Should return 400 "Invalid Google ID token" (expected for test token)
 ```
 
 ## 🔐 SSL Certificate Troubleshooting

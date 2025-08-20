@@ -200,6 +200,31 @@ class AuthService {
   }
 
   /**
+   * Login with Google ID token (frontend-only OAuth)
+   */
+  async googleLogin(googleIdToken: string): Promise<TokenResponse> {
+    console.log('🔐 AuthService.googleLogin');
+    
+    const response = await this.makeRequest<TokenResponse>(
+      API_ENDPOINTS.AUTH.GOOGLE_LOGIN,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          google_id_token: googleIdToken
+        }),
+      },
+      true // Include CSRF for POST
+    );
+
+    // Update CSRF token after successful login
+    if (response.success && response.csrf_token) {
+      this.csrfToken = response.csrf_token;
+    }
+
+    return response;
+  }
+
+  /**
    * Update user profile
    */
   async updateUser(updates: Partial<UserProfile>): Promise<UserProfile> {

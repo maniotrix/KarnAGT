@@ -128,6 +128,31 @@ export function useLogout() {
   });
 }
 
+// Google login mutation
+export function useGoogleLogin() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (googleIdToken: string) => authRepository.googleLogin(googleIdToken),
+    onSuccess: (data) => {
+      // Update user cache immediately (same as regular login)
+      queryClient.setQueryData(authKeys.user(), data.user);
+      queryClient.setQueryData(authKeys.status(), { 
+        authenticated: true, 
+        user: data.user 
+      });
+      
+      // Invalidate and refetch related queries
+      queryClient.invalidateQueries({ queryKey: authKeys.all });
+    },
+    onError: () => {
+      // Clear auth data on login failure
+      queryClient.setQueryData(authKeys.user(), null);
+      queryClient.setQueryData(authKeys.status(), { authenticated: false });
+    },
+  });
+}
+
 // Refresh token mutation
 export function useRefreshToken() {
   const queryClient = useQueryClient();

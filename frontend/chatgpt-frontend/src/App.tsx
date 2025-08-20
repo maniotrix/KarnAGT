@@ -1,11 +1,13 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { QueryProvider } from './providers/QueryProvider';
 import { AppRoutes } from './routes';
 import { useUiStore, useIsDarkMode } from './app/stores/uiStore';
 import { useProxyLinkInterceptionSimple } from './hooks/useProxyLinkInterception';
 import { X, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ENV } from './config/env';
 
 // Toast Notifications Component
 const ToastNotifications: React.FC = () => {
@@ -126,13 +128,18 @@ const App: React.FC = () => {
   // Enable global proxy link interception with authentication
   useProxyLinkInterceptionSimple();
 
+  // Google OAuth Client ID from configuration
+  const googleClientId = ENV.GOOGLE_CLIENT_ID;
+
   return (
-    <QueryProvider>
-      <BrowserRouter>
-        <AppRoutes />
-        <ToastNotifications />
-      </BrowserRouter>
-    </QueryProvider>
+    <GoogleOAuthProvider clientId={googleClientId || ''}>
+      <QueryProvider>
+        <BrowserRouter>
+          <AppRoutes />
+          <ToastNotifications />
+        </BrowserRouter>
+      </QueryProvider>
+    </GoogleOAuthProvider>
   );
 };
 
