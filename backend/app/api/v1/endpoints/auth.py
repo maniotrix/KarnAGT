@@ -27,6 +27,7 @@ from app.models.database.user import User
 from app.models.schemas.auth_schemas import (
     UserRegister,
     UserLogin,
+    GoogleLoginRequest,
     TokenResponse,
     TokenRefresh,
     TokenRefreshResponse,
@@ -211,6 +212,130 @@ async def login_user(
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user=user_profile,
         csrf_token=cookies_data.get("csrf_token")  # Frontend needs this
+    )
+
+@router.post("/google-login", response_model=TokenResponse)
+async def google_login(
+    google_request: GoogleLoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    settings = Depends(get_settings)
+) -> TokenResponse:
+    """Login with Google ID token (frontend-only OAuth)"""
+    
+    import httpx
+    from datetime import datetime
+    
+    # Validate Google ID token with Google's API (no library needed)
+    async with httpx.AsyncClient() as client:
+        try:
+            google_response = await client.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={google_request.google_id_token}"
+            )
+            if google_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid Google ID token"
+                )
+            google_data = google_response.json()
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to validate Google token: {str(e)}"
+            )
+    
+    # Extract user info from Google token
+    email = google_data.get("email")
+    name = google_data.get("name", "")
+    picture = google_data.get("picture", "")
+    email_verified = google_data.get("email_verified", "false") == "true"
+    
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email not provided by Google"
+        )
+    
+    # Find or create user
+    query = select(User).where(User.email == email.lower())
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+    
+    if user:
+        # Update existing user with Google info
+        if user.oauth_provider == "email":
+            user.oauth_provider = "both"
+        elif not user.oauth_provider:
+            user.oauth_provider = "google"
+            
+        # Update profile if missing
+        if not user.full_name and name:
+            user.full_name = name
+        if not user.avatar_url and picture:
+            user.avatar_url = picture
+        if email_verified:
+            user.is_verified = True
+            
+        is_new_user = False
+        
+    else:
+        # Create new user
+        user = User(
+            email=email.lower(),
+            username=email.lower().split('@')[0][:100],  # Simple username from email
+            full_name=name,
+            avatar_url=picture,
+            hashed_password=None,  # No password for Google users
+            oauth_provider="google",
+            is_verified=email_verified,  # Google verifies emails
+            is_active=True
+        )
+        db.add(user)
+        is_new_user = True
+    
+    # Update last login
+    current_time = datetime.utcnow()
+    user.last_login_at = current_time
+    await db.commit()
+    await db.refresh(user)
+    
+    # Set httpOnly authentication cookies (same as email login)
+    cookies_data = set_auth_cookies(
+        response,
+        user.user_id,
+        settings,
+        scopes=["chat", "files", "profile", "analytics"]
+    )
+    
+    # Create user profile for response
+    user_profile = UserProfile(
+        id=user.id,
+        user_id=user.user_id,
+        email=user.email,
+        username=user.username,
+        full_name=user.full_name,
+        avatar_url=user.avatar_url,
+        bio=user.bio,
+        subscription_tier=user.subscription_tier,
+        is_active=user.is_active,
+        is_verified=user.is_verified,
+        created_at=user.created_at,
+        last_login_at=current_time
+    )
+    
+    success_message = "Google registration successful" if is_new_user else "Google login successful"
+    
+    # Return exact same response as email login
+    return TokenResponse(
+        success=True,
+        message=success_message,
+        access_token="",  # Empty - tokens are in httpOnly cookies
+        refresh_token="", # Empty - tokens are in httpOnly cookies
+        token_type="bearer",
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=user_profile,
+        csrf_token=cookies_data.get("csrf_token")
     )
 
 @router.post("/refresh", response_model=TokenRefreshResponse)

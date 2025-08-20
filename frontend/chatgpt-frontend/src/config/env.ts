@@ -4,6 +4,9 @@ export const ENV = {
   API_BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   API_VERSION: import.meta.env.VITE_API_VERSION || 'v1',
   
+  // Google OAuth Configuration
+  GOOGLE_CLIENT_ID: import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id.apps.googleusercontent.com',
+  
   // Storage Keys (DEPRECATED - tokens now in httpOnly cookies)
   ACCESS_TOKEN_KEY: 'chat_access_token', // ⚠️ DEPRECATED: Now in httpOnly cookie
   REFRESH_TOKEN_KEY: 'chat_refresh_token', // ⚠️ DEPRECATED: Now in httpOnly cookie
@@ -30,6 +33,7 @@ export const API_ENDPOINTS = {
     STATUS: '/api/v1/auth/status',
     REGISTER: '/api/v1/auth/register',
     LOGIN: '/api/v1/auth/login',
+    GOOGLE_LOGIN: '/api/v1/auth/google-login',
     REFRESH: '/api/v1/auth/refresh',
     LOGOUT: '/api/v1/auth/logout',
     ME: '/api/v1/auth/me',

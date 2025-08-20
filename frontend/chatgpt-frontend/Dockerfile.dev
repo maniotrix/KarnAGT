@@ -15,6 +15,7 @@ RUN apk add --no-cache git
 
 # Accept build arguments from docker-compose
 ARG VITE_API_URL=https://localhost
+ARG VITE_GOOGLE_CLIENT_ID
 ARG NODE_ENV=development
 
 # Copy package files for efficient caching
@@ -26,6 +27,7 @@ RUN npm ci --include=dev
 # Set build environment variables
 ENV NODE_ENV=$NODE_ENV
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
 # Copy source code
 COPY . .

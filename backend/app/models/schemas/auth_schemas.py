@@ -49,7 +49,11 @@ class UserLogin(BaseSchema):
     """User login request schema"""
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., description="User password")
-    remember_me: bool = Field(False, description="Whether to create long-lived token")
+
+
+class GoogleLoginRequest(BaseSchema):
+    """Google OAuth login request schema"""
+    google_id_token: str = Field(..., description="Google ID token from frontend")
 
 
 class TokenResponse(BaseResponse):
