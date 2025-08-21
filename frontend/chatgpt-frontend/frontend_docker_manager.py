@@ -12,6 +12,10 @@ import subprocess
 import sys
 import os
 import time
+import platform
+import socket
+import urllib.request
+import urllib.error
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
@@ -84,6 +88,208 @@ class FrontendDockerManager:
     def _warning(self, message: str) -> None:
         """Print warning message"""
         self._log(f"⚠️ {message}", Colors.YELLOW)
+    
+    def _is_running_on_aws(self) -> bool:
+        """Detect if script is running on AWS (EC2, ECS, Fargate, etc.) - Uses ONLY built-in Python libraries"""
+        try:
+            # Method 1: AWS Instance Metadata Service (works on EC2, ECS, Fargate)
+            try:
+                request = urllib.request.Request(
+                    'http://169.254.169.254/latest/meta-data/instance-id',
+                    headers={'User-Agent': 'AWS-Instance-Detection/1.0'}
+                )
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    instance_id = response.read().decode('utf-8').strip()
+                    if instance_id and (instance_id.startswith('i-') or len(instance_id) > 10):
+                        return True
+            except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+                pass
+            
+            # Method 2: Check for AWS Task Metadata (ECS/Fargate)
+            if os.environ.get('ECS_CONTAINER_METADATA_URI_V4') or os.environ.get('ECS_CONTAINER_METADATA_URI'):
+                return True
+                
+            # Method 3: Check AWS Lambda/Batch environments
+            if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or os.environ.get('AWS_BATCH_JOB_ID'):
+                return True
+                
+            # Method 4: Check hypervisor UUID (EC2 characteristic)
+            try:
+                if os.path.exists('/sys/hypervisor/uuid'):
+                    with open('/sys/hypervisor/uuid', 'r') as f:
+                        uuid = f.read().strip()
+                        if uuid.startswith(('ec2', 'EC2')):
+                            return True
+            except:
+                pass
+                
+            # Method 5: Check DMI product name (without external commands)
+            try:
+                if os.path.exists('/sys/class/dmi/id/product_name'):
+                    with open('/sys/class/dmi/id/product_name', 'r') as f:
+                        product = f.read().strip().lower()
+                        if any(keyword in product for keyword in ['amazon', 'ec2']):
+                            return True
+            except:
+                pass
+                
+            # Method 6: Check hostname patterns
+            try:
+                hostname = socket.gethostname().lower()
+                aws_patterns = ['ec2', 'aws', 'amazon', 'compute-1', 'ip-10-', 'ip-172-', 'ip-192-168-']
+                if any(pattern in hostname for pattern in aws_patterns):
+                    return True
+            except:
+                pass
+                
+            return False
+            
+        except Exception:
+            return False
+    
+    def _get_docker_context(self) -> str:
+        """Get current Docker context"""
+        try:
+            result = subprocess.run(['docker', 'context', 'show'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return 'default'
+        except Exception:
+            return 'default'
+    
+    def _validate_deployment_context(self, environment: str, skip_validation: bool = False) -> None:
+        """JSON-configured environment-specific deployment context validation"""
+        validation_config = self._get_context_validation_config(environment)
+        
+        if not validation_config:
+            return
+            
+        if skip_validation:
+            self._warning("Validation skipped via --skip-validation flag")
+            self._warning("Ensure you're deploying to the correct environment!")
+            return
+            
+        is_aws = self._is_running_on_aws()
+        current_context = self._get_docker_context()
+        
+        self._info(f"Environment: {environment}")
+        self._info(f"Running on AWS: {is_aws}")
+        self._info(f"Docker context: {current_context}")
+        
+        if validation_config.get('aws_detection_enabled', False) and is_aws:
+            self._success("✅ Running on AWS instance - deployment allowed")
+            return
+            
+        blocked_contexts = validation_config.get('blocked_contexts', [])
+        if current_context in blocked_contexts:
+            self._handle_blocked_context_json(environment, current_context, validation_config)
+            
+        allowed_patterns = validation_config.get('allowed_context_patterns', ['*'])
+        if not self._is_context_allowed(current_context, allowed_patterns):
+            self._handle_disallowed_context_json(environment, current_context, validation_config)
+            
+        validation_level = validation_config.get('validation_level', 'strict')
+        if validation_level == 'strict':
+            self._handle_strict_validation_json(environment, current_context, validation_config)
+            
+        self._success(f"✅ Docker context validation passed: {current_context}")
+    
+    def _get_context_validation_config(self, environment: str) -> Optional[Dict]:
+        """Get context validation configuration from JSON config for specific environment"""
+        try:
+            validation_config = self.config.get('context_validation', {})
+            enabled_environments = validation_config.get('enabled_environments', [])
+            
+            if environment not in enabled_environments:
+                return None
+                
+            env_config = validation_config.get(environment)
+            if not env_config:
+                self._warning(f"Context validation enabled for {environment} but no rules found")
+                return None
+                
+            return env_config
+            
+        except Exception as e:
+            self._warning(f"Error loading context validation config: {e}")
+            return None
+    
+    def _is_context_allowed(self, context: str, allowed_patterns: List[str]) -> bool:
+        """Check if context matches any allowed pattern"""
+        import fnmatch
+        
+        for pattern in allowed_patterns:
+            if pattern == '*' or fnmatch.fnmatch(context.lower(), pattern.lower()):
+                return True
+        return False
+    
+    def _handle_blocked_context_json(self, environment: str, context: str, config: Dict) -> None:
+        """Handle explicitly blocked contexts using JSON config"""
+        error_msg = config.get('error_messages', {}).get('blocked_context', 
+                               "Context '{context}' is blocked for {environment} deployments")
+        
+        self._error("🚫 DEPLOYMENT BLOCKED!")
+        print()
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+        print(f"{Colors.RED}{Colors.BOLD} CONTEXT '{context.upper()}' IS BLOCKED FOR {environment.upper()} {Colors.END}")
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+        print()
+        print(f"{Colors.YELLOW}⚠️  {error_msg.format(context=context, environment=environment)}{Colors.END}")
+        print(f"{Colors.YELLOW}⚠️  This is a safety measure to prevent accidental deployments{Colors.END}")
+        print()
+        print(f"{Colors.CYAN}📋 Allowed deployment methods:{Colors.END}")
+        print()
+        
+        instructions = config.get('deployment_instructions', [])
+        for i, instruction in enumerate(instructions, 1):
+            if instruction.strip():
+                if instruction.startswith('  '):
+                    print(f"{Colors.GREEN}{instruction}{Colors.END}")
+                else:
+                    print(f"{i}. {instruction}")
+            else:
+                print()
+        
+        print()
+        print("3. Override with --skip-validation (use with caution):")
+        print(f"{Colors.GREEN}   python script.py {environment} --skip-validation{Colors.END}")
+        print()
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+        sys.exit(1)
+    
+    def _handle_disallowed_context_json(self, environment: str, context: str, config: Dict) -> None:
+        """Handle contexts not in allowed patterns list using JSON config"""
+        error_msg = config.get('error_messages', {}).get('disallowed_pattern',
+                               "Context '{context}' doesn't match allowed patterns for {environment}")
+        
+        allowed_patterns = config.get('allowed_context_patterns', [])
+        
+        self._error(f"{error_msg.format(context=context, environment=environment)}")
+        self._info(f"📋 Allowed context patterns: {', '.join(allowed_patterns)}")
+        self._info("💡 Use --skip-validation to override if this is intentional")
+        sys.exit(1)
+    
+    def _handle_strict_validation_json(self, environment: str, context: str, config: Dict) -> None:
+        """Handle strict validation using JSON config"""
+        aws_warning = config.get('error_messages', {}).get('aws_warning',
+                                 "Context '{context}' doesn't appear to be AWS-related")
+        countdown_seconds = config.get('countdown_seconds', 60)
+        
+        aws_indicators = ['aws', 'prod', 'production', 'ec2']
+        has_aws_indicator = any(indicator in context.lower() for indicator in aws_indicators)
+        
+        if not has_aws_indicator:
+            self._warning(f"{aws_warning.format(context=context)}")
+            self._info(f"Proceeding in {countdown_seconds} seconds... Press Ctrl+C to cancel")
+            try:
+                time.sleep(countdown_seconds)
+            except KeyboardInterrupt:
+                print()
+                self._info("Deployment cancelled by user")
+                sys.exit(1)
+        
+        self._success(f"✅ Strict context validation passed: {context}")
     
     def _run_command(self, command: List[str], description: str = "") -> bool:
         """Run shell command with error handling"""
@@ -183,9 +389,12 @@ class FrontendDockerManager:
         
         return True
     
-    def validate(self, env: str) -> None:
-        """Validate environment setup"""
+    def validate(self, env: str, skip_validation: bool = False) -> None:
+        """Validate environment setup and deployment context"""
         self._info(f"Validating {env} environment...")
+        
+        # Validate deployment context first (like db_manager does)
+        self._validate_deployment_context(env, skip_validation)
         
         if self._check_prerequisites(env):
             self._success(f"Environment '{env}' validation passed")
@@ -234,9 +443,12 @@ class FrontendDockerManager:
         else:
             sys.exit(1)
     
-    def start(self, env: str, build: bool = False) -> None:
+    def start(self, env: str, build: bool = False, skip_validation: bool = False) -> None:
         """Start containers for environment"""
         self._info(f"Starting {env} environment...")
+        
+        # Validate deployment context for prod_aws
+        self._validate_deployment_context(env, skip_validation)
         
         if not self._check_prerequisites(env):
             sys.exit(1)
@@ -284,12 +496,12 @@ class FrontendDockerManager:
         else:
             sys.exit(1)
     
-    def restart(self, env: str) -> None:
+    def restart(self, env: str, skip_validation: bool = False) -> None:
         """Restart containers for environment"""
         self._info(f"Restarting {env} environment...")
         self.stop(env)
         time.sleep(2)
-        self.start(env, build=True)
+        self.start(env, build=True, skip_validation=skip_validation)
     
     def status(self, env: str) -> None:
         """Show status of containers for environment"""
@@ -358,7 +570,8 @@ def main():
     parser.add_argument('command', choices=['envs', 'validate', 'build', 'start', 'stop', 'restart', 'status', 'logs', 'health'],
                        help='Command to execute')
     parser.add_argument('--env', '--environment', default=None,
-                       help='Environment to use (dev, staging, prod)')
+                       choices=['dev', 'staging', 'prod', 'prod_aws'],
+                       help='Environment to use (dev, staging, prod, prod_aws)')
     parser.add_argument('--build', action='store_true',
                        help='Build images before starting (for start command)')
     parser.add_argument('--follow', '-f', action='store_true',
@@ -369,6 +582,10 @@ def main():
                        help='Shorthand for --env=staging')
     parser.add_argument('--prod', action='store_true',
                        help='Shorthand for --env=prod')
+    parser.add_argument('--prod-aws', action='store_true',
+                       help='Shorthand for --env=prod_aws')
+    parser.add_argument('--skip-validation', action='store_true',
+                       help='Skip deployment context validation (useful for GCP, Azure, etc.)')
     
     args = parser.parse_args()
     
@@ -379,6 +596,8 @@ def main():
         args.env = 'staging'
     elif args.prod:
         args.env = 'prod'
+    elif getattr(args, 'prod_aws', False):
+        args.env = 'prod_aws'
     
     manager = FrontendDockerManager()
     
@@ -393,15 +612,15 @@ def main():
         print(f"Using default environment: {args.env}")
     
     if args.command == 'validate':
-        manager.validate(args.env)
+        manager.validate(args.env, skip_validation=args.skip_validation)
     elif args.command == 'build':
         manager.build(args.env)
     elif args.command == 'start':
-        manager.start(args.env, build=args.build)
+        manager.start(args.env, build=args.build, skip_validation=args.skip_validation)
     elif args.command == 'stop':
         manager.stop(args.env)
     elif args.command == 'restart':
-        manager.restart(args.env)
+        manager.restart(args.env, skip_validation=args.skip_validation)
     elif args.command == 'status':
         manager.status(args.env)
     elif args.command == 'logs':

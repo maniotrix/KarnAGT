@@ -1,6 +1,6 @@
 {
   "description": "Database infrastructure with Traefik integration, unified networking, and password security validation",
-  "supported_environments": ["dev", "staging", "prod"],
+  "supported_environments": ["dev", "staging", "prod", "prod_aws"],
   "environments": {
     "dev": {
       "compose_file": "docker-compose.dev.yml",
@@ -21,6 +21,13 @@
       "description": "Production database with high availability",
       "network": "prod-network",
       "domain": "yourdomain.com",
+      "ssl_mode": "letsencrypt"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "description": "Production database with EBS volumes on AWS EC2",
+      "network": "prod_aws_network",
+      "domain": "karnagt.com",
       "ssl_mode": "letsencrypt"
     }
   },
@@ -103,8 +110,40 @@
     },
     "server_urls": {
       "dev": "http://localhost:9000",
-      "staging": "https://files-staging.yourdomain.com",
-      "prod": "https://files.yourdomain.com"
+      "staging": "https://files-staging.karnagt.com",
+      "prod": "https://files.myappdomain.com",
+      "prod_aws": "https://files.karnagt.com"
+    }
+  },
+  "context_validation": {
+    "description": "Docker context validation rules for deployment safety",
+    "enabled_environments": ["prod_aws"],
+    "prod_aws": {
+      "validation_level": "strict",
+      "blocked_contexts": ["default", "desktop-linux"],
+      "allowed_context_patterns": [
+        "aws-*",
+        "*-aws-*", 
+        "*-prod*",
+        "*prod*",
+        "*-ec2-*",
+        "*ec2*"
+      ],
+      "aws_detection_enabled": true,
+      "countdown_seconds": 8,
+      "error_messages": {
+        "blocked_context": "Context '{context}' is blocked for {environment} deployments for security reasons",
+        "disallowed_pattern": "Context '{context}' doesn't match allowed patterns for {environment}",
+        "aws_warning": "Context '{context}' doesn't appear to be AWS-related. Expected: aws, prod, production, or ec2 indicators"
+      },
+      "deployment_instructions": [
+        "Create AWS-specific Docker context:",
+        "  docker context create aws-prod --docker \"host=ssh://ec2-user@YOUR-IP\"",
+        "  docker context use aws-prod",
+        "",
+        "Or deploy directly on AWS instance:",
+        "  ssh -i key.pem ec2-user@YOUR-IP"
+      ]
     }
   }
 }

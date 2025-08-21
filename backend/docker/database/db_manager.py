@@ -24,14 +24,29 @@ Version: 1.0.0
 
 import argparse
 import json
+import os
+import platform
 import re
+import socket
 import subprocess
 import sys
 import time
+import urllib.request
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+class Colors:
+    """ANSI color codes for output"""
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
 
 class DatabaseManager:
     """
@@ -45,7 +60,7 @@ class DatabaseManager:
         """Initialize the database manager."""
         self.base_dir = base_dir or Path(__file__).parent
         self.config = self._load_config()
-        self.supported_environments = self.config.get('supported_environments', ['dev', 'staging', 'prod'])
+        self.supported_environments = self.config.get('supported_environments', ['dev', 'staging', 'prod', 'prod_aws'])
         self.services = ['postgres', 'redis', 'neo4j', 'qdrant', 'minio']
         
     def _load_config(self) -> Dict:
@@ -63,7 +78,8 @@ class DatabaseManager:
             "environments": {
                 "dev": {"compose_file": "docker-compose.dev.yml"},
                 "staging": {"compose_file": "docker-compose.staging.yml"},
-                "prod": {"compose_file": "docker-compose.prod.yml"}
+                "prod": {"compose_file": "docker-compose.prod.yml"},
+                "prod_aws": {"compose_file": "docker-compose-prod-aws.yml"}
             },
             "settings": {
                 "docker_compose_timeout": 300,
@@ -117,6 +133,27 @@ class DatabaseManager:
         except Exception as e:
             print(f"❌ Command failed: {e}")
             return 1, "", str(e)
+    def _error(self, message: str) -> None:
+        """Print error message"""
+        self._log(f"❌ {message}", Colors.RED, bold=True)
+        
+    def _success(self, message: str) -> None:
+        """Print success message"""
+        self._log(f"✅ {message}", Colors.GREEN, bold=True)
+    
+    def _info(self, message: str) -> None:
+        """Print info message"""
+        self._log(f"ℹ️ {message}", Colors.WHITE)
+    
+    def _warning(self, message: str) -> None:
+        """Print warning message"""
+        self._log(f"⚠️ {message}", Colors.YELLOW)
+    
+    def _log(self, message: str, color: str = Colors.WHITE, bold: bool = False) -> None:
+        """Print colored log message"""
+        timestamp = f"{Colors.CYAN}[{datetime.now().strftime('%H:%M:%S')}]{Colors.END}"
+        style = f"{Colors.BOLD if bold else ''}{color}"
+        print(f"{timestamp} {style}{message}{Colors.END}")
     
     def _validate_environment(self, env: str) -> bool:
         """Validate that environment is supported."""
@@ -322,9 +359,309 @@ class DatabaseManager:
             
         return True
     
-    def start(self, env: str) -> bool:
+    def _is_running_on_aws(self) -> bool:
+        """Detect if script is running on AWS (EC2, ECS, Fargate, etc.) - Uses ONLY built-in Python libraries"""
+        try:
+            # Method 1: AWS Instance Metadata Service (works on EC2, ECS, Fargate)
+            try:
+                request = urllib.request.Request(
+                    'http://169.254.169.254/latest/meta-data/instance-id',
+                    headers={'User-Agent': 'AWS-Instance-Detection/1.0'}
+                )
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    instance_id = response.read().decode('utf-8').strip()
+                    if instance_id and (instance_id.startswith('i-') or len(instance_id) > 10):
+                        return True
+            except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+                pass
+            
+            # Method 2: Check for AWS Task Metadata (ECS/Fargate)
+            if os.environ.get('ECS_CONTAINER_METADATA_URI_V4') or os.environ.get('ECS_CONTAINER_METADATA_URI'):
+                return True
+                
+            # Method 3: Check AWS Lambda/Batch environments
+            if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or os.environ.get('AWS_BATCH_JOB_ID'):
+                return True
+                
+            # Method 4: Check hypervisor UUID (EC2 characteristic)
+            try:
+                if os.path.exists('/sys/hypervisor/uuid'):
+                    with open('/sys/hypervisor/uuid', 'r') as f:
+                        uuid = f.read().strip()
+                        if uuid.startswith(('ec2', 'EC2')):
+                            return True
+            except:
+                pass
+                
+            # Method 5: Check DMI product name (without external commands)
+            try:
+                if os.path.exists('/sys/class/dmi/id/product_name'):
+                    with open('/sys/class/dmi/id/product_name', 'r') as f:
+                        product = f.read().strip().lower()
+                        if any(keyword in product for keyword in ['amazon', 'ec2']):
+                            return True
+            except:
+                pass
+                
+            # Method 6: Check hostname patterns
+            try:
+                hostname = socket.gethostname().lower()
+                aws_patterns = ['ec2', 'aws', 'amazon', 'compute-1', 'ip-10-', 'ip-172-', 'ip-192-168-']
+                if any(pattern in hostname for pattern in aws_patterns):
+                    return True
+            except:
+                pass
+                
+            return False
+            
+        except Exception:
+            return False
+    
+    def _get_docker_context(self) -> str:
+        """Get current Docker context"""
+        try:
+            result = subprocess.run(['docker', 'context', 'show'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return 'default'
+        except Exception:
+            return 'default'
+    
+    def _get_context_validation_config(self, environment: str) -> Optional[Dict]:
+        """
+        Get context validation configuration from JSON config for specific environment.
+        
+        Args:
+            environment: Target environment name
+            
+        Returns:
+            Context validation config dict or None if validation not enabled
+        """
+        try:
+            # Check if context validation is enabled for this environment
+            validation_config = self.config.get('context_validation', {})
+            enabled_environments = validation_config.get('enabled_environments', [])
+            
+            if environment not in enabled_environments:
+                return None
+                
+            # Get environment-specific validation rules
+            env_config = validation_config.get(environment)
+            if not env_config:
+                print(f"⚠️  Context validation enabled for {environment} but no rules found")
+                return None
+                
+            return env_config
+            
+        except Exception as e:
+            print(f"⚠️  Error loading context validation config: {e}")
+            return None
+    
+    def _validate_deployment_context(self, environment: str, skip_validation: bool = False) -> bool:
+        """
+        JSON-configured environment-specific deployment context validation.
+        
+        Args:
+            environment: Target deployment environment
+            skip_validation: Skip validation if True
+            
+        Returns:
+            True if deployment is allowed, False otherwise
+        """
+        # Get validation config from JSON - returns None if validation not enabled
+        validation_config = self._get_context_validation_config(environment)
+        
+        # No validation needed if not configured for this environment
+        if not validation_config:
+            return True
+            
+        # Skip validation if requested
+        if skip_validation:
+            print("⚠️  Validation skipped via --skip-validation flag")
+            print("⚠️  Ensure you're deploying to the correct environment!")
+            return True
+            
+        is_aws = self._is_running_on_aws()
+        current_context = self._get_docker_context()
+        
+        print(f"ℹ️  Environment: {environment}")
+        print(f"ℹ️  Running on AWS: {is_aws}")  
+        print(f"ℹ️  Docker context: {current_context}")
+        
+        # For AWS environments, allow if running on AWS and AWS detection is enabled
+        if validation_config.get('aws_detection_enabled', False) and is_aws:
+            print("✅ Running on AWS instance - deployment allowed")
+            return True
+            
+        # Check if context is explicitly blocked
+        blocked_contexts = validation_config.get('blocked_contexts', [])
+        if current_context in blocked_contexts:
+            return self._handle_blocked_context_json(environment, current_context, validation_config)
+            
+        # Check if context matches allowed patterns
+        allowed_patterns = validation_config.get('allowed_context_patterns', ['*'])
+        if not self._is_context_allowed(current_context, allowed_patterns):
+            return self._handle_disallowed_context_json(environment, current_context, validation_config)
+            
+        # Handle strict validation level
+        validation_level = validation_config.get('validation_level', 'strict')
+        if validation_level == 'strict':
+            return self._handle_strict_validation_json(environment, current_context, validation_config)
+            
+        print(f"✅ Docker context validation passed: {current_context}")
+        return True
+        
+    def _is_context_allowed(self, context: str, allowed_patterns: List[str]) -> bool:
+        """Check if context matches any allowed pattern"""
+        import fnmatch
+        
+        for pattern in allowed_patterns:
+            if pattern == '*' or fnmatch.fnmatch(context.lower(), pattern.lower()):
+                return True
+        return False
+        
+    def _handle_blocked_context_json(self, environment: str, context: str, config: Dict) -> bool:
+        """Handle explicitly blocked contexts using JSON config"""
+        error_msg = config.get('error_messages', {}).get('blocked_context', 
+                               "Context '{context}' is blocked for {environment} deployments")
+        
+        self._error("🚫 DEPLOYMENT BLOCKED!")
+        
+        print()
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"{Colors.RED}{Colors.BOLD} CONTEXT '{context.upper()}' IS BLOCKED FOR {environment.upper()} ")
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print()
+        print(f"{Colors.YELLOW}⚠️  {error_msg.format(context=context, environment=environment)}")
+        print(f"{Colors.YELLOW}⚠️  This is a safety measure to prevent accidental deployments")
+        print()
+        print(f"{Colors.CYAN}📋 Allowed deployment methods:{Colors.END}")
+        print()
+        
+        # Show deployment instructions from JSON config
+        instructions = config.get('deployment_instructions', [])
+        for i, instruction in enumerate(instructions, 1):
+            if instruction.strip():  # Skip empty lines in numbering
+                if instruction.startswith('  '):  # Indented command
+                    print(f"{Colors.GREEN}| {instruction}{Colors.END}")
+                else:
+                    print(f"{i}. {instruction}")
+            else:
+                print()  # Empty line
+        
+        print()
+        print("3. Override with --skip-validation (use with caution):")
+        print(f"{Colors.GREEN}   python script.py {environment} --skip-validation")
+        print()
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        return False
+        
+    def _handle_disallowed_context_json(self, environment: str, context: str, config: Dict) -> bool:
+        """Handle contexts not in allowed patterns list using JSON config"""
+        error_msg = config.get('error_messages', {}).get('disallowed_pattern',
+                               "Context '{context}' doesn't match allowed patterns for {environment}")
+        
+        allowed_patterns = config.get('allowed_context_patterns', [])
+        
+        print(f"❌ {error_msg.format(context=context, environment=environment)}")
+        print(f"📋 Allowed context patterns: {', '.join(allowed_patterns)}")
+        print("💡 Use --skip-validation to override if this is intentional")
+        return False
+        
+    def _handle_strict_validation_json(self, environment: str, context: str, config: Dict) -> bool:
+        """Handle strict validation using JSON config"""
+        aws_warning = config.get('error_messages', {}).get('aws_warning',
+                                 "Context '{context}' doesn't appear to be AWS-related")
+        countdown_seconds = config.get('countdown_seconds', 60)
+        
+        # Check if context has AWS indicators
+        aws_indicators = ['aws', 'prod', 'production', 'ec2']
+        has_aws_indicator = any(indicator in context.lower() for indicator in aws_indicators)
+        
+        if not has_aws_indicator:
+            print(f"⚠️  {aws_warning.format(context=context)}")
+            print(f"⚠️  Proceeding in {countdown_seconds} seconds... Press Ctrl+C to cancel")
+            try:
+                time.sleep(countdown_seconds)
+            except KeyboardInterrupt:
+                print("\nℹ️  Deployment cancelled by user")
+                return False
+        
+        print(f"✅ Strict context validation passed: {context}")
+        return True
+    
+    def _load_secrets_to_env(self, env: str) -> bool:
+        """Load secrets from files into environment variables for prod_aws environment"""
+        import os
+        from pathlib import Path
+        
+        if env != 'prod_aws':
+            return True  # Only needed for prod_aws
+            
+        print(f"🔐 Setting up AWS environment variables from secrets folder...")
+        
+        # Define secrets mapping: env_var_name -> secret_file_name
+        secrets_mapping = {
+            'POSTGRES_PASSWORD': 'postgres_password.txt',
+            'NEO4J_AUTH': 'neo4j_auth.txt', 
+            'MINIO_ROOT_USER': 'minio_user.txt',
+            'MINIO_ROOT_PASSWORD': 'minio_password.txt'
+        }
+        
+        secrets_dir = Path(__file__).parent / 'secrets' / env
+        
+        if not secrets_dir.exists():
+            print(f"❌ Secrets directory not found: {secrets_dir}")
+            print(f"💡 Create secrets directory: mkdir -p {secrets_dir}")
+            return False
+        
+        loaded_secrets = []
+        missing_secrets = []
+        
+        for env_var, secret_file in secrets_mapping.items():
+            secret_path = secrets_dir / secret_file
+            
+            if secret_path.exists():
+                try:
+                    with open(secret_path, 'r', encoding='utf-8') as f:
+                        secret_value = f.read().strip()
+                    
+                    if secret_value:
+                        os.environ[env_var] = secret_value
+                        loaded_secrets.append(env_var)
+                        print(f"✅ Loaded {env_var} from {secret_file}")
+                    else:
+                        print(f"⚠️  Warning: {secret_file} is empty")
+                        missing_secrets.append(secret_file)
+                        
+                except Exception as e:
+                    print(f"❌ Error reading {secret_file}: {e}")
+                    missing_secrets.append(secret_file)
+            else:
+                print(f"❌ Secret file not found: {secret_path}")
+                missing_secrets.append(secret_file)
+        
+        if missing_secrets:
+            print(f"❌ Missing secrets: {', '.join(missing_secrets)}")
+            print(f"💡 Create missing secret files in: {secrets_dir}")
+            return False
+        
+        print(f"🔐 Successfully loaded {len(loaded_secrets)} AWS environment variables")
+        return True
+    
+    def start(self, env: str, skip_validation: bool = False) -> bool:
         """Start all database containers for environment."""
         print(f"🚀 Starting database containers for {env} environment...")
+        
+        # Validate deployment context for prod_aws
+        if not self._validate_deployment_context(env, skip_validation):
+            return False
+        
+        # Load secrets into environment variables for prod_aws
+        if env == 'prod_aws':
+            if not self._load_secrets_to_env(env):
+                return False
         
         if not self._validate_environment(env) or not self._check_prerequisites(env):
             return False
@@ -834,11 +1171,15 @@ class DatabaseManager:
             print(f"      ❌ MinIO backup failed: {e}")
             return False
     
-    def validate(self, env: str) -> bool:
+    def validate(self, env: str, skip_validation: bool = False) -> bool:
         """Validate environment configuration before deployment."""
         print(f"🔍 Validating {env} environment configuration...")
         
         if not self._validate_environment(env):
+            return False
+        
+        # Validate deployment context for prod_aws (same security as start command)
+        if not self._validate_deployment_context(env, skip_validation):
             return False
         
         # Check all prerequisites
@@ -911,7 +1252,8 @@ def main():
 Examples:
   python db_manager.py start --env=dev              # Start development databases
   python db_manager.py health --env=prod            # Check production health
-  python db_manager.py validate-passwords --env=prod # Validate production passwords
+  python db_manager.py start --env=prod_aws         # Start AWS EC2 production with EBS volumes
+  python db_manager.py validate-passwords --env=prod_aws # Validate AWS production passwords
   python db_manager.py backup --env=staging         # Backup staging databases
   python db_manager.py logs --env=dev --service=postgres  # View PostgreSQL logs
         """
@@ -925,7 +1267,7 @@ Examples:
     
     parser.add_argument(
         '--env',
-        choices=['dev', 'staging', 'prod'],
+        choices=['dev', 'staging', 'prod', 'prod_aws'],
         required=True,
         help='Environment to operate on'
     )
@@ -942,6 +1284,12 @@ Examples:
         help='Follow logs (only for logs action)'
     )
     
+    parser.add_argument(
+        '--skip-validation',
+        action='store_true',
+        help='Skip deployment context validation (useful for GCP, Azure, etc.)'
+    )
+    
     args = parser.parse_args()
     
     # Initialize database manager
@@ -950,7 +1298,7 @@ Examples:
     # Execute requested action
     try:
         if args.action == 'start':
-            success = db_manager.start(args.env)
+            success = db_manager.start(args.env, skip_validation=args.skip_validation)
         elif args.action == 'stop':
             success = db_manager.stop(args.env)
         elif args.action == 'restart':
@@ -964,7 +1312,7 @@ Examples:
         elif args.action == 'backup':
             success = db_manager.backup(args.env, args.service)
         elif args.action == 'validate':
-            success = db_manager.validate(args.env)
+            success = db_manager.validate(args.env, skip_validation=args.skip_validation)
         elif args.action == 'validate-passwords':
             success = db_manager.validate_passwords(args.env)
         elif args.action == 'cleanup':

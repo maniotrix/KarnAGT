@@ -31,6 +31,16 @@
       "network": "prod-network",
       "domain": "api.yourdomain.com",
       "ssl_mode": "letsencrypt"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "dockerfile": "Dockerfile_aws.prod",
+      "env_file": ".env.docker.app.prod_aws",
+      "service_name": "app-backend-prod",
+      "description": "AWS EC2 production environment with EBS volumes",
+      "network": "prod_aws_network",
+      "domain": "api.karnagt.com",
+      "ssl_mode": "letsencrypt"
     }
   },
   "default_environment": "dev",
@@ -53,7 +63,7 @@
     "ssl": {
       "redirect_http_to_https": true,
       "hsts_enabled": true,
-      "letsencrypt_email": "admin@yourdomain.com"
+      "letsencrypt_email": "admin@karnagt.com"
     }
   },
   "services": {
@@ -74,5 +84,36 @@
     "startup_wait_time": 10,
     "health_check_timeout": 120,
     "network_isolation": true
+  },
+  "context_validation": {
+    "description": "Docker context validation rules for deployment safety",
+    "enabled_environments": ["prod_aws"],
+    "prod_aws": {
+      "validation_level": "strict",
+      "blocked_contexts": ["default", "desktop-linux"],
+      "allowed_context_patterns": [
+        "aws-*",
+        "*-aws-*", 
+        "*-prod*",
+        "*prod*",
+        "*-ec2-*",
+        "*ec2*"
+      ],
+      "aws_detection_enabled": true,
+      "countdown_seconds": 8,
+      "error_messages": {
+        "blocked_context": "Context '{context}' is blocked for {environment} backend deployments for security reasons",
+        "disallowed_pattern": "Context '{context}' doesn't match allowed patterns for {environment} backend",
+        "aws_warning": "Context '{context}' doesn't appear to be AWS-related. Expected: aws, prod, production, or ec2 indicators"
+      },
+      "deployment_instructions": [
+        "Create AWS-specific Docker context:",
+        "  docker context create aws-prod --docker \"host=ssh://ec2-user@YOUR-IP\"",
+        "  docker context use aws-prod",
+        "",
+        "Or deploy directly on AWS instance:",
+        "  ssh -i key.pem ec2-user@YOUR-IP"
+      ]
+    }
   }
 }

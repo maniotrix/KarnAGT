@@ -28,6 +28,15 @@
       "network": "prod-network",
       "domain": "myappdomain.com",
       "ssl_mode": "letsencrypt"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "dockerfile": "Dockerfile_aws.prod",
+      "service_name": "app-frontend-prod", 
+      "description": "AWS EC2 production environment with EBS volumes",
+      "network": "prod_aws_network",
+      "domain": "karnagt.com",
+      "ssl_mode": "letsencrypt"
     }
   },
   "default_environment": "dev",
@@ -77,6 +86,11 @@
         "VITE_API_URL": "https://api.myappdomain.com", 
         "NODE_ENV": "production",
         "FRONTEND_USER": "app_frontend_prod"
+      },
+      "prod_aws": {
+        "VITE_API_URL": "https://api.karnagt.com", 
+        "NODE_ENV": "production",
+        "FRONTEND_USER": "app_frontend_prod"
       }
     }
   },
@@ -84,12 +98,14 @@
     "required_networks": {
       "dev": "dev-network",
       "staging": "staging-network",
-      "prod": "prod-network"
+      "prod": "prod-network",
+      "prod_aws": "prod_aws_network"
     },
     "created_by": {
       "dev": "Database services (db_manager.py)",
       "staging": "Database services (db_manager.py)",
-      "prod": "Database services (db_manager.py)"
+      "prod": "Database services (db_manager.py)",
+      "prod_aws": "Database services (db_manager.py)"
     },
     "startup_order": ["database", "codesandbox", "backend", "frontend"]
   },
@@ -133,6 +149,37 @@
       "dev": "enabled",
       "staging": "limited",
       "prod": "limited"
+    }
+  },
+  "context_validation": {
+    "description": "Docker context validation rules for deployment safety",
+    "enabled_environments": ["prod_aws"],
+    "prod_aws": {
+      "validation_level": "strict",
+      "blocked_contexts": ["default", "desktop-linux"],
+      "allowed_context_patterns": [
+        "aws-*",
+        "*-aws-*", 
+        "*-prod*",
+        "*prod*",
+        "*-ec2-*",
+        "*ec2*"
+      ],
+      "aws_detection_enabled": true,
+      "countdown_seconds": 8,
+      "error_messages": {
+        "blocked_context": "Context '{context}' is blocked for {environment} frontend deployments for security reasons",
+        "disallowed_pattern": "Context '{context}' doesn't match allowed patterns for {environment} frontend",
+        "aws_warning": "Context '{context}' doesn't appear to be AWS-related. Expected: aws, prod, production, or ec2 indicators"
+      },
+      "deployment_instructions": [
+        "Create AWS-specific Docker context:",
+        "  docker context create aws-prod --docker \"host=ssh://ec2-user@YOUR-IP\"",
+        "  docker context use aws-prod",
+        "",
+        "Or deploy directly on AWS instance:",
+        "  ssh -i key.pem ec2-user@YOUR-IP"
+      ]
     }
   }
 }

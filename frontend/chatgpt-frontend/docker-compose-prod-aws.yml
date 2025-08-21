@@ -1,0 +1,59 @@
+version: '3.8'
+
+# AWS production network - created by database services
+networks:
+  prod_aws_network:
+    name: prod_aws_network
+    external: true
+
+services:
+  # Frontend Application - Production
+  app-frontend-prod:
+    container_name: app-frontend-production
+    build: 
+      context: .
+      dockerfile: Dockerfile_aws.prod
+      args:
+        VITE_API_URL: https://api.karnagt.com
+        VITE_GOOGLE_CLIENT_ID: 504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com
+        NODE_ENV: production
+    networks:
+      - prod_aws_network  # AWS network with all services
+    environment:
+      - NODE_ENV=production
+      - DOCKER_ENV=true
+      - VITE_API_URL=https://api.karnagt.com
+      - VITE_GOOGLE_CLIENT_ID=504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"  # Explicit exposure to Traefik
+      # MAIN DOMAIN - Frontend gets all non-API traffic
+      - "traefik.http.routers.frontend.rule=Host(`karnagt.com`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"  # HTTPS only
+
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.docker.network=prod_aws_network"
+      # PRODUCTION: Let's Encrypt SSL
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      # Priority to ensure proper routing (backend has higher priority for /api)
+      - "traefik.http.routers.frontend.priority=1"
+      # Metadata labels
+      - "com.app.environment=prod"
+      - "com.app.service=frontend"
+      - "com.app.component=react_app"
+    # No volume mounts for production - static files baked into image
+    # Production logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        labels: "environment=prod,service=frontend"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"] 
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Note: Dependencies are managed externally via startup order
+    # Frontend starts after: database → codesandbox → backend (with traefik) → frontend
