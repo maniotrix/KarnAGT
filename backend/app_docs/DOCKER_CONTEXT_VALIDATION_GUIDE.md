@@ -200,6 +200,28 @@ The validation detects **ALL** AWS compute services:
 - **Works on any Python 3.5+** installation
 - **Self-contained detection** - no network dependencies except AWS metadata
 
+## Automated Secrets Management
+
+For `prod_aws` environment, the `db_manager.py` script **automatically loads secrets** from the local `secrets/prod_aws/` folder into environment variables:
+
+```bash
+# Database manager automatically loads these files:
+backend/docker/database/secrets/prod_aws/postgres_password.txt    → POSTGRES_PASSWORD
+backend/docker/database/secrets/prod_aws/neo4j_auth.txt          → NEO4J_AUTH
+backend/docker/database/secrets/prod_aws/minio_user.txt          → MINIO_ROOT_USER
+backend/docker/database/secrets/prod_aws/minio_password.txt      → MINIO_ROOT_PASSWORD
+```
+
+**Example Output:**
+```
+🔐 Setting up AWS environment variables from secrets folder...
+✅ Loaded POSTGRES_PASSWORD from postgres_password.txt
+✅ Loaded NEO4J_AUTH from neo4j_auth.txt
+✅ Loaded MINIO_ROOT_USER from minio_user.txt
+✅ Loaded MINIO_ROOT_PASSWORD from minio_password.txt
+🔐 Successfully loaded 4 AWS environment variables
+```
+
 ## Quick Override for Other Cloud Providers
 
 For deployments on **GCP, Azure, DigitalOcean, or any non-AWS cloud**:
@@ -399,17 +421,23 @@ python CodeSandbox/docker_setup_and_run.py start --env=prod_aws
 ```bash
 # Full deployment sequence (in correct order) - should work on AWS or with Docker Context:
 
-# 1. Database layer (creates prod_aws_network)
+# 1. Database layer (creates prod_aws_network + automated secrets loading)
 python backend/docker/database/db_manager.py start --env=prod_aws
 
-# 2. Backend API
+# 2. Build backend (don't start yet)
+python backend/backend_docker_manager.py build --env=prod_aws
+
+# 3. Run database migrations (CRITICAL - before backend starts)
+docker-compose -f backend/docker-compose-prod-aws.yml run --rm app-backend-prod python run_migrations.py
+
+# 4. Start backend API
 python backend/backend_docker_manager.py start --env=prod_aws
 
-# 3. Frontend
-python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws
+# 5. Frontend
+python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws --build
 
-# 4. CodeSandbox
-python CodeSandbox/docker_setup_and_run.py start --env=prod_aws
+# 6. CodeSandbox
+python CodeSandbox/docker_setup_and_run.py start --prod-aws
 ```
 
 ## Customization

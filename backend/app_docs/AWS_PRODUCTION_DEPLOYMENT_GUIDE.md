@@ -231,6 +231,18 @@ All Docker manager scripts include built-in safety mechanisms to prevent acciden
 - Provides flexibility while maintaining default safety
 - Clear warning messages when validation is bypassed
 
+#### Automated Secrets Management
+- Database manager automatically loads secrets from local `secrets/prod_aws/` folder
+- Converts file-based secrets to environment variables for Docker Context deployment
+- No manual environment setup required - fully automated
+- Only applies to `prod_aws` environment with clear logging
+
+#### Manual Database Migrations
+- Database migrations are run manually for better control and safety
+- Requires backend to be built first but not started
+- Migration container inherits environment variables from secrets loading
+- Must be run after databases are ready but before backend application starts
+
 ## Deployment Process
 
 ### Prerequisites
@@ -270,39 +282,83 @@ cd /path/to/project
 python backend/docker/database/db_manager.py start --env=prod_aws
 ```
 
-#### 3. Deploy Backend API
+#### 3. Build Backend (Don't Start Yet)
+```bash
+python backend/backend_docker_manager.py build --env=prod_aws
+```
+
+#### 4. Run Database Migrations
+```bash
+# CRITICAL: Run migrations after databases are ready, before backend starts
+docker-compose -f backend/docker-compose-prod-aws.yml run --rm app-backend-prod python run_migrations.py
+
+# Expected output:
+# 🗄️ Database Migration Runner
+# ✅ Database connection successful
+# 🔄 Running database migrations...
+# ✅ Migrations completed successfully
+```
+
+#### 5. Start Backend API
 ```bash
 python backend/backend_docker_manager.py start --env=prod_aws
 ```
 
-#### 4. Deploy Frontend
+#### 6. Deploy Frontend
 ```bash
-python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws
+python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws --build
 ```
 
-#### 5. Deploy CodeSandbox
+#### 7. Deploy CodeSandbox
 ```bash
-python CodeSandbox/docker_setup_and_run.py start --env=prod_aws
+python CodeSandbox/docker_setup_and_run.py start --prod-aws
 ```
 
-### Alternative: Docker Context Deployment (With Safety Validation)
+### Recommended: Docker Context Deployment (With Safety Validation & Automated Secrets)
 ```bash
-# Set up Docker Context (from local machine)
+# 1. Create local secrets (one-time setup)
+mkdir -p backend/docker/database/secrets/prod_aws
+echo "your_postgres_password" > backend/docker/database/secrets/prod_aws/postgres_password.txt
+echo "neo4j/your_neo4j_password" > backend/docker/database/secrets/prod_aws/neo4j_auth.txt
+echo "your_minio_user" > backend/docker/database/secrets/prod_aws/minio_user.txt
+echo "your_minio_password" > backend/docker/database/secrets/prod_aws/minio_password.txt
+
+# 2. Set up Docker Context (from local machine)
 docker context create aws-prod --docker "host=ssh://ec2-user@your-elastic-ip"
 docker context use aws-prod
 
-# Deploy using same commands locally (execute on AWS via Docker Context)
+# 3. Deploy using Docker Context (secrets automatically loaded)
 # Note: Safety validation will detect Docker Context and allow deployment
-python backend/docker/database/db_manager.py start --env=prod_aws
-python backend/backend_docker_manager.py start --env=prod_aws  
-python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws
-python CodeSandbox/docker_setup_and_run.py start --env=prod_aws
 
-# Example output with validation:
+# Step 3a: Start databases (with automated secrets loading)
+python backend/docker/database/db_manager.py start --env=prod_aws
+
+# Step 3b: Build backend (but don't start yet)
+python backend/backend_docker_manager.py build --env=prod_aws
+
+# Step 3c: Run database migrations (CRITICAL - must be before backend starts)
+docker-compose -f backend/docker-compose-prod-aws.yml run --rm app-backend-prod python run_migrations.py
+
+# Step 3d: Start backend
+python backend/backend_docker_manager.py start --env=prod_aws
+
+# Step 3e: Start frontend
+python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws --build
+
+# Step 3f: Start CodeSandbox
+python CodeSandbox/docker_setup_and_run.py start --prod-aws
+
+# Example output with validation and automated secrets:
 # ℹ️  Environment: prod_aws
 # ℹ️  Running on AWS: False
 # ℹ️  Docker context: aws-prod
 # ✅ Docker context validation passed: aws-prod
+# 🔐 Setting up AWS environment variables from secrets folder...
+# ✅ Loaded POSTGRES_PASSWORD from postgres_password.txt
+# ✅ Loaded NEO4J_AUTH from neo4j_auth.txt
+# ✅ Loaded MINIO_ROOT_USER from minio_user.txt
+# ✅ Loaded MINIO_ROOT_PASSWORD from minio_password.txt
+# 🔐 Successfully loaded 4 AWS environment variables
 ```
 
 ### Alternative: Non-AWS Cloud Deployment (GCP, Azure, etc.)
@@ -319,6 +375,7 @@ python CodeSandbox/docker_setup_and_run.py start --prod-aws --skip-validation
 # 🚀 Starting prod_aws environment...
 # ⚠️  Validation skipped via --skip-validation flag
 # ⚠️  Ensure you're deploying to the correct environment!
+# 🔐 Setting up AWS environment variables from secrets folder...
 # Deployment proceeds...
 ```
 
@@ -565,6 +622,8 @@ The `prod_aws` environment is completely isolated from development and staging e
 - **Environment Isolation**: Only validates `prod_aws` - all other environments work normally
 - **Self-Contained**: No external dependencies or tools required
 - **Cloud Flexibility**: `--skip-validation` flag for GCP, Azure, and other cloud providers
+- **Automated Secrets**: Database manager automatically loads local secrets into environment variables
+- **Pure Docker Context**: No file uploaders or manual environment setup required
 
 For support or updates to this deployment, refer to the project's documentation or contact the development team.
 

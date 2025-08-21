@@ -1,16 +1,8 @@
 version: '3.9'
 name: 'app_db_prod'
 
-# File-based secrets for AWS production database credentials
-secrets:
-  postgres_password:
-    file: ./secrets/prod_aws/postgres_password.txt
-  neo4j_auth:
-    file: ./secrets/prod_aws/neo4j_auth.txt
-  minio_user:
-    file: ./secrets/prod_aws/minio_user.txt
-  minio_password:
-    file: ./secrets/prod_aws/minio_password.txt
+# Environment-based secrets for AWS production database credentials
+# Secrets automatically loaded by db_manager.py from secrets/prod_aws/ folder
 
 # AWS production network - separate from regular prod
 networks:
@@ -29,10 +21,10 @@ services:
     security_opt:
       - no-new-privileges:true
       
-    # Secrets-based authentication
+    # Environment-based authentication (loaded by db_manager.py)
     environment:
       POSTGRES_USER: app_prod_user
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: app_prod_db
       # Production PostgreSQL settings (minimal logging for performance)
       POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
@@ -40,8 +32,7 @@ services:
       POSTGRES_LOG_STATEMENT: none
       POSTGRES_LOG_LINE_PREFIX: '%t [%p]: [%l-1] '
     
-    secrets:
-      - postgres_password
+    # Secrets now loaded via environment variables by db_manager.py
       
     # Production-specific port mapping (5432 - standard PostgreSQL port)
     ports:
@@ -150,9 +141,9 @@ services:
     security_opt:
       - no-new-privileges:true
       
-    # Simple environment-based authentication (from secrets folder)
+    # Environment-based authentication (loaded by db_manager.py)
     environment:
-      NEO4J_AUTH: "neo4j/prod3w9q8e5r7t2y1u6i4o9p3a8s5d7f2g4h9j6k3l8z1x7c2v5b9n6m4q8w3e"
+      NEO4J_AUTH: ${NEO4J_AUTH}
       
     # Production-specific port mapping (7474, 7687 - standard Neo4j ports)
     ports:
@@ -242,14 +233,12 @@ services:
     restart: unless-stopped
       
     environment:
-      MINIO_ROOT_USER_FILE: /run/secrets/minio_user
-      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_DEFAULT_BUCKETS: app-files-prod
       MINIO_BROWSER_REDIRECT_URL: https://console.karnagt.com
       
-    secrets:
-      - minio_user
-      - minio_password
+    # Secrets now loaded via environment variables by db_manager.py
       
     # Production-specific port mapping (standard MinIO ports)
     ports:

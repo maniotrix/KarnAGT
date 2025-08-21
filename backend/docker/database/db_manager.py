@@ -468,6 +468,65 @@ class DatabaseManager:
         print(f"✅ Docker context validation passed: {current_context}")
         return True
     
+    def _load_secrets_to_env(self, env: str) -> bool:
+        """Load secrets from files into environment variables for prod_aws environment"""
+        import os
+        from pathlib import Path
+        
+        if env != 'prod_aws':
+            return True  # Only needed for prod_aws
+            
+        print(f"🔐 Setting up AWS environment variables from secrets folder...")
+        
+        # Define secrets mapping: env_var_name -> secret_file_name
+        secrets_mapping = {
+            'POSTGRES_PASSWORD': 'postgres_password.txt',
+            'NEO4J_AUTH': 'neo4j_auth.txt', 
+            'MINIO_ROOT_USER': 'minio_user.txt',
+            'MINIO_ROOT_PASSWORD': 'minio_password.txt'
+        }
+        
+        secrets_dir = Path(__file__).parent / 'secrets' / env
+        
+        if not secrets_dir.exists():
+            print(f"❌ Secrets directory not found: {secrets_dir}")
+            print(f"💡 Create secrets directory: mkdir -p {secrets_dir}")
+            return False
+        
+        loaded_secrets = []
+        missing_secrets = []
+        
+        for env_var, secret_file in secrets_mapping.items():
+            secret_path = secrets_dir / secret_file
+            
+            if secret_path.exists():
+                try:
+                    with open(secret_path, 'r', encoding='utf-8') as f:
+                        secret_value = f.read().strip()
+                    
+                    if secret_value:
+                        os.environ[env_var] = secret_value
+                        loaded_secrets.append(env_var)
+                        print(f"✅ Loaded {env_var} from {secret_file}")
+                    else:
+                        print(f"⚠️  Warning: {secret_file} is empty")
+                        missing_secrets.append(secret_file)
+                        
+                except Exception as e:
+                    print(f"❌ Error reading {secret_file}: {e}")
+                    missing_secrets.append(secret_file)
+            else:
+                print(f"❌ Secret file not found: {secret_path}")
+                missing_secrets.append(secret_file)
+        
+        if missing_secrets:
+            print(f"❌ Missing secrets: {', '.join(missing_secrets)}")
+            print(f"💡 Create missing secret files in: {secrets_dir}")
+            return False
+        
+        print(f"🔐 Successfully loaded {len(loaded_secrets)} AWS environment variables")
+        return True
+    
     def start(self, env: str, skip_validation: bool = False) -> bool:
         """Start all database containers for environment."""
         print(f"🚀 Starting database containers for {env} environment...")
@@ -475,6 +534,11 @@ class DatabaseManager:
         # Validate deployment context for prod_aws
         if not self._validate_deployment_context(env, skip_validation):
             return False
+        
+        # Load secrets into environment variables for prod_aws
+        if env == 'prod_aws':
+            if not self._load_secrets_to_env(env):
+                return False
         
         if not self._validate_environment(env) or not self._check_prerequisites(env):
             return False
