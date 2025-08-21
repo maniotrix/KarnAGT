@@ -11,6 +11,11 @@ import json
 import subprocess
 import sys
 import os
+import platform
+import socket
+import time
+import urllib.request
+import urllib.error
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
@@ -78,6 +83,149 @@ class DockerManager:
     def _info(self, message: str) -> None:
         """Print info message"""
         self._log(f"ℹ️  {message}", Colors.BLUE)
+    
+    def _warning(self, message: str) -> None:
+        """Print warning message"""
+        self._log(f"⚠️ {message}", Colors.YELLOW)
+    
+    def _is_running_on_aws(self) -> bool:
+        """Detect if script is running on AWS (EC2, ECS, Fargate, etc.) - Uses ONLY built-in Python libraries"""
+        try:
+            # Method 1: AWS Instance Metadata Service (works on EC2, ECS, Fargate)
+            try:
+                request = urllib.request.Request(
+                    'http://169.254.169.254/latest/meta-data/instance-id',
+                    headers={'User-Agent': 'AWS-Instance-Detection/1.0'}
+                )
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    instance_id = response.read().decode('utf-8').strip()
+                    if instance_id and (instance_id.startswith('i-') or len(instance_id) > 10):
+                        return True
+            except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+                pass
+            
+            # Method 2: Check for AWS Task Metadata (ECS/Fargate)
+            if os.environ.get('ECS_CONTAINER_METADATA_URI_V4') or os.environ.get('ECS_CONTAINER_METADATA_URI'):
+                return True
+                
+            # Method 3: Check AWS Lambda/Batch environments
+            if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or os.environ.get('AWS_BATCH_JOB_ID'):
+                return True
+                
+            # Method 4: Check hypervisor UUID (EC2 characteristic)
+            try:
+                if os.path.exists('/sys/hypervisor/uuid'):
+                    with open('/sys/hypervisor/uuid', 'r') as f:
+                        uuid = f.read().strip()
+                        if uuid.startswith(('ec2', 'EC2')):
+                            return True
+            except:
+                pass
+                
+            # Method 5: Check DMI product name (without external commands)
+            try:
+                if os.path.exists('/sys/class/dmi/id/product_name'):
+                    with open('/sys/class/dmi/id/product_name', 'r') as f:
+                        product = f.read().strip().lower()
+                        if any(keyword in product for keyword in ['amazon', 'ec2']):
+                            return True
+            except:
+                pass
+                
+            # Method 6: Check hostname patterns
+            try:
+                hostname = socket.gethostname().lower()
+                aws_patterns = ['ec2', 'aws', 'amazon', 'compute-1', 'ip-10-', 'ip-172-', 'ip-192-168-']
+                if any(pattern in hostname for pattern in aws_patterns):
+                    return True
+            except:
+                pass
+                
+            return False
+            
+        except Exception:
+            return False
+    
+    def _get_docker_context(self) -> str:
+        """Get current Docker context"""
+        try:
+            result = subprocess.run(['docker', 'context', 'show'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return 'default'
+        except Exception:
+            return 'default'
+    
+    def _validate_deployment_context(self, environment: str, skip_validation: bool = False) -> None:
+        """Validate deployment context for production environments"""
+        if environment != 'prod_aws':
+            return  # Only validate for prod_aws environment
+            
+        # Allow skipping validation with explicit flag
+        if skip_validation:
+            self._warning("Validation skipped via --skip-validation flag")
+            self._warning("Ensure you're deploying to the correct environment!")
+            return
+            
+        is_aws = self._is_running_on_aws()
+        current_context = self._get_docker_context()
+        
+        self._info(f"Environment: {environment}")
+        self._info(f"Running on AWS: {is_aws}")
+        self._info(f"Docker context: {current_context}")
+        
+        # If running on AWS, allow deployment
+        if is_aws:
+            self._success("✅ Running on AWS instance - deployment allowed")
+            return
+            
+        # If running locally, check Docker context
+        if current_context == 'default':
+            self._error("🚫 DEPLOYMENT BLOCKED!")
+            print()
+            print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+            print(f"{Colors.RED}{Colors.BOLD} PRODUCTION DEPLOYMENT SAFETY CHECK FAILED {Colors.END}")
+            print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+            print()
+            print(f"{Colors.YELLOW}⚠️  You are trying to deploy {Colors.BOLD}prod_aws{Colors.END}{Colors.YELLOW} from a local machine{Colors.END}")
+            print(f"{Colors.YELLOW}⚠️  Your current Docker context is: {Colors.BOLD}{current_context}{Colors.END}")
+            print()
+            print(f"{Colors.CYAN}📋 To deploy prod_aws environment, you must:{Colors.END}")
+            print()
+            print(f"{Colors.WHITE}1. Set up Docker Context for AWS EC2:{Colors.END}")
+            print(f"   {Colors.GREEN}docker context create aws-prod --docker \"host=ssh://ec2-user@your-elastic-ip\"{Colors.END}")
+            print()
+            print(f"{Colors.WHITE}2. Switch to AWS context:{Colors.END}")
+            print(f"   {Colors.GREEN}docker context use aws-prod{Colors.END}")
+            print()
+            print(f"{Colors.WHITE}3. Verify context:{Colors.END}")
+            print(f"   {Colors.GREEN}docker context show{Colors.END}")
+            print()
+            print(f"{Colors.WHITE}4. Then re-run your deployment command{Colors.END}")
+            print()
+            print(f"{Colors.CYAN}Alternative: SSH into AWS instance and run directly:{Colors.END}")
+            print(f"   {Colors.GREEN}ssh -i your-key.pem ec2-user@your-elastic-ip{Colors.END}")
+            print()
+            print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+            sys.exit(1)
+            
+        # If Docker context is set but not to AWS, warn but allow (might be valid)
+        if 'aws' not in current_context.lower() and 'prod' not in current_context.lower():
+            self._warning(f"⚠️  Docker context '{current_context}' doesn't seem AWS-related")
+            self._warning("⚠️  Make sure you're deploying to the correct environment")
+            
+            # Give user 5 seconds to cancel
+            print()
+            self._info("Proceeding in 5 seconds... Press Ctrl+C to cancel")
+            try:
+                time.sleep(5)
+            except KeyboardInterrupt:
+                print()
+                self._info("Deployment cancelled by user")
+                sys.exit(0)
+        
+        self._success(f"✅ Docker context validation passed: {current_context}")
     
     def _run_command(self, command: List[str], description: str = "") -> bool:
         """Run shell command with error handling"""
@@ -194,9 +342,12 @@ class DockerManager:
         
         return success
     
-    def start(self, env: str) -> bool:
+    def start(self, env: str, skip_validation: bool = False) -> bool:
         """Build and start containers for specified environment"""
         self._log(f"🚀 Starting {env} environment...", Colors.CYAN, bold=True)
+        
+        # Validate deployment context for prod_aws
+        self._validate_deployment_context(env, skip_validation)
         
         # Build first
         if not self.build(env):
@@ -219,9 +370,12 @@ class DockerManager:
         
         return success
     
-    def restart(self, env: str) -> bool:
+    def restart(self, env: str, skip_validation: bool = False) -> bool:
         """Stop, rebuild, and start containers for specified environment"""
         self._log(f"🔄 Restarting {env} environment...", Colors.YELLOW, bold=True)
+        
+        # Validate deployment context for prod_aws
+        self._validate_deployment_context(env, skip_validation)
         
         # Validate first
         is_valid, message = self._validate_environment(env)
@@ -309,10 +463,14 @@ def main():
     {Colors.GREEN}validate{Colors.END}   Validate environment setup (files, Docker availability)
     {Colors.GREEN}envs{Colors.END}       Show available environments with validation status
 
+{Colors.YELLOW}Options:{Colors.END}
+    {Colors.GREEN}--skip-validation{Colors.END}   Skip deployment context validation (useful for GCP, Azure, etc.)
+
 {Colors.YELLOW}Examples:{Colors.END}
     python docker_setup_and_run.py start --env=dev
     python docker_setup_and_run.py build --env=prod  
     python docker_setup_and_run.py start --prod-aws
+    python docker_setup_and_run.py start --prod-aws --skip-validation
     python docker_setup_and_run.py restart --env=test
     python docker_setup_and_run.py validate --dev
     python docker_setup_and_run.py envs
@@ -321,8 +479,9 @@ def main():
     
     command = sys.argv[1].lower()
     
-    # Parse environment flag
+    # Parse environment flag and options
     env = None
+    skip_validation = False
     for arg in sys.argv[2:]:
         if arg.startswith("--env="):
             env = arg.split("=", 1)[1]
@@ -334,6 +493,8 @@ def main():
             env = "prod_aws"
         elif arg in ["--test", "-t"]:
             env = "test"
+        elif arg == "--skip-validation":
+            skip_validation = True
     
     try:
         manager = DockerManager()
@@ -352,9 +513,9 @@ def main():
         if command == "build":
             success = manager.build(env)
         elif command == "start":
-            success = manager.start(env)
+            success = manager.start(env, skip_validation=skip_validation)
         elif command == "restart":
-            success = manager.restart(env)
+            success = manager.restart(env, skip_validation=skip_validation)
         elif command in ["validate", "check"]:
             success = manager.validate(env)
         else:

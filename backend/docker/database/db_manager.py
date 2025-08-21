@@ -24,10 +24,15 @@ Version: 1.0.0
 
 import argparse
 import json
+import os
+import platform
 import re
+import socket
 import subprocess
 import sys
 import time
+import urllib.request
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -323,9 +328,153 @@ class DatabaseManager:
             
         return True
     
-    def start(self, env: str) -> bool:
+    def _is_running_on_aws(self) -> bool:
+        """Detect if script is running on AWS (EC2, ECS, Fargate, etc.) - Uses ONLY built-in Python libraries"""
+        try:
+            # Method 1: AWS Instance Metadata Service (works on EC2, ECS, Fargate)
+            try:
+                request = urllib.request.Request(
+                    'http://169.254.169.254/latest/meta-data/instance-id',
+                    headers={'User-Agent': 'AWS-Instance-Detection/1.0'}
+                )
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    instance_id = response.read().decode('utf-8').strip()
+                    if instance_id and (instance_id.startswith('i-') or len(instance_id) > 10):
+                        return True
+            except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+                pass
+            
+            # Method 2: Check for AWS Task Metadata (ECS/Fargate)
+            if os.environ.get('ECS_CONTAINER_METADATA_URI_V4') or os.environ.get('ECS_CONTAINER_METADATA_URI'):
+                return True
+                
+            # Method 3: Check AWS Lambda/Batch environments
+            if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or os.environ.get('AWS_BATCH_JOB_ID'):
+                return True
+                
+            # Method 4: Check hypervisor UUID (EC2 characteristic)
+            try:
+                if os.path.exists('/sys/hypervisor/uuid'):
+                    with open('/sys/hypervisor/uuid', 'r') as f:
+                        uuid = f.read().strip()
+                        if uuid.startswith(('ec2', 'EC2')):
+                            return True
+            except:
+                pass
+                
+            # Method 5: Check DMI product name (without external commands)
+            try:
+                if os.path.exists('/sys/class/dmi/id/product_name'):
+                    with open('/sys/class/dmi/id/product_name', 'r') as f:
+                        product = f.read().strip().lower()
+                        if any(keyword in product for keyword in ['amazon', 'ec2']):
+                            return True
+            except:
+                pass
+                
+            # Method 6: Check hostname patterns
+            try:
+                hostname = socket.gethostname().lower()
+                aws_patterns = ['ec2', 'aws', 'amazon', 'compute-1', 'ip-10-', 'ip-172-', 'ip-192-168-']
+                if any(pattern in hostname for pattern in aws_patterns):
+                    return True
+            except:
+                pass
+                
+            return False
+            
+        except Exception:
+            return False
+    
+    def _get_docker_context(self) -> str:
+        """Get current Docker context"""
+        try:
+            result = subprocess.run(['docker', 'context', 'show'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return 'default'
+        except Exception:
+            return 'default'
+    
+    def _validate_deployment_context(self, environment: str, skip_validation: bool = False) -> bool:
+        """Validate deployment context for production environments"""
+        if environment != 'prod_aws':
+            return True  # Only validate for prod_aws environment
+            
+        # Allow skipping validation with explicit flag
+        if skip_validation:
+            print("⚠️  Validation skipped via --skip-validation flag")
+            print("⚠️  Ensure you're deploying to the correct environment!")
+            return True
+            
+        is_aws = self._is_running_on_aws()
+        current_context = self._get_docker_context()
+        
+        print(f"ℹ️  Environment: {environment}")
+        print(f"ℹ️  Running on AWS: {is_aws}")
+        print(f"ℹ️  Docker context: {current_context}")
+        
+        # If running on AWS, allow deployment
+        if is_aws:
+            print("✅ Running on AWS instance - deployment allowed")
+            return True
+            
+        # If running locally, check Docker context
+        if current_context == 'default':
+            print("🚫 DEPLOYMENT BLOCKED!")
+            print()
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(" PRODUCTION DEPLOYMENT SAFETY CHECK FAILED ")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print()
+            print(f"⚠️  You are trying to deploy prod_aws from a local machine")
+            print(f"⚠️  Your current Docker context is: {current_context}")
+            print()
+            print("📋 To deploy prod_aws environment, you must:")
+            print()
+            print("1. Set up Docker Context for AWS EC2:")
+            print('   docker context create aws-prod --docker "host=ssh://ec2-user@your-elastic-ip"')
+            print()
+            print("2. Switch to AWS context:")
+            print("   docker context use aws-prod")
+            print()
+            print("3. Verify context:")
+            print("   docker context show")
+            print()
+            print("4. Then re-run your deployment command")
+            print()
+            print("Alternative: SSH into AWS instance and run directly:")
+            print("   ssh -i your-key.pem ec2-user@your-elastic-ip")
+            print()
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            return False
+            
+        # If Docker context is set but not to AWS, warn but allow (might be valid)
+        if 'aws' not in current_context.lower() and 'prod' not in current_context.lower():
+            print(f"⚠️  Docker context '{current_context}' doesn't seem AWS-related")
+            print("⚠️  Make sure you're deploying to the correct environment")
+            
+            # Give user 5 seconds to cancel
+            print()
+            print("ℹ️  Proceeding in 5 seconds... Press Ctrl+C to cancel")
+            try:
+                time.sleep(5)
+            except KeyboardInterrupt:
+                print()
+                print("ℹ️  Deployment cancelled by user")
+                return False
+        
+        print(f"✅ Docker context validation passed: {current_context}")
+        return True
+    
+    def start(self, env: str, skip_validation: bool = False) -> bool:
         """Start all database containers for environment."""
         print(f"🚀 Starting database containers for {env} environment...")
+        
+        # Validate deployment context for prod_aws
+        if not self._validate_deployment_context(env, skip_validation):
+            return False
         
         if not self._validate_environment(env) or not self._check_prerequisites(env):
             return False
@@ -944,6 +1093,12 @@ Examples:
         help='Follow logs (only for logs action)'
     )
     
+    parser.add_argument(
+        '--skip-validation',
+        action='store_true',
+        help='Skip deployment context validation (useful for GCP, Azure, etc.)'
+    )
+    
     args = parser.parse_args()
     
     # Initialize database manager
@@ -952,7 +1107,7 @@ Examples:
     # Execute requested action
     try:
         if args.action == 'start':
-            success = db_manager.start(args.env)
+            success = db_manager.start(args.env, skip_validation=args.skip_validation)
         elif args.action == 'stop':
             success = db_manager.stop(args.env)
         elif args.action == 'restart':
