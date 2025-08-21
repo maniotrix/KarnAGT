@@ -39,7 +39,7 @@ RUN pip install --user --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requir
 WORKDIR /home/${CS_USER}
 
 # Copy production environment file as .env (the app always reads .env)
-COPY --chown=${CS_USER}:${CS_USER} .env.docker.prod ./.env
+COPY --chown=${CS_USER}:${CS_USER} .env.docker.prod_aws ./.env
 
 # Copy application files
 COPY --chown=${CS_USER}:${CS_USER} app/ ./app/

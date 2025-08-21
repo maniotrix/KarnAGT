@@ -75,8 +75,8 @@ RUN pip install --user --no-cache-dir -r /tmp/requirements.txt && \
 WORKDIR /app
 
 # === Copy Environment Configuration ===
-# Production uses .env.docker.app.prod -> .env (same as CodeSandbox pattern)
-COPY --chown=${BACKEND_USER}:${BACKEND_USER} .env.docker.app.prod ./.env
+# AWS Production uses .env.docker.app.prod_aws -> .env (same as CodeSandbox pattern)
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} .env.docker.app.prod_aws ./.env
 
 # === Copy Application Code ===
 # Copy core application
