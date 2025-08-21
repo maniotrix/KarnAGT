@@ -59,3 +59,5 @@
 * create essential pages on frontend
 * create tech document for whole thing
 * rename knowldege tools
+* improve typing ui and ux on frontend
+* add email verification , celery asap
