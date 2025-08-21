@@ -35,7 +35,7 @@
     "prod_aws": {
       "compose_file": "docker-compose-prod-aws.yml",
       "dockerfile": "Dockerfile_aws.prod",
-      "env_file": ".env.docker.app.prod",
+      "env_file": ".env.docker.app.prod_aws",
       "service_name": "app-backend-prod",
       "description": "AWS EC2 production environment with EBS volumes",
       "network": "prod_aws_network",

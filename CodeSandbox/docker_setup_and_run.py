@@ -273,7 +273,7 @@ class DockerManager:
         """Handle strict validation using JSON config"""
         aws_warning = config.get('error_messages', {}).get('aws_warning',
                                  "Context '{context}' doesn't appear to be AWS-related")
-        countdown_seconds = config.get('countdown_seconds', 5)
+        countdown_seconds = config.get('countdown_seconds', 60)
         
         aws_indicators = ['aws', 'prod', 'production', 'ec2']
         has_aws_indicator = any(indicator in context.lower() for indicator in aws_indicators)
@@ -460,7 +460,7 @@ class DockerManager:
             return False
         
         # Build and start
-        return self.start(env)
+        return self.start(env, skip_validation=skip_validation)
     
     def validate(self, env: str, skip_validation: bool = False) -> bool:
         """Validate environment setup and deployment context"""

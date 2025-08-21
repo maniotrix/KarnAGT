@@ -321,7 +321,7 @@ class BackendDockerManager:
         """Handle strict validation using JSON config"""
         aws_warning = config.get('error_messages', {}).get('aws_warning',
                                  "Context '{context}' doesn't appear to be AWS-related")
-        countdown_seconds = config.get('countdown_seconds', 5)
+        countdown_seconds = config.get('countdown_seconds', 60)
         
         # Check if context has AWS indicators
         aws_indicators = ['aws', 'prod', 'production', 'ec2']
@@ -543,12 +543,12 @@ class BackendDockerManager:
         else:
             sys.exit(1)
     
-    def restart(self, env: str) -> None:
+    def restart(self, env: str, skip_validation: bool = False) -> None:
         """Restart containers for environment"""
         self._info(f"Restarting {env} environment...")
         self.stop(env)
         time.sleep(2)
-        self.start(env, build=True)
+        self.start(env, build=True, skip_validation=skip_validation)
     
     def status(self, env: str) -> None:
         """Show status of containers for environment"""
@@ -665,7 +665,7 @@ def main():
     elif args.command == 'stop':
         manager.stop(args.env)
     elif args.command == 'restart':
-        manager.restart(args.env)
+        manager.restart(args.env, skip_validation=args.skip_validation)
     elif args.command == 'status':
         manager.status(args.env)
     elif args.command == 'logs':

@@ -37,6 +37,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+class Colors:
+    """ANSI color codes for output"""
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
 
 class DatabaseManager:
     """
@@ -123,6 +133,27 @@ class DatabaseManager:
         except Exception as e:
             print(f"❌ Command failed: {e}")
             return 1, "", str(e)
+    def _error(self, message: str) -> None:
+        """Print error message"""
+        self._log(f"❌ {message}", Colors.RED, bold=True)
+        
+    def _success(self, message: str) -> None:
+        """Print success message"""
+        self._log(f"✅ {message}", Colors.GREEN, bold=True)
+    
+    def _info(self, message: str) -> None:
+        """Print info message"""
+        self._log(f"ℹ️ {message}", Colors.WHITE)
+    
+    def _warning(self, message: str) -> None:
+        """Print warning message"""
+        self._log(f"⚠️ {message}", Colors.YELLOW)
+    
+    def _log(self, message: str, color: str = Colors.WHITE, bold: bool = False) -> None:
+        """Print colored log message"""
+        timestamp = f"{Colors.CYAN}[{datetime.now().strftime('%H:%M:%S')}]{Colors.END}"
+        style = f"{Colors.BOLD if bold else ''}{color}"
+        print(f"{timestamp} {style}{message}{Colors.END}")
     
     def _validate_environment(self, env: str) -> bool:
         """Validate that environment is supported."""
@@ -495,16 +526,17 @@ class DatabaseManager:
         error_msg = config.get('error_messages', {}).get('blocked_context', 
                                "Context '{context}' is blocked for {environment} deployments")
         
-        print("🚫 DEPLOYMENT BLOCKED!")
+        self._error("🚫 DEPLOYMENT BLOCKED!")
+        
         print()
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print(f" CONTEXT '{context.upper()}' IS BLOCKED FOR {environment.upper()} ")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"{Colors.RED}{Colors.BOLD} CONTEXT '{context.upper()}' IS BLOCKED FOR {environment.upper()} ")
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print()
-        print(f"⚠️  {error_msg.format(context=context, environment=environment)}")
-        print(f"⚠️  This is a safety measure to prevent accidental deployments")
+        print(f"{Colors.YELLOW}⚠️  {error_msg.format(context=context, environment=environment)}")
+        print(f"{Colors.YELLOW}⚠️  This is a safety measure to prevent accidental deployments")
         print()
-        print("📋 Allowed deployment methods:")
+        print(f"{Colors.CYAN}📋 Allowed deployment methods:{Colors.END}")
         print()
         
         # Show deployment instructions from JSON config
@@ -512,7 +544,7 @@ class DatabaseManager:
         for i, instruction in enumerate(instructions, 1):
             if instruction.strip():  # Skip empty lines in numbering
                 if instruction.startswith('  '):  # Indented command
-                    print(f"{instruction}")
+                    print(f"{Colors.GREEN}| {instruction}{Colors.END}")
                 else:
                     print(f"{i}. {instruction}")
             else:
@@ -520,9 +552,9 @@ class DatabaseManager:
         
         print()
         print("3. Override with --skip-validation (use with caution):")
-        print(f"   python script.py {environment} --skip-validation")
+        print(f"{Colors.GREEN}   python script.py {environment} --skip-validation")
         print()
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         return False
         
     def _handle_disallowed_context_json(self, environment: str, context: str, config: Dict) -> bool:
@@ -541,7 +573,7 @@ class DatabaseManager:
         """Handle strict validation using JSON config"""
         aws_warning = config.get('error_messages', {}).get('aws_warning',
                                  "Context '{context}' doesn't appear to be AWS-related")
-        countdown_seconds = config.get('countdown_seconds', 5)
+        countdown_seconds = config.get('countdown_seconds', 60)
         
         # Check if context has AWS indicators
         aws_indicators = ['aws', 'prod', 'production', 'ec2']

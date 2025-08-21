@@ -218,8 +218,19 @@ All Docker manager scripts include built-in safety mechanisms to prevent acciden
 - **Zero Dependencies**: Uses only Python standard library - no external tools or `pip install` required
 
 #### Deployment Methods (Safe)
-1. **Direct on AWS**: SSH into AWS instance and run normally
-2. **Docker Context**: Set up remote Docker context from local machine
+
+**Method 1: Direct on AWS Instance (Recommended)**
+- SSH into AWS instance and run deployment scripts directly
+- **Automatic AWS Detection**: Scripts detect EC2/ECS/Fargate environment using 8 different methods
+- **Zero Context Setup**: No Docker context configuration required  
+- **Immediate Deployment**: Bypasses all context validation automatically
+- **Output**: `✅ Running on AWS instance - deployment allowed`
+
+**Method 2: Docker Context from Local Machine**
+- Set up remote Docker context pointing to AWS instance
+- Allows deployment from local Windows/Mac/Linux machines
+- Requires Docker context configuration: `docker context create aws-prod --docker "host=ssh://ec2-user@IP"`
+- **Context Validation**: Checks context name patterns for AWS indicators
 
 #### Error Handling
 - Clear error messages with step-by-step instructions
@@ -273,7 +284,12 @@ ls -la /mnt/
 docker --version
 docker-compose --version
 
-# Note: Running on AWS instance bypasses deployment safety validation
+# Note: Scripts automatically detect AWS environment and bypass context validation
+# Expected output for prod_aws commands:
+# ℹ️  Environment: prod_aws
+# ℹ️  Running on AWS: True  
+# ℹ️  Docker context: default
+# ✅ Running on AWS instance - deployment allowed
 ```
 
 #### 2. Deploy Database Layer (Creates Network)
