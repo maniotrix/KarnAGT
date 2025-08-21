@@ -245,7 +245,7 @@ services:
       MINIO_ROOT_USER_FILE: /run/secrets/minio_user
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
       MINIO_DEFAULT_BUCKETS: app-files-prod
-      MINIO_BROWSER_REDIRECT_URL: https://console.myappdomain.com
+      MINIO_BROWSER_REDIRECT_URL: https://console.karnagt.com
       
     secrets:
       - minio_user
@@ -274,7 +274,7 @@ services:
     # Traefik labels - Direct routing for presigned URLs
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.minio.rule=Host(`files.myappdomain.com`)"
+      - "traefik.http.routers.minio.rule=Host(`files.karnagt.com`)"
       - "traefik.http.routers.minio.entrypoints=websecure"
 
       - "traefik.http.services.minio.loadbalancer.server.port=9000"

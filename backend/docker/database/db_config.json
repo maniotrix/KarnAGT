@@ -27,7 +27,7 @@
       "compose_file": "docker-compose-prod-aws.yml",
       "description": "Production database with EBS volumes on AWS EC2",
       "network": "prod_aws_network",
-      "domain": "yourdomain.com",
+      "domain": "karnagt.com",
       "ssl_mode": "letsencrypt"
     }
   },
@@ -110,8 +110,9 @@
     },
     "server_urls": {
       "dev": "http://localhost:9000",
-      "staging": "https://files-staging.yourdomain.com",
-      "prod": "https://files.yourdomain.com"
+      "staging": "https://files-staging.karnagt.com",
+      "prod": "https://files.myappdomain.com",
+      "prod_aws": "https://files.karnagt.com"
     }
   }
 }

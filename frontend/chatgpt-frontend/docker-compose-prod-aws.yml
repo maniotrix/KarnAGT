@@ -12,9 +12,9 @@ services:
     container_name: app-frontend-production
     build: 
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile_aws.prod
       args:
-        VITE_API_URL: https://api.myappdomain.com
+        VITE_API_URL: https://api.karnagt.com
         VITE_GOOGLE_CLIENT_ID: 504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com
         NODE_ENV: production
     networks:
@@ -22,13 +22,13 @@ services:
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
-      - VITE_API_URL=https://api.myappdomain.com
+      - VITE_API_URL=https://api.karnagt.com
       - VITE_GOOGLE_CLIENT_ID=504182913941-4453lqt4r5d940m5mp3lijkindj9ajfp.apps.googleusercontent.com
     restart: unless-stopped
     labels:
       - "traefik.enable=true"  # Explicit exposure to Traefik
       # MAIN DOMAIN - Frontend gets all non-API traffic
-      - "traefik.http.routers.frontend.rule=Host(`myappdomain.com`)"
+      - "traefik.http.routers.frontend.rule=Host(`karnagt.com`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"  # HTTPS only
 
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"

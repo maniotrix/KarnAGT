@@ -31,11 +31,11 @@
     },
     "prod_aws": {
       "compose_file": "docker-compose-prod-aws.yml",
-      "dockerfile": "Dockerfile.prod",
+      "dockerfile": "Dockerfile_aws.prod",
       "service_name": "app-frontend-prod", 
       "description": "AWS EC2 production environment with EBS volumes",
       "network": "prod_aws_network",
-      "domain": "myappdomain.com",
+      "domain": "karnagt.com",
       "ssl_mode": "letsencrypt"
     }
   },
@@ -86,6 +86,11 @@
         "VITE_API_URL": "https://api.myappdomain.com", 
         "NODE_ENV": "production",
         "FRONTEND_USER": "app_frontend_prod"
+      },
+      "prod_aws": {
+        "VITE_API_URL": "https://api.karnagt.com", 
+        "NODE_ENV": "production",
+        "FRONTEND_USER": "app_frontend_prod"
       }
     }
   },
@@ -93,12 +98,14 @@
     "required_networks": {
       "dev": "dev-network",
       "staging": "staging-network",
-      "prod": "prod-network"
+      "prod": "prod-network",
+      "prod_aws": "prod_aws_network"
     },
     "created_by": {
       "dev": "Database services (db_manager.py)",
       "staging": "Database services (db_manager.py)",
-      "prod": "Database services (db_manager.py)"
+      "prod": "Database services (db_manager.py)",
+      "prod_aws": "Database services (db_manager.py)"
     },
     "startup_order": ["database", "codesandbox", "backend", "frontend"]
   },

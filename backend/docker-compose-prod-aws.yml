@@ -39,7 +39,7 @@ services:
       # ONLY DIFFERENCE: Let's Encrypt instead of self-signed
       - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
       - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
-      - --certificatesresolvers.letsencrypt.acme.email=admin@yourdomain.com
+      - --certificatesresolvers.letsencrypt.acme.email=admin@karnagt.com
       - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
       
       # IDENTICAL security redirects
@@ -75,7 +75,7 @@ services:
     container_name: app-backend-production
     build: 
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile_aws.prod
       args:
         BACKEND_USER: app_backend_prod
     networks:
@@ -86,7 +86,7 @@ services:
     labels:
       - "traefik.enable=true"  # IDENTICAL
       # ONLY DIFFERENCE: Domain name
-      - "traefik.http.routers.backend.rule=Host(`api.myappdomain.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.rule=Host(`api.karnagt.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
 
       - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
@@ -105,7 +105,7 @@ services:
       # Production logs
       - ./logs:/app/logs:rw
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health", "-H", "Host: api.myappdomain.com"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health", "-H", "Host: api.karnagt.com"]
       interval: 30s
       timeout: 10s
       retries: 3

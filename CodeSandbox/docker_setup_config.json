@@ -34,12 +34,12 @@
     },
     "prod_aws": {
       "compose_file": "docker-compose-prod-aws.yml",
-      "dockerfile": "Dockerfile.prod", 
+      "dockerfile": "Dockerfile_aws.prod", 
       "env_file": ".env.docker.prod",
       "service_name": "codesandbox",
       "description": "AWS EC2 production environment with EBS volumes",
       "network": "prod_aws_network",
-      "domain": "sandbox.yourdomain.com", 
+      "domain": "sandbox.karnagt.com", 
       "ssl_mode": "letsencrypt"
     },
     "test": {
