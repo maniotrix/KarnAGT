@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """
-Environment File Uploader for Production Deployments
-Uploads environment files to cloud VMs after git pull and before container builds.
+Environment & Secrets File Uploader for Production Deployments
+Uploads environment files and secrets to cloud VMs after git pull and before container builds.
 
-Usage:
-    python cloud_env_uploader.py --env=prod --host=user@cloud-vm --remote-repo-root-path=/opt/your-project
+IMPORTANT: Run this script from the PROJECT ROOT DIRECTORY!
+
+Usage (from repo root):
+    cd /path/to/ChatGPT_Clone
+    python cloud_env_uploader.py --env=prod_aws --host=user@ec2-vm --remote-repo-root-path=/home/ec2-user/ChatGPT_Clone
+    python cloud_env_uploader.py --env=prod --host=user@cloud-vm --remote-repo-root-path=/opt/your-project  
     python cloud_env_uploader.py --env=staging --host=user@staging-vm --remote-repo-root-path=/home/deploy/project --force
-    python cloud_env_uploader.py --list-files --env=prod
+    python cloud_env_uploader.py --list-files --env=prod_aws
 
 Safety Features:
-- Supports prod and staging environments only
-- Uses actual environment file names from your project
+- Supports prod, prod_aws, and staging environments only
+- Uploads both environment files (.env.*) and secrets files
+- Uses actual file names from your project structure
 - Prevents overwriting without explicit consent
 - Verifies remote file existence before upload
 - Uses absolute remote paths (no directory creation)
 - Direct SCP upload to specified remote project location
 - Prompts for image rebuild after successful upload
+- Perfect for Docker Context deployments where secrets need to be on the remote host
 """
 
 import argparse
@@ -40,17 +46,23 @@ class Colors:
 
 
 class EnvUploader:
-    """Upload environment files to cloud VMs for deployment"""
+    """Upload environment files and secrets to cloud VMs for deployment"""
     
     def __init__(self):
         self.base_dir = Path(__file__).parent  # Project root (script is now in root)
-        self.supported_envs = ['prod', 'staging']
+        self.supported_envs = ['prod', 'prod_aws', 'staging']
+        
+        # Validate that we're running from the project root
+        self._validate_working_directory()
         
         # Environment file mappings: local_path -> remote_relative_path
         self.env_mappings = {
             'backend': {
                 'prod': {
                     '.env.docker.app.prod': 'backend/.env.docker.app.prod'
+                },
+                'prod_aws': {
+                    '.env.docker.app.prod_aws': 'backend/.env.docker.app.prod_aws'
                 },
                 'staging': {
                     '.env.docker.app.staging': 'backend/.env.docker.app.staging'
@@ -59,8 +71,35 @@ class EnvUploader:
             'codesandbox': {
                 'prod': {
                     '.env.docker.prod': 'CodeSandbox/.env.docker.prod'
+                },
+                'prod_aws': {
+                    '.env.docker.prod_aws': 'CodeSandbox/.env.docker.prod_aws'
                 }
                 # No staging env file for CodeSandbox
+            }
+        }
+        
+        # Secrets file mappings: local_path_relative_to_repo_root -> remote_relative_path
+        self.secrets_mappings = {
+            'database': {
+                'prod': {
+                    'backend/docker/database/secrets/prod/postgres_password.txt': 'backend/docker/database/secrets/prod/postgres_password.txt',
+                    'backend/docker/database/secrets/prod/neo4j_auth.txt': 'backend/docker/database/secrets/prod/neo4j_auth.txt',
+                    'backend/docker/database/secrets/prod/minio_user.txt': 'backend/docker/database/secrets/prod/minio_user.txt',
+                    'backend/docker/database/secrets/prod/minio_password.txt': 'backend/docker/database/secrets/prod/minio_password.txt'
+                },
+                'prod_aws': {
+                    'backend/docker/database/secrets/prod_aws/postgres_password.txt': 'backend/docker/database/secrets/prod_aws/postgres_password.txt',
+                    'backend/docker/database/secrets/prod_aws/neo4j_auth.txt': 'backend/docker/database/secrets/prod_aws/neo4j_auth.txt',
+                    'backend/docker/database/secrets/prod_aws/minio_user.txt': 'backend/docker/database/secrets/prod_aws/minio_user.txt',
+                    'backend/docker/database/secrets/prod_aws/minio_password.txt': 'backend/docker/database/secrets/prod_aws/minio_password.txt'
+                },
+                'staging': {
+                    'backend/docker/database/secrets/staging/postgres_password.txt': 'backend/docker/database/secrets/staging/postgres_password.txt',
+                    'backend/docker/database/secrets/staging/neo4j_auth.txt': 'backend/docker/database/secrets/staging/neo4j_auth.txt',
+                    'backend/docker/database/secrets/staging/minio_user.txt': 'backend/docker/database/secrets/staging/minio_user.txt',
+                    'backend/docker/database/secrets/staging/minio_password.txt': 'backend/docker/database/secrets/staging/minio_password.txt'
+                }
             }
         }
     
@@ -85,6 +124,33 @@ class EnvUploader:
     def _warning(self, message: str) -> None:
         """Print warning message"""
         self._log(f"⚠️  {message}", Colors.YELLOW)
+    
+    def _validate_working_directory(self) -> None:
+        """Ensure script is running from project root directory"""
+        # Check for key project structure indicators
+        required_paths = [
+            self.base_dir / 'backend' / 'docker' / 'database',
+            self.base_dir / 'frontend' / 'chatgpt-frontend',
+            self.base_dir / 'CodeSandbox',
+            self.base_dir / 'backend' / 'docker' / 'database' / 'docker-compose-prod-aws.yml'
+        ]
+        
+        missing_paths = [path for path in required_paths if not path.exists()]
+        
+        if missing_paths:
+            self._error("❌ INCORRECT WORKING DIRECTORY!")
+            self._error("This script must be run from the PROJECT ROOT directory")
+            self._error(f"Current directory: {self.base_dir}")
+            self._warning("Missing expected project structure:")
+            for path in missing_paths:
+                print(f"  ❌ {path}")
+            print()
+            self._info("💡 Solution: Navigate to your project root first:")
+            self._info("   cd C:\\Users\\Prince\\Documents\\GitHub\\ChatGPT_Clone")
+            self._info("   python cloud_env_uploader.py --list-files --env=prod_aws")
+            sys.exit(1)
+        
+        self._success("✅ Running from correct project root directory")
     
     def _run_command(self, command: List[str], description: str = "") -> bool:
         """Run shell command with error handling"""
@@ -111,12 +177,13 @@ class EnvUploader:
         return f"{remote_base.rstrip('/')}/{relative_path}"
     
     def _check_local_files(self, env: str, remote_path: str) -> List[Tuple[str, str, str]]:
-        """Check which local env files exist and return (project, local_path, absolute_remote_path)"""
+        """Check which local env and secrets files exist and return (project, local_path, absolute_remote_path)"""
         files_to_upload = []
         
+        # Check environment files
         for project, env_configs in self.env_mappings.items():
             if env not in env_configs:
-                self._info(f"Skipping {project} - no {env} environment file configured")
+                self._info(f"Skipping {project} env files - no {env} environment configured")
                 continue
                 
             for local_file, remote_relative_file in env_configs[env].items():
@@ -129,9 +196,27 @@ class EnvUploader:
                 absolute_remote_path = self._build_remote_path(remote_path, remote_relative_file)
                 
                 if local_path.exists():
-                    files_to_upload.append((project, str(local_path), absolute_remote_path))
+                    files_to_upload.append((f"{project}_env", str(local_path), absolute_remote_path))
                 else:
-                    self._warning(f"Local file not found: {local_path}")
+                    self._warning(f"Local env file not found: {local_path}")
+        
+        # Check secrets files
+        for project, env_configs in self.secrets_mappings.items():
+            if env not in env_configs:
+                self._info(f"Skipping {project} secrets - no {env} secrets configured")
+                continue
+                
+            for local_file, remote_relative_file in env_configs[env].items():
+                # local_file is now the full path from repo root
+                local_path = self.base_dir / local_file
+                
+                # Build absolute remote path
+                absolute_remote_path = self._build_remote_path(remote_path, remote_relative_file)
+                
+                if local_path.exists():
+                    files_to_upload.append((f"{project}_secrets", str(local_path), absolute_remote_path))
+                else:
+                    self._warning(f"Local secrets file not found: {local_path}")
         
         return files_to_upload
     
@@ -173,7 +258,7 @@ class EnvUploader:
     
     def _prompt_rebuild(self, env: str, host: str, remote_path: str) -> None:
         """Prompt user to rebuild images after successful upload"""
-        self._info("Environment files uploaded successfully!")
+        self._info("Environment files and secrets uploaded successfully!")
         print()
         self._warning("IMPORTANT: You need to rebuild Docker images to use the new environment files.")
         self._info("Existing containers will continue using the old image until rebuilt and restarted.")
@@ -188,27 +273,36 @@ class EnvUploader:
             print(f"  {Colors.WHITE}# Database containers first{Colors.END}")
             print(f"  {Colors.WHITE}cd backend/docker/database && python db_manager.py start --env={env}{Colors.END}")
             print(f"  {Colors.WHITE}# Backend application{Colors.END}")
-            print(f"  {Colors.WHITE}cd ../../ && python backend_docker_manager.py restart --{env}{Colors.END}")
-            if env == 'prod':  # Only prod has CodeSandbox env file
+            if env == 'prod_aws':
+                print(f"  {Colors.WHITE}cd ../../ && python backend_docker_manager.py restart --prod-aws{Colors.END}")
+            else:
+                print(f"  {Colors.WHITE}cd ../../ && python backend_docker_manager.py restart --{env}{Colors.END}")
+            if env in ['prod', 'prod_aws']:  # Both prod environments have CodeSandbox env files
                 print(f"  {Colors.WHITE}# CodeSandbox{Colors.END}")
-                print(f"  {Colors.WHITE}cd ../CodeSandbox && python docker_setup_and_run.py restart --env={env}{Colors.END}")
+                if env == 'prod_aws':
+                    print(f"  {Colors.WHITE}cd ../CodeSandbox && python docker_setup_and_run.py restart --prod-aws{Colors.END}")
+                else:
+                    print(f"  {Colors.WHITE}cd ../CodeSandbox && python docker_setup_and_run.py restart --env={env}{Colors.END}")
         else:
-            self._warning("Remember to rebuild and restart containers manually to use new environment files!")
+            self._warning("Remember to rebuild and restart containers manually to use new environment files and secrets!")
     
     def list_files(self, env: str) -> None:
-        """List environment files that would be uploaded"""
+        """List environment and secrets files that would be uploaded"""
         if env not in self.supported_envs:
             self._error(f"Unsupported environment: {env}")
             self._info(f"Supported environments: {', '.join(self.supported_envs)}")
             return
         
-        self._info(f"Environment files for {env.upper()}:")
+        self._info(f"Files for {env.upper()} environment:")
         print()
         
         found_files = False
+        
+        # List environment files
+        self._info("ENVIRONMENT FILES:")
         for project, env_configs in self.env_mappings.items():
             if env not in env_configs:
-                self._info(f"Skipping {project} - no {env} environment file configured")
+                self._info(f"  Skipping {project} - no {env} environment file configured")
                 continue
                 
             for local_file, remote_relative_file in env_configs[env].items():
@@ -218,7 +312,28 @@ class EnvUploader:
                     local_path = self.base_dir / 'CodeSandbox' / local_file
                 
                 status = "✅ EXISTS" if local_path.exists() else "❌ MISSING"
-                print(f"  {Colors.BOLD}{project.upper()}{Colors.END}")
+                print(f"  {Colors.BOLD}{project.upper()} ENV{Colors.END}")
+                print(f"    Local:  {local_path}")  
+                print(f"    Remote: <remote-path>/{remote_relative_file}")
+                print(f"    Status: {status}")
+                print()
+                found_files = True
+        
+        print()
+        
+        # List secrets files
+        self._info("SECRETS FILES:")
+        for project, env_configs in self.secrets_mappings.items():
+            if env not in env_configs:
+                self._info(f"  Skipping {project} - no {env} secrets configured")
+                continue
+                
+            for local_file, remote_relative_file in env_configs[env].items():
+                # local_file is now the full path from repo root
+                local_path = self.base_dir / local_file
+                
+                status = "✅ EXISTS" if local_path.exists() else "❌ MISSING"
+                print(f"  {Colors.BOLD}{project.upper()} SECRETS{Colors.END}")
                 print(f"    Local:  {local_path}")  
                 print(f"    Remote: <remote-path>/{remote_relative_file}")
                 print(f"    Status: {status}")
@@ -226,23 +341,23 @@ class EnvUploader:
                 found_files = True
         
         if not found_files:
-            self._warning(f"No environment files configured for {env} environment")
+            self._warning(f"No files configured for {env} environment")
     
     def upload(self, env: str, host: str, remote_path: str, force: bool = False) -> None:
-        """Upload environment files to cloud VM"""
+        """Upload environment files and secrets to cloud VM"""
         if env not in self.supported_envs:
             self._error(f"Unsupported environment: {env}")
             self._info(f"Supported environments: {', '.join(self.supported_envs)}")
             return
         
-        self._info(f"Starting {env.upper()} environment upload to {host}:{remote_path}")
+        self._info(f"Starting {env.upper()} environment & secrets upload to {host}:{remote_path}")
         print()
         
         # Check local files
         files_to_upload = self._check_local_files(env, remote_path)
         
         if not files_to_upload:
-            self._error(f"No environment files found for {env} environment")
+            self._error(f"No environment files or secrets found for {env} environment")
             self._info("Run with --list-files to see expected file locations")
             return
         
@@ -270,7 +385,7 @@ class EnvUploader:
         # Summary
         print()
         if success_count == total_count:
-            self._success(f"All {total_count} environment files uploaded successfully!")
+            self._success(f"All {total_count} files (environment & secrets) uploaded successfully!")
             self._prompt_rebuild(env, host, remote_path)
         else:
             self._error(f"Upload incomplete: {success_count}/{total_count} files uploaded")
@@ -279,9 +394,9 @@ class EnvUploader:
 
 def main():
     """Main CLI interface"""
-    parser = argparse.ArgumentParser(description="Upload environment files for production deployment")
-    parser.add_argument('--env', choices=['prod', 'staging'], required=True,
-                       help='Environment to deploy (prod or staging only)')
+    parser = argparse.ArgumentParser(description="Upload environment files and secrets for production deployment")
+    parser.add_argument('--env', choices=['prod', 'prod_aws', 'staging'], required=True,
+                       help='Environment to deploy (prod, prod_aws, or staging only)')
     parser.add_argument('--host', 
                        help='Cloud VM host (user@hostname or user@ip)')
     parser.add_argument('--remote-repo-root-path', required=False,
