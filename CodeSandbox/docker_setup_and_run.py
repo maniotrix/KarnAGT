@@ -312,6 +312,7 @@ def main():
 {Colors.YELLOW}Examples:{Colors.END}
     python docker_setup_and_run.py start --env=dev
     python docker_setup_and_run.py build --env=prod  
+    python docker_setup_and_run.py start --prod-aws
     python docker_setup_and_run.py restart --env=test
     python docker_setup_and_run.py validate --dev
     python docker_setup_and_run.py envs
@@ -329,6 +330,8 @@ def main():
             env = "dev"
         elif arg in ["--prod", "-p"]:
             env = "prod"
+        elif arg == "--prod-aws":
+            env = "prod_aws"
         elif arg in ["--test", "-t"]:
             env = "test"
     

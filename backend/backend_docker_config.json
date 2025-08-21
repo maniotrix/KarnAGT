@@ -31,6 +31,16 @@
       "network": "prod-network",
       "domain": "api.yourdomain.com",
       "ssl_mode": "letsencrypt"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "dockerfile": "Dockerfile.prod",
+      "env_file": ".env.docker.app.prod",
+      "service_name": "app-backend-prod",
+      "description": "AWS EC2 production environment with EBS volumes",
+      "network": "prod_aws_network",
+      "domain": "api.yourdomain.com",
+      "ssl_mode": "letsencrypt"
     }
   },
   "default_environment": "dev",

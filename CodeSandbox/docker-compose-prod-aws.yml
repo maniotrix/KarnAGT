@@ -1,0 +1,47 @@
+version: '3.8'
+
+# AWS production network - created by database compose
+networks:
+  prod_aws_network:
+    name: prod_aws_network
+    external: true
+
+services:
+  codesandbox:
+    container_name: codesandbox-production
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        CS_USER: code_sandbox
+    networks:
+      - prod_aws_network  # AWS network
+    labels:
+      - "traefik.enable=true"  # Explicit exposure
+      - "traefik.http.routers.codesandbox.rule=Host(`sandbox.myappdomain.com`)"
+      - "traefik.http.routers.codesandbox.entrypoints=websecure"
+
+      - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"
+      - "traefik.docker.network=prod_aws_network"
+      # PRODUCTION: Let's Encrypt SSL
+      - "traefik.http.routers.codesandbox.tls.certresolver=letsencrypt"
+      # Metadata labels
+      - "com.app.environment=prod"
+      - "com.app.service=code_execution"
+      - "com.app.component=codesandbox"
+    # No volume mounts for production - code is baked into image
+    # Production logging configuration (controlled code execution logs)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=prod,service=codesandbox"
+        compress: "true"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

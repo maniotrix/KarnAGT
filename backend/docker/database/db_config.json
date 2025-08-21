@@ -1,6 +1,6 @@
 {
   "description": "Database infrastructure with Traefik integration, unified networking, and password security validation",
-  "supported_environments": ["dev", "staging", "prod"],
+  "supported_environments": ["dev", "staging", "prod", "prod_aws"],
   "environments": {
     "dev": {
       "compose_file": "docker-compose.dev.yml",
@@ -20,6 +20,13 @@
       "compose_file": "docker-compose.prod.yml",
       "description": "Production database with high availability",
       "network": "prod-network",
+      "domain": "yourdomain.com",
+      "ssl_mode": "letsencrypt"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "description": "Production database with EBS volumes on AWS EC2",
+      "network": "prod_aws_network",
       "domain": "yourdomain.com",
       "ssl_mode": "letsencrypt"
     }

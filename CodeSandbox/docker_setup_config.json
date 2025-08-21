@@ -32,6 +32,16 @@
       "domain": "sandbox.yourdomain.com", 
       "ssl_mode": "letsencrypt"
     },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "dockerfile": "Dockerfile.prod", 
+      "env_file": ".env.docker.prod",
+      "service_name": "codesandbox",
+      "description": "AWS EC2 production environment with EBS volumes",
+      "network": "prod_aws_network",
+      "domain": "sandbox.yourdomain.com", 
+      "ssl_mode": "letsencrypt"
+    },
     "test": {
       "compose_file": "docker-compose.test.yml",
       "dockerfile": "Dockerfile.test",

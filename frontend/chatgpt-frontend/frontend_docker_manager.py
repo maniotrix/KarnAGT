@@ -358,7 +358,8 @@ def main():
     parser.add_argument('command', choices=['envs', 'validate', 'build', 'start', 'stop', 'restart', 'status', 'logs', 'health'],
                        help='Command to execute')
     parser.add_argument('--env', '--environment', default=None,
-                       help='Environment to use (dev, staging, prod)')
+                       choices=['dev', 'staging', 'prod', 'prod_aws'],
+                       help='Environment to use (dev, staging, prod, prod_aws)')
     parser.add_argument('--build', action='store_true',
                        help='Build images before starting (for start command)')
     parser.add_argument('--follow', '-f', action='store_true',
@@ -369,6 +370,8 @@ def main():
                        help='Shorthand for --env=staging')
     parser.add_argument('--prod', action='store_true',
                        help='Shorthand for --env=prod')
+    parser.add_argument('--prod-aws', action='store_true',
+                       help='Shorthand for --env=prod_aws')
     
     args = parser.parse_args()
     
@@ -379,6 +382,8 @@ def main():
         args.env = 'staging'
     elif args.prod:
         args.env = 'prod'
+    elif getattr(args, 'prod_aws', False):
+        args.env = 'prod_aws'
     
     manager = FrontendDockerManager()
     

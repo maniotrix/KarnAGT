@@ -1,0 +1,114 @@
+version: '3.8'
+
+# AWS production network - EXTERNAL (created by database services)
+networks:
+  prod_aws_network:
+    name: prod_aws_network
+    external: true
+
+services:
+  # Traefik - PRODUCTION SECURITY (IDENTICAL to dev except certificates)
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik-prod
+    ports:
+      - "80:80"       # HTTP
+      - "443:443"     # HTTPS
+      # NO dashboard port in production for security
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # IDENTICAL security
+      - ./data:/data  # For Let's Encrypt certificates
+      - ./traefik:/etc/traefik:ro  # Middleware definitions
+    command:
+      # NO dashboard in production - SECURITY
+      - --api.dashboard=false
+      
+      # IDENTICAL security to dev
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=prod_aws_network
+      
+      # File provider for middlewares
+      - --providers.file.directory=/etc/traefik
+      - --providers.file.watch=true
+      
+      # IDENTICAL entry points
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      
+      # ONLY DIFFERENCE: Let's Encrypt instead of self-signed
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=admin@yourdomain.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      
+      # IDENTICAL security redirects
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      
+      # Global security headers (applied to all routes)
+      - --entrypoints.websecure.http.middlewares=security-headers@file
+      
+      # Production logging
+      - --log.level=WARN
+    networks:
+      - prod_aws_network
+    labels:
+      - "traefik.enable=true"
+    restart: unless-stopped
+    # Production logging configuration (controlled growth)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+        labels: "environment=prod,service=traefik"
+        compress: "true"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Backend Application - IDENTICAL except domain
+  app-backend-prod:
+    container_name: app-backend-production
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        BACKEND_USER: app_backend_prod
+    networks:
+      - prod_aws_network  # ONLY network needed
+    environment:
+      - ENVIRONMENT=production
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"  # IDENTICAL
+      # ONLY DIFFERENCE: Domain name
+      - "traefik.http.routers.backend.rule=Host(`api.myappdomain.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
+
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
+      - "traefik.docker.network=prod_aws_network"  # Network name only
+      # PRODUCTION: Let's Encrypt SSL
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+    # Production logging configuration (critical service monitoring)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=prod,service=backend"
+        compress: "true"
+    volumes:
+      # Production logs
+      - ./logs:/app/logs:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health", "-H", "Host: api.myappdomain.com"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - traefik

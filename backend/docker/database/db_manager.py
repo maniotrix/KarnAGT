@@ -45,7 +45,7 @@ class DatabaseManager:
         """Initialize the database manager."""
         self.base_dir = base_dir or Path(__file__).parent
         self.config = self._load_config()
-        self.supported_environments = self.config.get('supported_environments', ['dev', 'staging', 'prod'])
+        self.supported_environments = self.config.get('supported_environments', ['dev', 'staging', 'prod', 'prod_aws'])
         self.services = ['postgres', 'redis', 'neo4j', 'qdrant', 'minio']
         
     def _load_config(self) -> Dict:
@@ -63,7 +63,8 @@ class DatabaseManager:
             "environments": {
                 "dev": {"compose_file": "docker-compose.dev.yml"},
                 "staging": {"compose_file": "docker-compose.staging.yml"},
-                "prod": {"compose_file": "docker-compose.prod.yml"}
+                "prod": {"compose_file": "docker-compose.prod.yml"},
+                "prod_aws": {"compose_file": "docker-compose-prod-aws.yml"}
             },
             "settings": {
                 "docker_compose_timeout": 300,
@@ -911,7 +912,8 @@ def main():
 Examples:
   python db_manager.py start --env=dev              # Start development databases
   python db_manager.py health --env=prod            # Check production health
-  python db_manager.py validate-passwords --env=prod # Validate production passwords
+  python db_manager.py start --env=prod_aws         # Start AWS EC2 production with EBS volumes
+  python db_manager.py validate-passwords --env=prod_aws # Validate AWS production passwords
   python db_manager.py backup --env=staging         # Backup staging databases
   python db_manager.py logs --env=dev --service=postgres  # View PostgreSQL logs
         """
@@ -925,7 +927,7 @@ Examples:
     
     parser.add_argument(
         '--env',
-        choices=['dev', 'staging', 'prod'],
+        choices=['dev', 'staging', 'prod', 'prod_aws'],
         required=True,
         help='Environment to operate on'
     )

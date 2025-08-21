@@ -13,6 +13,7 @@
 # Production & Staging secrets (NEVER commit these!)
 secrets/staging/
 secrets/prod/
+secrets/prod_aws/
 
 # Allow development secrets (generic creds for easy setup)
 !secrets/dev/
