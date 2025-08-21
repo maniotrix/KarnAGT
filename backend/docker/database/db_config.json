@@ -114,5 +114,36 @@
       "prod": "https://files.myappdomain.com",
       "prod_aws": "https://files.karnagt.com"
     }
+  },
+  "context_validation": {
+    "description": "Docker context validation rules for deployment safety",
+    "enabled_environments": ["prod_aws"],
+    "prod_aws": {
+      "validation_level": "strict",
+      "blocked_contexts": ["default", "desktop-linux"],
+      "allowed_context_patterns": [
+        "aws-*",
+        "*-aws-*", 
+        "*-prod*",
+        "*prod*",
+        "*-ec2-*",
+        "*ec2*"
+      ],
+      "aws_detection_enabled": true,
+      "countdown_seconds": 8,
+      "error_messages": {
+        "blocked_context": "Context '{context}' is blocked for {environment} deployments for security reasons",
+        "disallowed_pattern": "Context '{context}' doesn't match allowed patterns for {environment}",
+        "aws_warning": "Context '{context}' doesn't appear to be AWS-related. Expected: aws, prod, production, or ec2 indicators"
+      },
+      "deployment_instructions": [
+        "Create AWS-specific Docker context:",
+        "  docker context create aws-prod --docker \"host=ssh://ec2-user@YOUR-IP\"",
+        "  docker context use aws-prod",
+        "",
+        "Or deploy directly on AWS instance:",
+        "  ssh -i key.pem ec2-user@YOUR-IP"
+      ]
+    }
   }
 }

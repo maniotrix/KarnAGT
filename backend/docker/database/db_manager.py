@@ -397,12 +397,55 @@ class DatabaseManager:
         except Exception:
             return 'default'
     
-    def _validate_deployment_context(self, environment: str, skip_validation: bool = False) -> bool:
-        """Validate deployment context for production environments"""
-        if environment != 'prod_aws':
-            return True  # Only validate for prod_aws environment
+    def _get_context_validation_config(self, environment: str) -> Optional[Dict]:
+        """
+        Get context validation configuration from JSON config for specific environment.
+        
+        Args:
+            environment: Target environment name
             
-        # Allow skipping validation with explicit flag
+        Returns:
+            Context validation config dict or None if validation not enabled
+        """
+        try:
+            # Check if context validation is enabled for this environment
+            validation_config = self.config.get('context_validation', {})
+            enabled_environments = validation_config.get('enabled_environments', [])
+            
+            if environment not in enabled_environments:
+                return None
+                
+            # Get environment-specific validation rules
+            env_config = validation_config.get(environment)
+            if not env_config:
+                print(f"⚠️  Context validation enabled for {environment} but no rules found")
+                return None
+                
+            return env_config
+            
+        except Exception as e:
+            print(f"⚠️  Error loading context validation config: {e}")
+            return None
+    
+    def _validate_deployment_context(self, environment: str, skip_validation: bool = False) -> bool:
+        """
+        JSON-configured environment-specific deployment context validation.
+        
+        Args:
+            environment: Target deployment environment
+            skip_validation: Skip validation if True
+            
+        Returns:
+            True if deployment is allowed, False otherwise
+        """
+        # Get validation config from JSON - returns None if validation not enabled
+        validation_config = self._get_context_validation_config(environment)
+        
+        # No validation needed if not configured for this environment
+        if not validation_config:
+            return True
+            
+        # Skip validation if requested
         if skip_validation:
             print("⚠️  Validation skipped via --skip-validation flag")
             print("⚠️  Ensure you're deploying to the correct environment!")
@@ -412,60 +455,108 @@ class DatabaseManager:
         current_context = self._get_docker_context()
         
         print(f"ℹ️  Environment: {environment}")
-        print(f"ℹ️  Running on AWS: {is_aws}")
+        print(f"ℹ️  Running on AWS: {is_aws}")  
         print(f"ℹ️  Docker context: {current_context}")
         
-        # If running on AWS, allow deployment
-        if is_aws:
+        # For AWS environments, allow if running on AWS and AWS detection is enabled
+        if validation_config.get('aws_detection_enabled', False) and is_aws:
             print("✅ Running on AWS instance - deployment allowed")
             return True
             
-        # If running locally, check Docker context
-        if current_context == 'default':
-            print("🚫 DEPLOYMENT BLOCKED!")
-            print()
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print(" PRODUCTION DEPLOYMENT SAFETY CHECK FAILED ")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print()
-            print(f"⚠️  You are trying to deploy prod_aws from a local machine")
-            print(f"⚠️  Your current Docker context is: {current_context}")
-            print()
-            print("📋 To deploy prod_aws environment, you must:")
-            print()
-            print("1. Set up Docker Context for AWS EC2:")
-            print('   docker context create aws-prod --docker "host=ssh://ec2-user@your-elastic-ip"')
-            print()
-            print("2. Switch to AWS context:")
-            print("   docker context use aws-prod")
-            print()
-            print("3. Verify context:")
-            print("   docker context show")
-            print()
-            print("4. Then re-run your deployment command")
-            print()
-            print("Alternative: SSH into AWS instance and run directly:")
-            print("   ssh -i your-key.pem ec2-user@your-elastic-ip")
-            print()
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            return False
+        # Check if context is explicitly blocked
+        blocked_contexts = validation_config.get('blocked_contexts', [])
+        if current_context in blocked_contexts:
+            return self._handle_blocked_context_json(environment, current_context, validation_config)
             
-        # If Docker context is set but not to AWS, warn but allow (might be valid)
-        if 'aws' not in current_context.lower() and 'prod' not in current_context.lower():
-            print(f"⚠️  Docker context '{current_context}' doesn't seem AWS-related")
-            print("⚠️  Make sure you're deploying to the correct environment")
+        # Check if context matches allowed patterns
+        allowed_patterns = validation_config.get('allowed_context_patterns', ['*'])
+        if not self._is_context_allowed(current_context, allowed_patterns):
+            return self._handle_disallowed_context_json(environment, current_context, validation_config)
             
-            # Give user 5 seconds to cancel
-            print()
-            print("ℹ️  Proceeding in 5 seconds... Press Ctrl+C to cancel")
+        # Handle strict validation level
+        validation_level = validation_config.get('validation_level', 'strict')
+        if validation_level == 'strict':
+            return self._handle_strict_validation_json(environment, current_context, validation_config)
+            
+        print(f"✅ Docker context validation passed: {current_context}")
+        return True
+        
+    def _is_context_allowed(self, context: str, allowed_patterns: List[str]) -> bool:
+        """Check if context matches any allowed pattern"""
+        import fnmatch
+        
+        for pattern in allowed_patterns:
+            if pattern == '*' or fnmatch.fnmatch(context.lower(), pattern.lower()):
+                return True
+        return False
+        
+    def _handle_blocked_context_json(self, environment: str, context: str, config: Dict) -> bool:
+        """Handle explicitly blocked contexts using JSON config"""
+        error_msg = config.get('error_messages', {}).get('blocked_context', 
+                               "Context '{context}' is blocked for {environment} deployments")
+        
+        print("🚫 DEPLOYMENT BLOCKED!")
+        print()
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f" CONTEXT '{context.upper()}' IS BLOCKED FOR {environment.upper()} ")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print()
+        print(f"⚠️  {error_msg.format(context=context, environment=environment)}")
+        print(f"⚠️  This is a safety measure to prevent accidental deployments")
+        print()
+        print("📋 Allowed deployment methods:")
+        print()
+        
+        # Show deployment instructions from JSON config
+        instructions = config.get('deployment_instructions', [])
+        for i, instruction in enumerate(instructions, 1):
+            if instruction.strip():  # Skip empty lines in numbering
+                if instruction.startswith('  '):  # Indented command
+                    print(f"{instruction}")
+                else:
+                    print(f"{i}. {instruction}")
+            else:
+                print()  # Empty line
+        
+        print()
+        print("3. Override with --skip-validation (use with caution):")
+        print(f"   python script.py {environment} --skip-validation")
+        print()
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        return False
+        
+    def _handle_disallowed_context_json(self, environment: str, context: str, config: Dict) -> bool:
+        """Handle contexts not in allowed patterns list using JSON config"""
+        error_msg = config.get('error_messages', {}).get('disallowed_pattern',
+                               "Context '{context}' doesn't match allowed patterns for {environment}")
+        
+        allowed_patterns = config.get('allowed_context_patterns', [])
+        
+        print(f"❌ {error_msg.format(context=context, environment=environment)}")
+        print(f"📋 Allowed context patterns: {', '.join(allowed_patterns)}")
+        print("💡 Use --skip-validation to override if this is intentional")
+        return False
+        
+    def _handle_strict_validation_json(self, environment: str, context: str, config: Dict) -> bool:
+        """Handle strict validation using JSON config"""
+        aws_warning = config.get('error_messages', {}).get('aws_warning',
+                                 "Context '{context}' doesn't appear to be AWS-related")
+        countdown_seconds = config.get('countdown_seconds', 5)
+        
+        # Check if context has AWS indicators
+        aws_indicators = ['aws', 'prod', 'production', 'ec2']
+        has_aws_indicator = any(indicator in context.lower() for indicator in aws_indicators)
+        
+        if not has_aws_indicator:
+            print(f"⚠️  {aws_warning.format(context=context)}")
+            print(f"⚠️  Proceeding in {countdown_seconds} seconds... Press Ctrl+C to cancel")
             try:
-                time.sleep(5)
+                time.sleep(countdown_seconds)
             except KeyboardInterrupt:
-                print()
-                print("ℹ️  Deployment cancelled by user")
+                print("\nℹ️  Deployment cancelled by user")
                 return False
         
-        print(f"✅ Docker context validation passed: {current_context}")
+        print(f"✅ Strict context validation passed: {context}")
         return True
     
     def _load_secrets_to_env(self, env: str) -> bool:
@@ -1048,11 +1139,15 @@ class DatabaseManager:
             print(f"      ❌ MinIO backup failed: {e}")
             return False
     
-    def validate(self, env: str) -> bool:
+    def validate(self, env: str, skip_validation: bool = False) -> bool:
         """Validate environment configuration before deployment."""
         print(f"🔍 Validating {env} environment configuration...")
         
         if not self._validate_environment(env):
+            return False
+        
+        # Validate deployment context for prod_aws (same security as start command)
+        if not self._validate_deployment_context(env, skip_validation):
             return False
         
         # Check all prerequisites
@@ -1185,7 +1280,7 @@ Examples:
         elif args.action == 'backup':
             success = db_manager.backup(args.env, args.service)
         elif args.action == 'validate':
-            success = db_manager.validate(args.env)
+            success = db_manager.validate(args.env, skip_validation=args.skip_validation)
         elif args.action == 'validate-passwords':
             success = db_manager.validate_passwords(args.env)
         elif args.action == 'cleanup':
