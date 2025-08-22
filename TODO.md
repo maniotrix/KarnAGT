@@ -95,6 +95,7 @@
 * frontend issue...authorise required showing when relaoding page
 * autofocus keybaord issue
 Send back events via streaming handler during file processing to provide real-time feedback to users"
+looking at the server logs, the file processing happens silently in the background and users don't get real-time feedback about what's happening. This would have helped identify the FileNotDecryptedError issue immediately.
 This would be especially valuable for:
 File Upload Progress: Show upload status and completion
 Processing Stages:
