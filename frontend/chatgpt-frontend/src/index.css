@@ -62,11 +62,47 @@
 }
 
 @layer base {
+  /* CSS Custom Properties for Mobile Viewport Height */
+  :root {
+    /* Set up dynamic viewport height variables */
+    --vh: 1vh;
+    --dvh: 1dvh; /* Dynamic viewport height - modern browsers */
+    --lvh: 1lvh; /* Large viewport height */
+    --svh: 1svh; /* Small viewport height */
+  }
+
+  /* Reset and mobile-friendly base styles */
   * {
     @apply border-border;
   }
+  
+  html {
+    /* Prevent horizontal scroll */
+    overflow-x: hidden;
+    /* Ensure proper height calculation */
+    height: 100%;
+    /* Support for dynamic viewport height */
+    height: 100dvh;
+  }
+  
   body {
     @apply bg-background text-foreground;
+    /* Prevent document-level scroll on mobile */
+    overflow: hidden;
+    height: 100%;
+    height: 100dvh;
+    /* Prevent pull-to-refresh and overscroll */
+    overscroll-behavior: none;
+    /* Prevent iOS safari bottom bar issues */
+    position: fixed;
+    width: 100%;
+  }
+
+  /* Main app container should fill viewport */
+  #root {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
   }
 }
 
@@ -81,5 +117,30 @@
   pre code.hljs {
     background: transparent !important;
     color: inherit;
+  }
+
+  /* Mobile Viewport Height Utility Class */
+  .mobile-viewport-height {
+    height: 100vh; /* Fallback for older browsers */
+    height: 100dvh; /* Modern browsers - dynamic viewport height */
+    height: calc(var(--vh, 1vh) * 100); /* JavaScript fallback via custom property */
+  }
+
+  /* Improved mobile touch and scroll behavior */
+  .mobile-scroll-container {
+    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
+    overscroll-behavior: contain; /* Prevent overscroll effects */
+  }
+
+  /* Prevent zoom on input focus (mobile) */
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Mobile-friendly button sizes */
+  @media (max-width: 768px) {
+    button {
+      min-height: 44px; /* Apple's recommended touch target size */
+    }
   }
 }

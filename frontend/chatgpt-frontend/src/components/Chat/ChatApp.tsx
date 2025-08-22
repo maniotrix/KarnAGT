@@ -197,11 +197,11 @@ export const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100 relative">
+    <div className="flex h-full overflow-hidden bg-gray-100 relative mobile-viewport-height">
       {/* Mobile Backdrop Overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden mobile-viewport-height"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -338,9 +338,9 @@ export const ChatApp: React.FC = () => {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-0">
-        {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="flex-1 flex flex-col min-w-0 lg:ml-0 h-full">
+        {/* Top Bar - Fixed Header */}
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0 sticky top-0 z-30">
           <div className="flex items-center space-x-4">
             <button
               onClick={toggleSidebar}
@@ -434,7 +434,7 @@ export const ChatApp: React.FC = () => {
         </div>
 
         {/* Chat Component */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col">
           <Chat
             conversationId={currentConversationId ?? undefined}
             onConversationChange={handleConversationChange}
