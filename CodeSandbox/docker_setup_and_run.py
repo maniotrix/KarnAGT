@@ -291,24 +291,43 @@ class DockerManager:
         self._success(f"✅ Strict context validation passed: {context}")
     
     def _run_command(self, command: List[str], description: str = "") -> bool:
-        """Run shell command with error handling"""
+        """Run shell command with real-time output streaming"""
         try:
             cmd_str = " ".join(command)
             self._info(f"Running: {cmd_str}")
             
-            result = subprocess.run(
+            # Use Popen for real-time output streaming
+            process = subprocess.Popen(
                 command,
-                capture_output=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                check=True
+                bufsize=1,
+                universal_newlines=True
             )
-            return True
             
-        except subprocess.CalledProcessError as e:
-            self._error(f"{description} failed: {e}")
-            return False
+            # Stream output in real-time
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    print(output.strip(), flush=True)
+            
+            # Wait for process to complete and get return code
+            return_code = process.poll()
+            
+            if return_code == 0:
+                return True
+            else:
+                self._error(f"{description} failed with exit code: {return_code}")
+                return False
+            
         except FileNotFoundError:
             self._error("Docker or docker-compose not found. Please install Docker.")
+            return False
+        except Exception as e:
+            self._error(f"{description} failed: {e}")
             return False
     
     def _check_docker_available(self) -> bool:
