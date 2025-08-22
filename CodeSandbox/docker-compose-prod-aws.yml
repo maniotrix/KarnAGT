@@ -17,18 +17,13 @@ services:
     networks:
       - prod_aws_network  # AWS network
     labels:
-      - "traefik.enable=true"  # Explicit exposure
-      - "traefik.http.routers.codesandbox.rule=Host(`sandbox.karnagt.com`)"
-      - "traefik.http.routers.codesandbox.entrypoints=websecure"
-
-      - "traefik.http.services.codesandbox.loadbalancer.server.port=8080"
-      - "traefik.docker.network=prod_aws_network"
-      # PRODUCTION: Let's Encrypt SSL
-      - "traefik.http.routers.codesandbox.tls.certresolver=letsencrypt"
+      # SECURITY: No public Traefik exposure - internal access only
+      - "traefik.enable=false"
       # Metadata labels
       - "com.app.environment=prod"
       - "com.app.service=code_execution"
       - "com.app.component=codesandbox"
+      - "com.app.access=internal-only"
     # No volume mounts for production - code is baked into image
     # Production logging configuration (controlled code execution logs)
     logging:
