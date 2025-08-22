@@ -16,7 +16,7 @@
 .env.development.local
 .env.test.local
 .env.production.local
-.env.docker.app.*
+# .env.docker.app.* # REMOVED: Allow AWS prod environment files
 
 # Testing
 /coverage
@@ -94,7 +94,7 @@ adk-samples-main/
 *.swo
 
 # API Keys and environment variables
-.env
+# .env # REMOVED: Duplicate - already on line 14
 
 # Logs
 *.log
