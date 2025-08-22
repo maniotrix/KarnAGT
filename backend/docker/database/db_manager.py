@@ -654,6 +654,13 @@ class DatabaseManager:
         """Start all database containers for environment."""
         print(f"🚀 Starting database containers for {env} environment...")
         
+        # Check for Docker Context SSH limitation (informational only - databases use pre-built images)
+        current_context = self._get_docker_context()
+        if current_context != 'default' and ('ssh://' in current_context or current_context.startswith(('aws-', 'ec2-', 'prod-'))):
+            print(f"ℹ️  Using Docker Context: {current_context}")
+            print(f"ℹ️  Database services use pre-built images, so SSH contexts work fine here")
+            print(f"⚠️  Note: Application builds (backend/frontend) require direct EC2 deployment with SSH contexts")
+        
         # Validate deployment context for prod_aws
         if not self._validate_deployment_context(env, skip_validation):
             return False
