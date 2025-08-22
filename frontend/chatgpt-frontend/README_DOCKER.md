@@ -1,5 +1,7 @@
 # Frontend Docker Development Setup
 
+> **📋 Production Deployment**: For production deployments, see [PRODUCTION_SETUP_GUIDE.md](PRODUCTION_SETUP_GUIDE.md) or [AWS Production Guide](../../backend/app_docs/AWS_PRODUCTION_DEPLOYMENT_GUIDE.md)
+
 ## Quick Start
 
 ### Prerequisites

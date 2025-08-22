@@ -1,5 +1,7 @@
 # Frontend Production Setup Guide
 
+> **⚠️ AWS Users**: For AWS EC2 production deployment with `karnagt.com` domains, use the dedicated [AWS Production Deployment Guide](../../backend/app_docs/AWS_PRODUCTION_DEPLOYMENT_GUIDE.md) instead. This guide uses generic `myappdomain.com` examples for non-AWS deployments.
+
 ## Overview
 This document explains the production setup for the frontend application following the unified architecture pattern established by the backend, database, and CodeSandbox services.
 
@@ -15,6 +17,16 @@ This document explains the production setup for the frontend application followi
 - **Backend**: `Host('api.yourdomain.com') && PathPrefix('/api')` → API endpoints
 - **CodeSandbox**: `Host('sandbox.yourdomain.com')` → Code execution
 - **MinIO**: `Host('files.yourdomain.com')` → File storage
+
+### AWS vs Generic Production
+
+| Configuration | Generic Production | AWS Production |
+|---------------|-------------------|----------------|
+| **Environment** | `--env=prod` | `--env=prod_aws` |
+| **Network** | `prod-network` | `prod_aws_network` |
+| **Domains** | `myappdomain.com` | `karnagt.com` |
+| **Volumes** | Docker volumes | EBS bind mounts |
+| **Guide** | This guide | [AWS Guide](../../backend/app_docs/AWS_PRODUCTION_DEPLOYMENT_GUIDE.md) |
 
 ## Production Deployment
 
