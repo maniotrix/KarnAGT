@@ -61,3 +61,9 @@
 * rename knowldege tools
 * improve typing ui and ux on frontend
 * add email verification , celery asap
+
+* [RACE CONDITION] Fix file upload URL generation timing issue
+  - Frontend calls bulk-presigned-urls immediately after backend returns message with file_ids
+  - Backend DB transaction not yet committed when URL request arrives → "Access denied" errors
+  - Solution: Include presigned URLs directly in message response to eliminate separate API call
+  - Affects: Every new message with image attachments - (.curosr_chats/cursor_check_logs_for_issues_and_errors.md)
