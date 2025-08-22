@@ -94,3 +94,14 @@
 
 * frontend issue...authorise required showing when relaoding page
 * autofocus keybaord issue
+Send back events via streaming handler during file processing to provide real-time feedback to users"
+This would be especially valuable for:
+File Upload Progress: Show upload status and completion
+Processing Stages:
+"Downloading file from S3..."
+"Processing PDF document..."
+"Creating document chunks..."
+"Generating embeddings..."
+Error Feedback: Immediately inform users about errors like FileNotDecryptedError instead of silently failing
+Success Confirmation: "✅ File processed successfully - 15 document chunks created"
+This would significantly improve the user experience by making the file processing transparent and helping users understand when something goes wrong with their uploads.
