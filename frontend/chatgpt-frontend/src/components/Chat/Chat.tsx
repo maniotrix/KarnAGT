@@ -134,27 +134,37 @@ export const Chat: React.FC<ChatProps> = ({
 
   // Auto-submit pending message when conversation is loaded
   useEffect(() => {
-    if (hasConversation && pendingMessage && pendingMessage.trim() && !isLoading) {
+    if (hasConversation && pendingMessage && pendingMessage.trim() && !isLoading && !isLoadingConversation) {
+      console.log('🚀 Auto-submitting pending message:', pendingMessage);
+      
       // Set the input to the pending message and submit it
       setInput(pendingMessage);
       
       // Submit the message after a brief delay to ensure conversation is fully loaded
-      const timer = setTimeout(() => {
-        const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
-        handleSubmit(syntheticEvent as any);
+      const timer = setTimeout(async () => {
+        try {
+          console.log('🚀 Executing auto-submit for message:', pendingMessage);
+          const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
+          await handleSubmit(syntheticEvent as any);
+          
+          // Scroll to bottom after auto-submit
+          setTimeout(() => {
+            scrollToBottomFn?.();
+          }, 100);
+          
+        } catch (error) {
+          console.error('❌ Auto-submit failed:', error);
+          // Don't clear pending message if submission failed
+          return;
+        }
         
-        // Scroll to bottom after auto-submit
-        setTimeout(() => {
-          scrollToBottomFn?.();
-        }, 100);
-        
-        // Clear the pending message
+        // Clear the pending message only on successful submission
         onPendingMessageSubmitted?.();
-      }, 100);
+      }, 200);
       
       return () => clearTimeout(timer);
     }
-  }, [hasConversation, pendingMessage, isLoading, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
+  }, [hasConversation, pendingMessage, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
 
   // Handle file upload - store files for message submission
   const handleFileUpload = useCallback((files: UploadFile[]) => {
