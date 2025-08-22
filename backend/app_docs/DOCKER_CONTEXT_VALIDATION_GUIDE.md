@@ -287,6 +287,64 @@ python CodeSandbox/docker_setup_and_run.py start --prod-aws --skip-validation
 
 ## Setting Up Docker Context
 
+### ⚠️ CRITICAL LIMITATION: Docker Build with SSH Contexts
+
+**🚨 DOCKER BUILD LIMITATION**: When using Docker Context with SSH endpoints, **building new Docker images does NOT work** reliably:
+
+```bash
+# These commands WORK with SSH contexts:
+docker ps                    # ✅ List containers
+docker pull image:tag        # ✅ Pull images  
+docker run image:tag         # ✅ Run containers
+docker-compose up           # ✅ Start services (with pre-built images)
+
+# These commands DO NOT WORK with SSH contexts:
+docker build -t myapp .                    # ❌ Build fails
+docker-compose build                       # ❌ Build fails  
+python backend_docker_manager.py build    # ❌ Build fails
+```
+
+**Error Message You'll See:**
+```
+ERROR: Builder error Docker context using an SSH endpoint is not supported at the moment.
+```
+
+### 📋 Build Strategy Options
+
+**Option 1: Build Directly on EC2 (Recommended)**
+```bash
+# SSH into EC2 and build there
+ssh karnagt-ec2
+cd /home/ec2-user/ChatGPT_Clone
+
+# Build backend on EC2 directly  
+python backend/backend_docker_manager.py build --env=prod_aws
+python frontend/chatgpt-frontend/frontend_docker_manager.py build --env=prod_aws
+```
+
+**Option 2: Build Locally + Push to Registry**
+```bash
+# Build locally with default context
+docker context use default
+python backend/backend_docker_manager.py build --env=prod_aws
+
+# Tag for registry
+docker tag app-backend-prod your-registry/app-backend-prod
+
+# Push to registry  
+docker push your-registry/app-backend-prod
+
+# Switch to SSH context and pull on remote
+docker context use aws-prod  
+docker pull your-registry/app-backend-prod
+```
+
+**Option 3: Pre-built Images Only**
+```bash
+# Use only pre-built images from Docker Hub/registries
+# Modify compose files to use published images instead of local builds
+```
+
 ### 1. Create AWS Docker Context
 ```bash
 # Replace with your actual Elastic IP
@@ -467,13 +525,20 @@ python CodeSandbox/docker_setup_and_run.py start --env=prod_aws
 ```
 
 ### Complete Deployment Test Sequence
-```bash
-# Full deployment sequence (in correct order) - should work on AWS or with Docker Context:
 
+**🚨 CRITICAL**: Build commands will **FAIL** if using Docker Context with SSH. Use direct EC2 deployment or hybrid approach.
+
+#### Option A: Direct EC2 Deployment (Recommended)
+```bash
+# SSH into EC2 instance first
+ssh karnagt-ec2
+cd /home/ec2-user/ChatGPT_Clone
+
+# Full deployment sequence on EC2 (all commands work):
 # 1. Database layer (creates prod_aws_network + automated secrets loading)
 python backend/docker/database/db_manager.py start --env=prod_aws
 
-# 2. Build backend (don't start yet)
+# 2. Build backend (works on EC2)
 python backend/backend_docker_manager.py build --env=prod_aws
 
 # 3. Run database migrations (CRITICAL - before backend starts)
@@ -482,11 +547,41 @@ docker-compose -f backend/docker-compose-prod-aws.yml run --rm app-backend-prod 
 # 4. Start backend API
 python backend/backend_docker_manager.py start --env=prod_aws
 
-# 5. Frontend
+# 5. Build & start frontend
 python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws --build
 
 # 6. CodeSandbox
 python CodeSandbox/docker_setup_and_run.py start --prod-aws
+```
+
+#### Option B: Hybrid Deployment (Database via SSH Context, Apps on EC2)
+```bash
+# Step 1: Database deployment from local machine (works - uses pre-built images)
+docker context use aws-prod
+python backend/docker/database/db_manager.py start --env=prod_aws
+
+# Step 2: SSH into EC2 for builds and app deployment
+ssh karnagt-ec2
+cd /home/ec2-user/ChatGPT_Clone
+
+# Step 3: Build and deploy applications on EC2
+python backend/backend_docker_manager.py build --env=prod_aws
+docker-compose -f backend/docker-compose-prod-aws.yml run --rm app-backend-prod python run_migrations.py
+python backend/backend_docker_manager.py start --env=prod_aws
+python frontend/chatgpt-frontend/frontend_docker_manager.py start --env=prod_aws --build
+python CodeSandbox/docker_setup_and_run.py start --prod-aws
+```
+
+#### Option C: What NOT to Try (Will Fail)
+```bash
+# ❌ This will FAIL with SSH contexts:
+docker context use aws-prod
+
+# These commands will fail with "Builder error":
+python backend/backend_docker_manager.py build --env=prod_aws                    # ❌ FAILS
+python frontend/chatgpt-frontend/frontend_docker_manager.py build --env=prod_aws # ❌ FAILS  
+docker build -t myapp .                                                         # ❌ FAILS
+docker-compose build                                                             # ❌ FAILS
 ```
 
 ## Customization
@@ -526,6 +621,16 @@ if any(pattern in current_context.lower() for pattern in valid_patterns):
 | **Docker Context (Suspicious)** | Local machine | ❌ False | ⚠️  **some-server** | ⚠️  Context setup | ⚠️  **8-sec warning** |
 | **Desktop Context** | Local machine | ❌ False | 🚫 **desktop-linux** | ❌ **BLOCKED** | 🛡️ **Protected** |
 | **Default Context** | Local machine | ❌ False | 🚫 **default** | ❌ **BLOCKED** | 🛡️ **Protected** |
+
+### Build Support Matrix
+
+| Deployment Method | Image Pull | Container Run | Image Build | Use Case |
+|-------------------|------------|---------------|-------------|----------|
+| **Direct on AWS Instance** | ✅ **Full** | ✅ **Full** | ✅ **Full** | 🟢 **Complete deployment** |
+| **Docker Context (SSH)** | ✅ **Full** | ✅ **Full** | ❌ **NOT SUPPORTED** | ⚠️ **Database only or pre-built images** |
+| **Local Development** | ✅ **Full** | ✅ **Full** | ✅ **Full** | 🟢 **Development & testing** |
+
+**Critical Implication**: For complete application deployment (backend/frontend that need building), **direct EC2 deployment is required** or use hybrid approach (build local + deploy remote).
 
 ### Example Outputs
 

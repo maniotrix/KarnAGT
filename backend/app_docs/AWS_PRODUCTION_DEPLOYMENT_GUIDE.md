@@ -827,6 +827,60 @@ ssh karnagt-ec2  # Should connect without additional parameters
 # 4. Verify: ssh karnagt-ec2 "free -h"
 ```
 
+#### 4. Docker Context Build Limitation Issues
+
+**Symptom**: Docker build commands fail when using SSH context
+```powershell
+# Error message when trying to build with SSH context:
+ERROR: Builder error Docker context using an SSH endpoint is not supported at the moment.
+
+# Commands that FAIL with SSH contexts:
+python backend\backend_docker_manager.py build --env=prod_aws
+python frontend\chatgpt-frontend\frontend_docker_manager.py build --env=prod_aws
+docker build -t myapp .
+docker-compose build
+```
+
+**Root Cause**: Docker's buildx service doesn't support SSH contexts for building images
+
+**Solutions**:
+
+**Solution A: Direct EC2 Build (Recommended)**
+```bash
+# SSH into EC2 and build directly there
+ssh karnagt-ec2
+cd /home/ec2-user/ChatGPT_Clone
+
+# Build on EC2 (no context issues)
+python backend/backend_docker_manager.py build --env=prod_aws
+python frontend/chatgpt-frontend/frontend_docker_manager.py build --env=prod_aws
+```
+
+**Solution B: Hybrid Local Build + Remote Deploy**
+```powershell
+# Step 1: Build locally (switch contexts)
+docker context use default
+python backend\backend_docker_manager.py build --env=prod_aws
+
+# Step 2: Switch back to remote context for deployment
+docker context use aws-prod
+
+# Step 3: Deploy services (works fine with pre-built images)
+python backend\backend_docker_manager.py start --env=prod_aws
+```
+
+**Solution C: Container Registry Approach**
+```powershell
+# Build and push to registry locally
+docker context use default
+docker build -t your-registry/app-backend:prod .
+docker push your-registry/app-backend:prod
+
+# Pull and run on remote context
+docker context use aws-prod
+python backend\backend_docker_manager.py start --env=prod_aws
+```
+
 ### Compose File Validation Issues
 
 #### 4. Environment Variable Warnings
@@ -879,9 +933,158 @@ ssh karnagt-ec2
 docker ps  # Should work without sudo
 ```
 
+### EBS Volume & Data Safety Issues
+
+#### 8. **CRITICAL: Always Create EBS Snapshots Before Troubleshooting**
+
+**🚨 PRODUCTION DATA SAFETY RULE**: Never perform destructive operations without EBS snapshots.
+
+```bash
+# MANDATORY: Create snapshots before ANY troubleshooting
+aws ec2 create-snapshot \
+  --volume-id vol-054e20dc11407d3fc \
+  --description "PostgreSQL pre-troubleshoot backup $(date)" \
+  --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=postgres-emergency-backup}]'
+
+# Wait for completion (usually 1-5 minutes)
+aws ec2 describe-snapshots --snapshot-ids snap-xxxxxxxxx --query 'Snapshots[0].State'
+# Wait for "completed" status before proceeding
+
+# Get volume IDs from deployment guide:
+# vol-054e20dc11407d3fc (PostgreSQL)
+# vol-02a528724b04deb87 (MinIO) 
+# vol-06ecaf2189f70f35d (Redis)
+# vol-005d39284ac882e71 (Neo4j)
+# vol-09893337c862be0fd (Qdrant)
+```
+
+#### 9. PostgreSQL Container Initialization Issues
+
+**Symptom**: PostgreSQL container shows `Restarting (1) X seconds ago`
+
+**Root Cause**: EBS volume ownership/permission conflicts
+
+**Safe Resolution Process**:
+```bash
+# Step 1: MANDATORY - Create EBS snapshot first
+aws ec2 create-snapshot --volume-id vol-054e20dc11407d3fc --description "Pre-fix backup"
+
+# Step 2: Check PostgreSQL logs
+docker logs postgres_prod --tail=50
+
+# Step 3: Common error patterns & solutions
+# Error: "initdb: error: directory exists but is not empty"
+# Error: "chmod: changing permissions... Operation not permitted"
+
+# Step 4: Stop container gracefully
+docker stop postgres_prod
+
+# Step 5: Fix volume ownership (PostgreSQL requires UID 999)
+sudo chown -R 999:999 /mnt/pg-prod/
+sudo chmod -R 755 /mnt/pg-prod/
+
+# Step 6: Verify mapping understanding
+echo "Volume mapping: /mnt/pg-prod = /var/lib/postgresql/data (container)"
+echo "NOT: /mnt/pg-prod/data = /var/lib/postgresql/data"
+
+# Step 7: Only for initial deployment with NO production data
+# EXTREME CAUTION: Verify no production data exists!
+ls -la /mnt/pg-prod/  # Check contents first
+# If only broken initialization files:
+sudo rm -rf /mnt/pg-prod/*  # ← ONLY if no production data!
+
+# Step 8: Restart container
+docker start postgres_prod
+
+# Step 9: Monitor initialization
+docker logs -f postgres_prod
+# Look for: "database system is ready to accept connections"
+
+# Step 10: Verify health
+docker exec postgres_prod pg_isready -U app_prod_user -d app_prod_db
+```
+
+**Production Data Recovery** (if real data was lost):
+```bash
+# Option 1: Restore from EBS snapshot
+# 1. Stop container
+docker stop postgres_prod
+
+# 2. Detach current volume
+aws ec2 detach-volume --volume-id vol-054e20dc11407d3fc
+
+# 3. Create new volume from snapshot
+aws ec2 create-volume \
+  --snapshot-id snap-xxxxxxxxx \
+  --availability-zone us-east-1a \
+  --size 10
+
+# 4. Attach restored volume
+aws ec2 attach-volume \
+  --volume-id vol-NEWVOLUME \
+  --instance-id i-1234567890abcdef0 \
+  --device /dev/sdg
+
+# 5. Mount and restart
+sudo mount /dev/nvme2n1 /mnt/pg-prod  
+docker start postgres_prod
+```
+
+#### 11. Multi-Service Database Container Ownership Issues
+
+**Symptom**: Some database containers show `unhealthy` status after deployment
+
+**Root Cause**: EBS volume ownership conflicts - not just PostgreSQL but ALL database services have specific ownership requirements
+
+**Complete Ownership Fix Process**:
+```bash
+# MANDATORY: Create EBS snapshots for all volumes before fixes
+aws ec2 create-snapshot --volume-id vol-054e20dc11407d3fc --description "PostgreSQL backup"
+aws ec2 create-snapshot --volume-id vol-06ecaf2189f70f35d --description "Redis backup" 
+aws ec2 create-snapshot --volume-id vol-005d39284ac882e71 --description "Neo4j backup"
+aws ec2 create-snapshot --volume-id vol-09893337c862be0fd --description "Qdrant backup"
+aws ec2 create-snapshot --volume-id vol-02a528724b04deb87 --description "MinIO backup"
+
+# Stop all database containers
+python backend/docker/database/db_manager.py stop --env=prod_aws
+
+# Fix ownership for each service based on container user requirements:
+# PostgreSQL & Redis (both use UID 999 = systemd-oom)
+sudo chown -R 999:999 /mnt/pg-prod/
+sudo chown -R 999:999 /mnt/redis-prod/
+
+# Neo4j (uses custom UID 7474)
+sudo chown -R 7474:7474 /mnt/neo4j-prod/
+
+# Qdrant & MinIO (both use root)
+sudo chown -R 0:0 /mnt/qdrant-prod/
+sudo chown -R 0:0 /mnt/minio-prod/
+
+# Set proper directory permissions
+sudo chmod -R 755 /mnt/qdrant-prod/
+sudo chmod -R 755 /mnt/neo4j-prod/
+
+# Restart all containers
+python backend/docker/database/db_manager.py start --env=prod_aws
+
+# Monitor health status (wait 2-3 minutes for health checks)
+docker ps --format "table {{.Names}}\t{{.Status}}"
+
+# All containers should show (healthy) status within 3 minutes
+```
+
+**Expected Healthy Status Table**:
+| Container | Status | Log Verification |
+|-----------|--------|-----------------|
+| `postgres_prod` | `Up X minutes (healthy)` | "database system is ready to accept connections" |
+| `redis_prod` | `Up X minutes (healthy)` | "Ready to accept connections tcp" |
+| `neo4j_prod` | `Up X minutes (healthy)` | "Started." + "HTTP enabled on 0.0.0.0:7474" |
+| `qdrant_prod` | `Up X minutes (healthy)` | "Access web UI at http://localhost:6333/dashboard" |
+| `minio_prod` | `Up X minutes (healthy)` | "API: http://172.19.0.X:9000" |```
+
 ### Deployment-Specific Issues
 
-#### 8. Database Health Check Failures
+#### 10. Database Health Check Failures
 ```powershell
 # After deployment, if health checks fail:
 docker ps  # Check container status
@@ -1120,15 +1323,30 @@ For support or updates to this deployment, refer to the project's documentation 
 - **Compose Validation**: Successfully validated compose file syntax on remote instance
 - **Database Manager**: Passed comprehensive environment validation
 
+#### ✅ Database Layer Deployment SUCCESS
+- **Multi-Service Resolution**: Successfully resolved EBS volume ownership issues for ALL 5 database services
+- **Volume Mapping**: Clarified direct EBS mount mappings for all services
+- **Comprehensive Ownership**: Fixed ownership for PostgreSQL (UID 999), Redis (UID 999), Neo4j (UID 7474), Qdrant (root), MinIO (root)
+- **Container Health**: All 5 containers now running and healthy/accepting connections
+- **Production Ready**: Complete database infrastructure deployed with proper EBS persistence
+
+#### ✅ Git-Based EC2 Deployment
+- **Direct Deployment**: Successfully deployed using Git clone on EC2 (alternative to Docker Context)
+- **Environment Setup**: Installed Git, Python3, and configured repository access
+- **File Access**: All compose files and secrets accessible on EC2
+- **AWS Detection**: Database manager correctly detected EC2 environment and bypassed context validation
+
 #### ✅ Documentation & Process
 - **Updated Guide**: Comprehensive documentation of SSH setup and validation steps
 - **Instance Sizing**: Added memory analysis and upgrade procedures
+- **EBS Safety**: Added critical EBS snapshot procedures for production data safety
+- **PostgreSQL Troubleshooting**: Documented ownership requirements and safe recovery procedures
 - **Troubleshooting**: Documented real-world issues and solutions encountered
-- **Best Practices**: Established validated deployment workflow
+- **Best Practices**: Established validated deployment workflow with data safety
 
-### Current Status: READY FOR DEPLOYMENT
+### Current Status: DATABASE LAYER DEPLOYED ✅
 
-All pre-deployment validation steps have been completed successfully:
+Database layer deployment has been completed successfully:
 
 ```
 Infrastructure Status:
@@ -1136,25 +1354,65 @@ Infrastructure Status:
 ├── EBS Volumes: All 5 mounted (/mnt/*-prod) ✅
 ├── Docker: Installed and working ✅
 ├── SSH Access: karnagt-ec2 alias working ✅
-├── Docker Context: aws-prod configured and tested ✅
-├── Compose Validation: Passed with expected warnings ✅
-├── Environment Validation: db_manager.py validate passed ✅
-└── Memory Capacity: 4.7GB headroom for production ✅
+├── Git Deployment: Repository cloned on EC2 ✅
+├── Database Services: ALL containers healthy ✅
+│   ├── PostgreSQL: Up & accepting connections ✅
+│   ├── Redis: Up & healthy ✅  
+│   ├── Neo4j: Up & healthy ✅
+│   ├── Qdrant: Up & healthy ✅
+│   ├── MinIO: Up & healthy ✅
+│   └── Network: prod_aws_network created ✅
+└── Volume Ownership: Corrected for ALL 5 services ✅
 ```
 
-### Next Steps
+### Next Steps: Backend Application Deployment
 
-You are now ready to proceed with database deployment:
+With the database layer successfully deployed, you can now proceed with backend application deployment:
 
+#### Option 1: Docker Context Deployment ⚠️ BUILD LIMITATION
+
+**🚨 CRITICAL WARNING**: Docker Context with SSH endpoints **cannot build Docker images**. You'll get this error:
+```
+ERROR: Builder error Docker context using an SSH endpoint is not supported at the moment.
+```
+
+**Database Deployment (Works Fine):**
 ```powershell
 # Navigate to project root
 cd C:\Users\Prince\Documents\GitHub\ChatGPT_Clone
 
-# Verify Docker Context
+# Verify Docker Context is active
 docker context show  # Should show: aws-prod
 
-# Start database deployment
+# Database deployment works (uses pre-built images)
 python backend\docker\database\db_manager.py start --env=prod_aws
+```
+
+**Backend/Frontend Deployment (Requires Workaround):**
+```powershell
+# ❌ THIS FAILS: Build backend with SSH context
+python backend\backend_docker_manager.py build --env=prod_aws
+# Error: Docker build not supported with SSH endpoints
+
+# ✅ WORKAROUND OPTIONS:
+# A) Switch to default, build locally, then switch back
+docker context use default
+python backend\backend_docker_manager.py build --env=prod_aws
+docker context use aws-prod
+
+# B) Or use direct EC2 deployment (recommended - see Option 2)
+```
+
+#### Option 2: Direct EC2 Deployment (From EC2 Instance)
+```bash
+# SSH into EC2 instance
+ssh karnagt-ec2
+cd /home/ec2-user/ChatGPT_Clone
+
+# Build and deploy backend
+python backend/backend_docker_manager.py build --env=prod_aws
+docker-compose -f backend/docker-compose-prod-aws.yml run --rm app-backend-prod python run_migrations.py
+python backend/backend_docker_manager.py start --env=prod_aws
 ```
 
 ### Key Lessons Learned
@@ -1164,9 +1422,19 @@ python backend\docker\database\db_manager.py start --env=prod_aws
 3. **Instance Upgrades**: Safe and preserve all data when using EBS volumes
 4. **Validation First**: Pre-deployment validation catches issues before they cause problems
 5. **Compose Warnings**: Environment variable warnings during validation are expected and normal
+6. **Multi-Service Ownership**: ALL 5 database services have specific ownership requirements
+   - PostgreSQL & Redis: UID 999 (systemd-oom)  
+   - Neo4j: UID 7474
+   - Qdrant & MinIO: root (UID 0)
+7. **EBS Volume Mapping**: Direct mapping `/mnt/service-prod` = container data directories, not subdirectories
+8. **Data Safety First**: Always create EBS snapshots before destructive operations 
+9. **Git Deployment**: Direct EC2 deployment via Git clone is reliable alternative to Docker Context
+10. **AWS Detection**: Database manager correctly detects EC2 environment and bypasses context validation
+11. **Health Check Timing**: Neo4j and Qdrant have 60-second start periods - "health: starting" is normal initially
+12. **Docker Context Build Limitation**: SSH contexts cannot build images - must build on EC2 directly or locally then deploy
 
 ---
 **Last Updated**: January 2025  
-**Version**: 2.1  
+**Version**: 2.2  
 **Environment**: AWS with EBS Persistent Storage and Deployment Safety  
-**Session**: Pre-deployment validation completed, ready for database deployment
+**Session**: Complete database layer deployed - all 5 services healthy, multi-service ownership resolved, ready for backend deployment

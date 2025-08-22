@@ -484,6 +484,37 @@ class BackendDockerManager:
         """Build container image for environment"""
         self._info(f"Building {env} environment...")
         
+        # Check for Docker Context SSH build limitation
+        current_context = self._get_docker_context()
+        if current_context != 'default':
+            # Check if this looks like an SSH context
+            if ('ssh://' in current_context or 
+                current_context.startswith(('aws-', 'ec2-', 'prod-')) or
+                current_context in ['aws-prod', 'ec2-prod']):
+                
+                self._error("🚫 DOCKER BUILD LIMITATION DETECTED!")
+                print()
+                print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+                print(f"{Colors.RED}{Colors.BOLD} SSH CONTEXT CANNOT BUILD DOCKER IMAGES {Colors.END}")
+                print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+                print()
+                print(f"{Colors.YELLOW}⚠️  Current context: {current_context}{Colors.END}")
+                print(f"{Colors.YELLOW}⚠️  Docker Context with SSH endpoints cannot build images{Colors.END}")
+                print(f"{Colors.YELLOW}⚠️  Error you would get: 'Builder error Docker context using an SSH endpoint is not supported at the moment.'{Colors.END}")
+                print()
+                print(f"{Colors.CYAN}📋 Build alternatives:{Colors.END}")
+                print("1. Build directly on EC2 instance:")
+                print(f"{Colors.GREEN}   ssh karnagt-ec2{Colors.END}")
+                print(f"{Colors.GREEN}   python backend/backend_docker_manager.py build --env={env}{Colors.END}")
+                print()
+                print("2. Build locally then deploy (hybrid approach):")
+                print(f"{Colors.GREEN}   docker context use default{Colors.END}")
+                print(f"{Colors.GREEN}   python backend/backend_docker_manager.py build --env={env}{Colors.END}")
+                print(f"{Colors.GREEN}   # Push to registry then deploy to EC2{Colors.END}")
+                print()
+                print(f"{Colors.RED}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+                sys.exit(1)
+        
         if not self._check_prerequisites(env):
             sys.exit(1)
         
@@ -505,6 +536,23 @@ class BackendDockerManager:
         
         # Validate deployment context for prod_aws
         self._validate_deployment_context(env, skip_validation)
+        
+        # Check for Docker Context SSH build limitation when --build is used
+        if build:
+            current_context = self._get_docker_context()
+            if current_context != 'default':
+                # Check if this looks like an SSH context
+                if ('ssh://' in current_context or 
+                    current_context.startswith(('aws-', 'ec2-', 'prod-')) or
+                    current_context in ['aws-prod', 'ec2-prod']):
+                    
+                    self._error("🚫 DOCKER BUILD WITH SSH CONTEXT DETECTED!")
+                    print()
+                    print(f"{Colors.YELLOW}⚠️  Current context: {current_context}{Colors.END}")
+                    print(f"{Colors.YELLOW}⚠️  --build flag cannot work with SSH contexts{Colors.END}")
+                    print(f"{Colors.CYAN}💡 Use: python backend/backend_docker_manager.py build --env={env} (on EC2 directly){Colors.END}")
+                    print(f"{Colors.CYAN}💡 Or: Start without --build flag if image already built{Colors.END}")
+                    sys.exit(1)
         
         if not self._check_prerequisites(env):
             sys.exit(1)
