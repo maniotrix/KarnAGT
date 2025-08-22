@@ -13,7 +13,7 @@
 # Production & Staging secrets (NEVER commit these!)
 secrets/staging/
 secrets/prod/
-secrets/prod_aws/
+# secrets/prod_aws/ # REMOVED: Need to track AWS production secrets for deployment
 
 # Allow development secrets (generic creds for easy setup)
 !secrets/dev/
@@ -22,10 +22,10 @@ secrets/prod_aws/
 # Keep directory structure
 !secrets/.gitkeep
 
-# Environment files with sensitive data (if any are created)
-.env
-.env.*
-*.env
+# Environment files with sensitive data (if any are created) - REMOVED for AWS deployment
+# .env
+# .env.*
+# *.env
 
 # ====================================
 # 💾 Database Data & Backups  

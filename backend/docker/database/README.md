@@ -1,6 +1,6 @@
 # 🗄️ Database Container Infrastructure
 
-Complete database infrastructure management for development, staging, and production environments.
+Complete database infrastructure management for development, staging, production, and AWS production environments.
 
 > **✨ Simple & Clean:** All containers work perfectly with their default settings, just like your original setup. No complex init containers, no resource limits, no security hardening complexity - just reliable database services.
 
@@ -31,6 +31,16 @@ python db_manager.py status --env=dev
 ```bash
 python db_manager.py stop --env=dev
 ```
+
+### 5. AWS Production with EBS Volumes
+```bash
+# Deploy to AWS with persistent EBS storage
+python db_manager.py start --env=prod_aws
+
+# Health check AWS production
+python db_manager.py health --env=prod_aws
+```
+> 🔧 **AWS Requirements**: EBS volumes must be mounted at `/mnt/*-prod` and Docker Context configured for remote deployment.
 
 ## 📊 Services & Ports
 
@@ -76,6 +86,15 @@ python db_manager.py stop --env=dev
 | Neo4j        | 7474, 7687   | Graph database (standard ports) |
 | Qdrant       | 6333, 6334   | Vector database (standard ports) |
 | MinIO        | 9000, 9001   | Object storage (standard ports) |
+
+#### AWS Production Environment (`prod_aws`)
+| Service      | External Ports | Purpose                    | EBS Volume |
+|--------------|---------------|----------------------------|------------|
+| PostgreSQL   | 5432         | Primary database (standard port) | `/mnt/pg-prod` |
+| Redis        | 6379         | Cache & sessions (standard port) | `/mnt/redis-prod` |
+| Neo4j        | 7474, 7687   | Graph database (standard ports) | `/mnt/neo4j-prod` |
+| Qdrant       | 6333, 6334   | Vector database (standard ports) | `/mnt/qdrant-prod` |
+| MinIO        | 9000, 9001   | Object storage (standard ports) | `/mnt/minio-prod` |
 
 **🔑 Key Networking Concepts:**
 - **Service Discovery**: Containers communicate using service names (e.g., `postgres:5432`)
@@ -167,11 +186,20 @@ Production:      (ports: 5432, 6379, 7474, 7687, 6333, 9000, 9001)
 
 ### Volume Management
 Each environment has isolated volumes:
+
+#### Docker Named Volumes (dev, staging, prod)
 - `pgdata_dev` / `pgdata_staging` / `pgdata_prod`
 - `redisdata_dev` / `redisdata_staging` / `redisdata_prod`
 - `neo4jdata_dev` / `neo4jdata_staging` / `neo4jdata_prod`
 - `qdrantdata_dev` / `qdrantdata_staging` / `qdrantdata_prod`
 - `minio_data_dev` / `minio_data_staging` / `minio_data_prod`
+
+#### EBS Bind Mounts (prod_aws)
+- `pgdata_prod` → `/mnt/pg-prod` (10GB EBS)
+- `redisdata_prod` → `/mnt/redis-prod` (10GB EBS)
+- `neo4jdata_prod` → `/mnt/neo4j-prod` (10GB EBS)
+- `qdrantdata_prod` → `/mnt/qdrant-prod` (50GB EBS)
+- `minio_data_prod` → `/mnt/minio-prod` (10GB EBS)
 
 ### MinIO Dual Endpoint Architecture
 MinIO uses a **dual endpoint strategy** to solve presigned URL browser access issues:
@@ -222,6 +250,7 @@ backend/docker/database/
 ├── 📄 docker-compose.dev.yml          # Development
 ├── 📄 docker-compose.staging.yml      # Staging
 ├── 📄 docker-compose.prod.yml         # Production
+├── 📄 docker-compose-prod-aws.yml     # AWS Production with EBS
 ├── 📁 config/                        # Optional: Custom configurations (mostly unused)
 │   ├── 📁 dev/                        # Dev configurations (optional)
 │   ├── 📁 staging/                    # Staging configurations (optional)
@@ -250,7 +279,7 @@ The `db_config.json` file contains only the essential configuration:
 ```json
 {
   "description": "Simplified database infrastructure - compose files contain all configuration",
-  "supported_environments": ["dev", "staging", "prod"],
+  "supported_environments": ["dev", "staging", "prod", "prod_aws"],
   "environments": {
     "dev": {
       "compose_file": "docker-compose.dev.yml",
@@ -263,6 +292,10 @@ The `db_config.json` file contains only the essential configuration:
     "prod": {
       "compose_file": "docker-compose.prod.yml",
       "description": "Production database with high availability"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "description": "AWS production with EBS persistent storage"
     }
   },
   "settings": {
@@ -377,6 +410,24 @@ cd ../../
 python backend_docker_manager.py start --prod
 ```
 
+### AWS Production (Docker Context)
+```bash
+# Deploy to AWS EC2 via Docker Context from local machine
+# Requires: docker context create aws-prod --docker "host=ssh://ec2-user@your-ip"
+
+# 1. Switch to AWS context
+docker context use aws-prod
+
+# 2. Deploy database infrastructure (streams data through SSH)
+python db_manager.py start --env=prod_aws
+
+# 3. Health check (executes remotely)
+python db_manager.py health --env=prod_aws
+
+# 4. Backup (downloads to local machine via Docker Context)
+python db_manager.py backup --env=prod_aws
+```
+
 ## 🔧 Manual Docker Commands (Alternative)
 
 If you prefer direct Docker commands:
@@ -396,6 +447,9 @@ docker-compose -f docker-compose.staging.yml up -d
 
 # Production
 docker-compose -f docker-compose.prod.yml up -d
+
+# AWS Production (with Docker Context)
+docker-compose -f docker-compose-prod-aws.yml up -d
 ```
 
 ## 🔐 Security & Git Management
@@ -500,13 +554,17 @@ This prevents container mixing and makes environment management clearer.
 
 ## 🎯 Recent Updates & Features
 
+✅ **AWS Production Environment** - New `prod_aws` environment with EBS persistent storage  
+✅ **Docker Context Deployment** - Deploy to AWS from local machine via SSH tunnel  
+✅ **EBS Volume Integration** - All data stored on persistent EBS volumes (`/mnt/*-prod`)  
+✅ **Backup Volume Optimization** - Removed container backup mounts (backups stream to local machine)  
 ✅ **Traefik Reverse Proxy Integration** - Modern routing with SSL/TLS support  
-✅ **Unified Network Architecture** - Single network per environment (dev-network, staging-network, prod-network)  
+✅ **Unified Network Architecture** - Single network per environment (dev-network, staging-network, prod-network, prod_aws_network)  
 ✅ **MinIO Dual Endpoint Solution** - Fixed presigned URL browser access issues  
 ✅ **Modern Port Structure** - Traefik handles external routing (80,443,8000,9000,8080)  
 ✅ **Minimal Configuration** - Clean `db_config.json` with only essential keys (28 lines vs 107 lines)  
 ✅ **Configuration-Driven Compose Files** - `db_manager.py` reads compose file paths from config instead of hardcoding  
-✅ **Multi-Environment Support** - Dev, staging, prod environments with perfect isolation  
+✅ **Multi-Environment Support** - Dev, staging, prod, prod_aws environments with perfect isolation  
 ✅ **Maximum Compatibility** - Simple container setup works everywhere  
 ✅ **Project Naming** - Unique Docker Compose project names prevent conflicts  
 ✅ **Simplified Authentication** - Direct environment variables, no complex commands  

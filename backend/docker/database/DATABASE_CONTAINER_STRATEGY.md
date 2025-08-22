@@ -2,7 +2,7 @@
 
 ## 📋 **Overview**
 
-This document outlines the complete strategy for implementing database containers across all environments (dev, staging, prod) following industry best practices while maintaining startup-friendly simplicity.
+This document outlines the complete strategy for implementing database containers across all environments (dev, staging, prod, prod_aws) following industry best practices while maintaining startup-friendly simplicity.
 
 ## 🎯 **Core Principles**
 
@@ -80,6 +80,13 @@ Production Environment:
 ├── Traefik: api.yourdomain.com, files.yourdomain.com
 ├── Containers: postgres_prod, redis_prod, qdrant_prod, neo4j_prod, minio_prod
 └── Volumes: pgdata_prod, redisdata_prod, qdrantdata_prod, neo4jdata_prod, etc.
+
+AWS Production Environment:
+├── Network: prod_aws_network (unified)
+├── Traefik: api.karnagt.com, files.karnagt.com, console.karnagt.com
+├── Containers: postgres_prod, redis_prod, qdrant_prod, neo4j_prod, minio_prod
+├── Volumes: EBS bind mounts (/mnt/pg-prod, /mnt/redis-prod, etc.)
+└── Deployment: Docker Context from local machine via SSH tunnel
 ```
 
 ---
@@ -94,6 +101,7 @@ backend/docker/database/
 ├── 📄 docker-compose.dev.yml             # Development environment (project: app_db_dev)
 ├── 📄 docker-compose.staging.yml         # Staging environment (project: app_db_staging) 
 ├── 📄 docker-compose.prod.yml            # Production environment (project: app_db_prod)
+├── 📄 docker-compose-prod-aws.yml        # AWS Production with EBS (project: app_db_prod)
 ├── 📄 docker-compose.local.yml           # Local testing environment (project: app_db_local)
 ├── 📁 secrets/
 │   ├── 📁 dev/
@@ -1296,3 +1304,41 @@ We achieved the **perfect balance** between:
 - **Minimal Config** (28 lines) vs **Flexibility** (can change compose files, environments easily)
 
 This is **exactly** what you need for sustainable growth - reliable database infrastructure that **just works**! 🎉
+
+## 🎯 **AWS Production Environment Updates**
+
+### **EBS Persistent Storage Integration**
+The `prod_aws` environment introduces **EBS bind mounts** for ultimate data persistence:
+
+```yaml
+# EBS Volume Configuration (prod_aws only)
+volumes:
+  pgdata_prod:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/pg-prod  # 10GB EBS volume
+```
+
+### **Backup Strategy Optimization** 
+We **removed container backup volume mounts** because:
+- ✅ **Direct stdout streaming**: `pg_dump` output streams directly to local machine via Docker Context
+- ✅ **No container storage needed**: All backups saved on operator's machine, not AWS
+- ✅ **SSH tunnel magic**: Docker Context creates transparent data pipe from container to local filesystem
+- ✅ **Cleaner architecture**: No unnecessary volume mounts in containers
+- ✅ **Better security**: No backup files stored on production servers
+
+### **Docker Context Deployment**
+Deploy from local Windows machine to AWS EC2:
+```bash
+# Setup once
+docker context create aws-prod --docker "host=ssh://ec2-user@elastic-ip"
+docker context use aws-prod
+
+# Deploy remotely
+python db_manager.py start --env=prod_aws  # Runs on AWS, controlled from Windows
+python db_manager.py backup --env=prod_aws  # Streams backup data to Windows
+```
+
+This creates the **perfect hybrid**: AWS infrastructure reliability + local machine control! 🚀

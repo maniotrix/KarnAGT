@@ -44,7 +44,7 @@ services:
       # - ./config/prod/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       # - ./config/prod/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       # - ./init-scripts:/docker-entrypoint-initdb.d:ro
-      - ./backups/prod:/backups
+      # Backup volume removed - db_manager.py handles backups on host filesystem
       
     networks:
       - prod_aws_network

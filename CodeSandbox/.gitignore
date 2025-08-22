@@ -41,11 +41,11 @@ pyvenv.cfg
 .env.test
 .env.production
 .env.staging
-*.env
+# *.env # REMOVED: Allow AWS prod environment files
 !env.example
 !.env.example
-.env.docker.dev
-.env.docker.prod
+# .env.docker.dev # REMOVED: Allow docker environment files
+# .env.docker.prod # REMOVED: Allow docker environment files
 
 # === IDE/Editor Files ===
 .vscode/
