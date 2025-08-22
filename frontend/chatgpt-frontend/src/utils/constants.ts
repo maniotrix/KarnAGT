@@ -1,6 +1,6 @@
 // Application Constants
 export const APP_CONFIG = {
-  NAME: 'ChatGPT Clone',
+  NAME: 'KarnAGT',
   VERSION: '1.0.0',
   MAX_MESSAGE_LENGTH: 4000,
   MAX_MESSAGES_PER_CONVERSATION: 100,
