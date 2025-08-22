@@ -386,7 +386,10 @@ export const ChatApp: React.FC = () => {
             >
               <Menu className="h-5 w-5 text-gray-500" />
             </button>
-            <h1 className="text-xl font-semibold text-gray-900">
+            <h1 
+              className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+              onClick={() => navigate('/')}
+            >
               KarnAGT
             </h1>
           </div>
