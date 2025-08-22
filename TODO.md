@@ -91,3 +91,6 @@
   - Event listeners properly cleaned up to prevent memory leaks
   - Complex loading state logic tested and validated
   - Status: COMPLETED
+
+* frontend issue...authorise required showing when relaoding page
+* autofocus keybaord issue
