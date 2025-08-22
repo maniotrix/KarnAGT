@@ -67,3 +67,5 @@
   - Backend DB transaction not yet committed when URL request arrives → "Access denied" errors
   - Solution: Include presigned URLs directly in message response to eliminate separate API call
   - Affects: Every new message with image attachments - (.curosr_chats/cursor_check_logs_for_issues_and_errors.md)
+
+* on frontend somehow image ur download link from llm is rendered in ai message and no download link to show/click
