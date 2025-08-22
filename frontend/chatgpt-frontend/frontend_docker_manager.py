@@ -40,6 +40,7 @@ class FrontendDockerManager:
         self.config_file = config_file
         self.config = self._load_config()
         self.base_dir = Path(__file__).parent
+        self.docker_compose_cmd = self._detect_docker_compose_command()
         
     def _load_config(self) -> Dict:
         """Load and validate JSON configuration"""
@@ -88,6 +89,29 @@ class FrontendDockerManager:
     def _warning(self, message: str) -> None:
         """Print warning message"""
         self._log(f"⚠️ {message}", Colors.YELLOW)
+    
+    def _detect_docker_compose_command(self) -> List[str]:
+        """Detect which Docker Compose command is available (docker compose vs docker-compose)"""
+        # Try newer 'docker compose' first
+        try:
+            result = subprocess.run(['docker', 'compose', 'version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return ['docker', 'compose']
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        
+        # Fall back to older 'docker-compose'
+        try:
+            result = subprocess.run(['docker-compose', '--version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return ['docker-compose']
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        
+        # Default fallback (will likely fail but provides clear error)
+        return ['docker', 'compose']
     
     def _is_running_on_aws(self) -> bool:
         """Detect if script is running on AWS (EC2, ECS, Fargate, etc.) - Uses ONLY built-in Python libraries"""
@@ -372,14 +396,12 @@ class FrontendDockerManager:
         except (subprocess.CalledProcessError, FileNotFoundError):
             issues.append("Docker is not installed or not accessible")
         
-        # Check if docker-compose is available
+        # Check if docker-compose is available (using our detected command)
         try:
-            subprocess.run(['docker', 'compose', 'version'], capture_output=True, check=True)
+            test_cmd = self.docker_compose_cmd + ['version'] if len(self.docker_compose_cmd) == 2 else self.docker_compose_cmd + ['--version']
+            subprocess.run(test_cmd, capture_output=True, check=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
-            try:
-                subprocess.run(['docker-compose', '--version'], capture_output=True, check=True)
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                issues.append("docker-compose is not installed or not accessible")
+            issues.append("docker-compose is not installed or not accessible")
         
         if issues:
             self._error("Prerequisites check failed:")
@@ -465,9 +487,10 @@ class FrontendDockerManager:
         env_config = self._get_env_config(env)
         compose_file = env_config['compose_file']
         
-        success = self._run_command([
-            'docker', 'compose', '-f', compose_file, 'build'
-        ], f"Build {env}")
+        success = self._run_command(
+            self.docker_compose_cmd + ['-f', compose_file, 'build'], 
+            f"Build {env}"
+        )
         
         if success:
             self._success(f"Build completed for {env} environment")
@@ -505,7 +528,7 @@ class FrontendDockerManager:
         compose_file = env_config['compose_file']
         
         # Build and start command
-        cmd = ['docker', 'compose', '-f', compose_file, 'up', '-d']
+        cmd = self.docker_compose_cmd + ['-f', compose_file, 'up', '-d']
         if build:
             cmd.append('--build')
         
@@ -535,9 +558,10 @@ class FrontendDockerManager:
         env_config = self._get_env_config(env)
         compose_file = env_config['compose_file']
         
-        success = self._run_command([
-            'docker', 'compose', '-f', compose_file, 'down'
-        ], f"Stop {env}")
+        success = self._run_command(
+            self.docker_compose_cmd + ['-f', compose_file, 'down'], 
+            f"Stop {env}"
+        )
         
         if success:
             self._success(f"{env.title()} environment stopped")
@@ -557,16 +581,17 @@ class FrontendDockerManager:
         compose_file = env_config['compose_file']
         
         self._info(f"Container status for {env} environment:")
-        self._run_command([
-            'docker', 'compose', '-f', compose_file, 'ps'
-        ], f"Status {env}")
+        self._run_command(
+            self.docker_compose_cmd + ['-f', compose_file, 'ps'], 
+            f"Status {env}"
+        )
     
     def logs(self, env: str, follow: bool = False) -> None:
         """Show logs for environment"""
         env_config = self._get_env_config(env)
         compose_file = env_config['compose_file']
         
-        cmd = ['docker', 'compose', '-f', compose_file, 'logs']
+        cmd = self.docker_compose_cmd + ['-f', compose_file, 'logs']
         if follow:
             cmd.append('-f')
         
