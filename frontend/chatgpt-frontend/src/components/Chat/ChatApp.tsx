@@ -322,7 +322,7 @@ export const ChatApp: React.FC = () => {
               <Menu className="h-5 w-5 text-gray-500" />
             </button>
             <h1 className="text-xl font-semibold text-gray-900">
-              ChatGPT Clone
+              KarnAGT
             </h1>
           </div>
           <div className="flex items-center space-x-4">
