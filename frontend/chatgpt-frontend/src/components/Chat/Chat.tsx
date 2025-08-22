@@ -113,6 +113,7 @@ export const Chat: React.FC<ChatProps> = ({
     input,
     setInput,
     isLoading,
+    isLoadingConversation,
     error,
     conversation,
     tokenUsage,
@@ -410,6 +411,18 @@ export const Chat: React.FC<ChatProps> = ({
 
       {/* Main Content Area - This will grow and the inner MessageList will scroll */}
       <div className="flex-1 overflow-hidden min-h-0 relative">
+        {/* Conversation Loading Overlay */}
+        {isLoadingConversation && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-20 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                Loading conversation...
+              </p>
+            </div>
+          </div>
+        )}
+        
         <ConversationImagesProvider 
           messages={messages} 
           conversationId={conversation?.conversation_id}
@@ -465,17 +478,19 @@ export const Chat: React.FC<ChatProps> = ({
           input={input}
           setInput={setInput}
           onSubmit={handleMessageSubmit}
-          isLoading={isLoading || (isCreatingConversation ?? false)}
-          disabled={isQuotaExceeded || (isCreatingConversation ?? false)}
+          isLoading={isLoading || isLoadingConversation || (isCreatingConversation ?? false)}
+          disabled={isQuotaExceeded || isLoadingConversation || (isCreatingConversation ?? false)}
           placeholder={
-            (isCreatingConversation ?? false)
+            isLoadingConversation
+              ? "Loading conversation..."
+              : (isCreatingConversation ?? false)
               ? "Creating conversation..."
               : isQuotaExceeded
               ? "Quota exceeded. Please upgrade your plan."
               : "Type your message..."
           }
           onFileUpload={handleFileUpload}
-          enableFileUpload={!isQuotaExceeded && isAuthenticated}
+          enableFileUpload={!isQuotaExceeded && !isLoadingConversation && isAuthenticated}
         />
         {error && (
           <div className="mt-2 text-sm text-red-600 dark:text-red-400">

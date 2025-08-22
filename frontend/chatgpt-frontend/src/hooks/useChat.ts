@@ -28,6 +28,7 @@ export function useChat(options: ChatOptions = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [conversation, setConversation] = useState<ConversationResponse | null>(null);
   const [tokenUsage, setTokenUsage] = useState({ total: 0, cost: 0, model: '' });
@@ -257,6 +258,9 @@ export function useChat(options: ChatOptions = {}) {
   // Load conversation
   const loadConversation = useCallback(async (conversationId: string) => {
     try {
+      setIsLoadingConversation(true);
+      setError(null);
+      
       const conv = await chatApi.getConversation(conversationId);
       setConversation(conv);
       
@@ -297,6 +301,8 @@ export function useChat(options: ChatOptions = {}) {
       });
     } catch (error) {
       setError(error instanceof Error ? error : new Error('Failed to load conversation'));
+    } finally {
+      setIsLoadingConversation(false);
     }
   }, [transformBackendMessage, convertBackendToolCallToExecution, addOrUpdateToolExecutionEvent]);
 
@@ -370,6 +376,7 @@ export function useChat(options: ChatOptions = {}) {
         currentlyLoaded: 0
       });
       setError(null);
+      setIsLoadingConversation(false);
     }
   }, [options.conversationId, isAuthenticated, loadConversation]);
 
@@ -1333,6 +1340,7 @@ export function useChat(options: ChatOptions = {}) {
     input,
     setInput,
     isLoading,
+    isLoadingConversation,
     error,
     conversation,
     tokenUsage,

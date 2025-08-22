@@ -43,6 +43,7 @@ export const ChatApp: React.FC = () => {
   const sidebarOpen = useUiStore(state => state.sidebarOpen);
   const setSidebarOpen = useUiStore(state => state.setSidebarOpen);
   const toggleSidebar = useUiStore(state => state.toggleSidebar);
+  const handleResize = useUiStore(state => state.handleResize);
   const toast = useToast();
 
   // Handle API errors with toast notifications
@@ -61,6 +62,24 @@ export const ChatApp: React.FC = () => {
       setCurrentConversationId(null);
     }
   }, [conversationId]);
+
+  // Handle window resize for responsive sidebar behavior
+  useEffect(() => {
+    const handleWindowResize = () => {
+      handleResize();
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    window.addEventListener('orientationchange', handleWindowResize);
+    
+    // Call once on mount to set initial state
+    handleWindowResize();
+
+    return () => {
+      window.removeEventListener('resize', handleWindowResize);
+      window.removeEventListener('orientationchange', handleWindowResize);
+    };
+  }, [handleResize]);
 
   // Find current conversation
   const currentConversation = conversations?.find(
@@ -178,7 +197,15 @@ export const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100">
+    <div className="flex h-screen overflow-hidden bg-gray-100 relative">
+      {/* Mobile Backdrop Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out

@@ -69,3 +69,25 @@
   - Affects: Every new message with image attachments - (.curosr_chats/cursor_check_logs_for_issues_and_errors.md)
 
 * on frontend somehow image ur download link from llm is rendered in ai message and no download link to show/click
+
+* [MOBILE UI FIXES] Fixed sidebar auto-opening on mobile reload and page scrollability
+  - Sidebar now starts closed on mobile (<1024px screens) and open on desktop
+  - Added responsive window resize/orientation handling
+  - Added mobile backdrop overlay to close sidebar
+  - Fixed viewport meta tag to prevent zoom/scroll issues
+  - Status: COMPLETED
+
+* [CONVERSATION LOADING] Fixed missing loading state when switching chats from sidebar
+  - Added isLoadingConversation state to useChat hook during conversation fetch
+  - Disabled chat input and file upload during conversation loading
+  - Added loading overlay with spinner for visual feedback
+  - Added "Loading conversation..." placeholder text in input
+  - Prevents UI interactions until conversation is fully loaded
+  - Status: COMPLETED
+
+* [BROWSER COMPATIBILITY FIXES] Fixed potential breaking issues from recent changes
+  - Fixed crypto.randomUUID() fallback for older browsers (Safari <15.4, Chrome <92)
+  - Removed restrictive viewport settings (user-scalable=no) for better accessibility  
+  - Event listeners properly cleaned up to prevent memory leaks
+  - Complex loading state logic tested and validated
+  - Status: COMPLETED
