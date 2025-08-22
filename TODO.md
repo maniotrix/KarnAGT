@@ -46,6 +46,11 @@
 * Fix nested or raw markdown inside llm response on frontend - fixed by llm system prompt
 
 * [PERFORMANCE] Implement Celery for knowledge service document processing to prevent FastAPI blocking
+  - ✅ CONFIRMED: LlamaIndex properly handles non-blocking execution with FastAPI
+  - ✅ CONFIRMED: Uses multiprocessing (not threads) so FastAPI event loop remains free
+  - ✅ ANALYSIS: Current architecture supports concurrent users during document processing
+  - 📋 CELERY_MIGRATION.md: Comprehensive implementation plan ready with Hidden Celery Integration
+  - 🎯 PRIORITY: Celery will improve resource isolation and worker management
 * Consider migrating knowledge module to separate FastAPI server for better scalability and isolation
 * Concurreny in backend not implemented properly
 * Need to revisit proxy url generation/access/display internally as well as publicly.
@@ -94,15 +99,28 @@
 
 * frontend issue...authorise required showing when relaoding page
 * autofocus keybaord issue
-Send back events via streaming handler during file processing to provide real-time feedback to users"
-looking at the server logs, the file processing happens silently in the background and users don't get real-time feedback about what's happening. This would have helped identify the FileNotDecryptedError issue immediately.
-This would be especially valuable for:
-File Upload Progress: Show upload status and completion
-Processing Stages:
-"Downloading file from S3..."
-"Processing PDF document..."
-"Creating document chunks..."
-"Generating embeddings..."
-Error Feedback: Immediately inform users about errors like FileNotDecryptedError instead of silently failing
-Success Confirmation: "✅ File processed successfully - 15 document chunks created"
-This would significantly improve the user experience by making the file processing transparent and helping users understand when something goes wrong with their uploads.
+
+* [CRITICAL BUG ANALYSIS] FileNotDecryptedError - Silent PDF Processing Failures  
+  - 🔍 IDENTIFIED: PDFs fail processing with FileNotDecryptedError but users get no feedback
+  - 📋 ROOT CAUSE: Password-protected PDFs, corrupted files, unsupported encryption
+  - ❌ CURRENT FLOW: Upload succeeds → Processing fails silently → 0 chunks created → No LLM context
+  - ✅ CONVERSATION CONTEXT: Correctly excludes failed files (prevents AI hallucination)  
+  - 🚨 USER IMPACT: Users don't know why their documents aren't being processed
+  - 💡 SOLUTIONS: 
+    - Better error handling with specific FileNotDecryptedError catches
+    - OCR fallback for problematic PDFs
+    - Real-time streaming feedback (see below)
+    - Detailed error messages: "PDF appears password-protected, try unlocked version"
+
+* [HIGH PRIORITY] Send back events via streaming handler during file processing to provide real-time feedback to users
+  - 🎯 PURPOSE: Transform "black box" processing into transparent user experience  
+  - 📊 CURRENT: Processing happens silently for 2-5 minutes with no user feedback
+  - 🔧 IDENTIFIED NEED: FileNotDecryptedError and other failures happen invisibly to users
+  - 💬 STREAMING EVENTS NEEDED:
+    - File Upload Progress: "📄 Processing 3 uploaded files..."
+    - Processing Stages: "⬇️ Downloading file_name.pdf..." → "🔍 Processing PDF document..." → "📝 Creating document chunks..." → "🧠 Generating embeddings..."
+    - Error Feedback: "❌ file_name.pdf failed - PDF appears password protected. Please try unlocked PDF"
+    - Success Confirmation: "✅ file_name.pdf processed - 15 document chunks created"
+  - 🎨 FRONTEND: Enhanced event handling for file_processing event type with progress indicators
+  - 🏗️ BACKEND: Integration with existing streaming_callback in attachment_service.py
+  - 📈 IMPACT: Users will immediately understand processing status and can take action on errors
