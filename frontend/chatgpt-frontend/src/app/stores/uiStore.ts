@@ -35,6 +35,7 @@ interface UiState {
   setSidebarOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
+  handleResize: () => void;
   
   setTheme: (theme: Theme) => void;
   
@@ -48,11 +49,17 @@ interface UiState {
   setProfileOpen: (open: boolean) => void;
 }
 
+// Helper to determine initial sidebar state based on screen size
+const getInitialSidebarState = () => {
+  if (typeof window === 'undefined') return false; // SSR safe
+  return window.innerWidth >= 1024; // lg breakpoint (1024px)
+};
+
 export const useUiStore = create<UiState>()(
   persist(
     (set, get) => ({
-      // Initial state
-      sidebarOpen: true,
+      // Initial state - responsive to screen size
+      sidebarOpen: getInitialSidebarState(),
       sidebarCollapsed: false,
       theme: 'system',
       isLoading: false,
@@ -71,6 +78,16 @@ export const useUiStore = create<UiState>()(
       toggleSidebar: () =>
         set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       
+      // Auto-close sidebar on mobile when window resizes
+      handleResize: () => {
+        if (typeof window !== 'undefined') {
+          const isMobile = window.innerWidth < 1024; // lg breakpoint
+          if (isMobile && get().sidebarOpen) {
+            set({ sidebarOpen: false });
+          }
+        }
+      },
+      
       // Theme actions
       setTheme: (theme) =>
         set({ theme }),
@@ -81,7 +98,7 @@ export const useUiStore = create<UiState>()(
       
       // Toast actions
       addToast: (toast) => {
-        const id = crypto.randomUUID();
+        const id = crypto?.randomUUID?.() || `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const newToast: ToastMessage = {
           id,
           duration: 5000, // Default 5 seconds

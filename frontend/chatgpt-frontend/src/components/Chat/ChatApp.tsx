@@ -20,7 +20,8 @@ import {
   User, 
   LogOut,
   MessageSquare,
-  Crown 
+  Crown,
+  MoreVertical 
 } from 'lucide-react';
 
 export const ChatApp: React.FC = () => {
@@ -29,6 +30,7 @@ export const ChatApp: React.FC = () => {
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -43,6 +45,7 @@ export const ChatApp: React.FC = () => {
   const sidebarOpen = useUiStore(state => state.sidebarOpen);
   const setSidebarOpen = useUiStore(state => state.setSidebarOpen);
   const toggleSidebar = useUiStore(state => state.toggleSidebar);
+  const handleResize = useUiStore(state => state.handleResize);
   const toast = useToast();
 
   // Handle API errors with toast notifications
@@ -62,25 +65,54 @@ export const ChatApp: React.FC = () => {
     }
   }, [conversationId]);
 
+  // Handle window resize for responsive sidebar behavior
+  useEffect(() => {
+    const handleWindowResize = () => {
+      handleResize();
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    window.addEventListener('orientationchange', handleWindowResize);
+    
+    // Call once on mount to set initial state
+    handleWindowResize();
+
+    return () => {
+      window.removeEventListener('resize', handleWindowResize);
+      window.removeEventListener('orientationchange', handleWindowResize);
+    };
+  }, [handleResize]);
+
   // Find current conversation
   const currentConversation = conversations?.find(
     conv => conv.conversationId === currentConversationId
   );
   
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowUserDropdown(false);
       }
+      
+      // For conversation menus, check if clicked outside any menu or menu button
+      if (openMenuConversationId) {
+        const target = event.target as HTMLElement;
+        const clickedOnMenuButton = target.closest('[data-menu-button]');
+        const clickedOnMenu = target.closest('[data-conversation-menu]');
+        
+        if (!clickedOnMenuButton && !clickedOnMenu) {
+          setOpenMenuConversationId(null);
+        }
+      }
     };
 
-    if (showUserDropdown) {
+    if (showUserDropdown || openMenuConversationId) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserDropdown]);
+  }, [showUserDropdown, openMenuConversationId]);
 
   // Handle conversation creation for new messages from homepage
   const handleCreateConversationForMessage = async (messageContent: string): Promise<ConversationResponse | null> => {
@@ -178,7 +210,15 @@ export const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100">
+    <div className="flex h-full overflow-hidden bg-gray-100 relative mobile-viewport-height">
+      {/* Mobile Backdrop Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden mobile-viewport-height"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
@@ -245,17 +285,42 @@ export const ChatApp: React.FC = () => {
                          {conv.updatedAt.toLocaleDateString()}
                        </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteConversation(conv.conversationId);
-                      }}
-                      disabled={deleteConversationMutation.isPending}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-100 text-red-600 transition-opacity disabled:opacity-50"
-                      title="Delete conversation"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="relative">
+                      <button
+                        data-menu-button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuConversationId(
+                            openMenuConversationId === conv.conversationId ? null : conv.conversationId
+                          );
+                        }}
+                        className="p-1 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                        title="More options"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {openMenuConversationId === conv.conversationId && (
+                        <div 
+                          data-conversation-menu
+                          className="absolute right-0 top-full mt-1 w-36 bg-white rounded-md shadow-lg border border-gray-200 z-50 py-1"
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuConversationId(null);
+                              handleDeleteConversation(conv.conversationId);
+                            }}
+                            disabled={deleteConversationMutation.isPending}
+                            className="w-full flex items-center px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -311,9 +376,9 @@ export const ChatApp: React.FC = () => {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-0">
-        {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="flex-1 flex flex-col min-w-0 lg:ml-0 h-full">
+        {/* Top Bar - Fixed Header */}
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0 sticky top-0 z-30">
           <div className="flex items-center space-x-4">
             <button
               onClick={toggleSidebar}
@@ -407,7 +472,7 @@ export const ChatApp: React.FC = () => {
         </div>
 
         {/* Chat Component */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col">
           <Chat
             conversationId={currentConversationId ?? undefined}
             onConversationChange={handleConversationChange}

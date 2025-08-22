@@ -210,7 +210,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
       {/* Messages Container */}
       <div
         ref={setMessagesContainerRef}
-        className="flex-1 overflow-y-auto h-full"
+        className="flex-1 overflow-y-auto h-full mobile-scroll-container"
       >
         <div className="flex flex-col space-y-4 p-4">
           {/* Load More Button - Always at top when more messages available */}
