@@ -153,12 +153,12 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   <TooltipTrigger asChild>
                     <button
                       onClick={handleCopy}
-                      className="p-2 sm:p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800/50 border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 hover:scale-105 shadow-sm min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 text-blue-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
                     >
                       {copied ? (
-                        <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-green-600 dark:text-green-400" />
+                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
                       ) : (
-                        <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <Copy className="w-3 h-3" />
                       )}
                     </button>
                   </TooltipTrigger>
