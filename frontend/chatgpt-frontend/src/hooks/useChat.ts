@@ -759,6 +759,14 @@ export function useChat(options: ChatOptions = {}) {
                       ? { ...assistantMessage! }
                       : msg
                   ));
+                } else if (assistantMessage) {
+                  // Always update the message state, even if there's no finalMessage data
+                  // This ensures cancelled status gets applied to streaming messages
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessage!.id
+                      ? { ...assistantMessage! }
+                      : msg
+                  ));
                 }
                 
                 // CRITICAL FIX: Update user message ID from backend (even for cancelled streams)
