@@ -35,9 +35,21 @@ import { convertUploadFilesToStagingFiles, hasStagingFiles } from '../../app/ser
 interface ChatProps {
   conversationId?: string;
   onConversationChange?: (conversation: ConversationResponse | null) => void;
-  onCreateConversationForMessage?: (messageContent: string) => Promise<ConversationResponse | null>;
+  onCreateConversationForMessage?: (
+    messageContent: string,
+    attachments?: {
+      stagingFiles: Record<string, any>;
+      imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }>;
+      documentData: Array<{ fileId: string; filename: string; file: File; fileType: string; fileSize: number; s3Key: string }>;
+    }
+  ) => Promise<ConversationResponse | null>;
   isCreatingConversation?: boolean;
   pendingMessage?: string | null;
+  pendingAttachments?: {
+    stagingFiles: Record<string, any>;
+    imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }>;
+    documentData: Array<{ fileId: string; filename: string; file: File; fileType: string; fileSize: number; s3Key: string }>;
+  } | null;
   onPendingMessageSubmitted?: () => void;
 }
 
@@ -47,6 +59,7 @@ export const Chat: React.FC<ChatProps> = ({
   onCreateConversationForMessage,
   isCreatingConversation,
   pendingMessage,
+  pendingAttachments,
   onPendingMessageSubmitted
 }) => {
   // Clean Architecture Integration  
@@ -134,17 +147,31 @@ export const Chat: React.FC<ChatProps> = ({
 
   // Auto-submit pending message when conversation is loaded
   useEffect(() => {
-    if (hasConversation && pendingMessage && pendingMessage.trim() && !isLoading && !isLoadingConversation) {
+    const hasPendingContent = (pendingMessage && pendingMessage.trim()) || pendingAttachments;
+    if (hasConversation && hasPendingContent && !isLoading && !isLoadingConversation) {
       console.log('🚀 Auto-submitting pending message:', pendingMessage);
+      console.log('🚀 Auto-submitting with pending attachments:', pendingAttachments);
       
       // Set the input to the pending message and submit it
-      setInput(pendingMessage);
+      setInput(pendingMessage || '');
       
       // Submit the message after a brief delay to ensure conversation is fully loaded
       const timer = setTimeout(async () => {
         try {
           console.log('🚀 Executing auto-submit for message:', pendingMessage);
+          
+          // Create synthetic event with pending attachments if available
           const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
+          
+          // Attach the pending attachments to the synthetic event
+          if (pendingAttachments) {
+            Object.assign(syntheticEvent, {
+              stagingFiles: pendingAttachments.stagingFiles,
+              imageData: pendingAttachments.imageData,
+              documentData: pendingAttachments.documentData
+            });
+          }
+          
           await handleSubmit(syntheticEvent as any);
 
           
@@ -160,7 +187,7 @@ export const Chat: React.FC<ChatProps> = ({
       
       return () => clearTimeout(timer);
     }
-  }, [hasConversation, pendingMessage, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted]);
+  }, [hasConversation, pendingMessage, pendingAttachments, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted]);
 
   // Handle scroll function ready from MessageList
   const handleScrollFunctionReady = useCallback((scrollFn: (behavior?: 'auto' | 'smooth') => void) => {
@@ -235,7 +262,30 @@ export const Chat: React.FC<ChatProps> = ({
     if (!hasConversation && onCreateConversationForMessage && (input.trim() || hasStagingFiles(stagingFiles))) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
-      await onCreateConversationForMessage(input.trim() || "File analysis request");
+      // Generate appropriate title for attachment-only messages
+      const conversationTitle = input.trim() || (() => {
+        const imageCount = imageData.length;
+        const docCount = documentData.length;
+        
+        if (imageCount > 0 && docCount > 0) {
+          return `${imageCount} image${imageCount > 1 ? 's' : ''} and ${docCount} document${docCount > 1 ? 's' : ''}`;
+        } else if (imageCount > 0) {
+          return `${imageCount} image${imageCount > 1 ? 's' : ''}`;
+        } else if (docCount > 0) {
+          return `${docCount} document${docCount > 1 ? 's' : ''}`;
+        } else {
+          return "Files";
+        }
+      })();
+      
+      await onCreateConversationForMessage(
+        conversationTitle,
+        {
+          stagingFiles,
+          imageData,
+          documentData
+        }
+      );
       return;
     }
 
