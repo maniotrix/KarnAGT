@@ -12,6 +12,15 @@ import {
   FileText,
   File
 } from 'lucide-react';
+import {
+  FaFilePdf,
+  FaFileWord,
+  FaFileExcel,
+  FaFilePowerpoint,
+  FaFileCsv,
+  FaFileCode,
+  FaFileAlt
+} from 'react-icons/fa';
 import { useUniversalFileUpload } from '../../hooks/useUniversalFileUpload';
 import type { UploadFile } from '../../types/upload';
 import { ENV } from '../../config/env';
@@ -168,13 +177,48 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
     return 'border-gray-300 bg-white';
   };
 
+  const getBrandedFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase() || '';
+    
+    const iconMap: Record<string, { Icon: React.ComponentType<{ className?: string }>; color: string }> = {
+      // PDF
+      pdf: { Icon: FaFilePdf, color: 'text-red-600' },
+      
+      // Microsoft Word
+      doc: { Icon: FaFileWord, color: 'text-blue-600' },
+      docx: { Icon: FaFileWord, color: 'text-blue-600' },
+      
+      // Microsoft Excel
+      xls: { Icon: FaFileExcel, color: 'text-green-600' },
+      xlsx: { Icon: FaFileExcel, color: 'text-green-600' },
+      
+      // Microsoft PowerPoint
+      ppt: { Icon: FaFilePowerpoint, color: 'text-orange-600' },
+      pptx: { Icon: FaFilePowerpoint, color: 'text-orange-600' },
+      
+      // CSV
+      csv: { Icon: FaFileCsv, color: 'text-emerald-600' },
+      
+      // Code/Data files
+      json: { Icon: FaFileCode, color: 'text-yellow-600' },
+      xml: { Icon: FaFileCode, color: 'text-purple-600' },
+      
+      // Text files
+      txt: { Icon: FaFileAlt, color: 'text-gray-600' },
+    };
+
+    return iconMap[extension] || { Icon: FaFileAlt, color: 'text-gray-600' };
+  };
+
   const getFileIcon = (file: UploadFile) => {
     if (file.fileCategory === 'image') {
       return <ImageIcon className="w-4 h-4" />;
     } else if (file.fileCategory === 'document') {
-      return <FileText className="w-4 h-4" />;
+      const { Icon, color } = getBrandedFileIcon(file.name);
+      return <Icon className={`w-4 h-4 ${color}`} />;
     } else {
-      return <File className="w-4 h-4" />;
+      const { Icon, color } = getBrandedFileIcon(file.name);
+      return <Icon className={`w-4 h-4 ${color}`} />;
     }
   };
 
