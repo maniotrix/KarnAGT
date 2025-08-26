@@ -182,7 +182,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <div className="flex-shrink-0">
               <UniversalFileUpload
                 ref={fileUploadRef}
-                compact={true}
                 disabled={disabled}
                 maxFiles={5}
                 acceptedTypes="all"
