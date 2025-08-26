@@ -154,14 +154,12 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
 
   const getStatusIcon = (file: UploadFile) => {
     switch (file.status) {
-      case 'success':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'error':
-        return <AlertCircle className="w-4 h-4 text-red-500" />;
+        return <AlertCircle className="w-3 h-3 text-white" />;
       case 'uploading':
-        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+        return <Loader2 className="w-4 h-4 text-white animate-spin" />;
       default:
-        return <Upload className="w-4 h-4 text-gray-400" />;
+        return null; // No icon for success or pending
     }
   };
 
@@ -199,11 +197,10 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
       );
     } else {
       return (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100">
-          {getFileIcon(file)}
-          <span className="text-xs text-gray-600 mt-1 truncate max-w-full px-1">
-            {file.fileTypeInfo?.icon || '📄'}
-          </span>
+        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+          <div className="text-gray-500">
+            {getFileIcon(file)}
+          </div>
         </div>
       );
     }
@@ -222,14 +219,27 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
           <div className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 ${getStatusColor(file)}`}>
             {renderFileThumbnail(file)}
             
-            {/* Status overlay */}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/25 md:bg-black/40">
-              {getStatusIcon(file)}
-            </div>
+            {/* Uploading overlay - centered translucent badge, slightly larger than error */}
+            {file.status === 'uploading' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-6 h-6 rounded-full bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
+                  {getStatusIcon(file)}
+                </div>
+              </div>
+            )}
 
             {/* Progress indicator */}
             {file.status === 'uploading' && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-500"></div>
+            )}
+
+            {/* Error indicator - centered translucent badge (no outer padding changes, cross button untouched) */}
+            {file.status === 'error' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-5 h-5 rounded-full bg-red-500/70 backdrop-blur-[1px] flex items-center justify-center">
+                  {getStatusIcon(file)}
+                </div>
+              </div>
             )}
           </div>
 
