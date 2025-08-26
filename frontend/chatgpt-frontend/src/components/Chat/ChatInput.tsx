@@ -13,7 +13,6 @@ import { useHotkeys } from 'react-hotkeys-hook';
 
 // Clean Architecture Integration
 import { useUiStore } from '../../app/stores/uiStore';
-import { useChatInputFocus } from '../../hooks/useChatInputFocus';
 
 // Universal File Upload Integration
 import { UniversalFileUpload, type UniversalFileUploadRef } from './UniversalFileUpload';
@@ -48,14 +47,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [fileCount, setFileCount] = useState<number>(0);
 
-  // 🎯 FOCUS MANAGEMENT: Use our custom hook for intelligent focus behavior
-  const { focusInput, resetUserIntent } = useChatInputFocus({
-    isLoading,
-    disabled,
-    inputRef: textareaRef,
-    autoFocusOnMount: true,
-    autoFocusAfterResponse: true,
-  });
+
 
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -82,8 +74,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     
     if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
       onSubmit(e);
-      // Reset user intent after successful submit so we can auto-focus after AI response
-      resetUserIntent();
       // Clear uploaded files after sending
       fileUploadRef.current?.clearFiles();
       setFileCount(0);
