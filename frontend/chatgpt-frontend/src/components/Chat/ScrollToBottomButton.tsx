@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowDown } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useScrollToBottom, useSticky } from 'react-scroll-to-bottom';
+import { useScrollToBottom } from '../../contexts/ScrollContext';
 
 interface ScrollToBottomButtonProps {
   /** Custom position classes - default is bottom-center */
@@ -14,9 +14,8 @@ export const ScrollToBottomButton: React.FC<ScrollToBottomButtonProps> = ({
   className = 'absolute bottom-4 left-0 right-0 flex justify-center z-10',
   messageCount = 0
 }) => {
-  // Library hooks - no complex logic needed
-  const scrollToBottom = useScrollToBottom();
-  const [isAtBottom] = useSticky();
+  // Use our custom hook - clean and simple!
+  const { scrollToBottom, isAtBottom } = useScrollToBottom();
   
   // Show button when user scrolled up and there are messages
   const shouldShow = !isAtBottom && messageCount > 0;

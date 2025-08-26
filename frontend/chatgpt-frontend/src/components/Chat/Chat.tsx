@@ -57,6 +57,7 @@ export const Chat: React.FC<ChatProps> = ({
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const [showActions, setShowActions] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
+  const [scrollToBottomFn, setScrollToBottomFn] = useState<((options?: {behavior?: 'auto' | 'smooth'}) => void) | null>(null);
 
   // Calculate quota using clean architecture user data
   const calculateQuota = () => {
@@ -94,6 +95,8 @@ export const Chat: React.FC<ChatProps> = ({
     onConversationUpdate: onConversationChange,
     onStreamStart: () => {
       setShowActions(false); // Hide actions during streaming
+      // 🎯 SCROLL HERE: After AI message added, before API call starts
+      scrollToBottomFn?.({ behavior: 'smooth' });
     },
     onStreamEnd: (data: any) => {
       console.log('Stream completed:', data);
@@ -102,7 +105,7 @@ export const Chat: React.FC<ChatProps> = ({
     onError: (error: any) => {
       console.error('Chat error:', error);
     }
-  }), [conversationId, onConversationChange]); // Only recreate when these actually change
+  }), [conversationId, onConversationChange, scrollToBottomFn]); // Added scrollToBottomFn dependency
 
   // ✅ Simple Chat Integration
   const {
@@ -158,6 +161,11 @@ export const Chat: React.FC<ChatProps> = ({
       return () => clearTimeout(timer);
     }
   }, [hasConversation, pendingMessage, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted]);
+
+  // Handle scroll function ready from MessageList
+  const handleScrollFunctionReady = useCallback((scrollFn: (options?: {behavior?: 'auto' | 'smooth'}) => void) => {
+    setScrollToBottomFn(() => scrollFn);
+  }, []);
 
   // Handle file upload - store files for message submission
   const handleFileUpload = useCallback((files: UploadFile[]) => {
@@ -428,9 +436,9 @@ export const Chat: React.FC<ChatProps> = ({
             onLoadMore={handleLoadMore}
             conversationId={conversation?.conversation_id}
             hasMoreMessages={hasMoreMessages}
-
             onEdit={editMessage}
             messageToolExecutions={messageToolExecutions}
+            onScrollFunctionReady={handleScrollFunctionReady}
           />
         </ConversationImagesProvider>
 

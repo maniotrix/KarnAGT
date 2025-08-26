@@ -1023,6 +1023,9 @@ export function useChat(options: ChatOptions = {}) {
       currentStreamingMessageRef.current = assistantMessage;
       setMessages(prev => [...prev, assistantMessage]);
       
+      // 🎯 Trigger scroll after AI message added (same as sendMessage)
+      options.onStreamStart?.();
+      
       // STEP 3: Start streaming edit
       const streamResponse = await chatApi.editMessage(
         conversation.conversation_id,

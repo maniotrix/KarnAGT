@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ScrollToBottom from 'react-scroll-to-bottom';
 import { ChatMessage } from './ChatMessage';
 import { ScrollToBottomButton } from './ScrollToBottomButton';
+import { ScrollProvider, useScrollToBottom } from '../../contexts/ScrollContext';
 import { Message, ToolExecution } from '../../types/chat';
 
 import { 
@@ -26,6 +27,7 @@ interface MessageListProps {
   hasMoreMessages?: boolean;
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
   messageToolExecutions?: Map<string, ToolExecution[]>;
+  onScrollFunctionReady?: (scrollToBottom: (options?: {behavior?: 'auto' | 'smooth'}) => void) => void;
 }
 
 const MessageListComponent: React.FC<MessageListProps> = ({
@@ -36,9 +38,23 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   conversationId,
   hasMoreMessages = false,
   onEdit,
-  messageToolExecutions = new Map()
+  messageToolExecutions = new Map(),
+  onScrollFunctionReady
 }) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Component to expose scroll function to parent via callback
+  const ScrollFunctionExposer: React.FC = () => {
+    const { scrollToBottom } = useScrollToBottom();
+    
+    useEffect(() => {
+      if (onScrollFunctionReady) {
+        onScrollFunctionReady(scrollToBottom);
+      }
+    }, [scrollToBottom]);
+    
+    return null; // This component doesn't render anything
+  };
 
   // Simple Load More handler
   const handleLoadMoreClick = useCallback(async () => {
@@ -113,7 +129,9 @@ const MessageListComponent: React.FC<MessageListProps> = ({
         className="flex-1 h-full mobile-scroll-container"
         followButtonClassName="hidden"
       >
-        <div className="flex flex-col space-y-4 p-4">
+        <ScrollProvider>
+          <ScrollFunctionExposer />
+          <div className="flex flex-col space-y-4 p-4">
           {/* Load More Button - Always at top when more messages available */}
           {hasMoreMessages && (
             <div className="flex justify-center py-2">
@@ -162,13 +180,14 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               </div>
             );
           })}
-        </div>
-        
-        {/* Your Original Custom Button */}
-        <ScrollToBottomButton 
-          messageCount={messages.length}
-          className="absolute bottom-4 left-0 right-0 flex justify-center z-10"
-        />
+          </div>
+          
+          {/* Your Original Custom Button */}
+          <ScrollToBottomButton 
+            messageCount={messages.length}
+            className="absolute bottom-4 left-0 right-0 flex justify-center z-10"
+          />
+        </ScrollProvider>
       </ScrollToBottom>
     </div>
   );
