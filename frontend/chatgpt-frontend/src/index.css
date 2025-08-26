@@ -150,4 +150,18 @@
       min-height: 44px; /* Apple's recommended touch target size */
     }
   }
+
+  /* Better word breaking for URLs and long content */
+  .break-words {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  /* Specific handling for links in messages */
+  .prose a {
+    word-break: break-all;
+    overflow-wrap: break-word;
+    max-width: 100%;
+  }
 }
