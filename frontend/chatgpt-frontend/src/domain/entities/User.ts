@@ -1,5 +1,6 @@
 // Domain Entity: User - Migrated from existing types/auth.ts
 import { UserProfile, SubscriptionTier } from '../../types/auth';
+import { generateTempId } from '../../utils/generateTempId';
 
 export interface UserData {
   readonly id: string;
@@ -57,8 +58,8 @@ export class User implements UserData {
     username?: string;
     subscriptionTier?: SubscriptionTier;
   }): User {
-    const id = crypto.randomUUID();
-    const userId = crypto.randomUUID();
+    const id = generateTempId('user');
+    const userId = generateTempId('userid');
     const now = new Date();
     
     // Business rules

@@ -1,6 +1,7 @@
 // Domain Entity: Conversation - Migrated from existing types/chat.ts
 import { ConversationResponse, ConversationCreate } from '../../types/chat';
 import { Message } from './Message';
+import { generateTempId } from '../../utils/generateTempId';
 
 export interface ConversationData {
   readonly id: string;
@@ -95,8 +96,8 @@ export class Conversation implements ConversationData {
     maxTokens?: number;
     metadata?: Record<string, any>;
   }): Conversation {
-    const id = crypto.randomUUID();
-    const conversationId = crypto.randomUUID();
+    const id = generateTempId('conv');
+    const conversationId = generateTempId('convid');
     const now = new Date();
     
     return new Conversation(
