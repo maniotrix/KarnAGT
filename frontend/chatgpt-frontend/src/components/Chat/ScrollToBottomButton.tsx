@@ -29,7 +29,7 @@ export const ScrollToBottomButton: React.FC<ScrollToBottomButtonProps> = ({
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8 }}
-        onClick={() => scrollToBottom()}
+        onClick={() => scrollToBottom({ behavior: 'smooth' })}
         className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800 transition-all duration-200 hover:scale-105"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
