@@ -130,6 +130,13 @@
   .mobile-scroll-container {
     -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
     overscroll-behavior: contain; /* Prevent overscroll effects */
+    overflow-y: auto !important; /* Ensure scrollbar appears */
+    height: 100% !important; /* Ensure container has height */
+  }
+
+  /* Hide react-scroll-to-bottom default button */
+  .hidden {
+    display: none !important;
   }
 
   /* Prevent zoom on input focus (mobile) */

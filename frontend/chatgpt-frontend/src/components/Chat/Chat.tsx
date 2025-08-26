@@ -22,8 +22,7 @@ import {
   Crown,
   MessageSquare,
   DollarSign,
-  Zap,
-  ArrowDown
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -57,8 +56,6 @@ export const Chat: React.FC<ChatProps> = ({
   const currentUser = userQuery.data;
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const [showActions, setShowActions] = useState(false);
-  const [shouldShowScrollButton, setShouldShowScrollButton] = useState(false);
-  const [scrollToBottomFn, setScrollToBottomFn] = useState<(() => void) | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
 
   // Calculate quota using clean architecture user data
@@ -146,11 +143,7 @@ export const Chat: React.FC<ChatProps> = ({
           console.log('🚀 Executing auto-submit for message:', pendingMessage);
           const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
           await handleSubmit(syntheticEvent as any);
-          
-          // Scroll to bottom after auto-submit
-          setTimeout(() => {
-            scrollToBottomFn?.();
-          }, 100);
+
           
         } catch (error) {
           console.error('❌ Auto-submit failed:', error);
@@ -164,7 +157,7 @@ export const Chat: React.FC<ChatProps> = ({
       
       return () => clearTimeout(timer);
     }
-  }, [hasConversation, pendingMessage, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
+  }, [hasConversation, pendingMessage, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted]);
 
   // Handle file upload - store files for message submission
   const handleFileUpload = useCallback((files: UploadFile[]) => {
@@ -261,11 +254,7 @@ export const Chat: React.FC<ChatProps> = ({
       // Clear uploaded files after sending
       console.log('🔍 DEBUG: Clearing uploadedFiles state');
       setUploadedFiles([]);
-      
-      // ALWAYS scroll to bottom when user sends message
-      setTimeout(() => {
-        scrollToBottomFn?.();
-      }, 100);
+
     }
   };
 
@@ -306,11 +295,7 @@ export const Chat: React.FC<ChatProps> = ({
     return await loadMoreMessages(conversation.conversation_id, offset);
   }, [conversation?.conversation_id, loadMoreMessages]);
 
-  // Handle scroll state changes from MessageList
-  const handleScrollStateChange = useCallback((shouldShowButton: boolean, scrollToBottom: () => void) => {
-    setShouldShowScrollButton(shouldShowButton);
-    setScrollToBottomFn(() => scrollToBottom);
-  }, []);
+
 
   // Show loading state during auth check
   if (!isAuthenticated) {
@@ -443,28 +428,12 @@ export const Chat: React.FC<ChatProps> = ({
             onLoadMore={handleLoadMore}
             conversationId={conversation?.conversation_id}
             hasMoreMessages={hasMoreMessages}
-            onScrollStateChange={handleScrollStateChange}
+
             onEdit={editMessage}
             messageToolExecutions={messageToolExecutions}
           />
         </ConversationImagesProvider>
-        
-        {/* Scroll to bottom button - Centered in chat area */}
-        <AnimatePresence>
-          {shouldShowScrollButton && messages.length > 0 && (
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                onClick={() => scrollToBottomFn?.()}
-                className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800 transition-all duration-200 hover:scale-105"
-              >
-                <ArrowDown className="w-5 h-5" />
-              </motion.button>
-            </div>
-          )}
-        </AnimatePresence>
+
       </div>
 
       {/* Chat Actions (conditionally rendered) */}

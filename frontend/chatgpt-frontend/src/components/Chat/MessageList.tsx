@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import ScrollToBottom from 'react-scroll-to-bottom';
 import { ChatMessage } from './ChatMessage';
+import { ScrollToBottomButton } from './ScrollToBottomButton';
 import { Message, ToolExecution } from '../../types/chat';
-
 
 import { 
   MessageSquare, 
@@ -10,7 +11,6 @@ import {
   Calculator, 
   Code,
   Loader2,
-  ArrowDown,
   ArrowUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,7 +24,6 @@ interface MessageListProps {
   onLoadMore?: (offset: number) => Promise<number>;
   conversationId?: string;
   hasMoreMessages?: boolean;
-  onScrollStateChange?: (shouldAutoScroll: boolean, scrollToBottom: () => void) => void;
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
   messageToolExecutions?: Map<string, ToolExecution[]>;
 }
@@ -36,122 +35,24 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   onLoadMore,
   conversationId,
   hasMoreMessages = false,
-  onScrollStateChange,
   onEdit,
   messageToolExecutions = new Map()
 }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const prevConversationIdRef = useRef(conversationId);
-  
-  // Simple scroll handler - only track if user is at bottom
-  const handleScroll = useCallback(() => {
-    if (!messagesContainerRef.current) return;
-    
-    const container = messagesContainerRef.current;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    
-    // console.log('[DEBUG] Scroll values:', { 
-    //   scrollTop, 
-    //   scrollHeight, 
-    //   clientHeight, 
-    //   diff: scrollHeight - scrollTop - clientHeight,
-    //   isAtBottom 
-    // });
-    
-    // Track if user is at bottom (for scroll button visibility)
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
-    // console.log('[DEBUG] Setting isAtBottom:', isNearBottom);
-    setIsAtBottom(isNearBottom);
-  }, [isAtBottom]);
 
-  // Ref callback to attach scroll listener when element is available
-  const setMessagesContainerRef = useCallback((element: HTMLDivElement | null) => {
-    // Remove listener from old element
-    if (messagesContainerRef.current) {
-      // console.log('[DEBUG] Removing old scroll listener');
-      messagesContainerRef.current.removeEventListener('scroll', handleScroll);
-    }
-    
-    // Set new ref
-    messagesContainerRef.current = element;
-    
-    // Attach listener to new element
-    if (element) {
-      // console.log('[DEBUG] Attaching scroll listener to new element');
-      element.addEventListener('scroll', handleScroll, { passive: true });
-      // console.log('[DEBUG] Scroll listener attached successfully');
-    }
-  }, [handleScroll]);
-
-  // Handle Load More button click
+  // Simple Load More handler
   const handleLoadMoreClick = useCallback(async () => {
     if (!onLoadMore || isLoadingMore || !hasMoreMessages) return;
     
-    // Store current scroll position and height for restoration
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    
-    const oldScrollHeight = container.scrollHeight;
-    const oldScrollTop = container.scrollTop;
-    
     setIsLoadingMore(true);
-    
     try {
       await onLoadMore(messages.length);
-      
-      // Restore scroll position after new messages are loaded
-      setTimeout(() => {
-        if (container) {
-          const newScrollHeight = container.scrollHeight;
-          const heightDifference = newScrollHeight - oldScrollHeight;
-          container.scrollTop = oldScrollTop + heightDifference;
-        }
-      }, 50);
     } catch (error) {
       console.error('Failed to load more messages:', error);
     } finally {
       setIsLoadingMore(false);
     }
   }, [onLoadMore, isLoadingMore, hasMoreMessages, messages.length]);
-
-  // ONLY auto-scroll on conversation change or initial load
-  useEffect(() => {
-    const conversationChanged = prevConversationIdRef.current !== conversationId;
-    
-    if (conversationChanged && messages.length > 0) {
-      // Scroll to bottom when conversation changes
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-        setIsAtBottom(true);
-      }, 100);
-      
-      prevConversationIdRef.current = conversationId;
-    }
-  }, [conversationId, messages.length]);
-
-  // Check scroll position when content changes (during streaming)
-  useEffect(() => {
-    if (isLoading && messagesContainerRef.current) {
-      // console.log('[DEBUG] Content changed during streaming, checking scroll position');
-      handleScroll(); // Manually trigger scroll position check
-    }
-  }, [messages, isLoading, handleScroll]);
-
-  // Expose scroll state to parent
-  useEffect(() => {
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      setIsAtBottom(true);
-    };
-    
-    // Show scroll button when user is not at bottom
-    const shouldShowButton = !isAtBottom;
-    // console.log('[DEBUG] Scroll button visibility:', { isAtBottom, isLoading, shouldShowButton });
-    onScrollStateChange?.(shouldShowButton, scrollToBottom);
-  }, [isAtBottom, onScrollStateChange]);
 
   // Welcome suggestions data
   const suggestions = [
@@ -206,87 +107,69 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className={`flex flex-col h-full overflow-hidden ${className}`}>
-      {/* Messages Container */}
-      <div
-        ref={setMessagesContainerRef}
-        className="flex-1 overflow-y-auto h-full mobile-scroll-container"
+    <div className={`flex flex-col h-full overflow-hidden ${className} relative`}>
+      {/* ScrollToBottom handles all scroll behavior automatically */}
+      <ScrollToBottom 
+        className="flex-1 h-full mobile-scroll-container"
+        followButtonClassName="hidden"
       >
         <div className="flex flex-col space-y-4 p-4">
           {/* Load More Button - Always at top when more messages available */}
-          <AnimatePresence>
-            {hasMoreMessages && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex justify-center py-2"
+          {hasMoreMessages && (
+            <div className="flex justify-center py-2">
+              <button
+                onClick={handleLoadMoreClick}
+                disabled={isLoadingMore}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-full shadow-lg transition-colors disabled:cursor-not-allowed"
               >
-                <motion.button
-                  onClick={handleLoadMoreClick}
-                  disabled={isLoadingMore}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="text-sm font-medium">Loading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowUp className="w-4 h-4" />
-                      <span className="text-sm font-medium">Load More Messages</span>
-                    </>
-                  )}
-                </motion.button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm font-medium">Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowUp className="w-4 h-4" />
+                    <span className="text-sm font-medium">Load More Messages</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
-          <AnimatePresence initial={false}>
-            {messages.map((message, index) => {
-              // Determine if this message is currently being streamed
-              const isLastMessage = index === messages.length - 1;
-              const isStreamingThisMessage = isLoading && isLastMessage && message.role === 'assistant';
-              
-              // Create a more stable key - use message ID if available, fallback to index
-              const messageKey = message.id || `${conversationId}-${message.role}-${index}`;
-              
-              // Pass tool execution data to ChatMessage
-              const messageTools = messageToolExecutions.get(message.id) || [];
-              // Show thinking state when AI is working on the last assistant message
-              const shouldShowThinking = isLoading && isLastMessage && message.role === 'assistant';
-              
-              return (
-                <motion.div
-                  key={messageKey}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                >
-                  <ChatMessage 
-                    message={message} 
-                    isStreaming={isStreamingThisMessage}
-                    onEdit={onEdit}
-                    messageTools={messageTools}
-                    isThinking={shouldShowThinking}
-                  />
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-
-
-
-          {/* Auto-scroll anchor */}
-          <div ref={messagesEndRef} />
+          {/* Messages - No animations for better performance */}
+          {messages.map((message, index) => {
+            // Determine if this message is currently being streamed
+            const isLastMessage = index === messages.length - 1;
+            const isStreamingThisMessage = isLoading && isLastMessage && message.role === 'assistant';
+            
+            // Create a more stable key
+            const messageKey = message.id || `${conversationId}-${message.role}-${index}`;
+            
+            // Pass tool execution data to ChatMessage
+            const messageTools = messageToolExecutions.get(message.id) || [];
+            const shouldShowThinking = isLoading && isLastMessage && message.role === 'assistant';
+            
+            return (
+              <div key={messageKey} className="mb-4">
+                <ChatMessage 
+                  message={message} 
+                  isStreaming={isStreamingThisMessage}
+                  onEdit={onEdit}
+                  messageTools={messageTools}
+                  isThinking={shouldShowThinking}
+                />
+              </div>
+            );
+          })}
         </div>
-      </div>
-
-
+        
+        {/* Your Original Custom Button */}
+        <ScrollToBottomButton 
+          messageCount={messages.length}
+          className="absolute bottom-4 left-0 right-0 flex justify-center z-10"
+        />
+      </ScrollToBottom>
     </div>
   );
 };
