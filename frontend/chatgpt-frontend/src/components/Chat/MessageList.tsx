@@ -182,11 +182,12 @@ const MessageListComponent: React.FC<MessageListProps> = ({
           })}
           </div>
           
-          {/* Your Original Custom Button */}
-          <ScrollToBottomButton 
-            messageCount={messages.length}
-            className="absolute bottom-4 left-0 right-0 flex justify-center z-10"
-          />
+          {/* Parent decides positioning - clean separation of concerns */}
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+            <ScrollToBottomButton 
+              messageCount={messages.length}
+            />
+          </div>
         </ScrollProvider>
       </ScrollToBottom>
     </div>
