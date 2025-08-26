@@ -169,9 +169,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         )}
 
-        {/* File Display - Simple, always rendered */}
+        {/* File Display - Only show margin when files exist */}
         {enableFileUpload && (
-          <div className="mb-3">
+          <div className={hasFiles ? "mb-3" : ""}>
             <UniversalFileUpload
               ref={fileUploadRef}
               disabled={disabled}

@@ -243,7 +243,7 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
   };
 
   return (
-    <div className="flex items-center gap-3 overflow-x-auto py-3 px-2">
+    <div className={`flex items-center gap-3 overflow-x-auto ${files.length > 0 ? 'py-3 px-2' : ''}`}>
       {/* File thumbnails */}
       {files.map((file) => (
         <div
