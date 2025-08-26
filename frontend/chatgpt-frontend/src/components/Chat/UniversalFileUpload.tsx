@@ -210,25 +210,28 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3 overflow-x-auto py-3 px-2">
       {/* File thumbnails */}
       {files.map((file) => (
         <div
           key={file.id}
-          className={`relative w-8 h-8 rounded-lg overflow-hidden border-2 ${getStatusColor(file)}`}
+          className="group relative shrink-0"
           onClick={handleFileContainerClick}
         >
-          {renderFileThumbnail(file)}
-          
-          {/* Status overlay */}
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
-            {getStatusIcon(file)}
-          </div>
+          {/* Thumbnail container with clipped content */}
+          <div className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 ${getStatusColor(file)}`}>
+            {renderFileThumbnail(file)}
+            
+            {/* Status overlay */}
+            <div className="absolute inset-0 flex items-center justify-center bg-black/25 md:bg-black/40">
+              {getStatusIcon(file)}
+            </div>
 
-          {/* Progress indicator */}
-          {file.status === 'uploading' && (
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-500"></div>
-          )}
+            {/* Progress indicator */}
+            {file.status === 'uploading' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-500"></div>
+            )}
+          </div>
 
           {/* Remove button */}
           <button
@@ -239,10 +242,11 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
               console.log('❌ [UniversalFileUpload] Remove button clicked for file:', file.id, file.name);
               removeFile(file.id);
             }}
-            className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-            title="Remove file"
+            className="absolute -top-2 -right-2 w-6 h-6 min-w-6 min-h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-red-300 active:scale-95 flex-shrink-0"
+            title={"Remove file: " + file.name}
+            aria-label={"Remove file: " + file.name}
           >
-            <X className="w-2 h-2" />
+            <X className="w-3 h-3" />
           </button>
         </div>
       ))}
