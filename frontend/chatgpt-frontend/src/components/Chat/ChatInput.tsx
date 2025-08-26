@@ -4,7 +4,8 @@ import React, { KeyboardEvent, FormEvent, useRef, useEffect, ChangeEvent, useSta
 import { 
   Send, 
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  FileIcon
 } from 'lucide-react';
 // Remove framer motion to improve performance
 // import { motion, AnimatePresence } from 'framer-motion';
@@ -177,7 +178,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               : 'border-gray-300 dark:border-gray-600 focus-within:border-blue-500 dark:focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/20'
         }`}>
           
-          {/* Universal File Upload (Compact) - Show before textarea */}
+          {/* File Upload Button */}
+          {enableFileUpload && (
+            <div className="flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => fileUploadRef.current?.openFileDialog()}
+                disabled={disabled}
+                className={`flex items-center justify-center w-8 h-8 rounded-lg border-2 border-dashed transition-colors ${
+                  disabled
+                    ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
+                }`}
+                title="Upload files"
+              >
+                <FileIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* File Display - Always render for ref, only shows thumbnails when files exist */}
           {enableFileUpload && (
             <div className="flex-shrink-0">
               <UniversalFileUpload

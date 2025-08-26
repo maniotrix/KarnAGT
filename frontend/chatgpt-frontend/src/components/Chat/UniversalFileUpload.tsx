@@ -31,6 +31,8 @@ export interface UniversalFileUploadRef {
   getFileCount: () => number;
   clearFiles: () => void;
   getFilesByCategory: () => { images: UploadFile[]; documents: UploadFile[]; unknown: UploadFile[] };
+  addFiles: (files: File[]) => void;
+  openFileDialog: () => void;
 }
 
 export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalFileUploadProps>(({
@@ -77,7 +79,9 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
     getFileCount: () => files.filter(f => f.status === 'success').length,
     clearFiles: () => clearFiles(),
     getFilesByCategory: () => getFilesByCategory(),
-  }), [files, clearFiles, getFilesByCategory]);
+    addFiles: (files: File[]) => addFiles(files),
+    openFileDialog: () => fileInputRef.current?.click(),
+  }), [files, clearFiles, getFilesByCategory, addFiles]);
 
   // Notify parent when files change
   useEffect(() => {
@@ -138,13 +142,6 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
       console.log('📂 [UniversalFileUpload] Opening file dialog');
       fileInputRef.current?.click();
     }
-  };
-
-  const handleFileDialogClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('🖱️ [UniversalFileUpload] File dialog button clicked');
-    openFileDialog();
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -214,21 +211,6 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
 
   return (
     <div className="flex items-center gap-2">
-      {/* Upload button */}
-      <button
-        type="button"
-        onClick={handleFileDialogClick}
-        disabled={disabled}
-        className={`flex items-center justify-center w-8 h-8 rounded-lg border-2 border-dashed transition-colors ${
-          disabled
-            ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-            : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
-        }`}
-        title="Upload files"
-      >
-        <FileIcon className="w-4 h-4" />
-      </button>
-
       {/* File thumbnails */}
       {files.map((file) => (
         <div
