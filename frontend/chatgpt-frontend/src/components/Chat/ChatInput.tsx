@@ -169,6 +169,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         )}
 
+        {/* File Display - Simple, always rendered */}
+        {enableFileUpload && (
+          <div className="mb-3">
+            <UniversalFileUpload
+              ref={fileUploadRef}
+              disabled={disabled}
+              maxFiles={5}
+              acceptedTypes="all"
+              onUploadComplete={handleFileUploadComplete}
+              onFilesSelected={handleFilesChanged}
+              onError={handleFileUploadError}
+            />
+          </div>
+        )}
+
         {/* Main Input Container */}
         <div className={`flex items-end gap-3 p-4 bg-white dark:bg-gray-800 border rounded-2xl transition-all duration-200 ${
           disabled 
@@ -194,21 +209,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               >
                 <FileIcon className="w-4 h-4" />
               </button>
-            </div>
-          )}
-
-          {/* File Display - Always render for ref, only shows thumbnails when files exist */}
-          {enableFileUpload && (
-            <div className="flex-shrink-0">
-              <UniversalFileUpload
-                ref={fileUploadRef}
-                disabled={disabled}
-                maxFiles={5}
-                acceptedTypes="all"
-                onUploadComplete={handleFileUploadComplete}
-                onFilesSelected={handleFilesChanged}
-                onError={handleFileUploadError}
-              />
             </div>
           )}
 
