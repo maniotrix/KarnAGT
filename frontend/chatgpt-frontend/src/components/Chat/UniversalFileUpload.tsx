@@ -164,16 +164,8 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
   };
 
   const getStatusColor = (file: UploadFile) => {
-    switch (file.status) {
-      case 'success':
-        return 'border-green-200 bg-green-50';
-      case 'error':
-        return 'border-red-200 bg-red-50';
-      case 'uploading':
-        return 'border-blue-200 bg-blue-50';
-      default:
-        return 'border-gray-200 bg-gray-50';
-    }
+    // Use neutral card styling; rely on overlays/badges for state feedback
+    return 'border-gray-300 bg-white';
   };
 
   const getFileIcon = (file: UploadFile) => {
