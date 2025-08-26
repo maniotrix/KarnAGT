@@ -4,7 +4,6 @@ import React, { KeyboardEvent, FormEvent, useRef, useEffect, ChangeEvent, useSta
 import { 
   Send, 
   Loader2,
-  CornerDownLeft,
   AlertTriangle
 } from 'lucide-react';
 // Remove framer motion to improve performance
@@ -12,7 +11,7 @@ import {
 import { useHotkeys } from 'react-hotkeys-hook';
 
 // Clean Architecture Integration
-import { useUiStore } from '../../app/stores/uiStore';
+import { useUiStore, useToast } from '../../app/stores/uiStore';
 
 // Universal File Upload Integration
 import { UniversalFileUpload, type UniversalFileUploadRef } from './UniversalFileUpload';
@@ -41,6 +40,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   // Clean Architecture Integration
   const { theme } = useUiStore();
+  const toast = useToast();
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileUploadRef = useRef<UniversalFileUploadRef>(null);
@@ -72,6 +72,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     
     console.log('🚀 [ChatInput] Form submit triggered explicitly');
     
+    // Show toast for character limit exceeded
+    if (isOverLimit) {
+      toast.warning('Message too long', `Your message is ${characterCount} characters. Please keep it under 4000 characters.`);
+      return;
+    }
+    
     if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
       onSubmit(e);
       // Clear uploaded files after sending
@@ -94,6 +100,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     e.preventDefault();
     e.stopPropagation();
     console.log('⌨️ [ChatInput] Keyboard shortcut Cmd+Enter triggered');
+    
+    if (isOverLimit) {
+      toast.warning('Message too long', `Your message is ${characterCount} characters. Please keep it under 4000 characters.`);
+      return;
+    }
+    
     if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
       handleFormSubmit(e as any);
     }
@@ -104,6 +116,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       e.preventDefault();
       e.stopPropagation();
       console.log('⌨️ [ChatInput] Enter key pressed (without Shift)');
+      
+      if (isOverLimit) {
+        toast.warning('Message too long', `Your message is ${characterCount} characters. Please keep it under 4000 characters.`);
+        return;
+      }
+      
       if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
         handleFormSubmit(e as any);
       }
@@ -137,13 +155,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const characterCount = input?.length || 0;
   const isOverLimit = characterCount > 4000;
-  const isNearLimit = characterCount > 3500;
   const hasFiles = fileCount > 0;
-
-  // Get file breakdown for display
-  const filesByCategory = fileUploadRef.current?.getFilesByCategory();
-  const imageCount = filesByCategory?.images.length || 0;
-  const documentCount = filesByCategory?.documents.length || 0;
 
   return (
     <div className="w-full">
@@ -203,13 +215,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {/* Send Button */}
           <button
             type="submit"
-            disabled={disabled || isLoading || (!input.trim() && !hasFiles) || isOverLimit}
+            disabled={disabled || isLoading || (!input.trim() && !hasFiles)}
             onClick={(e) => {
               console.log('🖱️ [ChatInput] Send button clicked explicitly');
               // Let the form submission handle the rest
             }}
             className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 ${
-              disabled || isLoading || (!input.trim() && !hasFiles) || isOverLimit
+              disabled || isLoading || (!input.trim() && !hasFiles)
                 ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transform hover:scale-105'
             }`}
@@ -220,11 +232,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   ? "Sending..." 
                   : (!input.trim() && !hasFiles)
                     ? "Type a message or upload files to send"
-                    : isOverLimit
-                      ? "Message is too long"
-                      : hasFiles
-                        ? "Send message with files"
-                        : "Send message (Enter)"
+                    : hasFiles
+                      ? "Send message with files"
+                      : "Send message (Enter)"
             }
           >
             {isLoading ? (
@@ -233,49 +243,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <Send className="w-5 h-5" />
             )}
           </button>
-        </div>
-
-        {/* Input Hints and Status */}
-        <div className="flex items-center justify-between mt-2 px-2">
-          {/* Left side: Hints and errors */}
-          <div className="flex items-center gap-4 text-sm">
-            {disabled ? (
-              <span className="text-gray-500 dark:text-gray-400">
-                Input disabled
-              </span>
-            ) : hasFiles ? (
-              <span className="text-blue-600 dark:text-blue-400">
-                {fileCount} file{fileCount !== 1 ? 's' : ''} ready
-                {imageCount > 0 && documentCount > 0 
-                  ? ` (${imageCount} images, ${documentCount} documents)`
-                  : imageCount > 0 
-                    ? ` (${imageCount} image${imageCount !== 1 ? 's' : ''})`
-                    : documentCount > 0
-                      ? ` (${documentCount} document${documentCount !== 1 ? 's' : ''})`
-                      : ''
-                }
-              </span>
-            ) : (
-              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                <CornerDownLeft className="w-4 h-4" />
-                <span>Enter to send, Shift+Enter for new line</span>
-                {enableFileUpload && (
-                  <span className="ml-2 text-gray-400">• Click 📁 to add files</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Right side: Character count */}
-          <div className={`text-sm transition-colors ${
-            isOverLimit 
-              ? 'text-red-600 dark:text-red-400 font-medium'
-              : isNearLimit
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-gray-500 dark:text-gray-400'
-          }`}>
-            {characterCount}/4000
-          </div>
         </div>
       </form>
     </div>
