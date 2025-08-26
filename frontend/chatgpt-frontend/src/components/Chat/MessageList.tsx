@@ -1,8 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import ScrollToBottom from 'react-scroll-to-bottom';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMessage } from './ChatMessage';
-import { ScrollToBottomButton } from './ScrollToBottomButton';
-import { ScrollProvider, useScrollToBottom } from '../../contexts/ScrollContext';
 import { Message, ToolExecution } from '../../types/chat';
 
 import { 
@@ -27,7 +24,7 @@ interface MessageListProps {
   hasMoreMessages?: boolean;
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
   messageToolExecutions?: Map<string, ToolExecution[]>;
-  onScrollFunctionReady?: (scrollToBottom: (options?: {behavior?: 'auto' | 'smooth'}) => void) => void;
+  onScrollFunctionReady?: (scrollToBottom: (behavior?: 'auto' | 'smooth') => void) => void;
 }
 
 const MessageListComponent: React.FC<MessageListProps> = ({
@@ -42,19 +39,55 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   onScrollFunctionReady
 }) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  
+  // Refs for pure native implementation
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomElementRef = useRef<HTMLDivElement>(null);
+  
+  // Pure browser scroll function
+  const scrollToBottom = useCallback((behavior: 'auto' | 'smooth' = 'smooth') => {
+    bottomElementRef.current?.scrollIntoView({ behavior });
+  }, []);
+  
+  // Expose scroll function to parent
+  useEffect(() => {
+    if (onScrollFunctionReady) {
+      onScrollFunctionReady(scrollToBottom);
+    }
+  }, [onScrollFunctionReady, scrollToBottom]);
+  
+  // Pure browser visibility detection - no manual config needed
+  useEffect(() => {
+    if (!bottomElementRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // Show button when bottom is NOT visible
+        setShowScrollButton(!entry.isIntersecting && messages.length > 0);
+      },
+      { threshold: 1.0 } // Exactly at bottom - pure browser decision
+    );
+    
+    observer.observe(bottomElementRef.current);
+    return () => observer.disconnect();
+  }, [messages.length]);
 
-  // Component to expose scroll function to parent via callback
-  const ScrollFunctionExposer: React.FC = () => {
-    const { scrollToBottom } = useScrollToBottom();
-    
-    useEffect(() => {
-      if (onScrollFunctionReady) {
-        onScrollFunctionReady(scrollToBottom);
-      }
-    }, [scrollToBottom]);
-    
-    return null; // This component doesn't render anything
-  };
+  // Manual triggers only - no auto-scroll on content change
+  
+  // Conversation change auto-scroll
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom('auto'); // Instant scroll on conversation switch
+    }
+  }, [conversationId, scrollToBottom]);
+
+  // Initial scroll on mount
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom('auto'); // Instant scroll on first load
+    }
+  }, [messages.length > 0, scrollToBottom]);
 
   // Simple Load More handler
   const handleLoadMoreClick = useCallback(async () => {
@@ -124,14 +157,13 @@ const MessageListComponent: React.FC<MessageListProps> = ({
 
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className} relative`}>
-      {/* ScrollToBottom handles all scroll behavior automatically */}
-      <ScrollToBottom 
-        className="flex-1 h-full mobile-scroll-container"
-        followButtonClassName="hidden"
+      {/* Pure native scroll container - no custom event handlers */}
+      <div 
+        ref={containerRef}
+        className="flex-1 h-full overflow-y-auto mobile-scroll-container"
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
       >
-        <ScrollProvider>
-          <ScrollFunctionExposer />
-          <div className="flex flex-col space-y-4 p-4">
+        <div className="flex flex-col space-y-4 p-4">
           {/* Load More Button - Always at top when more messages available */}
           {hasMoreMessages && (
             <div className="flex justify-center py-2">
@@ -180,16 +212,23 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               </div>
             );
           })}
-          </div>
           
-          {/* Parent decides positioning - clean separation of concerns */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
-            <ScrollToBottomButton 
-              messageCount={messages.length}
-            />
-          </div>
-        </ScrollProvider>
-      </ScrollToBottom>
+          {/* Pure native bottom marker - IntersectionObserver target */}
+          <div ref={bottomElementRef} className="h-1" />
+        </div>
+      </div>
+      
+      {/* Pure native button visibility - no complex props needed */}
+      {showScrollButton && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+          <button
+            onClick={() => scrollToBottom('smooth')}
+            className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800"
+          >
+            <ArrowUp className="w-5 h-5 rotate-180" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
