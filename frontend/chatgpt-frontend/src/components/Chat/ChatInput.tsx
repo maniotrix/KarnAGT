@@ -79,6 +79,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     
     if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
+      // 🎯 MOBILE UX: Dismiss keyboard immediately on send
+      if (textareaRef.current) {
+        textareaRef.current.blur();
+      }
+      
       // Pass final validated input to parent
       onSubmit(input.trim(), e);
       
@@ -110,6 +115,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     
     if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
+      // 🎯 MOBILE UX: Dismiss keyboard immediately on send
+      if (textareaRef.current) {
+        textareaRef.current.blur();
+      }
+      
       // Pass final validated input to parent
       onSubmit(input.trim(), e as any);
       
@@ -133,6 +143,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
       
       if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
+        // 🎯 MOBILE UX: Dismiss keyboard immediately on send
+        if (textareaRef.current) {
+          textareaRef.current.blur();
+        }
+        
         // Pass final validated input to parent
         onSubmit(input.trim(), e as any);
         

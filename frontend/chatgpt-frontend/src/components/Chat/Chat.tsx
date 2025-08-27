@@ -117,7 +117,7 @@ export const Chat: React.FC<ChatProps> = ({
     onStreamStart: () => {
       setShowActions(false); // Hide actions during streaming
       // 🎯 SCROLL HERE: After AI message added, before API call starts
-      scrollToBottomFn?.('smooth');
+      // scrollToBottomFn?.('smooth');
     },
     onStreamEnd: (data: any) => {
       console.log('Stream completed:', data);

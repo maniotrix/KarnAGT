@@ -92,15 +92,28 @@ export const ImgComponent: React.FC<{
   alt, 
   theme, 
   ...props 
-}) => (
-  <img 
-    {...props}
-    src={src}
-    alt={alt}
-    className={`max-w-full h-auto rounded-lg my-3 ${
-      theme === 'user' 
-        ? 'border border-blue-400/30' 
-        : 'border border-gray-200 dark:border-gray-700 shadow-sm'
-    }`}
-  />
-);
+}) => {
+  const normalizedSrc = (src || '').trim();
+
+  // Do not render <img> at all if src is empty/invalid to avoid browser fetching the page
+  if (!normalizedSrc) {
+    return null;
+  }
+
+  return (
+    <img 
+      {...props}
+      src={normalizedSrc}
+      alt={alt || ''}
+      className={`max-w-full h-auto rounded-lg my-3 ${
+        theme === 'user' 
+          ? 'border border-blue-400/30' 
+          : 'border border-gray-200 dark:border-gray-700 shadow-sm'
+      }`}
+      onError={(e) => {
+        // Hide broken images gracefully without layout thrash
+        (e.currentTarget as HTMLImageElement).style.display = 'none';
+      }}
+    />
+  );
+};
