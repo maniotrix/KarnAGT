@@ -52,15 +52,15 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
   disabled = false,
   acceptedTypes = 'all',
 }, ref) => {
-  // console.log('📎 [UniversalFileUpload] KEYSTROKE - Component render started:', {
-  //   timestamp: new Date().toISOString(),
-  //   maxFiles,
-  //   disabled,
-  //   acceptedTypes,
-  //   hasOnFilesSelected: !!onFilesSelected,
-  //   hasOnUploadComplete: !!onUploadComplete,
-  //   hasOnError: !!onError,
-  // });
+  console.log('📎 [UniversalFileUpload] KEYSTROKE - Component render started:', {
+    timestamp: new Date().toISOString(),
+    maxFiles,
+    disabled,
+    acceptedTypes,
+    hasOnFilesSelected: !!onFilesSelected,
+    hasOnUploadComplete: !!onUploadComplete,
+    hasOnError: !!onError,
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 

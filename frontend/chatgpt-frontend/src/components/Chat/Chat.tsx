@@ -62,13 +62,13 @@ export const Chat: React.FC<ChatProps> = ({
   pendingAttachments,
   onPendingMessageSubmitted
 }) => {
-  // console.log('🎨 [Chat] KEYSTROKE - Component render started:', {
-  //   timestamp: new Date().toISOString(),
-  //   conversationId,
-  //   isCreatingConversation,
-  //   hasPendingMessage: !!pendingMessage,
-  //   hasPendingAttachments: !!pendingAttachments,
-  // });
+  console.log('🎨 [Chat] KEYSTROKE - Component render started:', {
+    timestamp: new Date().toISOString(),
+    conversationId,
+    isCreatingConversation,
+    hasPendingMessage: !!pendingMessage,
+    hasPendingAttachments: !!pendingAttachments,
+  });
 
   // Clean Architecture Integration  
   const userQuery = useCurrentUser();
@@ -131,8 +131,6 @@ export const Chat: React.FC<ChatProps> = ({
   // ✅ Simple Chat Integration
   const {
     messages,
-    input,
-    setInput,
     isLoading,
     isLoadingConversation,
     error,
@@ -160,9 +158,6 @@ export const Chat: React.FC<ChatProps> = ({
       console.log('🚀 Auto-submitting pending message:', pendingMessage);
       console.log('🚀 Auto-submitting with pending attachments:', pendingAttachments);
       
-      // Set the input to the pending message and submit it
-      setInput(pendingMessage || '');
-      
       // Submit the message after a brief delay to ensure conversation is fully loaded
       const timer = setTimeout(async () => {
         try {
@@ -174,6 +169,7 @@ export const Chat: React.FC<ChatProps> = ({
           // Attach the pending attachments to the synthetic event
           if (pendingAttachments) {
             Object.assign(syntheticEvent, {
+              input: pendingMessage,
               stagingFiles: pendingAttachments.stagingFiles,
               imageData: pendingAttachments.imageData,
               documentData: pendingAttachments.documentData
@@ -195,7 +191,7 @@ export const Chat: React.FC<ChatProps> = ({
       
       return () => clearTimeout(timer);
     }
-  }, [hasConversation, pendingMessage, pendingAttachments, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted]);
+  }, [hasConversation, pendingMessage, pendingAttachments, isLoading, isLoadingConversation, handleSubmit, onPendingMessageSubmitted]);
 
   // Handle scroll function ready from MessageList
   const handleScrollFunctionReady = useCallback((scrollFn: (behavior?: 'auto' | 'smooth') => void) => {
@@ -223,7 +219,6 @@ export const Chat: React.FC<ChatProps> = ({
   const handleMessageSubmit = async (inputMessage: string, e: React.FormEvent) => {
     // 🚀 PERFORMANCE FIX: Sync useChat input state only on submit (not every keystroke)
     console.log('🔄 DEBUG: Syncing useChat input state before submit:', inputMessage);
-    setInput(inputMessage);
     console.log('🔍 DEBUG: handleMessageSubmit called');
     console.log('🔍 DEBUG: Current uploadedFiles state:', uploadedFiles);
     console.log('🔍 DEBUG: Input content:', inputMessage);
@@ -270,27 +265,16 @@ export const Chat: React.FC<ChatProps> = ({
     console.log('🔍 DEBUG: Total staging files count:', Object.values(stagingFiles).flat().length);
 
     // If we don't have a conversation, ask parent to create one
-    if (!hasConversation && onCreateConversationForMessage && (input.trim() || hasStagingFiles(stagingFiles))) {
+    if (!hasConversation && onCreateConversationForMessage && (inputMessage.trim() || hasStagingFiles(stagingFiles))) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
       // Generate appropriate title for attachment-only messages
-      const conversationTitle = input.trim() || (() => {
-        const imageCount = imageData.length;
-        const docCount = documentData.length;
-        
-        if (imageCount > 0 && docCount > 0) {
-          return `${imageCount} image${imageCount > 1 ? 's' : ''} and ${docCount} document${docCount > 1 ? 's' : ''}`;
-        } else if (imageCount > 0) {
-          return `${imageCount} image${imageCount > 1 ? 's' : ''}`;
-        } else if (docCount > 0) {
-          return `${docCount} document${docCount > 1 ? 's' : ''}`;
-        } else {
-          return "Files";
-        }
-      })();
-      
+      // log total images and documents
+      console.log('[ON_CREATE_CONVERSATION_FOR_MESSAGE]🔍 DEBUG: Total images:', imageData.length);
+      console.log('[ON_CREATE_CONVERSATION_FOR_MESSAGE]🔍 DEBUG: Total documents:', documentData.length);
+      const input = inputMessage.trim() || "";
       await onCreateConversationForMessage(
-        conversationTitle,
+        input,
         {
           stagingFiles,
           imageData,
@@ -307,12 +291,14 @@ export const Chat: React.FC<ChatProps> = ({
       const submitEvent = {
         ...e,
         preventDefault: e.preventDefault.bind(e),
+        input: inputMessage,
         stagingFiles, // For backend
         imageData, // For frontend display (images)
         documentData, // For frontend display (documents) 
       };
       
       console.log('🔍 DEBUG: submitEvent created:', submitEvent);
+      console.log('🔍 DEBUG: submitEvent.input:', submitEvent.input);
       console.log('🔍 DEBUG: submitEvent.stagingFiles:', submitEvent.stagingFiles);
       console.log('🔍 DEBUG: submitEvent.imageData:', submitEvent.imageData);
       console.log('🔍 DEBUG: submitEvent.documentData:', submitEvent.documentData);
