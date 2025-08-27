@@ -1,4 +1,4 @@
-import React, { KeyboardEvent, FormEvent, useRef, useEffect, ChangeEvent, useState } from 'react';
+import React, { KeyboardEvent, FormEvent, useRef, useEffect, ChangeEvent, useState, useCallback } from 'react';
 
 // Modern UI Libraries
 import { 
@@ -19,9 +19,7 @@ import { UniversalFileUpload, type UniversalFileUploadRef } from './UniversalFil
 import type { UploadFile } from '../../types/upload';
 
 interface ChatInputProps {
-  input: string;
-  setInput: (value: string) => void;
-  onSubmit: (e: FormEvent) => void;
+  onSubmit: (message: string, e: FormEvent) => void;
   isLoading: boolean;
   disabled?: boolean;
   placeholder?: string;
@@ -30,8 +28,6 @@ interface ChatInputProps {
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
-  input,
-  setInput,
   onSubmit,
   isLoading,
   disabled = false,
@@ -42,6 +38,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Clean Architecture Integration
   const { theme } = useUiStore();
   const toast = useToast();
+  
+  // Local input state - no more prop drilling!
+  const [input, setInput] = useState<string>('');
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileUploadRef = useRef<UniversalFileUploadRef>(null);
@@ -80,8 +79,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     
     if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
-      onSubmit(e);
-      // Clear uploaded files after sending
+      // Pass final validated input to parent
+      onSubmit(input.trim(), e);
+      
+      // Clear local state after successful submit
+      setInput('');
       fileUploadRef.current?.clearFiles();
       setFileCount(0);
       setUploadError(null);
@@ -108,7 +110,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     
     if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
-      handleFormSubmit(e as any);
+      // Pass final validated input to parent
+      onSubmit(input.trim(), e as any);
+      
+      // Clear local state after successful submit
+      setInput('');
+      fileUploadRef.current?.clearFiles();
+      setFileCount(0);
+      setUploadError(null);
     }
   }, { enableOnFormTags: ['textarea'] });
 
@@ -124,20 +133,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
       
       if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
-        handleFormSubmit(e as any);
+        // Pass final validated input to parent
+        onSubmit(input.trim(), e as any);
+        
+        // Clear local state after successful submit
+        setInput('');
+        fileUploadRef.current?.clearFiles();
+        setFileCount(0);
+        setUploadError(null);
       }
     }
   };
 
-  const handleFileUploadComplete = (files: UploadFile[]) => {
+  const handleFileUploadComplete = useCallback((files: UploadFile[]) => {
     console.log('📁 [ChatInput] Upload complete callback');
     setUploadError(null);
     if (onFileUpload) {
       onFileUpload(files);
     }
-  };
+  }, [onFileUpload]);
 
-  const handleFilesChanged = (allFiles: UploadFile[]) => {
+  const handleFilesChanged = useCallback((allFiles: UploadFile[]) => {
     console.log('📁 [ChatInput] Files changed, updating count to:', allFiles.filter(f => f.status === 'success').length);
     setFileCount(allFiles.filter(f => f.status === 'success').length);
     
@@ -146,13 +162,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       console.log('📁 [ChatInput] Notifying parent about file changes:', allFiles);
       onFileUpload(allFiles);
     }
-  };
+  }, [onFileUpload]);
 
-  const handleFileUploadError = (error: string) => {
+  const handleFileUploadError = useCallback((error: string) => {
     setUploadError(error);
     // Clear error after 5 seconds
     setTimeout(() => setUploadError(null), 5000);
-  };
+  }, []);
 
   const characterCount = input?.length || 0;
   const isOverLimit = characterCount > 4000;

@@ -62,6 +62,14 @@ export const Chat: React.FC<ChatProps> = ({
   pendingAttachments,
   onPendingMessageSubmitted
 }) => {
+  console.log('🎨 [Chat] KEYSTROKE - Component render started:', {
+    timestamp: new Date().toISOString(),
+    conversationId,
+    isCreatingConversation,
+    hasPendingMessage: !!pendingMessage,
+    hasPendingAttachments: !!pendingAttachments,
+  });
+
   // Clean Architecture Integration  
   const userQuery = useCurrentUser();
   const authStatus = useAuthStatus();
@@ -212,10 +220,13 @@ export const Chat: React.FC<ChatProps> = ({
   }, []);
 
   // Handle message submission with quota check and universal file support
-  const handleMessageSubmit = async (e: React.FormEvent) => {
+  const handleMessageSubmit = async (inputMessage: string, e: React.FormEvent) => {
+    // 🚀 PERFORMANCE FIX: Sync useChat input state only on submit (not every keystroke)
+    console.log('🔄 DEBUG: Syncing useChat input state before submit:', inputMessage);
+    setInput(inputMessage);
     console.log('🔍 DEBUG: handleMessageSubmit called');
     console.log('🔍 DEBUG: Current uploadedFiles state:', uploadedFiles);
-    console.log('🔍 DEBUG: Input content:', input);
+    console.log('🔍 DEBUG: Input content:', inputMessage);
     console.log('🔍 DEBUG: hasConversation:', hasConversation);
     
     if (isQuotaExceeded) {
@@ -512,8 +523,6 @@ export const Chat: React.FC<ChatProps> = ({
       {/* Chat Input & Error Display */}
       <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex-shrink-0">
         <ChatInput
-          input={input}
-          setInput={setInput}
           onSubmit={handleMessageSubmit}
           isLoading={isLoading || isLoadingConversation || (isCreatingConversation ?? false)}
           disabled={isQuotaExceeded || isLoadingConversation || (isCreatingConversation ?? false)}

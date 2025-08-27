@@ -52,6 +52,16 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
   disabled = false,
   acceptedTypes = 'all',
 }, ref) => {
+  console.log('📎 [UniversalFileUpload] KEYSTROKE - Component render started:', {
+    timestamp: new Date().toISOString(),
+    maxFiles,
+    disabled,
+    acceptedTypes,
+    hasOnFilesSelected: !!onFilesSelected,
+    hasOnUploadComplete: !!onUploadComplete,
+    hasOnError: !!onError,
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
