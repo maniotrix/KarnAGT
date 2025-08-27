@@ -62,13 +62,13 @@ export const Chat: React.FC<ChatProps> = ({
   pendingAttachments,
   onPendingMessageSubmitted
 }) => {
-  console.log('🎨 [Chat] KEYSTROKE - Component render started:', {
-    timestamp: new Date().toISOString(),
-    conversationId,
-    isCreatingConversation,
-    hasPendingMessage: !!pendingMessage,
-    hasPendingAttachments: !!pendingAttachments,
-  });
+  // console.log('🎨 [Chat] KEYSTROKE - Component render started:', {
+  //   timestamp: new Date().toISOString(),
+  //   conversationId,
+  //   isCreatingConversation,
+  //   hasPendingMessage: !!pendingMessage,
+  //   hasPendingAttachments: !!pendingAttachments,
+  // });
 
   // Clean Architecture Integration  
   const userQuery = useCurrentUser();

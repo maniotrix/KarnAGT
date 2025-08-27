@@ -44,7 +44,7 @@ export interface UniversalFileUploadRef {
   openFileDialog: () => void;
 }
 
-export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalFileUploadProps>(({
+const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, UniversalFileUploadProps>(({
   onFilesSelected,
   onUploadComplete,
   onError,
@@ -52,15 +52,15 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
   disabled = false,
   acceptedTypes = 'all',
 }, ref) => {
-  console.log('📎 [UniversalFileUpload] KEYSTROKE - Component render started:', {
-    timestamp: new Date().toISOString(),
-    maxFiles,
-    disabled,
-    acceptedTypes,
-    hasOnFilesSelected: !!onFilesSelected,
-    hasOnUploadComplete: !!onUploadComplete,
-    hasOnError: !!onError,
-  });
+  // console.log('📎 [UniversalFileUpload] KEYSTROKE - Component render started:', {
+  //   timestamp: new Date().toISOString(),
+  //   maxFiles,
+  //   disabled,
+  //   acceptedTypes,
+  //   hasOnFilesSelected: !!onFilesSelected,
+  //   hasOnUploadComplete: !!onUploadComplete,
+  //   hasOnError: !!onError,
+  // });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -319,4 +319,9 @@ export const UniversalFileUpload = forwardRef<UniversalFileUploadRef, UniversalF
   );
 });
 
+UniversalFileUploadComponent.displayName = 'UniversalFileUpload';
+
+// 🚀 Export with memo to prevent re-renders when parent (ChatInput) re-renders
+const UniversalFileUpload = React.memo(UniversalFileUploadComponent);
 UniversalFileUpload.displayName = 'UniversalFileUpload'; 
+export { UniversalFileUpload };
