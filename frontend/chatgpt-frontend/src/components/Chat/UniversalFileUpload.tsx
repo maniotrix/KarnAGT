@@ -21,6 +21,7 @@ import {
   FaFileCode,
   FaFileAlt
 } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
 import { useUniversalFileUpload } from '../../hooks/useUniversalFileUpload';
 import type { UploadFile } from '../../types/upload';
 import { ENV } from '../../config/env';
@@ -190,7 +191,7 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
   const getBrandedFileIcon = (fileName: string) => {
     const extension = fileName.split('.').pop()?.toLowerCase() || '';
     
-    const iconMap: Record<string, { Icon: React.ComponentType<{ className?: string }>; color: string }> = {
+    const iconMap: Record<string, { Icon: any; color: string }> = {
       // PDF
       pdf: { Icon: FaFilePdf, color: 'text-red-600' },
       
@@ -225,10 +226,12 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
       return <ImageIcon className="w-4 h-4" />;
     } else if (file.fileCategory === 'document') {
       const { Icon, color } = getBrandedFileIcon(file.name);
-      return <Icon className={`w-4 h-4 ${color}`} />;
+      const FileIcon = Icon;
+      return <FileIcon className={`w-4 h-4 ${color}`} />;
     } else {
       const { Icon, color } = getBrandedFileIcon(file.name);
-      return <Icon className={`w-4 h-4 ${color}`} />;
+      const FileIcon = Icon;
+      return <FileIcon className={`w-4 h-4 ${color}`} />;
     }
   };
 
