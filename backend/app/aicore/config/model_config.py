@@ -123,7 +123,12 @@ class ModelConfig:
     """Comprehensive model configuration"""
     
     # Basic model identification
-    name: str = "gpt-4o-mini-2024-07-18"
+    # gpt40 model - gpt-4o-2024-11-20
+    # gpt5 - gpt-5-2025-08-07
+    # gpt5 mini - gpt-5-mini-2025-08-07
+    # gpt5 nano - gpt-5-nano-2025-08-07, no web search
+    
+    name: str = "gpt-5-mini-2025-08-07"
     display_name: str = "GPT-4o Mini"
     family: ModelFamily = ModelFamily.GPT4
     version: str = "2024-07-18"
