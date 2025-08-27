@@ -1,6 +1,7 @@
 // Domain Entity: Message - Migrated from existing types/chat.ts
 import { MessageResponse, MessageCreate } from '../../types/chat';
 import { hasStagingFiles } from '../../app/services';
+import { generateTempId } from '../../utils/generateTempId';
 
 export interface MessageData {
   readonly id: string;
@@ -67,8 +68,8 @@ export class Message implements MessageData {
     metadata?: Record<string, any>;
     stagingFiles?: Record<string, any>; // New format: {"images": [...], "vectors": [...], "unknown": [...]}
   }): Message {
-    const id = crypto.randomUUID();
-    const messageId = crypto.randomUUID();
+    const id = generateTempId('msg');
+    const messageId = generateTempId('msgid');
     const now = new Date();
     
     // Business rules - updated to allow staging files without content

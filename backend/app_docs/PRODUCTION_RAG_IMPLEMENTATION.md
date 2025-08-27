@@ -243,6 +243,169 @@ docker run -p 6333:6333 qdrant/qdrant  # Qdrant
 python -m app.services.knowledge.production_rag_usage_example
 ```
 
+## 🚨 **Troubleshooting**
+
+### **Common Document Processing Issues**
+
+#### **1. FileNotDecryptedError - PDF Processing Failures**
+
+**Symptoms:**
+```
+Failed to load file /tmp/s3_docs_xxx/file_xxx.pdf with error: 
+RetryError[<Future state=finished raised FileNotDecryptedError>]. Skipping...
+Successfully processed 0 documents from S3
+```
+
+**Root Causes:**
+- Password-protected PDF files
+- Corrupted PDF files during upload/download
+- PDFs with unsupported encryption methods
+- Invalid PDF file format or structure
+
+**Impact:**
+- ✅ File uploaded to S3 successfully
+- ❌ Document processing fails silently
+- ❌ 0 document chunks created
+- ❌ File not available in LLM context
+- ❌ No user notification of failure
+
+**Solutions:**
+
+1. **Immediate Fix - Better Error Handling:**
+```python
+# In production_rag_service.py
+try:
+    documents = await self._load_s3_documents(s3_keys, collection.collection_name)
+except FileNotDecryptedError as e:
+    logger.error(f"PDF decryption failed for {s3_key}: {e}")
+    # Add to failed_files list with specific error
+    failed_files.append({
+        "s3_key": s3_key,
+        "error": "FileNotDecryptedError",
+        "message": "PDF appears to be password-protected or corrupted",
+        "suggestion": "Please upload an unlocked PDF or try a different format"
+    })
+```
+
+2. **User Feedback Enhancement:**
+```python
+# Return detailed error information in ProcessingResult
+return ProcessingResult(
+    total_requested=len(s3_keys),
+    processed_count=len(successful_files),
+    failed_count=len(failed_files),
+    failed_files=failed_files,  # Include detailed error info
+    processing_time=processing_time
+)
+```
+
+3. **OCR Fallback (Advanced):**
+```python
+# Future enhancement - OCR fallback for problematic PDFs
+try:
+    documents = await self._load_s3_documents(s3_keys, collection_name)
+except FileNotDecryptedError:
+    logger.warning(f"PDF decryption failed, attempting OCR fallback...")
+    documents = await self._ocr_fallback_processing(s3_keys)
+```
+
+#### **2. LlamaIndex Worker Optimization Warning**
+
+**Warning Message:**
+```
+UserWarning: Specified num_workers exceed number of CPUs in the system. 
+Setting num_workers down to the maximum CPU count.
+```
+
+**Explanation:**
+- LlamaIndex uses **multiprocessing** (not threading) for document processing
+- Each worker is a separate process with its own memory space
+- More workers than CPU cores causes context switching overhead
+
+**Performance Impact:**
+- ✅ **Non-blocking**: FastAPI remains responsive during processing
+- ✅ **Concurrent Users**: Multiple users can use system simultaneously  
+- ⚠️ **Auto-optimization**: LlamaIndex automatically reduces workers to CPU count
+
+**Configuration:**
+```python
+# Optimal configuration
+rag_config = RAGConfig.for_chat_application(
+    num_workers=None,  # Let LlamaIndex auto-detect CPU count
+    # OR explicitly set to your container CPU limit
+    num_workers=min(4, os.cpu_count())
+)
+```
+
+#### **3. Database Connection Issues in Multiprocessing**
+
+**Problem:**
+```python
+# ❌ This won't work in multiprocessing context
+async def process_documents(db: AsyncSession, ...):
+    # AsyncSession can't be serialized across process boundaries
+```
+
+**Solution:**
+- Each process needs its own database connection
+- Use synchronous sessions for background processing
+- Properly handle connection lifecycle
+
+```python
+# ✅ Correct approach for background processing
+def process_in_background():
+    db = get_sync_db_session()
+    try:
+        # Process documents with own DB connection
+        result = process_documents_sync(db, ...)
+        return result
+    finally:
+        db.close()
+```
+
+### **Performance Monitoring**
+
+#### **Document Processing Metrics**
+```python
+# Track processing performance
+processing_start = time.time()
+result = await rag_service.process_s3_documents(...)
+processing_time = time.time() - processing_start
+
+logger.info(f"Document processing metrics:")
+logger.info(f"  - Files processed: {result.processed_count}/{result.total_requested}")
+logger.info(f"  - Processing time: {processing_time:.2f}s")
+logger.info(f"  - Average per file: {processing_time/result.total_requested:.2f}s")
+```
+
+#### **System Resource Monitoring**
+- **CPU Usage**: Monitor during document processing
+- **Memory Usage**: Each process uses separate memory
+- **Database Connections**: Monitor connection pool usage
+- **Qdrant Performance**: Track vector indexing performance
+
+### **Best Practices for Production**
+
+1. **Error Handling**:
+   - Always catch `FileNotDecryptedError` specifically
+   - Provide actionable user feedback
+   - Log detailed error information for debugging
+
+2. **Resource Management**:
+   - Set appropriate `num_workers` based on container resources
+   - Monitor database connection pool usage
+   - Implement proper cleanup in error scenarios
+
+3. **User Experience**:
+   - Implement streaming feedback for long-running operations
+   - Provide clear error messages with suggested actions
+   - Show processing progress to users
+
+4. **Monitoring**:
+   - Track processing success/failure rates
+   - Monitor processing times and resource usage
+   - Set up alerts for repeated failures
+
 ---
 
 **🎉 You now have a production-ready RAG system that uses your existing configuration infrastructure while providing flexibility for custom setups!** 

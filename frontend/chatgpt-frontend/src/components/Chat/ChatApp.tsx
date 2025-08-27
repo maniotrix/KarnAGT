@@ -24,11 +24,19 @@ import {
   MoreVertical 
 } from 'lucide-react';
 
+// Type for pending attachments to be submitted with auto-created conversation
+interface PendingAttachments {
+  stagingFiles: Record<string, any>;
+  imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }>;
+  documentData: Array<{ fileId: string; filename: string; file: File; fileType: string; fileSize: number; s3Key: string }>;
+}
+
 export const ChatApp: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId || null);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachments | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -115,12 +123,16 @@ export const ChatApp: React.FC = () => {
   }, [showUserDropdown, openMenuConversationId]);
 
   // Handle conversation creation for new messages from homepage
-  const handleCreateConversationForMessage = async (messageContent: string): Promise<ConversationResponse | null> => {
+  const handleCreateConversationForMessage = async (
+    messageContent: string,
+    attachments?: PendingAttachments
+  ): Promise<ConversationResponse | null> => {
     if (isCreatingConversation) return null; // Prevent double creation
     
     setIsCreatingConversation(true);
-    // Store the message for auto-submission after conversation loads
+    // Store the message and attachments for auto-submission after conversation loads
     setPendingMessage(messageContent);
+    setPendingAttachments(attachments || null);
     
     try {
       const newConversation = await createConversationMutation.mutateAsync({
@@ -139,6 +151,7 @@ export const ChatApp: React.FC = () => {
       console.error('Failed to create conversation for message:', error);
       toast.error('Failed to create conversation', 'Please try again.');
       setPendingMessage(null); // Clear pending message on error
+      setPendingAttachments(null); // Clear pending attachments on error
       return null;
     } finally {
       setIsCreatingConversation(false);
@@ -482,7 +495,11 @@ export const ChatApp: React.FC = () => {
             onCreateConversationForMessage={handleCreateConversationForMessage}
             isCreatingConversation={isCreatingConversation}
             pendingMessage={pendingMessage}
-            onPendingMessageSubmitted={() => setPendingMessage(null)}
+            pendingAttachments={pendingAttachments}
+            onPendingMessageSubmitted={() => {
+              setPendingMessage(null);
+              setPendingAttachments(null);
+            }}
           />
         </div>
       </div>

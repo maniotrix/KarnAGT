@@ -296,7 +296,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
         className="px-3 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex justify-end"
       >
         {/* Message Content */}
-        <div className="flex flex-col max-w-[80%] items-end">
+        <div className="flex flex-col max-w-[80%] min-w-0 items-end">
 
 
           {/* Images Display */}
@@ -324,7 +324,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
           )}
 
           {/* Message Bubble */}
-          <div className="px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4 rounded-2xl max-w-none bg-blue-600 text-white ml-8">
+          <div className="px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4 rounded-2xl max-w-full bg-blue-600 text-white ml-8">
             {/* Message Text with Edit/Display Mode */}
             {isEditing ? (
               <div>
@@ -342,7 +342,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="prose prose-sm max-w-none prose-invert text-white">
+              <div className="prose prose-sm max-w-full prose-invert text-white">
                 {/* Show saving indicator if message is being edited */}
                 {isSaving && (
                   <div className="flex items-center gap-2 mb-2 text-xs opacity-75">
@@ -354,7 +354,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 <InteractiveMarkdown 
                   content={message.content}
                   theme="user"
-                  className="prose prose-sm max-w-none prose-invert text-white break-words"
+                  className="prose prose-sm max-w-full prose-invert text-white break-words overflow-hidden"
                 />
               </div>
             )}

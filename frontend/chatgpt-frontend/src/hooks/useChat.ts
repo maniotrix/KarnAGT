@@ -26,7 +26,6 @@ export function useChat(options: ChatOptions = {}) {
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -482,7 +481,6 @@ export function useChat(options: ChatOptions = {}) {
 
     // STEP 2: Add to UI immediately with actual image data
     setMessages(prev => [...prev, userMessage]);
-    setInput('');
     setError(null);
     setIsLoading(true);
 
@@ -759,6 +757,14 @@ export function useChat(options: ChatOptions = {}) {
                       ? { ...assistantMessage! }
                       : msg
                   ));
+                } else if (assistantMessage) {
+                  // Always update the message state, even if there's no finalMessage data
+                  // This ensures cancelled status gets applied to streaming messages
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessage!.id
+                      ? { ...assistantMessage! }
+                      : msg
+                  ));
                 }
                 
                 // CRITICAL FIX: Update user message ID from backend (even for cancelled streams)
@@ -820,7 +826,7 @@ export function useChat(options: ChatOptions = {}) {
         });
       }
     }
-  }, [options, setMessages, setInput, setError, setIsLoading, extractStreamIdFromSSE]);
+  }, [options, setMessages, setError, setIsLoading, extractStreamIdFromSSE]);
 
   // Handle submit
   const handleSubmit = useCallback(async (e?: React.FormEvent | (React.FormEvent & { stagingFiles?: Record<string, any>; imageData?: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> })) => {
@@ -844,12 +850,13 @@ export function useChat(options: ChatOptions = {}) {
     // Extract staging files and image data from custom event if present
     const stagingFiles = (e as any)?.stagingFiles || {};
     const imageData = (e as any)?.imageData || [];
+    const input = (e as any)?.input || '';
     console.log('🔍 DEBUG: Extracted stagingFiles from event:', stagingFiles);
     console.log('🔍 DEBUG: Extracted imageData from event:', imageData);
     console.log('🔍 DEBUG: stagingFiles type:', typeof stagingFiles);
     console.log('🔍 DEBUG: stagingFiles keys:', Object.keys(stagingFiles));
     console.log('🔍 DEBUG: imageData length:', imageData.length);
-    
+    console.log('🔍 DEBUG: input:', input);
     // Validate that we have either content or staging files using utility function
     const hasFiles = hasStagingFiles(stagingFiles);
     
@@ -863,12 +870,10 @@ export function useChat(options: ChatOptions = {}) {
     console.log('🔍 DEBUG: Conversation ID:', conversation.conversation_id);
     console.log('🔍 DEBUG: About to call sendMessage with staging files:', stagingFiles);
     console.log('🔍 DEBUG: About to call sendMessage with image data:', imageData);
-    
-    // Clear input IMMEDIATELY when user submits
-    setInput('');
+    console.log('🔍 DEBUG: About to call sendMessage with input:', input);
     
     await sendMessage(messageToSend, conversation.conversation_id, stagingFiles, imageData);
-  }, [isAuthenticated, conversation, input, sendMessage]);
+  }, [isAuthenticated, conversation, sendMessage]);
 
   // Append message (for programmatic sending)
   const append = useCallback(async (message: { content: string; role?: 'user' | 'assistant' }) => {
@@ -1014,6 +1019,9 @@ export function useChat(options: ChatOptions = {}) {
       
       currentStreamingMessageRef.current = assistantMessage;
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // 🎯 Trigger scroll after AI message added (same as sendMessage)
+      options.onStreamStart?.();
       
       // STEP 3: Start streaming edit
       const streamResponse = await chatApi.editMessage(
@@ -1337,8 +1345,6 @@ export function useChat(options: ChatOptions = {}) {
   return {
     // State
     messages,
-    input,
-    setInput,
     isLoading,
     isLoadingConversation,
     error,

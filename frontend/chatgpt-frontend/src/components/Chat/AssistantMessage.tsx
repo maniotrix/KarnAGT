@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Message, ToolExecution } from '../../types/chat';
 import { ToolExecutionDropdown } from './ToolExecutionDropdown';
 
@@ -32,6 +32,55 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
 }) => {
   // Copy functionality
   const [copied, setCopied] = useState(false);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const [minHeight, setMinHeight] = useState<number | null>(null);
+  const didInitialScrollRef = useRef(false);
+
+  // Calculate streaming space once when streaming starts (delay to allow viewport + scroll settle)
+  useEffect(() => {
+    if ((isStreaming || isThinking) && !message.content && bubbleRef.current && minHeight === null) {
+      const calc = () => {
+        const bubble = bubbleRef.current as HTMLDivElement | null;
+        if (!bubble) return;
+        const container = bubble.closest('.mobile-scroll-container') as HTMLDivElement | null;
+        if (!container) return;
+
+        try {
+          // Use viewport height for robust floor/cap
+          const vh = (window as any).visualViewport?.height || window.innerHeight;
+
+          // Measure in viewport coordinates to avoid scroll math
+          const containerRect = container.getBoundingClientRect();
+          const bubbleRect = bubble.getBoundingClientRect();
+
+          // Visible space from bubble top to container bottom
+          const spaceToBottom = Math.max(0, containerRect.bottom - bubbleRect.top);
+
+          // Subtract small padding to avoid tight fit
+          const available = Math.max(0, spaceToBottom - 24);
+
+          // Clamp between 50% and 70% of viewport height
+          const floor = Math.round(vh * 0.5);
+          const cap = Math.round(vh * 0.7);
+          const minHeightPx = Math.max(floor, Math.min(available, cap));
+
+          setMinHeight(minHeightPx);
+        } catch (error) {
+          console.warn('Error calculating streaming space:', error);
+          const fallbackVh = (window as any).visualViewport?.height || window.innerHeight || 600;
+          setMinHeight(Math.round(fallbackVh * 0.5)); // Fallback to 50vh
+        }
+      };
+
+      // Defer until after blur/scroll-to-bottom/layout settle
+      requestAnimationFrame(() => setTimeout(calc, 50));
+    }
+
+    // Reset when streaming ends
+    if (!isStreaming && !isThinking) {
+      setMinHeight(null);
+    }
+  }, [isStreaming, isThinking, message.content, minHeight]);
 
   const handleCopy = async () => {
     try {
@@ -68,6 +117,24 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
   // Check if content is empty (accounting for whitespace)
   const hasEmptyContent = !message.content || message.content.trim() === '';
 
+  // Show spacer only when streaming/thinking
+  const shouldShowSpacer = (isStreaming || isThinking) && minHeight !== null;
+
+  // One-time scroll to reveal spacer/stream area after minHeight is applied
+  useEffect(() => {
+    if (shouldShowSpacer && !message.content && bubbleRef.current && !didInitialScrollRef.current) {
+      requestAnimationFrame(() => {
+        try {
+          bubbleRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+        } catch {}
+      });
+      didInitialScrollRef.current = true;
+    }
+    if (!isStreaming && !isThinking) {
+      didInitialScrollRef.current = false;
+    }
+  }, [shouldShowSpacer, isStreaming, isThinking, message.content]);
+
   return (
     <TooltipProvider>
       <motion.div
@@ -76,7 +143,13 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
         className="px-3 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 rounded-lg group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
       >
         {/* Message Content */}
-        <div className="flex flex-col w-full min-w-0 items-start">
+        <div 
+          ref={bubbleRef}
+          className="flex flex-col w-full min-w-0 items-start"
+          style={{
+            minHeight: shouldShowSpacer ? `${minHeight}px` : undefined
+          }}
+        >
 
 
           {/* Tool Execution Dropdown - Part of assistant message, below header */}
@@ -153,12 +226,12 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   <TooltipTrigger asChild>
                     <button
                       onClick={handleCopy}
-                      className="p-2 sm:p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800/50 border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 hover:scale-105 shadow-sm min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 text-blue-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
                     >
                       {copied ? (
-                        <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-green-600 dark:text-green-400" />
+                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
                       ) : (
-                        <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <Copy className="w-3 h-3" />
                       )}
                     </button>
                   </TooltipTrigger>
@@ -174,6 +247,13 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
             </div>
           )}
 
+          {/* 🎯 MOBILE UX: Flex spacer - shrinks as content grows */}
+          {shouldShowSpacer && (
+            <div 
+              className="pointer-events-none flex-1"
+              style={{ minHeight: '20px' }}
+            />
+          )}
 
         </div>
       </motion.div>

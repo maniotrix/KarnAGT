@@ -867,6 +867,173 @@ graph TB
     note["Fast queries via HTTP<br/>Heavy processing via Celery"]
 ```
 
+## 🔍 **Document Processing Error Analysis**
+
+### **FileNotDecryptedError Investigation**
+
+During production analysis, we identified a critical document processing issue that highlights the need for better user feedback:
+
+#### **The Problem**
+```
+Failed to load file /tmp/s3_docs_xxx/file_xxx.pdf with error: 
+RetryError[<Future state=finished raised FileNotDecryptedError>]. Skipping...
+```
+
+#### **Root Cause Analysis**
+1. **PDF Processing Failure**: LlamaIndex `SimpleDirectoryReader.aload_data()` fails when encountering:
+   - Password-protected PDFs
+   - Corrupted PDF files
+   - Unsupported PDF encryption
+   - Internal PDF format issues
+
+2. **Silent Failure Impact**:
+   - File uploaded successfully to S3 ✅
+   - Processing starts normally ✅
+   - PDF parsing fails silently ❌
+   - Results in 0 document chunks ❌
+   - No user notification of failure ❌
+
+3. **Context Builder Behavior**:
+   - Conversation context builder correctly excludes failed files from LLM context
+   - Prevents AI from referencing non-existent content
+   - But users don't know why their file wasn't processed
+
+#### **Solution Requirements**
+1. **Better Error Handling**: Catch `FileNotDecryptedError` and provide specific user feedback
+2. **Fallback Processing**: Implement OCR fallback for problematic PDFs
+3. **User Notifications**: Real-time streaming feedback during processing stages
+
+### **LlamaIndex Async + Multiprocessing Confirmation**
+
+Our analysis confirms that **LlamaIndex properly handles non-blocking execution** with FastAPI:
+
+#### **How It Works**
+```python
+# LlamaIndex uses PROCESSES, not threads
+processed_nodes = await pipeline.arun(
+    documents=documents,
+    show_progress=self.config.show_progress,
+    num_workers=self.config.num_workers  # Creates separate processes
+)
+```
+
+#### **Non-Blocking Architecture**
+- **FastAPI Event Loop**: Remains free during document processing
+- **Multiprocessing**: CPU-intensive work happens in separate processes
+- **Async Wrapper**: LlamaIndex properly wraps multiprocessing in async calls
+- **Other Users**: Can continue using the system normally
+
+#### **Performance Characteristics**
+- **User A** (processing large PDF): Waits 2-5 minutes (same UX)
+- **User B** (sending text message): Gets immediate response
+- **System**: Handles concurrent users without blocking
+
+#### **Worker Optimization**
+```
+UserWarning: Specified num_workers exceed number of CPUs. 
+Setting num_workers down to the maximum CPU count.
+```
+- LlamaIndex automatically optimizes `num_workers` to CPU count
+- Prevents resource contention and context switching overhead
+- Uses **processes**, not threads, so CPU limit makes sense
+
+## 🔔 **Streaming User Feedback Enhancement**
+
+### **Current Problem: Silent Processing**
+
+Users experience **"black box" document processing** with no real-time feedback:
+- Upload appears successful
+- Processing happens silently for 2-5 minutes
+- No indication of progress or errors
+- FileNotDecryptedError happens invisibly
+
+### **Proposed Streaming Events**
+
+#### **Integration with Existing Streaming Handler**
+```python
+# Enhanced attachment processing with streaming feedback
+async def _process_vector_files_with_streaming(
+    self,
+    vector_files: List[StagingFileInfo],
+    user_id: str,
+    conversation_id: str,
+    db: AsyncSession,
+    streaming_callback: Optional[Callable] = None  # 🆕 Add streaming support
+) -> Optional[Dict[str, Any]]:
+    
+    if streaming_callback:
+        await streaming_callback({
+            "type": "file_processing",
+            "stage": "starting",
+            "message": f"📄 Processing {len(vector_files)} uploaded files...",
+            "file_count": len(vector_files)
+        })
+    
+    # Download and process with progress updates
+    for i, vector_file in enumerate(vector_files):
+        if streaming_callback:
+            await streaming_callback({
+                "type": "file_processing", 
+                "stage": "downloading",
+                "message": f"⬇️ Downloading {vector_file.filename}...",
+                "current": i + 1,
+                "total": len(vector_files)
+            })
+        
+        try:
+            # Process document
+            result = await rag_service.process_conversation_documents(...)
+            
+            if streaming_callback:
+                await streaming_callback({
+                    "type": "file_processing",
+                    "stage": "completed",
+                    "message": f"✅ {vector_file.filename} processed - {result.processed_count} chunks created",
+                    "chunks_created": result.processed_count
+                })
+                
+        except FileNotDecryptedError as e:
+            if streaming_callback:
+                await streaming_callback({
+                    "type": "file_processing",
+                    "stage": "error", 
+                    "message": f"❌ {vector_file.filename} failed - PDF appears to be password protected or corrupted",
+                    "error": "FileNotDecryptedError",
+                    "suggestion": "Please try uploading an unlocked PDF or a different file format"
+                })
+```
+
+#### **Frontend Integration**
+```typescript
+// Enhanced streaming event handling
+const handleStreamingEvent = (event: StreamingEvent) => {
+  switch (event.type) {
+    case 'file_processing':
+      setFileProcessingStatus({
+        stage: event.stage,
+        message: event.message,
+        current: event.current,
+        total: event.total,
+        error: event.error
+      });
+      break;
+    // ... existing event handlers
+  }
+};
+```
+
+#### **User Experience Improvements**
+- **Real-time Progress**: "Processing file 2 of 5..."
+- **Stage Feedback**: "Downloading → Parsing → Creating chunks → Generating embeddings"
+- **Error Notifications**: Immediate feedback about FileNotDecryptedError
+- **Success Confirmation**: "✅ 15 document chunks created from your PDF"
+- **Actionable Errors**: Suggestions for password-protected PDFs
+
+### **Implementation Priority**
+1. **High Priority**: Add streaming events to document processing pipeline
+2. **Medium Priority**: Enhanced error handling for PDF issues
+3. **Low Priority**: OCR fallback for problematic PDFs
+
 ## 📚 References
 
 - **Celery Documentation**: https://docs.celeryq.dev/
@@ -874,14 +1041,18 @@ graph TB
 - **Celery + Pydantic (5.5.0+)**: https://docs.celeryq.dev/en/v5.5.0/history/changelog-5.5.html
 - **Production Deployment**: https://docs.celeryq.dev/en/stable/userguide/daemonizing.html
 - **Flower Monitoring**: https://flower.readthedocs.io/en/latest/
+- **LlamaIndex Async Processing**: https://docs.llamaindex.ai/en/stable/getting_started/async_python/
+- **LlamaIndex Multiprocessing**: https://docs.llamaindex.ai/en/stable/examples/data_connectors/simple_directory_reader_parallel/
 
 ---
 
-**Document Version**: 2.0  
+**Document Version**: 2.1  
 **Last Updated**: August 2025  
-**Status**: Ready for Implementation  
+**Status**: Ready for Implementation + Enhanced with Error Analysis  
 **Architecture**: Hidden Celery Integration (Zero Breaking Changes)  
 **Key Features**: 
 - Native Pydantic Support for Seamless Serialization
 - Complete Encapsulation - External Code Unchanged
 - Production-Ready with Easy Development Toggle
+- Enhanced Error Handling and User Feedback
+- Confirmed Non-Blocking Architecture with LlamaIndex

@@ -22,8 +22,7 @@ import {
   Crown,
   MessageSquare,
   DollarSign,
-  Zap,
-  ArrowDown
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,9 +35,21 @@ import { convertUploadFilesToStagingFiles, hasStagingFiles } from '../../app/ser
 interface ChatProps {
   conversationId?: string;
   onConversationChange?: (conversation: ConversationResponse | null) => void;
-  onCreateConversationForMessage?: (messageContent: string) => Promise<ConversationResponse | null>;
+  onCreateConversationForMessage?: (
+    messageContent: string,
+    attachments?: {
+      stagingFiles: Record<string, any>;
+      imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }>;
+      documentData: Array<{ fileId: string; filename: string; file: File; fileType: string; fileSize: number; s3Key: string }>;
+    }
+  ) => Promise<ConversationResponse | null>;
   isCreatingConversation?: boolean;
   pendingMessage?: string | null;
+  pendingAttachments?: {
+    stagingFiles: Record<string, any>;
+    imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }>;
+    documentData: Array<{ fileId: string; filename: string; file: File; fileType: string; fileSize: number; s3Key: string }>;
+  } | null;
   onPendingMessageSubmitted?: () => void;
 }
 
@@ -48,8 +59,17 @@ export const Chat: React.FC<ChatProps> = ({
   onCreateConversationForMessage,
   isCreatingConversation,
   pendingMessage,
+  pendingAttachments,
   onPendingMessageSubmitted
 }) => {
+  console.log('🎨 [Chat] KEYSTROKE - Component render started:', {
+    timestamp: new Date().toISOString(),
+    conversationId,
+    isCreatingConversation,
+    hasPendingMessage: !!pendingMessage,
+    hasPendingAttachments: !!pendingAttachments,
+  });
+
   // Clean Architecture Integration  
   const userQuery = useCurrentUser();
   const authStatus = useAuthStatus();
@@ -57,9 +77,8 @@ export const Chat: React.FC<ChatProps> = ({
   const currentUser = userQuery.data;
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const [showActions, setShowActions] = useState(false);
-  const [shouldShowScrollButton, setShouldShowScrollButton] = useState(false);
-  const [scrollToBottomFn, setScrollToBottomFn] = useState<(() => void) | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
+  const [scrollToBottomFn, setScrollToBottomFn] = useState<((behavior?: 'auto' | 'smooth') => void) | null>(null);
 
   // Calculate quota using clean architecture user data
   const calculateQuota = () => {
@@ -97,6 +116,8 @@ export const Chat: React.FC<ChatProps> = ({
     onConversationUpdate: onConversationChange,
     onStreamStart: () => {
       setShowActions(false); // Hide actions during streaming
+      // 🎯 SCROLL HERE: After AI message added, before API call starts
+      // scrollToBottomFn?.('smooth');
     },
     onStreamEnd: (data: any) => {
       console.log('Stream completed:', data);
@@ -105,13 +126,11 @@ export const Chat: React.FC<ChatProps> = ({
     onError: (error: any) => {
       console.error('Chat error:', error);
     }
-  }), [conversationId, onConversationChange]); // Only recreate when these actually change
+  }), [conversationId, onConversationChange, scrollToBottomFn]); // Added scrollToBottomFn dependency
 
   // ✅ Simple Chat Integration
   const {
     messages,
-    input,
-    setInput,
     isLoading,
     isLoadingConversation,
     error,
@@ -134,23 +153,31 @@ export const Chat: React.FC<ChatProps> = ({
 
   // Auto-submit pending message when conversation is loaded
   useEffect(() => {
-    if (hasConversation && pendingMessage && pendingMessage.trim() && !isLoading && !isLoadingConversation) {
+    const hasPendingContent = (pendingMessage && pendingMessage.trim()) || pendingAttachments;
+    if (hasConversation && hasPendingContent && !isLoading && !isLoadingConversation) {
       console.log('🚀 Auto-submitting pending message:', pendingMessage);
-      
-      // Set the input to the pending message and submit it
-      setInput(pendingMessage);
+      console.log('🚀 Auto-submitting with pending attachments:', pendingAttachments);
       
       // Submit the message after a brief delay to ensure conversation is fully loaded
       const timer = setTimeout(async () => {
         try {
           console.log('🚀 Executing auto-submit for message:', pendingMessage);
-          const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
-          await handleSubmit(syntheticEvent as any);
           
-          // Scroll to bottom after auto-submit
-          setTimeout(() => {
-            scrollToBottomFn?.();
-          }, 100);
+          // Create synthetic event with pending attachments if available
+          const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
+          
+          // Attach the pending attachments to the synthetic event
+          if (pendingAttachments) {
+            Object.assign(syntheticEvent, {
+              input: pendingMessage,
+              stagingFiles: pendingAttachments.stagingFiles,
+              imageData: pendingAttachments.imageData,
+              documentData: pendingAttachments.documentData
+            });
+          }
+          
+          await handleSubmit(syntheticEvent as any);
+
           
         } catch (error) {
           console.error('❌ Auto-submit failed:', error);
@@ -164,7 +191,12 @@ export const Chat: React.FC<ChatProps> = ({
       
       return () => clearTimeout(timer);
     }
-  }, [hasConversation, pendingMessage, isLoading, isLoadingConversation, setInput, handleSubmit, onPendingMessageSubmitted, scrollToBottomFn]);
+  }, [hasConversation, pendingMessage, pendingAttachments, isLoading, isLoadingConversation, handleSubmit, onPendingMessageSubmitted]);
+
+  // Handle scroll function ready from MessageList
+  const handleScrollFunctionReady = useCallback((scrollFn: (behavior?: 'auto' | 'smooth') => void) => {
+    setScrollToBottomFn(() => scrollFn);
+  }, []);
 
   // Handle file upload - store files for message submission
   const handleFileUpload = useCallback((files: UploadFile[]) => {
@@ -184,10 +216,12 @@ export const Chat: React.FC<ChatProps> = ({
   }, []);
 
   // Handle message submission with quota check and universal file support
-  const handleMessageSubmit = async (e: React.FormEvent) => {
+  const handleMessageSubmit = async (inputMessage: string, e: React.FormEvent) => {
+    // 🚀 PERFORMANCE FIX: Sync useChat input state only on submit (not every keystroke)
+    console.log('🔄 DEBUG: Syncing useChat input state before submit:', inputMessage);
     console.log('🔍 DEBUG: handleMessageSubmit called');
     console.log('🔍 DEBUG: Current uploadedFiles state:', uploadedFiles);
-    console.log('🔍 DEBUG: Input content:', input);
+    console.log('🔍 DEBUG: Input content:', inputMessage);
     console.log('🔍 DEBUG: hasConversation:', hasConversation);
     
     if (isQuotaExceeded) {
@@ -231,10 +265,22 @@ export const Chat: React.FC<ChatProps> = ({
     console.log('🔍 DEBUG: Total staging files count:', Object.values(stagingFiles).flat().length);
 
     // If we don't have a conversation, ask parent to create one
-    if (!hasConversation && onCreateConversationForMessage && (input.trim() || hasStagingFiles(stagingFiles))) {
+    if (!hasConversation && onCreateConversationForMessage && (inputMessage.trim() || hasStagingFiles(stagingFiles))) {
       // Parent will create conversation and navigate to proper URL
       // The message will be submitted after navigation completes
-      await onCreateConversationForMessage(input.trim() || "File analysis request");
+      // Generate appropriate title for attachment-only messages
+      // log total images and documents
+      console.log('[ON_CREATE_CONVERSATION_FOR_MESSAGE]🔍 DEBUG: Total images:', imageData.length);
+      console.log('[ON_CREATE_CONVERSATION_FOR_MESSAGE]🔍 DEBUG: Total documents:', documentData.length);
+      const input = inputMessage.trim() || "";
+      await onCreateConversationForMessage(
+        input,
+        {
+          stagingFiles,
+          imageData,
+          documentData
+        }
+      );
       return;
     }
 
@@ -245,12 +291,14 @@ export const Chat: React.FC<ChatProps> = ({
       const submitEvent = {
         ...e,
         preventDefault: e.preventDefault.bind(e),
+        input: inputMessage,
         stagingFiles, // For backend
         imageData, // For frontend display (images)
         documentData, // For frontend display (documents) 
       };
       
       console.log('🔍 DEBUG: submitEvent created:', submitEvent);
+      console.log('🔍 DEBUG: submitEvent.input:', submitEvent.input);
       console.log('🔍 DEBUG: submitEvent.stagingFiles:', submitEvent.stagingFiles);
       console.log('🔍 DEBUG: submitEvent.imageData:', submitEvent.imageData);
       console.log('🔍 DEBUG: submitEvent.documentData:', submitEvent.documentData);
@@ -261,11 +309,7 @@ export const Chat: React.FC<ChatProps> = ({
       // Clear uploaded files after sending
       console.log('🔍 DEBUG: Clearing uploadedFiles state');
       setUploadedFiles([]);
-      
-      // ALWAYS scroll to bottom when user sends message
-      setTimeout(() => {
-        scrollToBottomFn?.();
-      }, 100);
+
     }
   };
 
@@ -306,11 +350,7 @@ export const Chat: React.FC<ChatProps> = ({
     return await loadMoreMessages(conversation.conversation_id, offset);
   }, [conversation?.conversation_id, loadMoreMessages]);
 
-  // Handle scroll state changes from MessageList
-  const handleScrollStateChange = useCallback((shouldShowButton: boolean, scrollToBottom: () => void) => {
-    setShouldShowScrollButton(shouldShowButton);
-    setScrollToBottomFn(() => scrollToBottom);
-  }, []);
+
 
   // Show loading state during auth check
   if (!isAuthenticated) {
@@ -443,28 +483,12 @@ export const Chat: React.FC<ChatProps> = ({
             onLoadMore={handleLoadMore}
             conversationId={conversation?.conversation_id}
             hasMoreMessages={hasMoreMessages}
-            onScrollStateChange={handleScrollStateChange}
             onEdit={editMessage}
             messageToolExecutions={messageToolExecutions}
+            onScrollFunctionReady={handleScrollFunctionReady}
           />
         </ConversationImagesProvider>
-        
-        {/* Scroll to bottom button - Centered in chat area */}
-        <AnimatePresence>
-          {shouldShowScrollButton && messages.length > 0 && (
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                onClick={() => scrollToBottomFn?.()}
-                className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800 transition-all duration-200 hover:scale-105"
-              >
-                <ArrowDown className="w-5 h-5" />
-              </motion.button>
-            </div>
-          )}
-        </AnimatePresence>
+
       </div>
 
       {/* Chat Actions (conditionally rendered) */}
@@ -485,8 +509,6 @@ export const Chat: React.FC<ChatProps> = ({
       {/* Chat Input & Error Display */}
       <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex-shrink-0">
         <ChatInput
-          input={input}
-          setInput={setInput}
           onSubmit={handleMessageSubmit}
           isLoading={isLoading || isLoadingConversation || (isCreatingConversation ?? false)}
           disabled={isQuotaExceeded || isLoadingConversation || (isCreatingConversation ?? false)}

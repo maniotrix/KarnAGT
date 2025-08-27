@@ -130,6 +130,13 @@
   .mobile-scroll-container {
     -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
     overscroll-behavior: contain; /* Prevent overscroll effects */
+    overflow-y: auto !important; /* Ensure scrollbar appears */
+    height: 100% !important; /* Ensure container has height */
+  }
+
+  /* Generic hidden utility class */
+  .hidden {
+    display: none !important;
   }
 
   /* Prevent zoom on input focus (mobile) */
@@ -142,5 +149,19 @@
     button {
       min-height: 44px; /* Apple's recommended touch target size */
     }
+  }
+
+  /* Better word breaking for URLs and long content */
+  .break-words {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  /* Specific handling for links in messages */
+  .prose a {
+    word-break: break-all;
+    overflow-wrap: break-word;
+    max-width: 100%;
   }
 }
