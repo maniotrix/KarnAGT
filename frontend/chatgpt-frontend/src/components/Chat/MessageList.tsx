@@ -3,7 +3,6 @@ import { ChatMessage } from './ChatMessage';
 import { Message, ToolExecution } from '../../types/chat';
 
 import { 
-  MessageSquare, 
   Lightbulb, 
   Edit3, 
   Calculator, 
@@ -11,6 +10,7 @@ import {
   Loader2,
   ArrowUp
 } from 'lucide-react';
+import Logo from '../ui/Logo';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
@@ -119,8 +119,8 @@ const MessageListComponent: React.FC<MessageListProps> = ({
           animate={{ opacity: 1, y: 0 }}
           className="text-center max-w-2xl"
         >
-          <div className="mb-6 p-4 bg-blue-100 dark:bg-blue-900 rounded-full inline-block">
-            <MessageSquare className="w-12 h-12 text-blue-600 dark:text-blue-400" />
+          <div className="mb-6 flex justify-center">
+            <Logo size="2xl" backgroundVariant="theme" />
           </div>
           
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">

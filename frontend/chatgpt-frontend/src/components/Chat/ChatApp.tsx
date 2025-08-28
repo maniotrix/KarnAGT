@@ -19,10 +19,10 @@ import {
   Trash2, 
   User, 
   LogOut,
-  MessageSquare,
   Crown,
   MoreVertical 
 } from 'lucide-react';
+import Logo from '../ui/Logo';
 
 // Type for pending attachments to be submitted with auto-created conversation
 interface PendingAttachments {
@@ -242,7 +242,7 @@ export const ChatApp: React.FC = () => {
           {/* Sidebar Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-              <MessageSquare className="h-5 w-5 mr-2" />
+              <Logo className="mr-2" size="md" />
               Conversations
             </h2>
             <button
@@ -339,7 +339,9 @@ export const ChatApp: React.FC = () => {
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <div className="mx-auto mb-4">
+                  <Logo size="xl" backgroundVariant="light" />
+                </div>
                 <p>No conversations yet</p>
                 <p className="text-sm">Start a new chat to begin</p>
               </div>
