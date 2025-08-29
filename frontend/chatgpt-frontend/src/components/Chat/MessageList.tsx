@@ -106,7 +106,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   // Welcome suggestions data
   const suggestions = [
     { icon: Lightbulb, text: 'Ask me anything', color: 'text-yellow-500' },
-    { icon: Edit3, text: 'Help with writing', color: 'text-blue-500' },
+    { icon: Edit3, text: 'Help with writing/analysis', color: 'text-blue-500' },
     { icon: Calculator, text: 'Solve problems', color: 'text-green-500' },
     { icon: Code, text: 'Code assistance', color: 'text-purple-500' },
   ];
@@ -130,7 +130,16 @@ const MessageListComponent: React.FC<MessageListProps> = ({
           <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
             Start a conversation by typing a message below.
           </p>
-          
+          {/* Capability one-liner – wraps gracefully on smaller screens */}
+          <p className="text-gray-500 dark:text-gray-400 mb-10 text-sm sm:text-base flex flex-wrap justify-center gap-x-2 gap-y-1">
+            <span className="whitespace-nowrap">💻 <span className="font-medium">Run code</span></span>
+            <span className="hidden sm:inline">|</span>
+            <span className="whitespace-nowrap">🌐 <span className="font-medium">Search the web</span></span>
+            <span className="hidden sm:inline">|</span>
+            <span className="whitespace-nowrap">📄 <span className="font-medium">Query your docs</span></span>
+            <span className="hidden sm:inline">|</span>
+            <span className="whitespace-nowrap">🧠 <span className="font-medium">User profile memory</span></span>
+          </p>
           <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
             {suggestions.map((suggestion, index) => {
               const Icon = suggestion.icon;
