@@ -128,4 +128,6 @@
 
   * add a reload buttin in header to the left beside profile info to reload current chat - Done
   * Use ai image capabilities to also create and index images uploaded by user
+
+* Memory about atleast user name not avaialble when user first signed up in llm context. But llm can succesfully update and create new memories for user.(.cursor_chats/cursor_understanding_user_information_i.md)
   
