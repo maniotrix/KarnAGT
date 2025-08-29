@@ -28,7 +28,7 @@ def test_tool_registry():
     print("\n🧪 Testing ToolRegistry...")
     
     # Test knowledge tools
-    knowledge_tool = "search_user_uploaded_documents"
+    knowledge_tool = "user_uploaded_documents_query"
     tool_type = ToolRegistry.get_tool_type(knowledge_tool)
     display_name = ToolRegistry.get_display_name(knowledge_tool)
     
@@ -80,7 +80,7 @@ def test_tool_call_start_event_formatting():
     
     # Test knowledge tool start event
     knowledge_start_event = ToolCallStartEvent(
-        tool_name="search_user_uploaded_documents",
+        tool_name="user_uploaded_documents_query",
         tool_type=ToolType.FUNCTION_CALL,
         tool_id="tool_knowledge_123",
         arguments={
@@ -96,7 +96,7 @@ def test_tool_call_start_event_formatting():
     print(f"   Output: {formatted}")
     
     # Verify structure
-    assert formatted["tool_name"] == "search_user_uploaded_documents"
+    assert formatted["tool_name"] == "user_uploaded_documents_query"
     assert formatted["display_name"] == "Search User Uploaded Documents"
     assert formatted["tool_type"] == KnowledgeToolsInfo.TOOL_TYPE
     assert formatted["tool_id"] == "tool_knowledge_123"

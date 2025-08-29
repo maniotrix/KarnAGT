@@ -36,8 +36,8 @@ def get_instructions_template(plots_dir: str, os_type: str = "Windows", core_pro
     combined with your own knowledge and web search results.
 
     **KNOWLEDGE SEARCH INSTRUCTIONS:**
-    1. **Always search uploaded documents first** before giving generic answers
-    2. Use search_user_uploaded_documents with search_all_files=true for most queries
+    1. **Prefer to search uploaded documents first** before giving generic answers
+    2. Use user_uploaded_documents_query with search_all_files=true for most queries
     3. Only use specific file IDs if you have them from message attachments
     4. If no relevant information found in documents, then proceed with other tools
 

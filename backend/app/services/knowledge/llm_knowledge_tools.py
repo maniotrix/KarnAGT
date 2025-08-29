@@ -24,7 +24,8 @@ class Colors:
     BOLD = '\033[1m'
     
 class KnowledgeToolNames:
-    KNOWLEDGE_SEARCH = "search_user_uploaded_documents"
+    # Public-facing name shown to the LLM – keep neutral to avoid stealing generic "search" cues
+    KNOWLEDGE_SEARCH = "user_uploaded_documents_query"
     KNOWLEDGE_DISCOVERY = "list_user_uploaded_documents"
     
 class KnowledgeToolsInfo():
@@ -66,53 +67,54 @@ def create_knowledge_search_tool(
     @function_tool(
         name_override=KnowledgeToolNames.KNOWLEDGE_SEARCH,
         description_override="""
-        Search uploaded files and documents by user to answer questions about their content.
+        This tool is used to query user uploaded files and documents to answer questions about their content.
         
-        **CRITICAL: ALWAYS CHECK UPLOADED DOCUMENTS FIRST**
+        **CRITICAL: PREFER TO CHECK UPLOADED DOCUMENTS WHEN RELEVANT AS PER USER INTENT**
+        - Do not use it when the user explicitly requests a web or internet search.
+        
         Before providing any answer, check if the user has uploaded files that might contain the answer.
         Users expect answers from their uploaded documents, not generic knowledge.
     
-        **KNOWLEDGE SEARCH INSTRUCTIONS:**
-        1. **Always search uploaded documents first** before giving generic answers
-        2. Use search_user_uploaded_documents with search_all_files=true for most queries
+        **User Uploaded Documents Query Tool Instructions:**
+        1. **Prefer to query uploaded documents first** before giving generic answers
+        2. Use user_uploaded_documents_query with search_all_files=true for most queries
         3. Only use specific file IDs if you have them from message attachments
         4. If no relevant information found in documents, then proceed with other tools
-        5. Examples of when to search documents:
-            - "What is [company/person/topic]?" → Search documents first
-            - "What are the key points?" → Search documents first
-            - "Compare/analyze/summarize" → Search documents first
-            - For any query, when uncertain → Search documents first
+        5. Examples of when to query documents:
+            - "What is [company/person/topic]?" → Query documents first
+            - "What are the key points?" → Query documents first
+            - "Compare/analyze/summarize" → Query documents first
         
-        TWO SEARCH MODES:
-        1. SPECIFIC FILES: Search only specific uploaded files by their IDs
-        2. ALL FILES: Search all files uploaded in this conversation
+        TWO QUERY MODES:
+        1. SPECIFIC FILES: Query only specific uploaded files by their IDs
+        2. ALL FILES: Query all files uploaded in this conversation
         
         WHEN TO USE SPECIFIC FILES MODE:
         - User asks about specific files: "What does document X say about Y?"
         - You have knowledge_file_ids from message attachments
-        - You want to focus search on particular documents
+        - You want to focus query on particular documents
         - User uploaded files in current message and asks about them
         
-        WHEN TO USE ALL FILES MODE (DEFAULT - USE THIS MOST OF THE TIME):
+        WHEN TO USE ALL FILES MODE in USER UPLOADED DOCUMENTS QUERY TOOL (DEFAULT - USE THIS MOST OF THE TIME):
         - User asks ANY question that could be answered by uploaded files
         - User asks "What is X?" where X might be mentioned in documents
         - User asks for analysis, comparison, or summary of any kind
-        - When unsure - ALWAYS search all files first
-        - Better to search and find nothing than miss important information
+        - When unsure and have no knowledge_file_ids, use this mode to query all files first
+        - Better to query and find nothing than miss important information
         - In short, use this mode when you have no context regarding a query or has very vague context
         
         PARAMETERS:
         - query: Your question about the files
-        - knowledge_file_ids: List of specific file IDs to search (optional)
-        - search_all_files: Set to true to search all files (optional, default: false)
+        - knowledge_file_ids: List of specific file IDs to query (optional)
+        - search_all_files: Set to true to query all files (optional, default: false)
         
         EXAMPLES:
-        search_knowledge_files(
+        user_uploaded_documents_query(
             query="What are the main conclusions?",
             knowledge_file_ids=["kf_abc123", "kf_def456"]
         )
         
-        search_knowledge_files(
+        user_uploaded_documents_query(
             query="What are the key points across all documents?",
             search_all_files=true
         )
