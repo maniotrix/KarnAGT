@@ -16,11 +16,13 @@ import {
   Menu, 
   X, 
   Plus, 
+  MessageSquarePlus,
   Trash2, 
   User, 
   LogOut,
   Crown,
-  MoreVertical 
+  MoreVertical,
+  RefreshCw 
 } from 'lucide-react';
 import Logo from '../ui/Logo';
 
@@ -39,6 +41,7 @@ export const ChatApp: React.FC = () => {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachments | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
+  const [chatReload, setChatReload] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -211,6 +214,14 @@ export const ChatApp: React.FC = () => {
       console.error('Logout failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Logout failed';
       toast.error('Logout failed', errorMessage);
+    }
+  };
+
+  const handleReloadChat = () => {
+    if (currentConversationId) {
+      setChatReload(v => v + 1);
+    } else {
+      toast.info('No chat to reload', 'Start a conversation to use the reload feature.');
     }
   };
 
@@ -409,6 +420,28 @@ export const ChatApp: React.FC = () => {
             </h1>
           </div>
           <div className="flex items-center space-x-4">
+            {/* Header Action Buttons */}
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={handleNewChat}
+                disabled={createConversationMutation.isPending}
+                className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 rounded-md transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Start a new chat"
+              >
+                <MessageSquarePlus className="h-4 w-4" />
+              </button>
+              
+              {currentConversationId && (
+                <button
+                  onClick={handleReloadChat}
+                  className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 rounded-md transition-all touch-manipulation"
+                  title="Reload current chat"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            
             <span className="hidden sm:block text-sm text-gray-600">
               Hello, {user?.getDisplayName()}
             </span>
@@ -492,6 +525,7 @@ export const ChatApp: React.FC = () => {
         {/* Chat Component */}
         <div className="flex-1 min-h-0 flex flex-col">
           <Chat
+            key={`${currentConversationId ?? 'none'}-${chatReload}`}
             conversationId={currentConversationId ?? undefined}
             onConversationChange={handleConversationChange}
             onCreateConversationForMessage={handleCreateConversationForMessage}
