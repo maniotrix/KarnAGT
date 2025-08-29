@@ -51,13 +51,13 @@ const CopyButton: React.FC<{
         <TooltipTrigger asChild>
           <button
             onClick={handleCopy}
-            className={`${buttonSize} rounded-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/30 dark:hover:to-blue-800/30 transition-all duration-200 shadow-sm hover:shadow-md border border-gray-200 dark:border-gray-600 hover:border-blue-200 dark:hover:border-blue-700 opacity-90 hover:opacity-100 md:opacity-0 md:group-hover:opacity-90 md:hover:opacity-100 transform hover:scale-105`}
+            className={`${buttonSize} inline-flex items-center justify-center opacity-70 hover:opacity-100 transform hover:scale-110 transition-all duration-200 appearance-none focus:outline-none`}
             title={copied ? 'Copied!' : 'Copy code'}
           >
             {copied ? (
               <Check className={`${iconSize} text-green-600 dark:text-green-400`} />
             ) : (
-              <Copy className={`${iconSize} text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors`} />
+              <Copy className={`${iconSize} text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 transition-colors`} />
             )}
           </button>
         </TooltipTrigger>
@@ -82,7 +82,7 @@ export const InlineCode: React.FC<CodeBlockProps> = ({ children, className, ...p
         {children}
       </code>
       {codeText.length > 10 && ( // Only show copy button for longer code snippets
-        <span className="ml-0.5 opacity-50 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+        <span className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity">
           <CopyButton text={codeText} size="sm" />
         </span>
       )}
