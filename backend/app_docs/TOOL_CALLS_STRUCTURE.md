@@ -117,7 +117,7 @@ Our system supports three main categories of tools:
 - `execute_code` - Execute Python code in workspace
 
 ### 2. Knowledge Tools (`knowledge_tools`)
-- `search_user_uploaded_documents` - Search uploaded files and documents
+- `user_uploaded_documents_query` - Search uploaded files and documents
 - `list_user_uploaded_documents` - List available knowledge files
 
 ### 3. Memory Tools (`memory_tools`)

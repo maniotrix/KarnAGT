@@ -237,8 +237,8 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
           )}
         </div>
         
-        {/* Query display for web_search tool - shown as content */}
-        {tool.tool_name === 'web_search' && tool.openai_tool_data?.arguments?.query && (
+        {/* Query display for search tools - shown as content */}
+        {(tool.tool_name === 'web_search' || tool.tool_name === 'user_uploaded_documents_query') && tool.openai_tool_data?.arguments?.query && (
           <div className="mt-2">
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-md p-2 border border-blue-200 dark:border-blue-800">
               <div className="flex items-start gap-2">

@@ -14,7 +14,7 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'save_user_memory': 'Saving your information…',
   
   // Knowledge/Document Tools
-  'search_user_uploaded_documents': 'Searching docs…',
+  'user_uploaded_documents_query': 'Searching docs…',
   'list_user_uploaded_documents': 'Listing uploaded docs…',
   
   // Web/External Tools (if any)
