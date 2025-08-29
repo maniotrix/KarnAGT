@@ -106,7 +106,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
   // Welcome suggestions data
   const suggestions = [
     { icon: Lightbulb, text: 'Ask me anything', color: 'text-yellow-500' },
-    { icon: Edit3, text: 'Help with writing/analysis', color: 'text-blue-500' },
+    { icon: Edit3, text: 'Writing / Data Analysis', color: 'text-blue-500' },
     { icon: Calculator, text: 'Solve problems', color: 'text-green-500' },
     { icon: Code, text: 'Code assistance', color: 'text-purple-500' },
   ];
@@ -138,7 +138,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
             <span className="hidden sm:inline">|</span>
             <span className="whitespace-nowrap">📄 <span className="font-medium">Query your docs</span></span>
             <span className="hidden sm:inline">|</span>
-            <span className="whitespace-nowrap">🧠 <span className="font-medium">User profile memory</span></span>
+            <span className="whitespace-nowrap">🧠 <span className="font-medium">Save to memory</span></span>
           </p>
           <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
             {suggestions.map((suggestion, index) => {
@@ -149,9 +149,9 @@ const MessageListComponent: React.FC<MessageListProps> = ({
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="flex items-center space-x-3 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+                  className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
                 >
-                  <Icon className={`w-5 h-5 ${suggestion.color}`} />
+                  <Icon className={`w-6 h-6 sm:w-5 sm:h-5 ${suggestion.color}`} />
                   <span className="text-gray-700 dark:text-gray-300 font-medium">
                     {suggestion.text}
                   </span>
