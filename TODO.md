@@ -126,4 +126,5 @@
   - 🏗️ BACKEND: Integration with existing streaming_callback in attachment_service.py
   - 📈 IMPACT: Users will immediately understand processing status and can take action on errors
 
-  * add a reload buttin in header to the left beside orofile info to reload current chat
+  * add a reload buttin in header to the left beside profile info to reload current chat
+  
