@@ -99,11 +99,11 @@ export const UserMessage: React.FC<UserMessageProps> = ({
     // STEP 3: Clear saving state
     setIsSaving(false);
     
-    // If edit failed, go back to edit mode so user can retry
+    // If edit failed, stay in display mode - user must manually click edit to retry
     if (!success) {
-      setIsEditing(true);
       // Reset content to current message content in case backend partially updated it
       setEditContent(message.content);
+      // Note: We don't setIsEditing(true) here - user must click edit button to retry
     }
   };
 
