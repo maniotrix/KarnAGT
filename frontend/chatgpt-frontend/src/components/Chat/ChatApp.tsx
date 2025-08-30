@@ -234,7 +234,7 @@ export const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full overflow-hidden bg-gray-100 relative mobile-viewport-height">
+    <div className="flex h-full bg-gray-100 relative mobile-viewport-height">
       {/* Mobile Backdrop Overlay */}
       {sidebarOpen && (
         <div 
