@@ -378,7 +378,7 @@ export const Chat: React.FC<ChatProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Chat Header */}
       {/* <motion.div 
         initial={{ opacity: 0, y: -20 }}
