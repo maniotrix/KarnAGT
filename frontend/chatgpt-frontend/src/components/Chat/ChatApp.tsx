@@ -42,11 +42,13 @@ export const ChatApp: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
   const [chatReload, setChatReload] = useState(0);
+  const [isRefreshingConversations, setIsRefreshingConversations] = useState(false);
+  const [isReloadingChat, setIsReloadingChat] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   // Clean Architecture Hooks
-  const { data: conversations, isLoading: conversationsLoading, error: conversationsError } = useConversations();
+  const { data: conversations, isLoading: conversationsLoading, error: conversationsError, refetch: refetchConversations } = useConversations();
   const { data: user } = useCurrentUser();
   const deleteConversationMutation = useDeleteConversation();
   const createConversationMutation = useCreateConversation();
@@ -217,11 +219,40 @@ export const ChatApp: React.FC = () => {
     }
   };
 
-  const handleReloadChat = () => {
-    if (currentConversationId) {
-      setChatReload(v => v + 1);
-    } else {
+  const handleReloadChat = async () => {
+    if (!currentConversationId) {
       toast.info('No chat to reload', 'Start a conversation to use the reload feature.');
+      return;
+    }
+
+    if (isReloadingChat) return; // Prevent double reload
+
+    setIsReloadingChat(true);
+    try {
+      // Add a small delay to show the spinning animation
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setChatReload(v => v + 1);
+      toast.success('Chat reloaded', 'The current conversation has been refreshed.');
+    } catch (error) {
+      console.error('Failed to reload chat:', error);
+      toast.error('Reload failed', 'Unable to reload the chat. Please try again.');
+    } finally {
+      setIsReloadingChat(false);
+    }
+  };
+
+  const handleRefreshConversations = async () => {
+    if (isRefreshingConversations) return; // Prevent double refresh
+    
+    setIsRefreshingConversations(true);
+    try {
+      await refetchConversations();
+      toast.success('Conversations refreshed', 'Your conversation list has been updated.');
+    } catch (error) {
+      console.error('Failed to refresh conversations:', error);
+      toast.error('Refresh failed', 'Unable to refresh conversations. Please try again.');
+    } finally {
+      setIsRefreshingConversations(false);
     }
   };
 
@@ -264,16 +295,26 @@ export const ChatApp: React.FC = () => {
             </button>
           </div>
 
-          {/* New Chat Button */}
+          {/* New Chat Button and Refresh Button */}
           <div className="p-4 border-b border-gray-200">
-            <button
-              onClick={handleNewChat}
-              disabled={createConversationMutation.isPending}
-              className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {createConversationMutation.isPending ? 'Creating...' : 'New Chat'}
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleNewChat}
+                disabled={createConversationMutation.isPending}
+                className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {createConversationMutation.isPending ? 'Creating...' : 'New Chat'}
+              </button>
+              <button
+                onClick={handleRefreshConversations}
+                disabled={isRefreshingConversations}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh conversations"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshingConversations ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {/* Conversations List */}
@@ -434,10 +475,11 @@ export const ChatApp: React.FC = () => {
               {currentConversationId && (
                 <button
                   onClick={handleReloadChat}
-                  className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 rounded-md transition-all touch-manipulation"
+                  disabled={isReloadingChat}
+                  className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 rounded-md transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Reload current chat"
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className={`h-4 w-4 ${isReloadingChat ? 'animate-spin' : ''}`} />
                 </button>
               )}
             </div>
