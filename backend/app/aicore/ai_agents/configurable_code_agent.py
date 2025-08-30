@@ -7,7 +7,8 @@ Configurable Code Executor Agent - Uses centralized configuration system with wo
 
 import uuid
 from typing import Dict, List, Optional, Any
-from agents import Agent, RunContextWrapper, WebSearchTool, function_tool
+from agents import Agent, RunContextWrapper, WebSearchTool, function_tool, ModelSettings
+from openai.types.shared import Reasoning, ReasoningEffort
 
 # Import configuration classes
 from app.aicore.config import AgentConfig, ModelConfig
@@ -79,12 +80,20 @@ class ConfigurableCodeExecutorAgent(Agent):
         # Get model name from configuration
         model_name = model_config.get_full_model_name()
         
+        # Create model settings with reasoning configuration
+        # This includes verbosity="low" by default to minimize reasoning overhead
+        # for o1 and other reasoning models while still benefiting from their capabilities
+        model_settings = ModelSettings(
+            reasoning=Reasoning(effort="low"),
+        )
+        
         # Initialize the parent Agent class
         super().__init__(
             name=agent_name,
             instructions=self._sdk_instructions_wrapper,
             tools=self.tools,
             model=model_name,
+            model_settings=model_settings,
             # tool_use_behavior=agent_config.tool_use_strategy.value,
             # reset_tool_choice=agent_config.reset_tool_choice,
             # output_type=agent_config.output_type if agent_config.output_type != "str" else None

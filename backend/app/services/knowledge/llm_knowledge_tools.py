@@ -67,8 +67,13 @@ def create_knowledge_search_tool(
     @function_tool(
         name_override=KnowledgeToolNames.KNOWLEDGE_SEARCH,
         description_override="""
-        This tool is used to query user uploaded files and documents to answer questions about their content.
+        This tool is used to query user uploaded standard documents(eg. pdf, docx, ppt, pptx, txt, xls, xlsx, md, csv, json, html files etc.) to answer questions about their content. It does not support image files.
         
+        **CRITICAL AND MANDATORY INSTRUCTION**: This tool must not be used for any queries related to image files or any kind of images/photos/screenshots/visual content.
+
+        It only provides result for queries related to standard document files.
+        Examples (non-exhaustive): pdf, docx, ppt, pptx, txt, xls, xlsx, md, csv, json, html files etc.
+
         **CRITICAL: PREFER TO CHECK UPLOADED DOCUMENTS WHEN RELEVANT AS PER USER INTENT**
         - Do not use it when the user explicitly requests a web or internet search.
         
