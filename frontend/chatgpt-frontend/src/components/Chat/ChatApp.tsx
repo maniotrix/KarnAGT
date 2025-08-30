@@ -43,6 +43,7 @@ export const ChatApp: React.FC = () => {
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
   const [chatReload, setChatReload] = useState(0);
   const [isRefreshingConversations, setIsRefreshingConversations] = useState(false);
+  const [isReloadingChat, setIsReloadingChat] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -218,11 +219,25 @@ export const ChatApp: React.FC = () => {
     }
   };
 
-  const handleReloadChat = () => {
-    if (currentConversationId) {
-      setChatReload(v => v + 1);
-    } else {
+  const handleReloadChat = async () => {
+    if (!currentConversationId) {
       toast.info('No chat to reload', 'Start a conversation to use the reload feature.');
+      return;
+    }
+
+    if (isReloadingChat) return; // Prevent double reload
+
+    setIsReloadingChat(true);
+    try {
+      // Add a small delay to show the spinning animation
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setChatReload(v => v + 1);
+      toast.success('Chat reloaded', 'The current conversation has been refreshed.');
+    } catch (error) {
+      console.error('Failed to reload chat:', error);
+      toast.error('Reload failed', 'Unable to reload the chat. Please try again.');
+    } finally {
+      setIsReloadingChat(false);
     }
   };
 
@@ -460,10 +475,11 @@ export const ChatApp: React.FC = () => {
               {currentConversationId && (
                 <button
                   onClick={handleReloadChat}
-                  className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 rounded-md transition-all touch-manipulation"
+                  disabled={isReloadingChat}
+                  className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 rounded-md transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Reload current chat"
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className={`h-4 w-4 ${isReloadingChat ? 'animate-spin' : ''}`} />
                 </button>
               )}
             </div>
