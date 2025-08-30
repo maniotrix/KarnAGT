@@ -129,7 +129,7 @@ class ModelConfig:
     # gpt5 mini :  gpt-5-mini-2025-08-07
     # gpt5 nano :  gpt-5-nano-2025-08-07, no web search
     
-    name: str = "gpt-4o-mini-2024-07-18"
+    name: str = "gpt-5-mini-2025-08-07"
     display_name: str = "GPT-4o Mini"
     family: ModelFamily = ModelFamily.GPT4
     version: str = "2024-07-18"
