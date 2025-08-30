@@ -13,6 +13,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 
 // Clean Architecture Integration
 import { useUiStore, useToast } from '../../app/stores/uiStore';
+import { isLikelyMobile } from '../../utils/device';
 
 // Universal File Upload Integration
 import { UniversalFileUpload, type UniversalFileUploadRef } from './UniversalFileUpload';
@@ -62,16 +63,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [input]);
-
-  const handleFormSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation(); // Prevent any event bubbling
-    
-    console.log('🚀 [ChatInput] Form submit triggered explicitly');
-    
+  // Common submit logic 
+  const executeSubmit = (e: FormEvent | KeyboardEvent | any) => {
     // Show toast for character limit exceeded
     if (isOverLimit) {
       toast.warning('Message too long', `Your message is ${characterCount} characters. Please keep it under 4000 characters.`);
@@ -93,7 +86,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       setFileCount(0);
       setUploadError(null);
     } else {
-      console.log('🚫 [ChatInput] Form submit blocked - conditions not met:', {
+      console.log('🚫 [ChatInput] Submit blocked - conditions not met:', {
         disabled,
         isLoading,
         hasInput: !!input.trim(),
@@ -103,60 +96,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input]);
+
+  const handleFormSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent any event bubbling
+    
+    console.log('🚀 [ChatInput] Form submit triggered explicitly');
+    executeSubmit(e);
+  };
+
   // Keyboard shortcuts
   useHotkeys('mod+enter', (e) => {
+    if (isLikelyMobile()) return;
     e.preventDefault();
     e.stopPropagation();
     console.log('⌨️ [ChatInput] Keyboard shortcut Cmd+Enter triggered');
-    
-    if (isOverLimit) {
-      toast.warning('Message too long', `Your message is ${characterCount} characters. Please keep it under 4000 characters.`);
-      return;
-    }
-    
-    if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
-      // 🎯 MOBILE UX: Dismiss keyboard immediately on send
-      if (textareaRef.current) {
-        textareaRef.current.blur();
-      }
-      
-      // Pass final validated input to parent
-      onSubmit(input.trim(), e as any);
-      
-      // Clear local state after successful submit
-      setInput('');
-      fileUploadRef.current?.clearFiles();
-      setFileCount(0);
-      setUploadError(null);
-    }
+    executeSubmit(e);
   }, { enableOnFormTags: ['textarea'] });
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isLikelyMobile()) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
       console.log('⌨️ [ChatInput] Enter key pressed (without Shift)');
-      
-      if (isOverLimit) {
-        toast.warning('Message too long', `Your message is ${characterCount} characters. Please keep it under 4000 characters.`);
-        return;
-      }
-      
-      if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
-        // 🎯 MOBILE UX: Dismiss keyboard immediately on send
-        if (textareaRef.current) {
-          textareaRef.current.blur();
-        }
-        
-        // Pass final validated input to parent
-        onSubmit(input.trim(), e as any);
-        
-        // Clear local state after successful submit
-        setInput('');
-        fileUploadRef.current?.clearFiles();
-        setFileCount(0);
-        setUploadError(null);
-      }
+      executeSubmit(e);
     }
   };
 
