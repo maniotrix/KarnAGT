@@ -42,11 +42,12 @@ export const ChatApp: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
   const [chatReload, setChatReload] = useState(0);
+  const [isRefreshingConversations, setIsRefreshingConversations] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   // Clean Architecture Hooks
-  const { data: conversations, isLoading: conversationsLoading, error: conversationsError } = useConversations();
+  const { data: conversations, isLoading: conversationsLoading, error: conversationsError, refetch: refetchConversations } = useConversations();
   const { data: user } = useCurrentUser();
   const deleteConversationMutation = useDeleteConversation();
   const createConversationMutation = useCreateConversation();
@@ -225,6 +226,21 @@ export const ChatApp: React.FC = () => {
     }
   };
 
+  const handleRefreshConversations = async () => {
+    if (isRefreshingConversations) return; // Prevent double refresh
+    
+    setIsRefreshingConversations(true);
+    try {
+      await refetchConversations();
+      toast.success('Conversations refreshed', 'Your conversation list has been updated.');
+    } catch (error) {
+      console.error('Failed to refresh conversations:', error);
+      toast.error('Refresh failed', 'Unable to refresh conversations. Please try again.');
+    } finally {
+      setIsRefreshingConversations(false);
+    }
+  };
+
   const handleConversationChange = (conversation: any) => {
     if (conversation) {
       setCurrentConversationId(conversation.conversationId);
@@ -264,16 +280,26 @@ export const ChatApp: React.FC = () => {
             </button>
           </div>
 
-          {/* New Chat Button */}
+          {/* New Chat Button and Refresh Button */}
           <div className="p-4 border-b border-gray-200">
-            <button
-              onClick={handleNewChat}
-              disabled={createConversationMutation.isPending}
-              className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {createConversationMutation.isPending ? 'Creating...' : 'New Chat'}
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleNewChat}
+                disabled={createConversationMutation.isPending}
+                className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {createConversationMutation.isPending ? 'Creating...' : 'New Chat'}
+              </button>
+              <button
+                onClick={handleRefreshConversations}
+                disabled={isRefreshingConversations}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh conversations"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshingConversations ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {/* Conversations List */}
