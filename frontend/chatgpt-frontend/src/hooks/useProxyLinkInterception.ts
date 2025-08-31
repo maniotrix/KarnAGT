@@ -3,6 +3,8 @@
 
 import { useEffect, useRef } from 'react';
 import { handleAuthenticatedDownload, isProxyUrl, extractFileIdFromProxyUrl } from '../utils/authenticatedDownload';
+import { useToast } from '../app/stores/uiStore';
+import { isLikelyMobile } from '../utils/device';
 
 export interface ProxyLinkInterceptionOptions {
   /** Enable debug logging */
@@ -162,12 +164,48 @@ export function useProxyLinkInterception(options: ProxyLinkInterceptionOptions =
   };
 }
 
+// Using the proper device detection utility instead of simple width check
+
 /**
  * Simplified hook version with sensible defaults for most use cases
+ * Includes mobile-aware toast notifications for download success/failure
  */
 export function useProxyLinkInterceptionSimple() {
+  const toast = useToast();
+  
   return useProxyLinkInterception({
-    debug: process.env.NODE_ENV === 'development'
+    debug: process.env.NODE_ENV === 'development',
+    onDownloadSuccess: (url) => {
+      const isMobile = isLikelyMobile();
+      
+      if (isMobile) {
+        // Mobile: File goes to download manager automatically
+        toast.success('Download Started', 'File sent to downloads');
+      } else {
+        // Desktop: Opens in new tab
+        toast.success('Download Started', 'Opening file in new tab');
+      }
+    },
+    onDownloadError: (url, error) => {
+      const isMobile = isLikelyMobile();
+      
+      if (isMobile) {
+        // Mobile: Simple, clear error messages
+        const mobileError = error?.includes('Authentication') ? 'Please log in first' :
+                           error?.includes('404') ? 'File not found' :
+                           error?.includes('403') ? 'Access denied' :
+                           'Unable to download file';
+        toast.error('Download Failed', mobileError);
+      } else {
+        // Desktop: More detailed error
+        toast.error('Download Failed', error || 'Unable to download file');
+      }
+    },
+    onInterception: (url, fileId) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔗 Intercepted download link:', { url, fileId });
+      }
+    }
   });
 }
 
