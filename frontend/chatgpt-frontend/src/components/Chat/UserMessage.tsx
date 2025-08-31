@@ -8,6 +8,7 @@ import { InteractiveMarkdown } from './InteractiveMarkdown/InteractiveMarkdown';
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
 import * as Dialog from '@radix-ui/react-dialog';
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { 
   Copy,
   Check,
@@ -433,28 +434,38 @@ export const UserMessage: React.FC<UserMessageProps> = ({
       {/* Image Lightbox Modal */}
       <Dialog.Root open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 flex items-center justify-center overflow-hidden bg-black/90 dark:bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-          <Dialog.Content className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]">
+          <Dialog.Overlay className="fixed inset-0 bg-black/90 dark:bg-black/80 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
+            {/* Accessibility - Hidden Title and Description */}
+            <VisuallyHidden.Root>
+              <Dialog.Title>Image Lightbox</Dialog.Title>
+              <Dialog.Description>
+                Full-size view of the uploaded image. Press Escape or click the close button to exit.
+              </Dialog.Description>
+            </VisuallyHidden.Root>
+            
             {/* Close Button */}
             <Dialog.Close asChild>
               <button 
-                className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                aria-label="Close"
+                className="absolute right-4 top-4 sm:right-6 sm:top-6 md:right-8 md:top-8 z-10 rounded-full bg-black/20 backdrop-blur-sm p-2 opacity-80 ring-offset-background transition-all hover:opacity-100 hover:bg-black/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 touch-manipulation"
+                aria-label="Close image"
               >
-                <X className="h-5 w-5 text-gray-100" />
+                <X className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </button>
             </Dialog.Close>
             
-            {/* Image Display */}
-            {selectedImage && (
-              <div className="relative max-h-[85vh] max-w-[90vw]">
-                <img 
-                  alt="Enlarged view"
-                  className="h-full w-full object-contain"
-                  src={selectedImage}
-                />
-              </div>
-            )}
+            {/* Image Display Container */}
+            <div className="relative w-full h-full flex items-center justify-center">
+              {selectedImage && (
+                <div className="relative max-h-full max-w-full">
+                  <img 
+                    alt="Enlarged view"
+                    className="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] sm:max-h-[calc(100vh-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-h-[calc(100vh-4rem)] md:max-w-[calc(100vw-4rem)] object-contain rounded-lg shadow-2xl"
+                    src={selectedImage}
+                  />
+                </div>
+              )}
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
