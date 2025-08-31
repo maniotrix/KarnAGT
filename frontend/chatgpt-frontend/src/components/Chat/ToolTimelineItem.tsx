@@ -392,11 +392,11 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         </AnimatePresence>
         
         {/* Tool Type Badge */}
-        <div className="mt-1">
+        {/* <div className="mt-1">
           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
             {tool.tool_type}
           </span>
-        </div>
+        </div> */}
         
               {/* Enhanced Code Display for execute_code tool */}
               {tool.tool_name === 'execute_code' && tool.openai_tool_data?.arguments?.code && (() => {
