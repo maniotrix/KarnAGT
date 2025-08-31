@@ -133,11 +133,30 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         return '';
       }
       
-      return date.toLocaleTimeString([], { 
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+      const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      
+      const timeStr = date.toLocaleTimeString([], { 
         hour: '2-digit', 
         minute: '2-digit',
         second: '2-digit'
       });
+      
+      // Show smart date formatting
+      if (itemDate.getTime() === today.getTime()) {
+        return `Today ${timeStr}`;
+      } else if (itemDate.getTime() === yesterday.getTime()) {
+        return `Yesterday ${timeStr}`;
+      } else {
+        // For older dates, show month/day and time
+        const dateStr = date.toLocaleDateString([], { 
+          month: 'short', 
+          day: 'numeric'
+        });
+        return `${dateStr} ${timeStr}`;
+      }
     } catch {
       return '';
     }
