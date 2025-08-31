@@ -175,7 +175,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center z-20 cursor-pointer hover:text-gray-600 transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -214,7 +214,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                     />
                     <button
                       type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center z-20 cursor-pointer hover:text-gray-600 transition-colors"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     >
                       {showConfirmPassword ? (
