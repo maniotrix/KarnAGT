@@ -112,7 +112,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8 px-6 sm:py-12 sm:px-8 lg:px-12 overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="flex flex-col items-center">
@@ -136,7 +136,31 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
           </div>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        {/* Google Sign-in Button - Primary Option */}
+        <div className="mt-8">
+          <GoogleSignInButton
+            onSuccess={() => {
+              toast.success('Google login successful', 'You have been signed in successfully');
+            }}
+            onError={(error) => {
+              toast.error('Google login failed', error);
+            }}
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">Or sign {isLoginMode ? 'in' : 'up'} with email</span>
+            </div>
+          </div>
+        </div>
+
+        <form className="mt-6 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             {/* Email Field */}
             <div>
@@ -316,29 +340,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             </button>
           </div>
 
-          {/* Divider */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Google Sign-in Button */}
-          <div className="mt-6">
-            <GoogleSignInButton
-              onSuccess={() => {
-                toast.success('Google login successful', 'You have been signed in successfully');
-              }}
-              onError={(error) => {
-                toast.error('Google login failed', error);
-              }}
-            />
-          </div>
 
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">

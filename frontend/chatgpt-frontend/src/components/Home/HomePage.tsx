@@ -121,7 +121,7 @@ export const HomePage: React.FC = () => {
               </Link>
             </div>
             <p className="mt-6 text-sm sm:text-base text-gray-500 max-w-xl mx-auto">
-              Built for individuals. Private by default. Always ready when you are.
+              Built for individuals. Private by default. Always ready.
             </p>
           </div>
         </div>
