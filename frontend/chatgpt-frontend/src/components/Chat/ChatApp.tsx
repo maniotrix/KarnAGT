@@ -469,7 +469,11 @@ export const ChatApp: React.FC = () => {
                 className="p-3 text-blue-600 hover:text-blue-700 active:scale-95 transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Start a new chat"
               >
-                <MessageCirclePlus className="h-5 w-5" />
+                {createConversationMutation.isPending ? (
+                  <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
+                ) : (
+                  <MessageCirclePlus className="h-5 w-5" />
+                )}
               </button>
               
               {currentConversationId && (
