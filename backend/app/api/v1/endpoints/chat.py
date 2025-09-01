@@ -1008,7 +1008,7 @@ async def share_conversation(
         from datetime import datetime, timedelta
         
         share_token = str(uuid.uuid4())
-        share_url = f"https://chatgpt-clone.com/shared/{share_token}"
+        share_url = f"https://localhost:3000/shared/{share_token}"
         
         expires_at = None
         if share_data.expiry_hours:

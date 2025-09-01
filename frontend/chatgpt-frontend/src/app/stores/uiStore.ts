@@ -133,7 +133,7 @@ export const useUiStore = create<UiState>()(
         set({ isProfileOpen: open }),
     }),
     {
-      name: 'chatgpt-ui-store',
+      name: 'karnagt-ui-store',
       // Only persist certain UI preferences
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,

@@ -25,7 +25,7 @@ async def health_check():
 async def api_status():
     """API v1 status endpoint"""
     return {
-        "api": "ChatGPT Clone Backend API",
+        "api": "App Backend API",
         "version": settings.VERSION,
         "api_version": "v1",
         "environment": settings.ENVIRONMENT,
