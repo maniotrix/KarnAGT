@@ -91,7 +91,7 @@ export const HomePage: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1">
         {/* Hero Section */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 lg:pt-20 pb-8">
           <div className="text-center">
             <div className="flex flex-col items-center mb-6">
               <div className="mb-6">
@@ -127,7 +127,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Features Section */}
-        <div className="bg-white py-16">
+        <div className="bg-white pt-4 pb-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
@@ -160,7 +160,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* How it works */}
-        <div className="bg-white py-16">
+        <div className="bg-white py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-10">
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">How it works</h2>
@@ -219,7 +219,7 @@ export const HomePage: React.FC = () => {
 
         {/* Social Proof / Reassurance Strip */}
         <div className="bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center">
               <p className="text-gray-700 text-base sm:text-lg">
                 Powered by state-of-the-art models with agentic reasoning—so you get intelligent outcomes, not just responses.
@@ -246,7 +246,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Call to Action Section */}
-        <div className="bg-blue-50 py-16">
+        <div className="bg-blue-50 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               Ready when you are
