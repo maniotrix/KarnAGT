@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import Logo from '../ui/Logo';
 
 interface ErrorPageProps {
   title?: string;
@@ -16,8 +17,13 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
   const navigate = useNavigate();
   
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full text-center">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8 md:p-12 lg:p-16">
+      <div className="max-w-md w-full text-center bg-white rounded-lg shadow-sm p-8 md:p-10">
+        {/* Brand Logo */}
+        <div className="flex justify-center mb-6">
+          <Logo size="xl" variant="full" />
+        </div>
+        
         <div className="flex justify-center mb-6">
           <div className="p-4 bg-red-100 text-red-600 rounded-full">
             <AlertTriangle className="h-10 w-10" />
@@ -66,6 +72,13 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
               </button>
             </>
           )}
+        </div>
+        
+        {/* Subtle branding footer */}
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <p className="text-sm text-gray-500">
+            Having trouble? Contact KarnAGT support for assistance.
+          </p>
         </div>
       </div>
     </div>
