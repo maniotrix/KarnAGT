@@ -51,19 +51,19 @@ export const HomePage: React.FC = () => {
                       <div className="flex justify-between items-center h-16">
               <div className="flex items-center">
                 <Logo size="sm" className="mr-2" />
-                <h1 className="text-2xl font-bold text-gray-900">KarnAGT</h1>
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">KarnAGT</h1>
               </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               <Link
                 to="/login"
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <LogIn className="h-4 w-4 mr-2" />
                 Sign In
               </Link>
               <Link
                 to="/register"
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center px-3 py-2 sm:px-4 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Sign Up
