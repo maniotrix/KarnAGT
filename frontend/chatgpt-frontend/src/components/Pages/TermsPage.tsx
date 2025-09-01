@@ -160,7 +160,8 @@ export const TermsPage: React.FC = () => {
               <div className="space-y-4 text-gray-700">
                 <p>
                   <strong>3.1 Data Collection:</strong> We collect only the information necessary to provide and 
-                  improve our services. This includes account information, usage data, and conversation content.
+                  improve our services. This includes account information, usage data, and conversation content. 
+                  For detailed information about our data practices, please see our <a href="/privacy-policy" className="text-blue-600 hover:text-blue-700 underline">Privacy Policy</a>.
                 </p>
                 <p>
                   <strong>3.2 Data Use:</strong> Your data is used to:
@@ -181,7 +182,8 @@ export const TermsPage: React.FC = () => {
                 </p>
                 <p>
                   <strong>3.5 Data Retention:</strong> We retain your data only as long as necessary to provide 
-                  services or comply with legal obligations. You can request data deletion at any time.
+                  services or comply with legal obligations. You can request data deletion at any time. 
+                  Detailed retention periods and deletion procedures are outlined in our <a href="/privacy-policy" className="text-blue-600 hover:text-blue-700 underline">Privacy Policy</a>.
                 </p>
               </div>
             </section>

@@ -364,7 +364,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
               </a>
               {!isLoginMode && " and "}
               {!isLoginMode && (
-                <a href="/help" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                <a href="/privacy-policy" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
                   Privacy Policy
                 </a>
               )}

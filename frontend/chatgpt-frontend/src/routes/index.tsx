@@ -6,6 +6,7 @@ import { HomePage } from '../components/Home/HomePage';
 import { AboutPage } from '../components/Pages/AboutPage';
 import { HelpPage } from '../components/Pages/HelpPage';
 import { TermsPage } from '../components/Pages/TermsPage';
+import { PrivacyPage } from '../components/Pages/PrivacyPage';
 import { useCurrentUser } from '../app/hooks/auth';
 import { AppLoading } from '../components/common/AppLoading';
 import { ErrorPage } from '../components/common/ErrorPage';
@@ -42,6 +43,7 @@ export const AppRoutes = () => {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/help" element={<HelpPage />} />
       <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy-policy" element={<PrivacyPage />} />
       
       {/* Auth routes */}
       <Route path="/login" element={<AuthForm />} />
