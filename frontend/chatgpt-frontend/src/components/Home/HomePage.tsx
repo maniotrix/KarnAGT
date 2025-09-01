@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquare, Users, Sparkles, ArrowRight, LogIn, UserPlus } from 'lucide-react';
+import { MessageSquare, FileText, Globe, Code, Brain, ArrowRight, LogIn, UserPlus, Zap, Shield, Search, CheckCircle2, Languages, Image } from 'lucide-react';
 import { useCurrentUser } from '../../app/hooks/auth';
 import Logo from '../ui/Logo';
 
@@ -27,19 +27,34 @@ export const HomePage: React.FC = () => {
 
   const features = [
     {
-      icon: <MessageSquare className="h-8 w-8 text-blue-500" />,
-      title: "Smart Conversations",
-      description: "Engage in intelligent conversations with advanced AI capabilities"
+      icon: <Globe className="h-8 w-8 text-purple-500" />,
+      title: "Fresh, reliable answers",
+      description: "Get concise summaries backed by up‑to‑date web research when you need it."
     },
     {
-      icon: <Users className="h-8 w-8 text-green-500" />,
-      title: "Collaborative",
-      description: "Share and collaborate on conversations with your team"
+      icon: <Image className="h-8 w-8 text-pink-500" />,
+      title: "Vision built in",
+      description: "Understand images, charts, and screenshots to extract insights and context."
     },
     {
-      icon: <Sparkles className="h-8 w-8 text-purple-500" />,
-      title: "AI-Powered",
-      description: "Leverage cutting-edge AI technology for enhanced productivity"
+      icon: <FileText className="h-8 w-8 text-green-500" />,
+      title: "Works with your files",
+      description: "Ask questions about your documents and get actionable insights in seconds."
+    },
+    {
+      icon: <Code className="h-8 w-8 text-blue-500" />,
+      title: "Does the hard parts",
+      description: "Offload analysis and computations to AI‑powered code execution."
+    },
+    {
+      icon: <Brain className="h-8 w-8 text-orange-500" />,
+      title: "Understands your context",
+      description: "Remembers preferences and patterns to personalize guidance over time."
+    },
+    {
+      icon: <Languages className="h-8 w-8 text-indigo-500" />,
+      title: "Multilingual by default",
+      description: "Communicates naturally in many languages—ask and answer in the language you prefer."
     }
   ];
 
@@ -83,13 +98,12 @@ export const HomePage: React.FC = () => {
                 <Logo size="2xl" />
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 text-center">
-                Welcome to{' '}
-                <span className="text-blue-600">KarnAGT</span>
+                Meet <span className="text-blue-600">KarnAGT</span>—your advanced AI agent
               </h1>
             </div>
             <p className="text-xl sm:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              Experience the future of AI-powered conversations. 
-              Connect, collaborate, and create with intelligent assistance.
+              An intelligent agentic system that reasons, sees, remembers, and communicates in any language. 
+              Always up‑to‑date. Always learning. Always ready to help you achieve more.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link
@@ -106,6 +120,9 @@ export const HomePage: React.FC = () => {
                 Sign In
               </Link>
             </div>
+            <p className="mt-6 text-sm sm:text-base text-gray-500 max-w-xl mx-auto">
+              Built for individuals. Private by default. Always ready when you are.
+            </p>
           </div>
         </div>
 
@@ -114,19 +131,18 @@ export const HomePage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-                Why Choose KarnAGT?
+                Why KarnAGT
               </h2>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Discover the powerful features that make our platform the perfect choice 
-                for your AI-powered conversations and collaboration needs.
+                An advanced agentic system that thinks, sees, remembers, and adapts—transforming how you work with AI-powered intelligence.
               </p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="flex flex-wrap justify-center gap-8">
               {features.map((feature, index) => (
                 <div
                   key={index}
-                  className="text-center p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200"
+                  className="text-center p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 w-full sm:w-72"
                 >
                   <div className="flex justify-center mb-4">
                     {feature.icon}
@@ -143,21 +159,106 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
+        {/* How it works */}
+        <div className="bg-white py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-10">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">How it works</h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">From intent to outcome in three clear steps.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="rounded-2xl border border-gray-200 bg-white p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <Search className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Describe your goal</h3>
+                </div>
+                <p className="text-gray-600">Share what you need—drafts, summaries, analysis, plans, or calculations.</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <Zap className="h-5 w-5 text-yellow-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">AI plans and executes</h3>
+                </div>
+                <p className="text-gray-600">KarnAGT reasons, searches the web, analyzes images, works with your files, and executes code—all in any language.</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Get a polished result</h3>
+                </div>
+                <p className="text-gray-600">Receive clear, actionable output you can use immediately—no busywork.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Popular use cases */}
+        <div className="bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">Popular use cases</h3>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {[
+                'Research summaries',
+                'Document Q&A',
+                'Vision analysis',
+                'Data analysis',
+                'Multilingual translation',
+                'Code assistance',
+                'Complex reasoning',
+                'Learning & tutoring'
+              ].map((chip) => (
+                <span key={chip} className="px-3 py-1.5 text-sm rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                  {chip}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Social Proof / Reassurance Strip */}
+        <div className="bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center">
+              <p className="text-gray-700 text-base sm:text-lg">
+                Powered by state-of-the-art models with agentic reasoning—so you get intelligent outcomes, not just responses.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Privacy & Control */}
+        <div className="bg-white pb-2">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="rounded-2xl border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <Shield className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Privacy & Control</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-gray-700">
+                <div>Private by design—your personal workspace.</div>
+                <div>State‑of‑the‑art security infrastructure protects your data.</div>
+                <div>Transparent behavior—you’re always in control.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Call to Action Section */}
         <div className="bg-blue-50 py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Ready to Get Started?
+              Ready when you are
             </h2>
             <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              Join thousands of users who are already experiencing the power of 
-              AI-enhanced conversations. Create your account today and start exploring.
+              Experience agentic AI that understands your goals, thinks through complex problems, and delivers results that matter.
             </p>
             <Link
               to="/register"
               className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105"
             >
-              Create Your Account
+              Create your account
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </div>
