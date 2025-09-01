@@ -354,6 +354,30 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
               </button>
             </p>
           </div>
+
+          {/* Terms and Legal Links */}
+          <div className="mt-4 text-center">
+            <p className="text-xs text-gray-500">
+              {!isLoginMode && "By signing up, you agree to our "}
+              <a href="/terms" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                Terms & Conditions
+              </a>
+              {!isLoginMode && " and "}
+              {!isLoginMode && (
+                <a href="/help" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                  Privacy Policy
+                </a>
+              )}
+              {isLoginMode && (
+                <span>
+                  <span className="mx-1">·</span>
+                  <a href="/help" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                    Need Help?
+                  </a>
+                </span>
+              )}
+            </p>
+          </div>
         </form>
       </div>
     </div>
