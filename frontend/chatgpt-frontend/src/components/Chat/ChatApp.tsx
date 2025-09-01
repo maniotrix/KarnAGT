@@ -205,13 +205,9 @@ export const ChatApp: React.FC = () => {
     try {
       await logoutMutation.mutateAsync();
       
-      // Show success toast
+      // Show success toast and let ProtectedRoute handle redirect
       toast.success('Logout successful!', 'You have been signed out successfully.');
-      
-      // Small delay before navigation to allow user to see the toast
-      setTimeout(() => {
-        navigate('/login');
-      }, 1000);
+      // ProtectedRoute will automatically redirect to /home when user becomes null
     } catch (error) {
       console.error('Logout failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Logout failed';

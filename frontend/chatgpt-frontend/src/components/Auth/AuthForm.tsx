@@ -8,6 +8,7 @@ import { useToast } from '../../app/stores/uiStore';
 import { Eye, EyeOff, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleSignInButton } from './GoogleSignInButton';
+import Logo from '../ui/Logo';
 
 // Zod validation schemas
 const loginSchema = z.object({
@@ -114,12 +115,25 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            KarnAGT
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <div className="flex flex-col items-center">
+            <div className="mb-4">
+              <Logo size="lg" />
+            </div>
+            <h2 className="text-3xl font-extrabold text-gray-900">
+              KarnAGT
+            </h2>
+          </div>
+          <p className="mt-4 text-center text-sm text-gray-600">
             {isLoginMode ? 'Sign in to your account' : 'Create a new account'}
           </p>
+          <div className="mt-2 text-center">
+            <Link
+              to="/home"
+              className="text-xs text-blue-600 hover:text-blue-500 transition-colors"
+            >
+              ← Back to Home
+            </Link>
+          </div>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
