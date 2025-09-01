@@ -89,7 +89,7 @@ export const HomePage: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1">
+      <main className="flex-1 px-2 sm:px-0">
         {/* Hero Section */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 lg:pt-20 pb-8">
           <div className="text-center">
