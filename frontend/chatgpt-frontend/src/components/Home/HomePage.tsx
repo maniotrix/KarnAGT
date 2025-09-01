@@ -272,8 +272,15 @@ export const HomePage: React.FC = () => {
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center text-gray-600">
-            <p>&copy; 2025 KarnAGT. All rights reserved.</p>
+          <div className="flex flex-col sm:flex-row justify-between items-center">
+            <div className="text-center sm:text-left mb-4 sm:mb-0">
+              <p className="text-gray-600">&copy; 2025 KarnAGT. All rights reserved.</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-4 sm:gap-8">
+              <a href="/about" className="text-gray-600 hover:text-blue-600 underline hover:no-underline transition-all">About</a>
+              <a href="/help" className="text-gray-600 hover:text-blue-600 underline hover:no-underline transition-all">Help</a>
+              <a href="/terms" className="text-gray-600 hover:text-blue-600 underline hover:no-underline transition-all">Terms</a>
+            </div>
           </div>
         </div>
       </footer>

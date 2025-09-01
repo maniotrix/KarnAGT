@@ -3,6 +3,9 @@ import { Route, Routes, Navigate } from 'react-router-dom';
 import { ChatApp } from '../components/Chat/ChatApp';
 import { AuthForm } from '../components/Auth/AuthForm';
 import { HomePage } from '../components/Home/HomePage';
+import { AboutPage } from '../components/Pages/AboutPage';
+import { HelpPage } from '../components/Pages/HelpPage';
+import { TermsPage } from '../components/Pages/TermsPage';
 import { useCurrentUser } from '../app/hooks/auth';
 import { AppLoading } from '../components/common/AppLoading';
 import { ErrorPage } from '../components/common/ErrorPage';
@@ -36,6 +39,9 @@ export const AppRoutes = () => {
     <Routes>
       {/* Public routes */}
       <Route path="/home" element={<HomePage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/help" element={<HelpPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       
       {/* Auth routes */}
       <Route path="/login" element={<AuthForm />} />
