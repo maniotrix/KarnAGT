@@ -550,6 +550,30 @@ export const ChatApp: React.FC = () => {
                     </div>
                   </div> */}
                   
+                  {/* Navigation Links */}
+                  <div className="border-t border-gray-200 pt-3 mb-3">
+                    <div className="space-y-1">
+                      <a
+                        href="/about"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                      >
+                        About
+                      </a>
+                      <a
+                        href="/help"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                      >
+                        Help
+                      </a>
+                      <a
+                        href="/terms"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                      >
+                        Terms
+                      </a>
+                    </div>
+                  </div>
+                  
                   <button
                     onClick={handleLogout}
                     disabled={logoutMutation.isPending}
