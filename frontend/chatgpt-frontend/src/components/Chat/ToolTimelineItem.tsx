@@ -252,9 +252,9 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
             )}
           </div>
           
-          {/* Timestamp at the end of status row */}
+          {/* Timestamp at the end of status row - lowest priority, truncates only when space is limited */}
           {formatTime(tool.timestamp) && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+            <div className="text-[10px] text-gray-400 dark:text-gray-500 ml-2 truncate min-w-0">
               {formatTime(tool.timestamp)}
             </div>
           )}
