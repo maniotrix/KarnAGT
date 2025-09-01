@@ -133,3 +133,4 @@
 * limit code sandbox container cpu ram
 * setting openai model name from envs
 * show thinking tokens on ui
+* cant select some files like csv, md on mobile from frontend while attaching
