@@ -198,61 +198,65 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
               )}
             </button>
           </div>
-          {formatTime(tool.timestamp) && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
-              {formatTime(tool.timestamp)}
-            </div>
-          )}
         </div>
         
         {/* Status Text */}
-        <div className="flex items-center space-x-1 mt-1">
-          <span className={`text-xs font-medium ${
-            tool.status === 'started' ? 'text-blue-600 dark:text-blue-400' :
-            tool.status === 'running' ? 'text-blue-600 dark:text-blue-400' :
-            tool.status === 'completed' ? 'text-green-600 dark:text-green-400' :
-            tool.status === 'error' ? 'text-red-600 dark:text-red-400' :
-            'text-gray-500 dark:text-gray-400'
-          }`}>
-            {tool.status === 'started' && '🔄 Started'}
-            {tool.status === 'running' && '⏳ In progress...'}
-            {tool.status === 'completed' && '✅ Done'}
-            {tool.status === 'error' && '❌ Failed'}
-          </span>
-          
-          {/* Warning indicator for completed tools with stderr */}
-          {tool.status === 'completed' && tool.stderr && (
-            <button
-              onClick={() => {
-                if (!isExpanded) {
-                  // If parent is collapsed, expand it first
-                  setIsExpanded(true);
-                  setIsStderrExpanded(true);
-                } else {
-                  // If parent is expanded, toggle stderr details
-                  setIsStderrExpanded(!isStderrExpanded);
+        <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center space-x-1">
+            <span className={`text-xs font-medium ${
+              tool.status === 'started' ? 'text-blue-600 dark:text-blue-400' :
+              tool.status === 'running' ? 'text-blue-600 dark:text-blue-400' :
+              tool.status === 'completed' ? 'text-green-600 dark:text-green-400' :
+              tool.status === 'error' ? 'text-red-600 dark:text-red-400' :
+              'text-gray-500 dark:text-gray-400'
+            }`}>
+              {tool.status === 'started' && '🔄 Started'}
+              {tool.status === 'running' && '⏳ In progress...'}
+              {tool.status === 'completed' && '✅ Done'}
+              {tool.status === 'error' && '❌ Failed'}
+            </span>
+            
+            {/* Warning indicator for completed tools with stderr */}
+            {tool.status === 'completed' && tool.stderr && (
+              <button
+                onClick={() => {
+                  if (!isExpanded) {
+                    // If parent is collapsed, expand it first
+                    setIsExpanded(true);
+                    setIsStderrExpanded(true);
+                  } else {
+                    // If parent is expanded, toggle stderr details
+                    setIsStderrExpanded(!isStderrExpanded);
+                  }
+                }}
+                className="flex items-center space-x-1 hover:bg-yellow-50 dark:hover:bg-yellow-900/10 px-1 py-0.5 rounded transition-colors"
+                title={
+                  !isExpanded 
+                    ? "Show warning details" 
+                    : isStderrExpanded 
+                      ? "Hide warning details" 
+                      : "Show warning details"
                 }
-              }}
-              className="flex items-center space-x-1 hover:bg-yellow-50 dark:hover:bg-yellow-900/10 px-1 py-0.5 rounded transition-colors"
-              title={
-                !isExpanded 
-                  ? "Show warning details" 
-                  : isStderrExpanded 
-                    ? "Hide warning details" 
-                    : "Show warning details"
-              }
-            >
-              <AlertTriangle className="w-3 h-3 text-yellow-500" />
-              <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                Warning
-              </span>
-              {/* Always show chevron to indicate expandable warning content */}
-              {(!isExpanded || !isStderrExpanded) ? (
-                <ChevronDown className="w-3 h-3 text-yellow-500" />
-              ) : (
-                <ChevronUp className="w-3 h-3 text-yellow-500" />
-              )}
-            </button>
+              >
+                <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                  Warning
+                </span>
+                {/* Always show chevron to indicate expandable warning content */}
+                {(!isExpanded || !isStderrExpanded) ? (
+                  <ChevronDown className="w-3 h-3 text-yellow-500" />
+                ) : (
+                  <ChevronUp className="w-3 h-3 text-yellow-500" />
+                )}
+              </button>
+            )}
+          </div>
+          
+          {/* Timestamp at the end of status row - lowest priority, truncates only when space is limited */}
+          {formatTime(tool.timestamp) && (
+            <div className="text-[10px] text-gray-400 dark:text-gray-500 ml-2 truncate min-w-0">
+              {formatTime(tool.timestamp)}
+            </div>
           )}
         </div>
         

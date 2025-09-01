@@ -130,4 +130,6 @@
   * Use ai image capabilities to also create and index images uploaded by user
 
 * Memory about atleast user name not avaialble when user first signed up in llm context. But llm can succesfully update and create new memories for user.(.cursor_chats/cursor_understanding_user_information_i.md)
-  
+* limit code sandbox container cpu ram
+* setting openai model name from envs
+* show thinking tokens on ui

@@ -16,7 +16,7 @@ import {
   Menu, 
   X, 
   Plus, 
-  MessageSquarePlus,
+  MessageCirclePlus,
   Trash2, 
   User, 
   LogOut,
@@ -466,10 +466,14 @@ export const ChatApp: React.FC = () => {
               <button
                 onClick={handleNewChat}
                 disabled={createConversationMutation.isPending}
-                className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 rounded-md transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-3 text-blue-600 hover:text-blue-700 active:scale-95 transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Start a new chat"
               >
-                <MessageSquarePlus className="h-4 w-4" />
+                {createConversationMutation.isPending ? (
+                  <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
+                ) : (
+                  <MessageCirclePlus className="h-5 w-5" />
+                )}
               </button>
               
               {currentConversationId && (
