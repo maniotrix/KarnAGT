@@ -35,11 +35,11 @@ const Logo: React.FC<LogoProps> = ({
     '2xl': 'w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32'
   };
 
-  // Background variants with blue theme colors
+  // Background variants with white background and blue border
   const backgroundClasses = {
-    light: 'bg-blue-50 border-blue-200',
-    dark: 'bg-blue-900 border-blue-700',
-    theme: 'bg-blue-50 border-blue-200 dark:bg-blue-900 dark:border-blue-700'
+    light: 'bg-white border-blue-200',
+    dark: 'bg-white border-blue-200',
+    theme: 'bg-white border-blue-200'
   };
 
   const logoImageClassName = `${logoSizeClasses[size]} object-contain`;
@@ -63,7 +63,7 @@ const Logo: React.FC<LogoProps> = ({
           ${backgroundClasses[backgroundVariant]}
           flex items-center justify-center 
           transition-all duration-200 
-          hover:shadow-md 
+          ${size === '2xl' || size === 'xl' ? 'hover:shadow-lg' : 'hover:shadow-md'} 
           hover:scale-105
           ${className}
         `}>
@@ -99,7 +99,7 @@ const Logo: React.FC<LogoProps> = ({
           ${backgroundClasses[backgroundVariant]}
           flex items-center justify-center 
           transition-all duration-200 
-          hover:shadow-md
+          ${size === '2xl' || size === 'xl' ? 'hover:shadow-lg' : 'hover:shadow-md'}
           hover:scale-105
         `}>
           {renderLogo()}

@@ -2,6 +2,11 @@ import React from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { ChatApp } from '../components/Chat/ChatApp';
 import { AuthForm } from '../components/Auth/AuthForm';
+import { HomePage } from '../components/Home/HomePage';
+import { AboutPage } from '../components/Pages/AboutPage';
+import { HelpPage } from '../components/Pages/HelpPage';
+import { TermsPage } from '../components/Pages/TermsPage';
+import { PrivacyPage } from '../components/Pages/PrivacyPage';
 import { useCurrentUser } from '../app/hooks/auth';
 import { AppLoading } from '../components/common/AppLoading';
 import { ErrorPage } from '../components/common/ErrorPage';
@@ -23,7 +28,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   return <>{children}</>;
@@ -33,6 +38,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 export const AppRoutes = () => {
   return (
     <Routes>
+      {/* Public routes */}
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/help" element={<HelpPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy-policy" element={<PrivacyPage />} />
+      
       {/* Auth routes */}
       <Route path="/login" element={<AuthForm />} />
       <Route path="/register" element={<AuthForm isRegisterMode={true} />} />

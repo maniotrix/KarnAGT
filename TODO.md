@@ -133,3 +133,10 @@
 * limit code sandbox container cpu ram
 * setting openai model name from envs
 * show thinking tokens on ui
+* ✅ FIXED: Mobile file selection issue - cant select some files like csv, md on mobile from frontend while attaching
+  - ✅ SOLUTION: Updated UniversalFileUpload.tsx to use MIME types alongside file extensions  
+  - ✅ ADDED: Proper MIME type support (text/csv, text/markdown, etc.) for mobile browser compatibility
+  - ✅ ADDED: Missing .md and .html file support in accept attribute
+  - ✅ ENHANCED: File icon mapping for .md and .html files
+  - 🔧 TECHNICAL: Mobile browsers prefer MIME types over file extensions in accept attribute
+  - 📱 IMPACT: CSV, MD, HTML, and other document files now selectable on mobile devices

@@ -205,13 +205,9 @@ export const ChatApp: React.FC = () => {
     try {
       await logoutMutation.mutateAsync();
       
-      // Show success toast
+      // Show success toast and let ProtectedRoute handle redirect
       toast.success('Logout successful!', 'You have been signed out successfully.');
-      
-      // Small delay before navigation to allow user to see the toast
-      setTimeout(() => {
-        navigate('/login');
-      }, 1000);
+      // ProtectedRoute will automatically redirect to /home when user becomes null
     } catch (error) {
       console.error('Logout failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Logout failed';
@@ -553,6 +549,30 @@ export const ChatApp: React.FC = () => {
                       <span className="ml-2 flex-shrink-0">~$0.14 used</span>
                     </div>
                   </div> */}
+                  
+                  {/* Navigation Links */}
+                  <div className="border-t border-gray-200 pt-3 mb-3">
+                    <div className="space-y-1">
+                      <a
+                        href="/about"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                      >
+                        About
+                      </a>
+                      <a
+                        href="/help"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                      >
+                        Help
+                      </a>
+                      <a
+                        href="/terms"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                      >
+                        Terms
+                      </a>
+                    </div>
+                  </div>
                   
                   <button
                     onClick={handleLogout}

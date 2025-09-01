@@ -8,6 +8,7 @@ import { useToast } from '../../app/stores/uiStore';
 import { Eye, EyeOff, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleSignInButton } from './GoogleSignInButton';
+import Logo from '../ui/Logo';
 
 // Zod validation schemas
 const loginSchema = z.object({
@@ -111,18 +112,55 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8 px-6 sm:py-12 sm:px-8 lg:px-12 overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            KarnAGT
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <div className="flex flex-col items-center">
+            <div className="mb-4">
+              <Logo size="lg" />
+            </div>
+            <h2 className="text-3xl font-extrabold text-gray-900">
+              KarnAGT
+            </h2>
+          </div>
+          <p className="mt-4 text-center text-sm text-gray-600">
             {isLoginMode ? 'Sign in to your account' : 'Create a new account'}
           </p>
+          <div className="mt-2 text-center">
+            <Link
+              to="/home"
+              className="text-xs text-blue-600 hover:text-blue-500 transition-colors"
+            >
+              ← Back to Home
+            </Link>
+          </div>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        {/* Google Sign-in Button - Primary Option */}
+        <div className="mt-8">
+          <GoogleSignInButton
+            onSuccess={() => {
+              toast.success('Google login successful', 'You have been signed in successfully');
+            }}
+            onError={(error) => {
+              toast.error('Google login failed', error);
+            }}
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">Or sign {isLoginMode ? 'in' : 'up'} with email</span>
+            </div>
+          </div>
+        </div>
+
+        <form className="mt-6 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             {/* Email Field */}
             <div>
@@ -302,29 +340,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             </button>
           </div>
 
-          {/* Divider */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Google Sign-in Button */}
-          <div className="mt-6">
-            <GoogleSignInButton
-              onSuccess={() => {
-                toast.success('Google login successful', 'You have been signed in successfully');
-              }}
-              onError={(error) => {
-                toast.error('Google login failed', error);
-              }}
-            />
-          </div>
 
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
@@ -336,6 +352,30 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
               >
                 {isLoginMode ? 'Sign up' : 'Sign in'}
               </button>
+            </p>
+          </div>
+
+          {/* Terms and Legal Links */}
+          <div className="mt-4 text-center">
+            <p className="text-xs text-gray-500">
+              {!isLoginMode && "By signing up, you agree to our "}
+              <a href="/terms" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                Terms & Conditions
+              </a>
+              {!isLoginMode && " and "}
+              {!isLoginMode && (
+                <a href="/privacy-policy" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                  Privacy Policy
+                </a>
+              )}
+              {isLoginMode && (
+                <span>
+                  <span className="mx-1">·</span>
+                  <a href="/help" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                    Need Help?
+                  </a>
+                </span>
+              )}
             </p>
           </div>
         </form>

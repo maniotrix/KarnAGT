@@ -111,14 +111,84 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
   }, [files, onFilesSelected]);
 
   // Get accepted file types for input
+  // Mobile browsers prefer MIME types over file extensions for better compatibility
   const getAcceptedTypes = () => {
     switch (acceptedTypes) {
       case 'images':
         return 'image/*';
       case 'documents':
-        return '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml';
+        // Use MIME types for better mobile browser compatibility - ALIGNED WITH BACKEND
+        return [
+          // PDF documents
+          '.pdf', 'application/pdf',
+          // Microsoft Office
+          '.doc', 'application/msword', 
+          '.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xls', 'application/vnd.ms-excel',
+          '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.ppt', 'application/vnd.ms-powerpoint',
+          '.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          // Text formats
+          '.txt', 'text/plain',
+          '.csv', 'text/csv',
+          '.tsv', 'text/tab-separated-values',
+          '.md', 'text/markdown',
+          '.rtf', 'application/rtf',
+          // Markup and data
+          '.html', 'text/html',
+          '.xml', 'application/xml', 'text/xml',
+          '.json', 'application/json',
+          // E-books and documents
+          '.epub', 'application/epub+zip',
+          '.odt', 'application/vnd.oasis.opendocument.text',
+          // Technical documentation
+          '.org', 'text/x-org',
+          '.rst', 'text/x-rst',
+          // Email formats
+          '.msg', 'application/vnd.ms-outlook',
+          '.eml', 'message/rfc822',
+          '.mbox', 'application/mbox',
+          // Notebooks and specialized
+          '.ipynb', 'application/x-ipynb+json',
+          '.hwp', 'application/x-hwp'
+        ].join(',');
       default:
-        return 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml';
+        // Combined: images + documents with MIME types for mobile compatibility - ALIGNED WITH BACKEND
+        return [
+          'image/*',
+          // PDF documents
+          '.pdf', 'application/pdf',
+          // Microsoft Office
+          '.doc', 'application/msword', 
+          '.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xls', 'application/vnd.ms-excel',
+          '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.ppt', 'application/vnd.ms-powerpoint',
+          '.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          // Text formats
+          '.txt', 'text/plain',
+          '.csv', 'text/csv',
+          '.tsv', 'text/tab-separated-values',
+          '.md', 'text/markdown',
+          '.rtf', 'application/rtf',
+          // Markup and data
+          '.html', 'text/html',
+          '.xml', 'application/xml', 'text/xml',
+          '.json', 'application/json',
+          // E-books and documents
+          '.epub', 'application/epub+zip',
+          '.odt', 'application/vnd.oasis.opendocument.text',
+          // Technical documentation
+          '.org', 'text/x-org',
+          '.rst', 'text/x-rst',
+          // Email formats
+          '.msg', 'application/vnd.ms-outlook',
+          '.eml', 'message/rfc822',
+          '.mbox', 'application/mbox',
+          // Notebooks and specialized
+          '.ipynb', 'application/x-ipynb+json',
+          '.hwp', 'application/x-hwp'
+        ].join(',');
     }
   };
 
@@ -216,6 +286,27 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
       
       // Text files
       txt: { Icon: FaFileAlt, color: 'text-gray-600' },
+      md: { Icon: FaFileAlt, color: 'text-blue-700' },
+      html: { Icon: FaFileCode, color: 'text-orange-600' },
+      rtf: { Icon: FaFileAlt, color: 'text-purple-600' },
+      tsv: { Icon: FaFileCsv, color: 'text-green-500' },
+      
+      // E-books and specialized documents
+      epub: { Icon: FaFileAlt, color: 'text-indigo-600' },
+      odt: { Icon: FaFileWord, color: 'text-blue-500' },
+      
+      // Technical documentation
+      org: { Icon: FaFileCode, color: 'text-green-700' },
+      rst: { Icon: FaFileCode, color: 'text-red-600' },
+      
+      // Email formats
+      msg: { Icon: FaFileAlt, color: 'text-blue-600' },
+      eml: { Icon: FaFileAlt, color: 'text-blue-500' },
+      mbox: { Icon: FaFileAlt, color: 'text-blue-400' },
+      
+      // Notebooks and specialized
+      ipynb: { Icon: FaFileCode, color: 'text-orange-500' },
+      hwp: { Icon: FaFileWord, color: 'text-green-600' },
     };
 
     return iconMap[extension] || { Icon: FaFileAlt, color: 'text-gray-600' };
