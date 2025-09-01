@@ -110,7 +110,7 @@ export const HomePage: React.FC = () => {
                 to="/register"
                 className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105"
               >
-                Get Started
+                Get Started for Free
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
               <Link
@@ -130,9 +130,13 @@ export const HomePage: React.FC = () => {
         <div className="bg-white pt-4 pb-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
+              
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 Why KarnAGT
               </h2>
+              <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-full text-green-800 text-sm font-medium mb-6">
+                🎉 Free powerful AI for everyone
+              </div>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                 An advanced agentic system that thinks, sees, remembers, and adapts—transforming how you work with AI-powered intelligence.
               </p>
