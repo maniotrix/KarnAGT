@@ -350,7 +350,7 @@ export const PrivacyPage: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="font-semibold text-blue-900">General Support</h4>
-                      <p className="text-blue-800">support@karnagt.com</p>
+                      <p className="text-blue-800">help@karnagt.com</p>
                     </div>
                   </div>
                   <p className="text-blue-700 text-sm mt-4">

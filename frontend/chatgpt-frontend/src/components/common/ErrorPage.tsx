@@ -77,7 +77,7 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
         {/* Subtle branding footer */}
         <div className="mt-8 pt-6 border-t border-gray-200">
           <p className="text-sm text-gray-500">
-            Having trouble? Contact KarnAGT support for assistance.
+            Having trouble? Contact KarnAGT support at <a href="mailto:help@karnagt.com" className="text-blue-600 hover:text-blue-700 underline">help@karnagt.com</a> for assistance.
           </p>
         </div>
       </div>

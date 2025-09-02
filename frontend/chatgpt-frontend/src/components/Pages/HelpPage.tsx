@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 import { ArrowLeft, Search, MessageSquare, FileText, Settings, HelpCircle, ChevronDown, ChevronUp, Mail, Book, Video, Users } from 'lucide-react';
 import Logo from '../ui/Logo';
+import { PWAInstallContent } from '../ui/PWAInstallContent';
 
 /**
  * Help Page - Support and documentation
@@ -43,15 +44,15 @@ export const HelpPage: React.FC = () => {
     },
     {
       question: "Is there a limit to how much I can use KarnAGT?",
-      answer: "We offer generous usage limits for free accounts. For most users, these limits are sufficient for daily use. If you need higher limits, we offer premium plans with expanded capabilities and priority support. Check your account dashboard to see your current usage."
+      answer: "We offer generous usage limits for free accounts. For most users, these limits are sufficient for daily use."
     },
     {
       question: "Can I use KarnAGT for business or commercial purposes?",
-      answer: "Yes, KarnAGT is suitable for both personal and business use. Many professionals use it for research, analysis, content creation, and workflow automation. For enterprise needs, we offer dedicated business plans with additional security, compliance features, and priority support."
+      answer: "Yes, KarnAGT is suitable for both personal and business use. Many professionals use it for research, analysis, content creation, and workflow automation."
     },
     {
       question: "How do I report a problem or get support?",
-      answer: "If you encounter any issues or need help, you can contact our support team through the contact options below. We typically respond within 24 hours. You can also check our documentation for common solutions and troubleshooting steps."
+      answer: "If you encounter any issues or need help, you can contact our support team at help@karnagt.com or through the contact options below. We typically respond within 24 hours. You can also check our documentation for common solutions and troubleshooting steps."
     }
   ];
 
@@ -77,8 +78,8 @@ export const HelpPage: React.FC = () => {
     {
       icon: <Mail className="h-6 w-6 text-orange-500" />,
       title: "Contact Support",
-      description: "Get direct help from our support team",
-      action: "Get Help"
+      description: "Get direct help from our support team at help@karnagt.com",
+      action: "Email Support"
     }
   ];
 
@@ -143,6 +144,13 @@ export const HelpPage: React.FC = () => {
                 placeholder="Search for help articles, tutorials, or common questions..."
               />
             </div>
+          </div>
+        </div>
+
+        {/* PWA Installation Guide */}
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 py-12">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <PWAInstallContent showTitle={true} />
           </div>
         </div>
 
@@ -274,12 +282,17 @@ export const HelpPage: React.FC = () => {
             </h2>
             <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
               Can't find what you're looking for? Our support team is here to help you get the most out of KarnAGT.
+              <br />
+              <span className="font-medium text-blue-600">Email us at: help@karnagt.com</span>
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+              <a 
+                href="mailto:help@karnagt.com"
+                className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+              >
                 <Mail className="h-5 w-5 mr-2" />
                 Contact Support
-              </button>
+              </a>
               <a
                 href="/about"
                 className="inline-flex items-center px-8 py-4 border border-gray-300 text-lg font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
