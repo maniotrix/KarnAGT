@@ -98,19 +98,19 @@ export const PWAInstallContent: React.FC<PWAInstallContentProps> = ({
       {showTitle && (
         <div className="flex items-center mb-6">
           <Download className="h-6 w-6 text-blue-500 mr-3" />
-          <h2 className="text-3xl font-bold text-gray-900">Install KarnAGT App</h2>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Install KarnAGT App</h2>
         </div>
       )}
 
       {/* Description */}
-      <p className="text-gray-600 mb-6 text-lg">
+      <p className="text-gray-600 dark:text-gray-400 mb-6 text-lg">
         Install KarnAGT as an app on your device for faster loading, offline access when needed, 
         and convenient access directly from your home screen or desktop - just like any other app.
       </p>
 
       {/* Platform Selection Prompt */}
       <div className="text-center mb-8">
-        <p className="text-gray-500 text-sm">
+        <p className="text-gray-500 dark:text-gray-400 text-sm">
           Click on your platform below to expand the installation steps
         </p>
       </div>
@@ -120,36 +120,36 @@ export const PWAInstallContent: React.FC<PWAInstallContentProps> = ({
         {installSections.map((section) => (
           <div
             key={section.id}
-            className="border border-gray-200 rounded-lg overflow-hidden"
+            className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
           >
             {/* Section Header */}
             <button
               onClick={() => toggleSection(section.id)}
-              className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors"
+              className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors"
             >
               <div className="flex items-center">
                 {section.icon}
-                <span className="ml-3 text-lg font-medium text-gray-900">
+                <span className="ml-3 text-lg font-medium text-gray-900 dark:text-gray-100">
                   {section.title}
                 </span>
               </div>
               {openSection === section.id ? (
-                <ChevronUp className="h-5 w-5 text-gray-500" />
+                <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
               ) : (
-                <ChevronDown className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" />
               )}
             </button>
 
             {/* Section Content */}
             {openSection === section.id && (
-              <div className="px-4 pb-4 border-t border-gray-100">
+              <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
                 <ol className="mt-4 space-y-3">
                   {section.steps.map((step, index) => (
                     <li key={index} className="flex items-start">
-                      <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium mr-3 mt-0.5">
+                      <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-medium mr-3 mt-0.5">
                         {index + 1}
                       </span>
-                      <span className="text-gray-700 leading-relaxed">{step}</span>
+                      <span className="text-gray-700 dark:text-gray-300 leading-relaxed">{step}</span>
                     </li>
                   ))}
                 </ol>
@@ -160,9 +160,9 @@ export const PWAInstallContent: React.FC<PWAInstallContentProps> = ({
       </div>
 
       {/* Benefits */}
-      <div className="p-4 bg-blue-50 rounded-lg mb-6">
-        <h3 className="font-medium text-blue-900 mb-2">Benefits of Installing:</h3>
-        <ul className="text-sm text-blue-800 space-y-1">
+      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg mb-6">
+        <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Benefits of Installing:</h3>
+        <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
           <li>• Faster loading and better performance</li>
           <li>• Works offline for basic functionality</li>
           <li>• Native app-like experience</li>
@@ -172,12 +172,12 @@ export const PWAInstallContent: React.FC<PWAInstallContentProps> = ({
       </div>
 
       {/* Troubleshooting */}
-      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+      <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
         <div className="flex items-center mb-2">
-          <AlertCircle className="h-5 w-5 text-yellow-600 mr-2" />
-          <h3 className="font-medium text-yellow-900">Troubleshooting:</h3>
+          <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2" />
+          <h3 className="font-medium text-yellow-900 dark:text-yellow-100">Troubleshooting:</h3>
         </div>
-        <ul className="text-sm text-yellow-800 space-y-1">
+        <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1">
           {troubleshootingTips.map((tip, index) => (
             <li key={index}>• {tip}</li>
           ))}
