@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquare, FileText, Globe, Code, Brain, ArrowRight, LogIn, UserPlus, Zap, Shield, Search, CheckCircle2, Languages, Image, MoreVertical } from 'lucide-react';
+import { MessageSquare, FileText, Globe, Code, Brain, ArrowRight, LogIn, UserPlus, Zap, Shield, Search, CheckCircle2, Languages, Image, MoreVertical, Download } from 'lucide-react';
 import { useCurrentUser } from '../../app/hooks/auth';
 import Logo from '../ui/Logo';
+import { PWAInstallModal } from '../ui/PWAInstallModal';
 
 /**
  * Simple Home page component - Landing page for unauthenticated users
@@ -18,6 +19,7 @@ export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { data: user } = useCurrentUser();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isPWAModalOpen, setIsPWAModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Redirect if already logged in (same pattern as AuthForm)
@@ -173,9 +175,15 @@ export const HomePage: React.FC = () => {
                 Sign In
               </Link>
             </div>
-            <p className="mt-6 text-sm sm:text-base text-gray-500 max-w-xl mx-auto">
-              Built for individuals. Private by default. Always ready.
-            </p>
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setIsPWAModalOpen(true)}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Install as App
+              </button>
+            </div>
           </div>
         </div>
 
@@ -192,6 +200,9 @@ export const HomePage: React.FC = () => {
               </div>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                 An advanced agentic system that thinks, sees, remembers, and adapts—transforming how you work with AI-powered intelligence.
+              </p>
+              <p className="mt-6 text-sm sm:text-base text-gray-500 max-w-xl mx-auto">
+                Built for individuals. Private by default. Always ready.
               </p>
             </div>
             
@@ -321,6 +332,12 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* PWA Install Modal */}
+      <PWAInstallModal 
+        isOpen={isPWAModalOpen} 
+        onClose={() => setIsPWAModalOpen(false)} 
+      />
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200">

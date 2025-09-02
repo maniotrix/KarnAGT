@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 import { ArrowLeft, Search, MessageSquare, FileText, Settings, HelpCircle, ChevronDown, ChevronUp, Mail, Book, Video, Users } from 'lucide-react';
 import Logo from '../ui/Logo';
+import { PWAInstallContent } from '../ui/PWAInstallContent';
 
 /**
  * Help Page - Support and documentation
@@ -143,6 +144,13 @@ export const HelpPage: React.FC = () => {
                 placeholder="Search for help articles, tutorials, or common questions..."
               />
             </div>
+          </div>
+        </div>
+
+        {/* PWA Installation Guide */}
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 py-12">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <PWAInstallContent showTitle={true} />
           </div>
         </div>
 
