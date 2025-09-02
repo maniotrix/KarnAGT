@@ -112,24 +112,24 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8 px-6 sm:py-12 sm:px-8 lg:px-12 overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-6 sm:py-12 sm:px-8 lg:px-12 overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="flex flex-col items-center">
             <div className="mb-4">
               <Logo size="lg" />
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900">
+            <h2 className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">
               KarnAGT
             </h2>
           </div>
-          <p className="mt-4 text-center text-sm text-gray-600">
+          <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
             {isLoginMode ? 'Sign in to your account' : 'Create a new account'}
           </p>
           <div className="mt-2 text-center">
             <Link
               to="/home"
-              className="text-xs text-blue-600 hover:text-blue-500 transition-colors"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors"
             >
               ← Back to Home
             </Link>
@@ -152,10 +152,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
+              <div className="w-full border-t border-gray-300 dark:border-gray-600" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or sign {isLoginMode ? 'in' : 'up'} with email</span>
+              <span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">Or sign {isLoginMode ? 'in' : 'up'} with email</span>
             </div>
           </div>
         </div>
@@ -164,56 +164,56 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
           <div className="space-y-4">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Email address
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+                  <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 </div>
                 <input
                   {...register('email')}
                   type="email"
                   autoComplete="email"
                   className={`appearance-none relative block w-full pl-10 pr-3 py-2 border ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                    errors.email ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                  } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                   placeholder="Enter your email"
                   disabled={isLoading}
                 />
               </div>
                               {errors.email && (
-                  <p className="mt-2 text-sm text-red-600">{String(errors.email?.message || 'Invalid email')}</p>
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.email?.message || 'Invalid email')}</p>
                 )}
             </div>
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Password
                 {!isLoginMode && (
-                  <span className="text-xs text-gray-500 ml-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
                     (8+ chars, uppercase, lowercase, number)
                   </span>
                 )}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+                  <Lock className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 </div>
                 <input
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={isLoginMode ? 'current-password' : 'new-password'}
                   className={`appearance-none relative block w-full pl-10 pr-10 py-2 border ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                    errors.password ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                  } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                   placeholder="Enter your password"
                   disabled={isLoading}
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center z-20 cursor-pointer hover:text-gray-600 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center z-20 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   onMouseDown={(e) => e.preventDefault()}
                   onTouchStart={(e) => e.preventDefault()}
                   onClick={(e) => {
@@ -223,14 +223,14 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                   }}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400" />
+                    <EyeOff className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   ) : (
-                    <Eye className="h-5 w-5 text-gray-400" />
+                    <Eye className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   )}
                 </button>
               </div>
                               {errors.password && (
-                  <p className="mt-2 text-sm text-red-600">{String(errors.password.message)}</p>
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.password.message)}</p>
                 )}
             </div>
 
@@ -239,26 +239,26 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
               <>
                 {/* Confirm Password */}
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Confirm Password
                   </label>
                   <div className="mt-1 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-5 w-5 text-gray-400" />
+                      <Lock className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </div>
                     <input
                       {...register('confirmPassword')}
                       type={showConfirmPassword ? 'text' : 'password'}
                       autoComplete="new-password"
                       className={`appearance-none relative block w-full pl-10 pr-10 py-2 border ${
-                        errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                      } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                        errors.confirmPassword ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                      } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                       placeholder="Confirm your password"
                       disabled={isLoading}
                     />
                     <button
                       type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center z-20 cursor-pointer hover:text-gray-600 transition-colors"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center z-20 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                       onMouseDown={(e) => e.preventDefault()}
                       onTouchStart={(e) => e.preventDefault()}
                       onClick={(e) => {
@@ -268,31 +268,31 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                       }}
                     >
                       {showConfirmPassword ? (
-                        <EyeOff className="h-5 w-5 text-gray-400" />
+                        <EyeOff className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                       ) : (
-                        <Eye className="h-5 w-5 text-gray-400" />
+                        <Eye className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                       )}
                     </button>
                   </div>
                                       {errors.confirmPassword && (
-                      <p className="mt-2 text-sm text-red-600">{String(errors.confirmPassword.message)}</p>
+                      <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.confirmPassword.message)}</p>
                     )}
                 </div>
 
                 {/* Full Name */}
                 <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Full Name (optional)
                   </label>
                   <div className="mt-1 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-5 w-5 text-gray-400" />
+                      <User className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </div>
                     <input
                       {...register('fullName')}
                       type="text"
                       autoComplete="name"
-                      className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                       placeholder="Enter your full name"
                       disabled={isLoading}
                     />
@@ -301,26 +301,26 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
 
                 {/* Username */}
                 <div>
-                  <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Username (optional)
                   </label>
                   <div className="mt-1 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-5 w-5 text-gray-400" />
+                      <User className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </div>
                     <input
                       {...register('username')}
                       type="text"
                       autoComplete="username"
                       className={`appearance-none relative block w-full pl-10 pr-3 py-2 border ${
-                        errors.username ? 'border-red-300' : 'border-gray-300'
-                      } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                        errors.username ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                      } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                       placeholder="Choose a username"
                       disabled={isLoading}
                     />
                   </div>
                                       {errors.username && (
-                      <p className="mt-2 text-sm text-red-600">{String(errors.username.message)}</p>
+                      <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.username.message)}</p>
                     )}
                 </div>
               </>
@@ -331,7 +331,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -343,12 +343,12 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
 
 
           <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               {isLoginMode ? "Don't have an account? " : "Already have an account? "}
               <button 
                 type="button"
                 onClick={toggleMode}
-                className="text-blue-600 hover:text-blue-800 font-medium"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
               >
                 {isLoginMode ? 'Sign up' : 'Sign in'}
               </button>
@@ -357,21 +357,21 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
 
           {/* Terms and Legal Links */}
           <div className="mt-4 text-center">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {!isLoginMode && "By signing up, you agree to our "}
-              <a href="/terms" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+              <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
                 Terms & Conditions
               </a>
               {!isLoginMode && " and "}
               {!isLoginMode && (
-                <a href="/privacy-policy" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                <a href="/privacy-policy" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
                   Privacy Policy
                 </a>
               )}
               {isLoginMode && (
                 <span>
                   <span className="mx-1">·</span>
-                  <a href="/help" className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-all">
+                  <a href="/help" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
                     Need Help?
                   </a>
                 </span>
