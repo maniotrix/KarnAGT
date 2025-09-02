@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquare, FileText, Globe, Code, Brain, ArrowRight, LogIn, UserPlus, Zap, Shield, Search, CheckCircle2, Languages, Image } from 'lucide-react';
+import { MessageSquare, FileText, Globe, Code, Brain, ArrowRight, LogIn, UserPlus, Zap, Shield, Search, CheckCircle2, Languages, Image, MoreVertical } from 'lucide-react';
 import { useCurrentUser } from '../../app/hooks/auth';
 import Logo from '../ui/Logo';
 
@@ -17,6 +17,8 @@ import Logo from '../ui/Logo';
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { data: user } = useCurrentUser();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Redirect if already logged in (same pattern as AuthForm)
   useEffect(() => {
@@ -24,6 +26,20 @@ export const HomePage: React.FC = () => {
       navigate('/');
     }
   }, [user, navigate]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const features = [
     {
@@ -83,6 +99,43 @@ export const HomePage: React.FC = () => {
                 <UserPlus className="h-4 w-4 mr-2" />
                 Sign Up
               </Link>
+              
+              {/* More Menu Dropdown */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="inline-flex items-center p-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  aria-label="More options"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+                
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
+                    <a
+                      href="/about"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      About
+                    </a>
+                    <a
+                      href="/help"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      Help
+                    </a>
+                    <a
+                      href="/terms"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      Terms
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
