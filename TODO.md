@@ -140,3 +140,5 @@
   - ✅ ENHANCED: File icon mapping for .md and .html files
   - 🔧 TECHNICAL: Mobile browsers prefer MIME types over file extensions in accept attribute
   - 📱 IMPACT: CSV, MD, HTML, and other document files now selectable on mobile devices
+
+* pwa install
