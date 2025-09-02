@@ -33,6 +33,16 @@ services:
         max-file: "5"
         labels: "environment=prod,service=codesandbox"
         compress: "true"
+    # Resource limits - optimized for 30s execution workload
+    deploy:
+      resources:
+        limits:
+          cpus: '1.2'          # Allow burst for kernel creation and code execution
+          memory: 1G           # Sufficient for short executions + kernel overhead
+        reservations:
+          cpus: '0.25'         # Reserve for FastAPI server baseline
+          memory: 512M         # Reserve for server baseline
+    
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
