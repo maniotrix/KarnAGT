@@ -23,8 +23,7 @@ export const PWAInstallContent: React.FC<PWAInstallContentProps> = ({
       icon: <Smartphone className="h-6 w-6 text-green-500" />,
       steps: [
         'Open KarnAGT in Chrome browser',
-        'Look for an "Install" prompt at the bottom of the screen, or',
-        'Tap the menu button (three dots) in the top-right corner',
+        'Tap the menu button (three dots) in the top-right corner in the browser',
         'Select "Add to Home screen" or "Install app"',
         'Tap "Install" or "Add" when prompted',
         'The app icon will appear on your home screen'
