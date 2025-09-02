@@ -85,7 +85,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
     if (!onEdit || !message.message_id) return;
     
     const trimmedContent = editContent.trim();
-    if (!trimmedContent || trimmedContent === message.content) {
+    if (!trimmedContent) {
       setIsEditing(false);
       return;
     }
@@ -378,9 +378,9 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 
                 <button
                   onClick={handleSave}
-                  disabled={isSaving || !editContent.trim() || editContent.trim() === message.content}
+                  disabled={isSaving || !editContent.trim()}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 ${
-                    (isSaving || !editContent.trim() || editContent.trim() === message.content) ? 'opacity-50 cursor-not-allowed' : ''
+                    (isSaving || !editContent.trim()) ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
                   {isSaving ? 'Saving...' : 'Send'}

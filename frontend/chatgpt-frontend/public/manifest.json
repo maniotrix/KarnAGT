@@ -1,10 +1,12 @@
 {
   "short_name": "KarnAGT",
-  "name": "KarnAGT - AI Assistant",
+  "name": "KarnAGT - Advanced AI Agent", 
+  "id": "/",
+  "description": "An intelligent agentic system that reasons, sees, remembers, and communicates in any language",
   "icons": [
     {
       "src": "favicon.ico",
-      "sizes": "64x64 48x48 32x32 24x24 16x16",
+      "sizes": "48x48",
       "type": "image/x-icon"
     },
     {
@@ -43,8 +45,26 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "screenshots": [
+    {
+      "src": "chat-mobile.png",
+      "sizes": "1080x2414", 
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "KarnAGT Mobile Chat Interface"
+    },
+    {
+      "src": "chat-desktop.png",
+      "sizes": "1920x918",
+      "type": "image/png", 
+      "form_factor": "wide",
+      "label": "KarnAGT Desktop Chat Interface"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone", 
+  "orientation": "portrait-primary",
+  "theme_color": "#1d4ed8",
+  "background_color": "#ffffff",
+  "scope": "/"
 }
