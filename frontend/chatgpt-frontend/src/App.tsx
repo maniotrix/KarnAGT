@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { QueryProvider } from './providers/QueryProvider';
+import { ThemeProvider } from './providers/ThemeProvider';
 import { AppRoutes } from './routes';
 import { useProxyLinkInterceptionSimple } from './hooks/useProxyLinkInterception';
 import { ToastNotifications } from './components/ui/ToastNotifications';
@@ -24,14 +25,16 @@ const App: React.FC = () => {
   const googleClientId = ENV.GOOGLE_CLIENT_ID;
 
   return (
-    <GoogleOAuthProvider clientId={googleClientId || ''}>
-      <QueryProvider>
-        <BrowserRouter>
-          <AppRoutes />
-          <ToastNotifications />
-        </BrowserRouter>
-      </QueryProvider>
-    </GoogleOAuthProvider>
+    <ThemeProvider>
+      <GoogleOAuthProvider clientId={googleClientId || ''}>
+        <QueryProvider>
+          <BrowserRouter>
+            <AppRoutes />
+            <ToastNotifications />
+          </BrowserRouter>
+        </QueryProvider>
+      </GoogleOAuthProvider>
+    </ThemeProvider>
   );
 };
 
