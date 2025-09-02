@@ -88,18 +88,18 @@ export const HelpPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Logo size="sm" className="mr-2" />
-              <a href="/" className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors">KarnAGT</a>
+              <a href="/" className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">KarnAGT</a>
             </div>
             <a
               href="/"
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium transition-colors"
             >
               Go to Home
             </a>
@@ -114,7 +114,7 @@ export const HelpPage: React.FC = () => {
           <div className="flex justify-start mb-4">
             <button
               onClick={() => window.history.back()}
-              className="inline-flex items-center text-gray-600 hover:text-gray-900 text-sm font-medium underline hover:no-underline transition-all"
+              className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium underline hover:no-underline transition-all"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -122,12 +122,12 @@ export const HelpPage: React.FC = () => {
           </div>
           <div className="text-center">
             <div className="flex flex-col items-center mb-6">
-              <HelpCircle className="h-16 w-16 text-blue-500 mb-4" />
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 text-center">
-                How can we <span className="text-blue-600">help</span>?
+              <HelpCircle className="h-16 w-16 text-blue-500 dark:text-blue-400 mb-4" />
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-gray-100 text-center">
+                How can we <span className="text-blue-600 dark:text-blue-400">help</span>?
               </h1>
             </div>
-            <p className="text-xl sm:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            <p className="text-xl sm:text-2xl text-gray-600 dark:text-gray-400 mb-8 max-w-3xl mx-auto">
               Find answers, learn how to use KarnAGT effectively, and get the support you need.
             </p>
           </div>
@@ -136,11 +136,11 @@ export const HelpPage: React.FC = () => {
           <div className="max-w-2xl mx-auto mb-12">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
+                                  <Search className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-4 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="block w-full pl-10 pr-3 py-4 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Search for help articles, tutorials, or common questions..."
               />
             </div>
@@ -148,37 +148,37 @@ export const HelpPage: React.FC = () => {
         </div>
 
         {/* PWA Installation Guide */}
-        <div className="bg-gradient-to-br from-blue-50 to-purple-50 py-12">
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 py-12">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <PWAInstallContent showTitle={true} />
           </div>
         </div>
 
         {/* Quick Links */}
-        <div className="bg-white py-12">
+        <div className="bg-white dark:bg-gray-800 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Popular Help Topics</h2>
-              <p className="text-lg text-gray-600">Quick access to the most helpful resources</p>
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">Popular Help Topics</h2>
+              <p className="text-lg text-gray-600 dark:text-gray-400">Quick access to the most helpful resources</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {quickLinks.map((link, index) => (
                 <div
                   key={index}
-                  className="bg-gray-50 p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                  className="bg-gray-50 dark:bg-gray-700 p-6 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all duration-200 cursor-pointer group"
                 >
                   <div className="flex flex-col items-center text-center">
                     <div className="mb-4 group-hover:scale-110 transition-transform">
                       {link.icon}
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                       {link.title}
                     </h3>
-                    <p className="text-gray-600 mb-4 text-sm">
+                    <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">
                       {link.description}
                     </p>
-                    <span className="text-blue-600 text-sm font-medium group-hover:text-blue-700">
+                                         <span className="text-blue-600 dark:text-blue-400 text-sm font-medium group-hover:text-blue-700 dark:group-hover:text-blue-300">
                       {link.action} →
                     </span>
                   </div>
@@ -189,37 +189,37 @@ export const HelpPage: React.FC = () => {
         </div>
 
         {/* FAQ Section */}
-        <div className="bg-gray-50 py-12">
+        <div className="bg-gray-50 dark:bg-gray-900 py-12">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
-              <p className="text-lg text-gray-600">Find quick answers to common questions about KarnAGT</p>
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">Frequently Asked Questions</h2>
+              <p className="text-lg text-gray-600 dark:text-gray-400">Find quick answers to common questions about KarnAGT</p>
             </div>
             
             <div className="space-y-4">
               {faqItems.map((item, index) => (
                 <div
                   key={index}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
                 >
                   <button
-                    className="w-full px-6 py-4 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset hover:bg-gray-50 transition-colors"
+                    className="w-full px-6 py-4 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     onClick={() => toggleFaq(index)}
                   >
                     <div className="flex justify-between items-center">
-                      <h3 className="text-lg font-medium text-gray-900 pr-4">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 pr-4">
                         {item.question}
                       </h3>
                       {openFaqIndex === index ? (
-                        <ChevronUp className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                        <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       ) : (
-                        <ChevronDown className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                        <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       )}
                     </div>
                   </button>
                   {openFaqIndex === index && (
                     <div className="px-6 pb-4">
-                      <p className="text-gray-600 leading-relaxed">
+                      <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
                         {item.answer}
                       </p>
                     </div>
@@ -231,42 +231,42 @@ export const HelpPage: React.FC = () => {
         </div>
 
         {/* Getting Started Guide */}
-        <div className="bg-white py-12">
+        <div className="bg-white dark:bg-gray-800 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Getting Started with KarnAGT</h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">Getting Started with KarnAGT</h2>
+              <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                 Follow these simple steps to make the most of your KarnAGT experience
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="text-center p-6">
-                <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-xl font-bold text-blue-600">1</span>
+                                 <div className="bg-blue-50 dark:bg-blue-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                   <span className="text-xl font-bold text-blue-600 dark:text-blue-400">1</span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">Create Your Account</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">Create Your Account</h3>
+                <p className="text-gray-600 dark:text-gray-400">
                   Sign up with your email or Google account to get started. It takes less than a minute.
                 </p>
               </div>
 
               <div className="text-center p-6">
-                <div className="bg-green-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-xl font-bold text-green-600">2</span>
+                                 <div className="bg-green-50 dark:bg-green-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                   <span className="text-xl font-bold text-green-600 dark:text-green-400">2</span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">Start a Conversation</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">Start a Conversation</h3>
+                <p className="text-gray-600 dark:text-gray-400">
                   Ask KarnAGT anything! Try uploading a document, asking for research, or planning a project.
                 </p>
               </div>
 
               <div className="text-center p-6">
-                <div className="bg-purple-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-xl font-bold text-purple-600">3</span>
+                                 <div className="bg-purple-50 dark:bg-purple-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                   <span className="text-xl font-bold text-purple-600 dark:text-purple-400">3</span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">Explore Features</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">Explore Features</h3>
+                <p className="text-gray-600 dark:text-gray-400">
                   Discover web search, file analysis, multilingual support, and advanced reasoning capabilities.
                 </p>
               </div>
@@ -275,27 +275,27 @@ export const HelpPage: React.FC = () => {
         </div>
 
         {/* Contact Support */}
-        <div className="bg-blue-50 py-12">
+        <div className="bg-blue-50 dark:bg-blue-900/20 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
               Still need help?
             </h2>
-            <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
               Can't find what you're looking for? Our support team is here to help you get the most out of KarnAGT.
               <br />
-              <span className="font-medium text-blue-600">Email us at: help@karnagt.com</span>
+              <span className="font-medium text-blue-600 dark:text-blue-400">Email us at: help@karnagt.com</span>
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a 
                 href="mailto:help@karnagt.com"
-                className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
               >
                 <Mail className="h-5 w-5 mr-2" />
                 Contact Support
               </a>
               <a
                 href="/about"
-                className="inline-flex items-center px-8 py-4 border border-gray-300 text-lg font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center px-8 py-4 border border-gray-300 dark:border-gray-600 text-lg font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 Learn About Us
               </a>
@@ -305,16 +305,16 @@ export const HelpPage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200">
+      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row justify-between items-center">
             <div className="text-center sm:text-left mb-4 sm:mb-0">
-              <p className="text-gray-600">&copy; 2025 KarnAGT. All rights reserved.</p>
+              <p className="text-gray-600 dark:text-gray-400">&copy; 2025 KarnAGT. All rights reserved.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4 sm:gap-8">
-              <a href="/home" className="text-gray-600 hover:text-blue-600 underline hover:no-underline transition-all">Home</a>
-              <a href="/about" className="text-gray-600 hover:text-blue-600 underline hover:no-underline transition-all">About</a>
-              <a href="/terms" className="text-gray-600 hover:text-blue-600 underline hover:no-underline transition-all">Terms</a>
+              <a href="/home" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">Home</a>
+              <a href="/about" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">About</a>
+              <a href="/terms" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">Terms</a>
             </div>
           </div>
         </div>
