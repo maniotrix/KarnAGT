@@ -193,7 +193,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                     <TooltipContent 
                       side="top" 
                       align="center"
-                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md shadow-lg"
                     >
                       <p>AI response was cancelled</p>
                     </TooltipContent>
@@ -212,7 +212,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                     <TooltipContent 
                       side="top" 
                       align="center"
-                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md shadow-lg"
                     >
                       <p>AI response is empty</p>
                     </TooltipContent>
@@ -226,7 +226,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   <TooltipTrigger asChild>
                     <button
                       onClick={handleCopy}
-                      className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 text-blue-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
                     >
                       {copied ? (
                         <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
@@ -238,7 +238,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                   <TooltipContent 
                     side="top" 
                     align="center"
-                    className="max-w-xs px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg"
+                    className="max-w-xs px-2 py-1 text-xs bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md shadow-lg"
                   >
                     <p>{copied ? 'Copied!' : 'Copy message'}</p>
                   </TooltipContent>
