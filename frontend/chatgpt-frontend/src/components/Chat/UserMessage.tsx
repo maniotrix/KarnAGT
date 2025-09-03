@@ -4,16 +4,14 @@ import { useConversationImagesContext } from '../../contexts/ConversationImagesC
 
 // Interactive Markdown Component
 import { InteractiveMarkdown } from './InteractiveMarkdown/InteractiveMarkdown';
+import { ImageModal } from './ImageModal';
 
 // Modern UI Libraries  
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
-import * as Dialog from '@radix-ui/react-dialog';
-import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { 
   Copy,
   Check,
   Edit3,
-  X,
   FileText
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -38,7 +36,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   
   // Image modal functionality
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState<number>(-1);
   
   // File IDs are now handled at the conversation level by ConversationImagesProvider
 
@@ -200,20 +198,16 @@ export const UserMessage: React.FC<UserMessageProps> = ({
         <div className="flex w-[70%] flex-col items-end mb-2">
           <div className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64">
             {image.url ? (
-              <Dialog.Root open={selectedImage === image.url} onOpenChange={(open) => !open && setSelectedImage(null)}>
-                <Dialog.Trigger asChild>
-                  <button 
-                    onClick={() => setSelectedImage(image.url!)}
-                    className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64"
-                  >
-                    <img 
-                      alt={image.filename}
-                      className="max-w-full object-cover object-center overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64 w-fit transition-opacity duration-300 opacity-100"
-                      src={image.url}
-                    />
-                  </button>
-                </Dialog.Trigger>
-              </Dialog.Root>
+              <button 
+                onClick={() => setCurrentImageIndex(0)}
+                className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64 cursor-pointer hover:opacity-90 transition-opacity"
+              >
+                <img 
+                  alt={image.filename}
+                  className="max-w-full object-cover object-center overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64 w-fit transition-opacity duration-300 opacity-100"
+                  src={image.url}
+                />
+              </button>
             ) : (
               // Loading state
               <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
@@ -248,24 +242,20 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 }`}
               >
                 {image.url ? (
-                  <Dialog.Root open={selectedImage === image.url} onOpenChange={(open) => !open && setSelectedImage(null)}>
-                    <Dialog.Trigger asChild>
-                      <button 
-                        onClick={() => setSelectedImage(image.url!)}
-                        className={`h-32 w-32 overflow-hidden rounded-lg ${
-                          index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
-                        }`}
-                      >
-                        <img 
-                          alt={image.filename}
-                          className={`max-w-full aspect-square object-cover object-center h-32 w-32 overflow-hidden rounded-lg w-fit transition-opacity duration-300 opacity-100 ${
-                            index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
-                          }`}
-                          src={image.url}
-                        />
-                      </button>
-                    </Dialog.Trigger>
-                  </Dialog.Root>
+                  <button 
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`h-32 w-32 overflow-hidden rounded-lg cursor-pointer hover:opacity-90 transition-opacity ${
+                      index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
+                    }`}
+                  >
+                    <img 
+                      alt={image.filename}
+                      className={`max-w-full aspect-square object-cover object-center h-32 w-32 overflow-hidden rounded-lg w-fit transition-opacity duration-300 opacity-100 ${
+                        index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
+                      }`}
+                      src={image.url}
+                    />
+                  </button>
                 ) : (
                   // Loading state
                   <div className="h-32 w-32 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
@@ -431,44 +421,13 @@ export const UserMessage: React.FC<UserMessageProps> = ({
 
       </motion.div>
 
-      {/* Image Lightbox Modal */}
-      <Dialog.Root open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/90 dark:bg-black/80 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-          <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
-            {/* Accessibility - Hidden Title and Description */}
-            <VisuallyHidden.Root>
-              <Dialog.Title>Image Lightbox</Dialog.Title>
-              <Dialog.Description>
-                Full-size view of the uploaded image. Press Escape or click the close button to exit.
-              </Dialog.Description>
-            </VisuallyHidden.Root>
-            
-            {/* Close Button */}
-            <Dialog.Close asChild>
-              <button 
-                className="absolute right-4 top-4 sm:right-6 sm:top-6 md:right-8 md:top-8 z-10 rounded-full bg-black/20 backdrop-blur-sm p-2 opacity-80 ring-offset-background transition-all hover:opacity-100 hover:bg-black/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 touch-manipulation"
-                aria-label="Close image"
-              >
-                <X className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-              </button>
-            </Dialog.Close>
-            
-            {/* Image Display Container */}
-            <div className="relative w-full h-full flex items-center justify-center">
-              {selectedImage && (
-                <div className="relative max-h-full max-w-full">
-                  <img 
-                    alt="Enlarged view"
-                    className="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] sm:max-h-[calc(100vh-3rem)] sm:max-w-[calc(100vw-3rem)] md:max-h-[calc(100vh-4rem)] md:max-w-[calc(100vw-4rem)] object-contain rounded-lg shadow-2xl"
-                    src={selectedImage}
-                  />
-                </div>
-              )}
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      {/* Image Modal */}
+      <ImageModal 
+        images={displayImages}
+        currentIndex={currentImageIndex}
+        onClose={() => setCurrentImageIndex(-1)}
+        onNavigate={setCurrentImageIndex}
+      />
     </TooltipProvider>
   );
 }; 
