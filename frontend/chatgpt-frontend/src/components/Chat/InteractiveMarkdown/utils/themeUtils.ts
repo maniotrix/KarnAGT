@@ -4,8 +4,8 @@ export const getThemeStyles = (theme: Theme): ThemeStyles => {
   switch (theme) {
     case 'user':
       return {
-        codeBlock: 'bg-blue-700 rounded-md p-2 overflow-x-auto border border-blue-600 max-w-full',
-        inlineCode: 'bg-blue-800 px-1 py-0.5 rounded text-sm',
+        codeBlock: 'bg-transparent rounded-md p-2 overflow-x-auto border border-blue-400/30 max-w-full',
+        inlineCode: 'bg-blue-900/20 px-1 py-0.5 rounded text-sm border border-blue-400/20',
         link: 'text-blue-200 hover:text-blue-100 underline',
         table: {
           wrapper: 'border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden',
