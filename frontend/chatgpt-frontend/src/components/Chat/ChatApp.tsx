@@ -499,7 +499,7 @@ export const ChatApp: React.FC = () => {
                 />
               ) : (
                 <div 
-                  className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors"
+                  className="h-8 w-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center cursor-pointer hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                 >
                   <span className="text-white text-sm font-medium">
@@ -510,7 +510,7 @@ export const ChatApp: React.FC = () => {
               
               {/* User Dropdown - Shows quota and user info */}
               {showUserDropdown && (
-                <div ref={dropdownRef} className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-4 transform -translate-x-2 sm:translate-x-0">
+                <div ref={dropdownRef} className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4 transform -translate-x-2 sm:translate-x-0">
                   <div className="flex items-start space-x-3 mb-3">
                     {user?.hasAvatar() ? (
                       <img
@@ -519,18 +519,18 @@ export const ChatApp: React.FC = () => {
                         alt={user.getDisplayName()}
                       />
                     ) : (
-                      <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center flex-shrink-0">
                         <span className="text-white text-sm font-medium">
                           {user?.getInitials()}
                         </span>
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium truncate">{user?.getDisplayName()}</div>
-                      <div className="text-sm text-gray-500 truncate">{user?.email}</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100 truncate">{user?.getDisplayName()}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</div>
                       <div className="mt-1 flex items-center">
-                        <Crown className="h-3 w-3 mr-1 text-yellow-500 flex-shrink-0" />
-                        <span className="text-xs bg-green-100 px-2 py-0.5 rounded-full uppercase font-medium text-green-800 truncate">
+                        <Crown className="h-3 w-3 mr-1 text-yellow-500 dark:text-yellow-400 flex-shrink-0" />
+                        <span className="text-xs bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full uppercase font-medium text-green-800 dark:text-green-300 truncate">
                           {user?.subscriptionTier} plan
                         </span>
                       </div>
@@ -540,13 +540,13 @@ export const ChatApp: React.FC = () => {
                   {/* Quota Info */}
                   {/* <div className="mb-4">
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">Usage Quota</span>
-                      <span className="font-medium">70%</span>
+                      <span className="text-gray-600 dark:text-gray-400">Usage Quota</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">70%</span>
                     </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="bg-blue-600 h-full rounded-full" style={{ width: '70%' }} />
+                    <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="bg-blue-600 dark:bg-blue-500 h-full rounded-full" style={{ width: '70%' }} />
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
                       <span className="truncate">7,000 / 10,000 tokens</span>
                       <span className="ml-2 flex-shrink-0">~$0.14 used</span>
                     </div>
