@@ -140,17 +140,34 @@
   .dark .hljs-section { color: #79b8ff !important; }
   .dark .hljs-code { color: #e1e4e8 !important; }
   
-  /* User message theme (blue tinted) */
-  .bg-blue-600 .hljs-string, .bg-blue-700 .hljs-string { color: #e3f2fd !important; }
+  /* Missing syntax elements causing purple colors */
+  .hljs-title { color: #6f42c1 !important; } /* Class/function names */
+  .hljs-type { color: #005cc5 !important; } /* Data types */
+  .hljs-meta { color: #e36209 !important; } /* Preprocessor */
+  .hljs-params { color: #24292e !important; } /* Parameters */
+  
+  .dark .hljs-title { color: #b392f0 !important; }
+  .dark .hljs-type { color: #79b8ff !important; }
+  .dark .hljs-meta { color: #ffab70 !important; }
+  .dark .hljs-params { color: #e1e4e8 !important; }
+  
+  /* User message theme (blue tinted) - COMMENTED OUT to match assistant code blocks */
+  /* .bg-blue-600 .hljs-string, .bg-blue-700 .hljs-string { color: #e3f2fd !important; }
   .bg-blue-600 .hljs-number, .bg-blue-700 .hljs-number { color: #bbdefb !important; }
   .bg-blue-600 .hljs-keyword, .bg-blue-700 .hljs-keyword { color: #90caf9 !important; }
   .bg-blue-600 .hljs-comment, .bg-blue-700 .hljs-comment { color: #64b5f6 !important; }
   .bg-blue-600 .hljs-function, .bg-blue-700 .hljs-function { color: #42a5f5 !important; }
   .bg-blue-600 .hljs-section, .bg-blue-700 .hljs-section { color: #90caf9 !important; }
-  .bg-blue-600 .hljs-code, .bg-blue-700 .hljs-code { color: #e3f2fd !important; }
+  .bg-blue-600 .hljs-code, .bg-blue-700 .hljs-code { color: #e3f2fd !important; } */
   
-  /* Ensure all hljs elements are visible with fallback */
-  .hljs * {
+  /* User message variants for missing syntax elements - COMMENTED OUT */
+  /* .bg-blue-600 .hljs-title, .bg-blue-700 .hljs-title { color: #c8e6c9 !important; }
+  .bg-blue-600 .hljs-type, .bg-blue-700 .hljs-type { color: #81c784 !important; }
+  .bg-blue-600 .hljs-meta, .bg-blue-700 .hljs-meta { color: #ffcc02 !important; }
+  .bg-blue-600 .hljs-params, .bg-blue-700 .hljs-params { color: #e3f2fd !important; } */
+  
+  /* Ensure ONLY unstyled hljs elements inherit color (not ones with syntax classes) */
+  .hljs :not([class]) {
     color: inherit;
   }
   
