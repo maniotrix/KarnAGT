@@ -104,17 +104,63 @@
   }
 }
 
-/* Override highlight.js backgrounds to work with custom code block cards */
+/* Override highlight.js to work with custom theme system */
 @layer components {
   .hljs {
     background: transparent !important;
     padding: 0 !important;
   }
   
-  /* Ensure syntax highlighting colors still work */
+  /* Base code styling - inherit from theme */
   pre code.hljs {
     background: transparent !important;
     color: inherit;
+  }
+
+  /* Theme-aware syntax highlighting overrides */
+  /* Light theme syntax colors */
+  .hljs-string { color: #0d7377 !important; }
+  .hljs-number, .hljs-literal { color: #e36209 !important; }
+  .hljs-keyword, .hljs-built_in { color: #d73a49 !important; }
+  .hljs-comment { color: #6a737d !important; }
+  .hljs-function { color: #005cc5 !important; }
+  .hljs-variable, .hljs-attr { color: #e36209 !important; }
+  .hljs-tag { color: #22863a !important; }
+  .hljs-section { color: #005cc5 !important; }
+  .hljs-code { color: #24292e !important; }
+  
+  /* Dark theme syntax colors */
+  .dark .hljs-string { color: #9ecbff !important; }
+  .dark .hljs-number, .dark .hljs-literal { color: #79b8ff !important; }
+  .dark .hljs-keyword, .dark .hljs-built_in { color: #f97583 !important; }
+  .dark .hljs-comment { color: #8b949e !important; }
+  .dark .hljs-function { color: #79b8ff !important; }
+  .dark .hljs-variable, .dark .hljs-attr { color: #ffab70 !important; }
+  .dark .hljs-tag { color: #7fdbca !important; }
+  .dark .hljs-section { color: #79b8ff !important; }
+  .dark .hljs-code { color: #e1e4e8 !important; }
+  
+  /* User message theme (blue tinted) */
+  .bg-blue-600 .hljs-string, .bg-blue-700 .hljs-string { color: #e3f2fd !important; }
+  .bg-blue-600 .hljs-number, .bg-blue-700 .hljs-number { color: #bbdefb !important; }
+  .bg-blue-600 .hljs-keyword, .bg-blue-700 .hljs-keyword { color: #90caf9 !important; }
+  .bg-blue-600 .hljs-comment, .bg-blue-700 .hljs-comment { color: #64b5f6 !important; }
+  .bg-blue-600 .hljs-function, .bg-blue-700 .hljs-function { color: #42a5f5 !important; }
+  .bg-blue-600 .hljs-section, .bg-blue-700 .hljs-section { color: #90caf9 !important; }
+  .bg-blue-600 .hljs-code, .bg-blue-700 .hljs-code { color: #e3f2fd !important; }
+  
+  /* Ensure all hljs elements are visible with fallback */
+  .hljs * {
+    color: inherit;
+  }
+  
+  /* Base text color for code blocks */
+  .hljs {
+    color: #24292e !important; /* Light theme base */
+  }
+  
+  .dark .hljs {
+    color: #e1e4e8 !important; /* Dark theme base */
   }
 
   /* Mobile Viewport Height Utility Class */
