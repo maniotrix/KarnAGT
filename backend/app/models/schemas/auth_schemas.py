@@ -3,31 +3,33 @@
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr, validator
-import re
 
 from .common_schemas import BaseSchema, BaseResponse, SubscriptionTier
+from app.utils.validation_utils import (
+    validate_email_security,
+    sanitize_text_input,
+    validate_username_security,
+    validate_secure_token,
+    validate_password_strength,
+    SecurityValidationError
+)
 
 
 class UserRegister(BaseSchema):
     """User registration request schema"""
-    email: EmailStr = Field(..., description="User email address")
+    email: EmailStr = Field(..., max_length=320, description="User email address")
     password: str = Field(..., min_length=8, max_length=128, description="User password")
-    confirm_password: str = Field(..., description="Password confirmation")
+    confirm_password: str = Field(..., max_length=128, description="Password confirmation")
     full_name: Optional[str] = Field(None, max_length=255, description="User full name")
     username: Optional[str] = Field(None, min_length=3, max_length=100, description="Unique username")
     
     @validator('password')
     def validate_password(cls, v):
         """Validate password strength"""
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        return v
+        try:
+            return validate_password_strength(v)
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
     
     @validator('confirm_password')
     def passwords_match(cls, v, values):
@@ -36,19 +38,43 @@ class UserRegister(BaseSchema):
             raise ValueError('Passwords do not match')
         return v
     
+    @validator('email')
+    def validate_email(cls, v):
+        """Enhanced email validation for security"""
+        try:
+            return validate_email_security(str(v))
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
+    
+    @validator('full_name')
+    def sanitize_full_name(cls, v):
+        """Sanitize full name to prevent XSS and injection attacks"""
+        try:
+            return sanitize_text_input(v, "Full name")
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
+    
     @validator('username')
     def validate_username(cls, v):
-        """Validate username format"""
-        if v is not None:
-            if not re.match(r'^[a-zA-Z0-9_-]+$', v):
-                raise ValueError('Username can only contain letters, numbers, hyphens, and underscores')
-        return v
+        """Enhanced username validation with security checks"""
+        try:
+            return validate_username_security(v)
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
 
 
 class UserLogin(BaseSchema):
     """User login request schema"""
-    email: EmailStr = Field(..., description="User email address")
-    password: str = Field(..., description="User password")
+    email: EmailStr = Field(..., max_length=320, description="User email address")
+    password: str = Field(..., max_length=128, description="User password")
+    
+    @validator('email')
+    def validate_email(cls, v):
+        """Enhanced email validation for security"""
+        try:
+            return validate_email_security(str(v))
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
 
 
 class GoogleLoginRequest(BaseSchema):
@@ -81,7 +107,15 @@ class TokenRefreshResponse(BaseResponse):
 
 class PasswordReset(BaseSchema):
     """Password reset request schema"""
-    email: EmailStr = Field(..., description="User email address")
+    email: EmailStr = Field(..., max_length=320, description="User email address")
+    
+    @validator('email')
+    def validate_email(cls, v):
+        """Enhanced email validation for security"""
+        try:
+            return validate_email_security(str(v))
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
 
 
 class PasswordResetResponse(BaseResponse):
@@ -91,22 +125,25 @@ class PasswordResetResponse(BaseResponse):
 
 class PasswordResetConfirm(BaseSchema):
     """Password reset confirmation schema"""
-    token: str = Field(..., description="Password reset token")
+    token: str = Field(..., max_length=500, description="Password reset token")
     new_password: str = Field(..., min_length=8, max_length=128, description="New password")
-    confirm_password: str = Field(..., description="Password confirmation")
+    confirm_password: str = Field(..., max_length=128, description="Password confirmation")
+    
+    @validator('token')
+    def validate_token(cls, v):
+        """Validate password reset token format"""
+        try:
+            return validate_secure_token(v, "reset token")
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
     
     @validator('new_password')
     def validate_password(cls, v):
         """Validate password strength"""
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        return v
+        try:
+            return validate_password_strength(v)
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
     
     @validator('confirm_password')
     def passwords_match(cls, v, values):
@@ -118,7 +155,15 @@ class PasswordResetConfirm(BaseSchema):
 
 class EmailVerification(BaseSchema):
     """Email verification request schema"""
-    token: str = Field(..., description="Email verification token")
+    token: str = Field(..., max_length=500, description="Email verification token")
+    
+    @validator('token')
+    def validate_token(cls, v):
+        """Validate email verification token format"""
+        try:
+            return validate_secure_token(v, "verification token")
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
 
 
 class EmailVerificationResponse(BaseResponse):
@@ -128,27 +173,30 @@ class EmailVerificationResponse(BaseResponse):
 
 class ResendVerification(BaseSchema):
     """Resend email verification request schema"""
-    email: EmailStr = Field(..., description="User email address")
+    email: EmailStr = Field(..., max_length=320, description="User email address")
+    
+    @validator('email')
+    def validate_email(cls, v):
+        """Enhanced email validation for security"""
+        try:
+            return validate_email_security(str(v))
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
 
 
 class ChangePassword(BaseSchema):
     """Change password request schema"""
-    current_password: str = Field(..., description="Current password")
+    current_password: str = Field(..., max_length=128, description="Current password")
     new_password: str = Field(..., min_length=8, max_length=128, description="New password")
-    confirm_password: str = Field(..., description="Password confirmation")
+    confirm_password: str = Field(..., max_length=128, description="Password confirmation")
     
     @validator('new_password')
     def validate_password(cls, v):
         """Validate password strength"""
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        return v
+        try:
+            return validate_password_strength(v)
+        except SecurityValidationError as e:
+            raise ValueError(str(e))
     
     @validator('confirm_password')
     def passwords_match(cls, v, values):

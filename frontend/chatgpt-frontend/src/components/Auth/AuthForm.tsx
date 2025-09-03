@@ -9,34 +9,27 @@ import { Eye, EyeOff, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import Logo from '../ui/Logo';
+import { validators } from '../../utils/validationUtils';
 
-// Zod validation schemas
+// Modular validation schemas using reusable validators
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: validators.email,
+  password: validators.loginPassword,
 });
 
 const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/\d/, 'Password must contain at least one number'),
-  confirmPassword: z.string().min(1, 'Please confirm your password'),
-  fullName: z.string().optional(),
-  username: z
-    .string()
-    .optional()
-    .refine(
-      (val) => !val || (val.length >= 3 && /^[a-zA-Z0-9_-]+$/.test(val)),
-      'Username must be at least 3 characters and contain only letters, numbers, hyphens, and underscores'
-    ),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+  email: validators.email,
+  password: validators.password,
+  confirmPassword: validators.passwordConfirm,
+  fullName: validators.fullName,
+  // username: validators.username, // Disabled for now
+}).refine(
+  (data) => data.password === data.confirmPassword,
+  {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  }
+);
 
 type LoginForm = z.infer<typeof loginSchema>;
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -94,7 +87,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
           password: data.password,
           confirmPassword: data.confirmPassword,
           fullName: data.fullName,
-          username: data.username,
+          // username: data.username, // Disabled for now
         });
         toast.success('Registration successful!', result.message);
         navigate('/');
@@ -300,7 +293,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                 </div>
 
                 {/* Username */}
-                <div>
+                {/* <div>
                   <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Username (optional)
                   </label>
@@ -322,7 +315,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                                       {errors.username && (
                       <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.username.message)}</p>
                     )}
-                </div>
+                </div> */}
               </>
             )}
           </div>

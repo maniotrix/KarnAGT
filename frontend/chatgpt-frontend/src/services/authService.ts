@@ -67,8 +67,30 @@ class AuthService {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}: ${response.statusText}`);
+      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+      
+      // Handle different FastAPI error formats
+      let errorMessage = 'Request failed';
+      
+      if (error.detail) {
+        // Standard HTTPException or custom exceptions
+        if (Array.isArray(error.detail)) {
+          // Pydantic validation errors (422)
+          const firstError = error.detail[0];
+          errorMessage = firstError?.msg || firstError?.message || 'Validation error';
+        } else {
+          // Simple detail string
+          errorMessage = error.detail;
+        }
+      } else if (error.message) {
+        // Fallback for other error formats
+        errorMessage = error.message;
+      } else {
+        // Last resort
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      
+      throw new Error(errorMessage);
     }
 
     return response.json();
