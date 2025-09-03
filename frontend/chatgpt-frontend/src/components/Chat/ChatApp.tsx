@@ -22,9 +22,11 @@ import {
   LogOut,
   Crown,
   MoreVertical,
-  RefreshCw 
+  RefreshCw,
+  Palette 
 } from 'lucide-react';
 import Logo from '../ui/Logo';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 // Type for pending attachments to be submitted with auto-created conversation
 interface PendingAttachments {
@@ -550,24 +552,35 @@ export const ChatApp: React.FC = () => {
                     </div>
                   </div> */}
                   
+                  {/* Theme Toggle Section */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                        <Palette className="h-4 w-4 mr-2" />
+                        Theme
+                      </span>
+                    </div>
+                    <ThemeToggle size="sm" variant="dropdown" className="w-full" />
+                  </div>
+                  
                   {/* Navigation Links */}
-                  <div className="border-t border-gray-200 pt-3 mb-3">
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mb-3">
                     <div className="space-y-1">
                       <a
                         href="/about"
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
                       >
                         About
                       </a>
                       <a
                         href="/help"
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
                       >
                         Help
                       </a>
                       <a
                         href="/terms"
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
                       >
                         Terms
                       </a>
@@ -577,7 +590,7 @@ export const ChatApp: React.FC = () => {
                   <button
                     onClick={handleLogout}
                     disabled={logoutMutation.isPending}
-                    className="w-full flex items-center justify-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
                     {logoutMutation.isPending ? 'Signing out...' : 'Sign Out'}
