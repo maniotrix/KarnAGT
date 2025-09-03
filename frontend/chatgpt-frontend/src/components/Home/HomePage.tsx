@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquare, FileText, Globe, Code, Brain, ArrowRight, LogIn, UserPlus, Zap, Shield, Search, CheckCircle2, Languages, Image, MoreVertical, Download, Palette } from 'lucide-react';
+import { MessageSquare, FileText, Globe, Code, Brain, ArrowRight, LogIn, UserPlus, Zap, Shield, Search, CheckCircle2, Languages, Image, Menu, Download, Palette } from 'lucide-react';
 import { useCurrentUser } from '../../app/hooks/auth';
 import Logo from '../ui/Logo';
 import { PWAInstallModal } from '../ui/PWAInstallModal';
@@ -84,10 +84,59 @@ export const HomePage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                       <div className="flex justify-between items-center h-16">
               <div className="flex items-center">
+                {/* Hamburger Menu */}
+                <div className="relative mr-3" ref={dropdownRef}>
+                  <button
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="inline-flex items-center p-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    aria-label="Menu"
+                  >
+                    <Menu className="h-4 w-4" />
+                  </button>
+                  
+                  {isDropdownOpen && (
+                    <div className="absolute left-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                      {/* Theme Toggle Section */}
+                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                            <Palette className="h-4 w-4 mr-2" />
+                            Theme
+                          </span>
+                        </div>
+                        <ThemeToggle size="sm" variant="dropdown" className="w-full" />
+                      </div>
+                      
+                      <a
+                        href="/about"
+                        className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setIsDropdownOpen(false)}
+                      >
+                        About
+                      </a>
+                      <a
+                        href="/help"
+                        className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setIsDropdownOpen(false)}
+                      >
+                        Help
+                      </a>
+                      <a
+                        href="/terms"
+                        className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setIsDropdownOpen(false)}
+                      >
+                        Terms
+                      </a>
+                    </div>
+                  )}
+                </div>
+                
                 <Logo size="sm" className="mr-2" />
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">KarnAGT</h1>
               </div>
-            <div className="flex items-center space-x-2 sm:space-x-4">
+              
+            <div className="flex items-center">
               <Link
                 to="/login"
                 className="inline-flex items-center px-3 py-2 sm:px-4 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -95,61 +144,6 @@ export const HomePage: React.FC = () => {
                 <LogIn className="h-4 w-4 mr-2" />
                 Sign In
               </Link>
-              <Link
-                to="/register"
-                className="inline-flex items-center px-3 py-2 sm:px-4 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              >
-                <UserPlus className="h-4 w-4 mr-2" />
-                Sign Up
-              </Link>
-              
-              {/* More Menu Dropdown */}
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="inline-flex items-center p-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                  aria-label="More options"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-                
-                {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-                    {/* Theme Toggle Section */}
-                    <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                          <Palette className="h-4 w-4 mr-2" />
-                          Theme
-                        </span>
-                      </div>
-                      <ThemeToggle size="sm" variant="dropdown" className="w-full" />
-                    </div>
-                    
-                    <a
-                      href="/about"
-                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      About
-                    </a>
-                    <a
-                      href="/help"
-                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      Help
-                    </a>
-                    <a
-                      href="/terms"
-                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      Terms
-                    </a>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
