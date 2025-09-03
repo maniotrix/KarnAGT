@@ -53,13 +53,13 @@ export const ActionButton: React.FC<{
   const getVariantClasses = () => {
     switch (variant) {
       case 'secondary':
-        return 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-300';
+        return 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600';
       case 'success':
-        return 'bg-green-600 hover:bg-green-700 text-white';
+        return 'bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600 text-white';
       case 'danger':
-        return 'bg-red-600 hover:bg-red-700 text-white';
+        return 'bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 text-white';
       default:
-        return 'bg-blue-600 hover:bg-blue-700 text-white';
+        return 'bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white';
     }
   };
 
@@ -147,20 +147,20 @@ export const QuickForm: React.FC<{
 
   return (
     <div className="my-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-      <h4 className="text-sm font-medium mb-2">{title}</h4>
+      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">{title}</h4>
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           disabled={loading}
         />
         <button
           type="submit"
           disabled={loading || !value.trim()}
-          className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 text-sm bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
           {buttonText}
@@ -210,11 +210,11 @@ export const CodeRunner: React.FC<{
   return (
     <div className="my-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-medium">Code Runner ({language})</h4>
+        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Code Runner ({language})</h4>
         <button
           onClick={runCode}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded-md disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600 text-white rounded-md disabled:opacity-50"
         >
           {loading ? (
             <RefreshCw className="w-3 h-3 animate-spin" />
@@ -277,11 +277,11 @@ export const DataFetcher: React.FC<{
   return (
     <div className="my-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-medium">{title}</h4>
+        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{title}</h4>
         <button
           onClick={fetchData}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-md disabled:opacity-50"
         >
           {loading ? (
             <RefreshCw className="w-3 h-3 animate-spin" />

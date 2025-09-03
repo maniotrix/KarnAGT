@@ -151,13 +151,13 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
   const getStatusColor = (file: UploadFile) => {
     switch (file.status) {
       case 'success':
-        return 'border-green-200 bg-green-50';
+        return 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20';
       case 'error':
-        return 'border-red-200 bg-red-50';
+        return 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20';
       case 'uploading':
-        return 'border-blue-200 bg-blue-50';
+        return 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20';
       default:
-        return 'border-gray-200 bg-gray-50';
+        return 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800';
     }
   };
 
@@ -170,8 +170,8 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
           disabled={disabled}
           className={`flex items-center justify-center w-8 h-8 rounded-lg border-2 border-dashed transition-colors ${
             disabled
-              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-              : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
+              ? 'border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              : 'border-gray-300 dark:border-gray-500 text-gray-600 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400'
           }`}
           title="Upload images"
         >
@@ -240,10 +240,10 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
       <div
         className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
           isDragOver
-            ? 'border-blue-400 bg-blue-50'
+            ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
             : disabled
-            ? 'border-gray-200 bg-gray-50'
-            : 'border-gray-300 hover:border-gray-400'
+            ? 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
+            : 'border-gray-300 dark:border-gray-500 hover:border-gray-400 dark:hover:border-gray-400'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -251,7 +251,7 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
       >
         <div className="text-center">
           <div className="mb-4">
-            <ImageIcon className="w-12 h-12 text-gray-400 mx-auto" />
+            <ImageIcon className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto" />
           </div>
           
           <div className="mb-4">
@@ -260,8 +260,8 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
               disabled={disabled}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                 disabled
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600'
               }`}
             >
               <Plus className="w-4 h-4" />
@@ -269,20 +269,20 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
             </button>
           </div>
           
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             or drag and drop images here
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             PNG, JPEG, GIF, WebP • Max 20MB each • Up to {maxFiles} files
           </p>
         </div>
 
         {/* Upload Progress */}
         {isUploading && (
-          <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+          <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm flex items-center justify-center">
             <div className="text-center">
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-2" />
-              <p className="text-sm text-gray-600">Uploading images...</p>
+              <Loader2 className="w-8 h-8 text-blue-500 dark:text-blue-400 animate-spin mx-auto mb-2" />
+              <p className="text-sm text-gray-600 dark:text-gray-400">Uploading images...</p>
             </div>
           </div>
         )}
@@ -292,20 +292,20 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
       {files.length > 0 && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-gray-700">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Uploaded Images ({files.length})
             </h4>
             <div className="flex gap-2">
               <button
                 onClick={clearFiles}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               >
                 Clear All
               </button>
               {files.some(f => f.status === 'success') && (
                 <button
                   onClick={discardStagedFiles}
-                  className="text-xs text-red-500 hover:text-red-700"
+                  className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                 >
                   Discard Staged
                 </button>
@@ -320,7 +320,7 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
                 className={`flex items-center gap-3 p-3 rounded-lg border ${getStatusColor(file)}`}
               >
                 {/* Thumbnail */}
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
                   {file.preview ? (
                     <img
                       src={file.preview}
@@ -329,26 +329,26 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-6 h-6 text-gray-400" />
+                      <ImageIcon className="w-6 h-6 text-gray-400 dark:text-gray-500" />
                     </div>
                   )}
                 </div>
 
                 {/* File Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                     {file.name}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     {formatFileSize(file.size)}
                     {file.file_id && (
-                      <span className="ml-2 text-blue-600">
+                      <span className="ml-2 text-blue-600 dark:text-blue-400">
                         ID: {file.file_id}
                       </span>
                     )}
                   </p>
                   {file.error && (
-                    <p className="text-xs text-red-600 mt-1">{file.error}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{file.error}</p>
                   )}
                 </div>
 
@@ -362,7 +362,7 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
                       console.log('🗑️ [ImageUpload] Trash button clicked for file:', file.id, file.name);
                       removeFile(file.id);
                     }}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
+                    className="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                     title="Remove"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -371,9 +371,9 @@ export const ImageUpload = forwardRef<ImageUploadRef, ImageUploadProps>(({
 
                 {/* Progress Bar */}
                 {file.status === 'uploading' && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 rounded-b-lg">
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-600 rounded-b-lg">
                     <div 
-                      className="h-full bg-blue-500 rounded-b-lg transition-all duration-300"
+                      className="h-full bg-blue-500 dark:bg-blue-400 rounded-b-lg transition-all duration-300"
                       style={{ width: `${file.progress}%` }}
                     />
                   </div>

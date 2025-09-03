@@ -255,7 +255,7 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
 
   const getStatusColor = (file: UploadFile) => {
     // Use neutral card styling; rely on overlays/badges for state feedback
-    return 'border-gray-300 bg-white';
+    return 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800';
   };
 
   const getBrandedFileIcon = (fileName: string) => {
@@ -337,8 +337,8 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
       );
     } else {
       return (
-        <div className="w-full h-full flex items-center justify-center bg-gray-100">
-          <div className="text-gray-500">
+        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+          <div className="text-gray-500 dark:text-gray-400">
             {getFileIcon(file)}
           </div>
         </div>

@@ -216,19 +216,19 @@ export const UserMessage: React.FC<UserMessageProps> = ({
               </Dialog.Root>
             ) : (
               // Loading state
-              <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
                 {isLoading ? (
                   <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span className="text-sm text-gray-600">Loading...</span>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Loading...</span>
                   </div>
                 ) : isError ? (
-                  <div className="text-red-600 text-sm text-center">
+                  <div className="text-red-600 dark:text-red-400 text-sm text-center">
                     <div>⚠️ Failed to load</div>
                     <div className="text-xs mt-1">Image unavailable</div>
                   </div>
                 ) : (
-                  <div className="text-gray-400 text-sm">📷 Image</div>
+                  <div className="text-gray-400 dark:text-gray-500 text-sm">📷 Image</div>
                 )}
               </div>
             )}
@@ -268,18 +268,18 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                   </Dialog.Root>
                 ) : (
                   // Loading state
-                  <div className="h-32 w-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <div className="h-32 w-32 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
                     {isLoading ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 dark:border-blue-400"></div>
                     ) : (
-                      <div className="text-gray-400 text-xs">📷</div>
+                      <div className="text-gray-400 dark:text-gray-500 text-xs">📷</div>
                     )}
                   </div>
                 )}
               </div>
             ))}
             {displayImages.length > 2 && (
-              <div className="text-xs text-gray-500 ml-2">
+              <div className="text-xs text-gray-500 dark:text-gray-400 ml-2">
                 +{displayImages.length - 2} more
               </div>
             )}
@@ -306,8 +306,8 @@ export const UserMessage: React.FC<UserMessageProps> = ({
           {/* Document Files Display */}
           {documentFilenames.length > 0 && (
             <div className="flex w-[70%] flex-col items-end mb-2">
-              <div className="bg-gray-100 rounded-lg p-3 max-w-72">
-                <div className="flex items-center gap-2 text-sm text-gray-700 mb-2">
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-72">
+                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mb-2">
                   <FileText className="w-4 h-4" />
                   <span className="font-medium">
                     {documentFilenames.length} document{documentFilenames.length > 1 ? 's' : ''}
@@ -315,7 +315,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 </div>
                 <div className="space-y-1">
                   {documentFilenames.map((filename: string, index: number) => (
-                    <div key={index} className="text-xs text-gray-600 truncate">
+                    <div key={index} className="text-xs text-gray-600 dark:text-gray-400 truncate">
                       📄 {filename}
                     </div>
                   ))}
@@ -369,7 +369,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 <button
                   onClick={handleCancel}
                   disabled={isSaving}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 ${
                     isSaving ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
@@ -379,7 +379,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 <button
                   onClick={handleSave}
                   disabled={isSaving || !editContent.trim()}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 ${
                     (isSaving || !editContent.trim()) ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
@@ -394,7 +394,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                     <TooltipTrigger asChild>
                       <button
                         onClick={handleEdit}
-                        className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 text-blue-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                        className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
                       >
                         <Edit3 className="w-3 h-3" />
                       </button>
@@ -410,7 +410,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                   <TooltipTrigger asChild>
                     <button
                       onClick={handleCopy}
-                      className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 text-blue-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      className="p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
                     >
                       {copied ? (
                         <Check className="w-3 h-3" />

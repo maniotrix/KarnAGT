@@ -179,7 +179,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               <button
                 onClick={handleLoadMoreClick}
                 disabled={isLoadingMore}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-full shadow-lg transition-colors disabled:cursor-not-allowed"
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-blue-400 dark:disabled:bg-blue-600 text-white rounded-full shadow-lg transition-colors disabled:cursor-not-allowed"
               >
                 {isLoadingMore ? (
                   <>
@@ -232,7 +232,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
           <button
             onClick={() => scrollToBottom('smooth')}
-            className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800"
+            className="p-3 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-full shadow-xl border-2 border-white dark:border-gray-800 transition-colors"
           >
             <ArrowUp className="w-5 h-5 rotate-180" />
           </button>
