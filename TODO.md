@@ -143,3 +143,4 @@
 
 * pwa install -don
 * add search in chat app
+* use api key for user registration set in fronetend env and backend env...hence register requires a proper api key to process registration request
