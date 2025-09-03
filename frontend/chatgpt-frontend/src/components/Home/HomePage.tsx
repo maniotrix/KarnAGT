@@ -128,6 +128,19 @@ export const HomePage: React.FC = () => {
                       >
                         Terms
                       </a>
+                      
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                      
+                      <button
+                        onClick={() => {
+                          setIsPWAModalOpen(true);
+                          setIsDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Install as App
+                      </button>
                     </div>
                   )}
                 </div>

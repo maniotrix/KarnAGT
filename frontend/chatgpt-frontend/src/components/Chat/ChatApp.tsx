@@ -23,10 +23,12 @@ import {
   Crown,
   MoreVertical,
   RefreshCw,
-  Palette 
+  Palette,
+  Download 
 } from 'lucide-react';
 import Logo from '../ui/Logo';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { PWAInstallModal } from '../ui/PWAInstallModal';
 
 // Type for pending attachments to be submitted with auto-created conversation
 interface PendingAttachments {
@@ -43,6 +45,7 @@ export const ChatApp: React.FC = () => {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachments | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
+  const [isPWAModalOpen, setIsPWAModalOpen] = useState(false);
   const [chatReload, setChatReload] = useState(0);
   const [isRefreshingConversations, setIsRefreshingConversations] = useState(false);
   const [isReloadingChat, setIsReloadingChat] = useState(false);
@@ -584,6 +587,16 @@ export const ChatApp: React.FC = () => {
                       >
                         Terms
                       </a>
+                      <button
+                        onClick={() => {
+                          setIsPWAModalOpen(true);
+                          setShowUserDropdown(false);
+                        }}
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Install as App
+                      </button>
                     </div>
                   </div>
                   
@@ -626,6 +639,12 @@ export const ChatApp: React.FC = () => {
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      {/* PWA Install Modal */}
+      <PWAInstallModal 
+        isOpen={isPWAModalOpen} 
+        onClose={() => setIsPWAModalOpen(false)} 
+      />
     </div>
   );
 }; 
