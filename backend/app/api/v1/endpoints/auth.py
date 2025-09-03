@@ -295,7 +295,7 @@ async def google_login(
         logger.info(f"🆕 Creating new user")
         user = User(
             email=email.lower(),
-            username=email.lower().split('@')[0][:100],  # Simple username from email
+            username=None,  # Don't set username for OAuth users
             full_name=name,
             avatar_url=picture,
             hashed_password=None,  # No password for Google users
