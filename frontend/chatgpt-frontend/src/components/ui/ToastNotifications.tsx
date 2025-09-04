@@ -89,11 +89,11 @@ export const ToastNotifications: React.FC = () => {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
+                  <p className="text-fluid-xs font-semibold text-gray-900 dark:text-white leading-tight">
                     {toast.title}
                   </p>
                   {toast.message && (
-                    <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300 break-words leading-tight">
+                    <p className="mt-0.5 text-fluid-xs text-gray-600 dark:text-gray-300 break-words leading-tight">
                       {toast.message}
                     </p>
                   )}
