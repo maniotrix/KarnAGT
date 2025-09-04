@@ -284,7 +284,7 @@ export const ChatApp: React.FC = () => {
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+            <h2 className="text-fluid-base font-semibold text-gray-900 dark:text-gray-100 flex items-center">
               <Logo className="mr-2" size="md" />
               Conversations
             </h2>
@@ -341,13 +341,13 @@ export const ChatApp: React.FC = () => {
                       className="flex-1 min-w-0"
                       onClick={() => handleSelectConversation(conv.conversationId)}
                     >
-                      <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                      <div className="text-fluid-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                         {getConversationDisplayTitle(conv, 50)}
                       </div>
-                                             <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                             <div className="text-fluid-xs text-gray-500 dark:text-gray-400 mt-1">
                          {conv.messageCount} messages
                        </div>
-                       <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                       <div className="text-fluid-xs text-gray-400 dark:text-gray-500 mt-1">
                          {conv.updatedAt.toLocaleDateString()}
                        </div>
                     </div>
@@ -379,7 +379,7 @@ export const ChatApp: React.FC = () => {
                               handleDeleteConversation(conv.conversationId);
                             }}
                             disabled={deleteConversationMutation.isPending}
-                            className="w-full flex items-center px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full flex items-center px-3 py-1.5 text-fluid-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="h-3.5 w-3.5 mr-2" />
                             Delete
@@ -395,8 +395,8 @@ export const ChatApp: React.FC = () => {
                 <div className="mx-auto mb-4">
                   <Logo size="xl" backgroundVariant="light" />
                 </div>
-                <p>No conversations yet</p>
-                <p className="text-sm">Start a new chat to begin</p>
+                <p className="text-fluid-base">No conversations yet</p>
+                <p className="text-fluid-sm">Start a new chat to begin</p>
               </div>
             )}
           </div>
@@ -420,10 +420,10 @@ export const ChatApp: React.FC = () => {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                <div className="text-fluid-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                   {user?.getDisplayName()}
                 </div>
-                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex items-center text-fluid-xs text-gray-500 dark:text-gray-400">
                   {user?.isPremium() && (
                     <Crown className="h-3 w-3 mr-1 text-yellow-500 dark:text-yellow-400" />
                   )}
@@ -455,7 +455,7 @@ export const ChatApp: React.FC = () => {
               <Menu className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             </button>
             <h1 
-              className="text-xl font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              className="text-fluid-lg font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               onClick={() => navigate('/')}
             >
               KarnAGT
@@ -489,7 +489,7 @@ export const ChatApp: React.FC = () => {
               )}
             </div>
             
-            <span className="hidden sm:block text-sm text-gray-600 dark:text-gray-400">
+            <span className="hidden sm:block text-fluid-sm text-gray-600 dark:text-gray-400">
               Hello, {user?.getDisplayName()}
             </span>
             <div className="flex items-center space-x-2 relative">
@@ -529,11 +529,11 @@ export const ChatApp: React.FC = () => {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-gray-900 dark:text-gray-100 truncate">{user?.getDisplayName()}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</div>
+                      <div className="text-fluid-base font-medium text-gray-900 dark:text-gray-100 truncate">{user?.getDisplayName()}</div>
+                      <div className="text-fluid-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</div>
                       <div className="mt-1 flex items-center">
                         <Crown className="h-3 w-3 mr-1 text-yellow-500 dark:text-yellow-400 flex-shrink-0" />
-                        <span className="text-xs bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full uppercase font-medium text-green-800 dark:text-green-300 truncate">
+                        <span className="text-fluid-xs bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full uppercase font-medium text-green-800 dark:text-green-300 truncate">
                           {user?.subscriptionTier} plan
                         </span>
                       </div>
@@ -558,7 +558,7 @@ export const ChatApp: React.FC = () => {
                   {/* Theme Toggle Section */}
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mb-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <span className="text-fluid-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
                         <Palette className="h-4 w-4 mr-2" />
                         Theme
                       </span>
@@ -571,19 +571,19 @@ export const ChatApp: React.FC = () => {
                     <div className="space-y-1">
                       <a
                         href="/about"
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
                       >
                         About
                       </a>
                       <a
                         href="/help"
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
                       >
                         Help
                       </a>
                       <a
                         href="/terms"
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
                       >
                         Terms
                       </a>
@@ -592,7 +592,7 @@ export const ChatApp: React.FC = () => {
                           setIsPWAModalOpen(true);
                           setShowUserDropdown(false);
                         }}
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Install as App
@@ -603,7 +603,7 @@ export const ChatApp: React.FC = () => {
                   <button
                     onClick={handleLogout}
                     disabled={logoutMutation.isPending}
-                    className="w-full flex items-center justify-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
                     {logoutMutation.isPending ? 'Signing out...' : 'Sign Out'}

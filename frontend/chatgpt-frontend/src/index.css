@@ -233,6 +233,12 @@
     line-height: 1.6;
   }
 
+  /* Extra small text: 12px min, scales, 14px max */
+  .text-fluid-xs {
+    font-size: clamp(0.75rem, 1.5vw + 0.4rem, 0.875rem);
+    line-height: 1.4;
+  }
+
   /* Small text: 14px min, scales, 16px max */
   .text-fluid-sm {
     font-size: clamp(0.875rem, 2vw + 0.5rem, 1rem);
