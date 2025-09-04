@@ -302,7 +302,7 @@ export const ChatApp: React.FC = () => {
               <button
                 onClick={handleNewChat}
                 disabled={createConversationMutation.isPending}
-                className="flex-1 flex items-center justify-center px-4 py-3 min-h-[44px] bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation text-fluid-sm font-medium"
+                className="flex-1 flex items-center justify-center px-4 py-3 min-h-[44px] bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation text-fluid-xs font-medium"
               >
                 <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
                 {createConversationMutation.isPending ? 'Creating...' : 'New Chat'}
