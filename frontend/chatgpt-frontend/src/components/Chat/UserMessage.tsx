@@ -219,7 +219,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 ) : isError ? (
                   <div className="text-red-600 dark:text-red-400 text-sm text-center">
                     <div>⚠️ Failed to load</div>
-                    <div className="text-xs mt-1">Image unavailable</div>
+                    <div className="mt-1">Image unavailable</div>
                   </div>
                 ) : (
                   <div className="text-gray-400 dark:text-gray-500 text-sm">📷 Image</div>
@@ -262,14 +262,14 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                     {isLoading ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 dark:border-blue-400"></div>
                     ) : (
-                      <div className="text-gray-400 dark:text-gray-500 text-xs">📷</div>
+                      <div className="text-gray-400 dark:text-gray-500">📷</div>
                     )}
                   </div>
                 )}
               </div>
             ))}
             {displayImages.length > 2 && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+              <div className="text-gray-500 dark:text-gray-400 ml-2">
                 +{displayImages.length - 2} more
               </div>
             )}
@@ -305,7 +305,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 </div>
                 <div className="space-y-1">
                   {documentFilenames.map((filename: string, index: number) => (
-                    <div key={index} className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                    <div key={index} className="text-gray-600 dark:text-gray-400 truncate">
                       📄 {filename}
                     </div>
                   ))}
@@ -328,7 +328,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                   disabled={isSaving}
                   autoFocus
                 />
-                <div className="flex items-center gap-2 mt-2 text-xs text-blue-100">
+                <div className="flex items-center gap-2 mt-2 text-blue-100">
                   <span>Press Ctrl+Enter to save, Esc to cancel</span>
                 </div>
               </div>
@@ -336,7 +336,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
               <div className="prose prose-fluid max-w-full prose-invert text-white">
                 {/* Show saving indicator if message is being edited */}
                 {isSaving && (
-                  <div className="flex items-center gap-2 mb-2 text-xs opacity-75">
+                  <div className="flex items-center gap-2 mb-2 opacity-75">
                     <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
                     <span>Saving changes...</span>
                   </div>
@@ -345,7 +345,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 <InteractiveMarkdown 
                   content={message.content}
                   theme="user"
-                  className="prose prose-fluid max-w-full prose-invert text-white break-words overflow-hidden"
+                  className="break-words overflow-hidden"
                 />
               </div>
             )}

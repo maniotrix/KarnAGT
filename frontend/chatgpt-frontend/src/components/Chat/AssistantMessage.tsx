@@ -166,11 +166,11 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
           {/* Message Bubble - Only show when there's content */}
           {message.content && (
             <div className="px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 w-full min-w-0">
-              <div className="min-w-0 overflow-hidden">
+              <div className="prose prose-fluid max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white overflow-hidden">
                 <InteractiveMarkdown 
                   content={message.content}
                   theme="assistant"
-                  className="prose prose-fluid max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white break-words"
+                  className="break-words"
                 />
               </div>
             </div>
@@ -187,13 +187,13 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                     <TooltipTrigger asChild>
                       <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
                         <AlertTriangle className="w-3 h-3" />
-                        <span className="text-xs font-medium">Cancelled</span>
+                        <span className="font-medium">Cancelled</span>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent 
                       side="top" 
                       align="center"
-                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md shadow-lg"
+                      className="max-w-xs px-2 py-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md shadow-lg"
                     >
                       <p>AI response was cancelled</p>
                     </TooltipContent>
@@ -206,13 +206,13 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                     <TooltipTrigger asChild>
                       <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
                         <FileQuestion className="w-3 h-3" />
-                        <span className="text-xs font-medium">No response</span>
+                        <span className="font-medium">No response</span>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent 
                       side="top" 
                       align="center"
-                      className="max-w-xs px-2 py-1 text-xs bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md shadow-lg"
+                      className="max-w-xs px-2 py-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md shadow-lg"
                     >
                       <p>AI response is empty</p>
                     </TooltipContent>

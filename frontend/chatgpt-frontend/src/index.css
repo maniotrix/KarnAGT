@@ -379,6 +379,31 @@
     line-height: 1.4;
   }
 
+  /* Remove default prose margins/padding inside message bubbles */
+  .prose-fluid {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .prose-fluid > * {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .prose-fluid > * + * {
+    margin-top: 1rem !important;
+  }
+
+  /* Small UI elements outside prose flow - status badges, tooltips, helper text */
+  .prose-fluid ~ div span,
+  .prose-fluid + div span,
+  .prose-fluid [class*="tooltip"] *,
+  .prose-fluid [class*="status"] span,
+  .prose-fluid [class*="badge"] span {
+    font-size: clamp(0.75rem, 1.3vw + 0.3rem, 0.85rem);
+    line-height: 1.4;
+  }
+
   /* Responsive adjustments for very small screens */
   @media (max-width: 320px) {
     .prose-fluid p, .prose-fluid li, .text-fluid-message {
