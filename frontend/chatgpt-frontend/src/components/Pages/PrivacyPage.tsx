@@ -21,11 +21,11 @@ export const PrivacyPage: React.FC = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Logo size="sm" className="mr-2" />
-              <a href="/" className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">KarnAGT</a>
+              <a href="/" className="text-fluid-base font-bold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">KarnAGT</a>
             </div>
             <a
               href="/"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium transition-colors"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-fluid-xs font-medium transition-colors"
             >
               Go to Home
             </a>
@@ -40,7 +40,7 @@ export const PrivacyPage: React.FC = () => {
           <div className="flex justify-start mb-4">
             <button
               onClick={() => window.history.back()}
-              className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium underline hover:no-underline transition-all"
+              className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 text-fluid-xs font-medium underline hover:no-underline transition-all"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -48,13 +48,13 @@ export const PrivacyPage: React.FC = () => {
           </div>
           <div className="text-center mb-8">
             <Shield className="h-16 w-16 text-blue-500 dark:text-blue-400 mx-auto mb-4" />
-            <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            <h1 className="text-fluid-h2 font-bold text-gray-900 dark:text-gray-100 mb-4">
               Privacy Policy
             </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            <p className="text-fluid-sm text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
               Your privacy is fundamental to how we build and operate KarnAGT. This policy explains how we collect, use, and protect your information.
             </p>
-            <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+            <div className="mt-4 text-fluid-xs text-gray-500 dark:text-gray-400">
               Last updated: January 2025
             </div>
           </div>
@@ -63,7 +63,7 @@ export const PrivacyPage: React.FC = () => {
         {/* Quick Navigation */}
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex flex-wrap gap-4 text-sm">
+            <div className="flex flex-wrap gap-4 text-fluid-xs">
               <a href="#data-collection" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">Data Collection</a>
               <a href="#how-we-use" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">How We Use Data</a>
               <a href="#data-sharing" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">Data Sharing</a>
@@ -84,8 +84,8 @@ export const PrivacyPage: React.FC = () => {
                 <div className="flex items-start">
                   <Eye className="h-6 w-6 text-blue-600 dark:text-blue-400 mt-1 mr-3 flex-shrink-0" />
                   <div>
-                    <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">Privacy-First Approach</h3>
-                    <p className="text-blue-800 dark:text-blue-200 text-sm">
+                    <h3 className="text-fluid-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Privacy-First Approach</h3>
+                    <p className="text-blue-800 dark:text-blue-200 text-fluid-xs">
                       At KarnAGT, privacy isn't an afterthought—it's fundamental to our design. We collect only what we need, 
                       protect everything we store, and give you complete control over your data.
                     </p>
@@ -96,7 +96,7 @@ export const PrivacyPage: React.FC = () => {
 
             {/* Data Collection */}
             <section id="data-collection">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                 <Database className="h-6 w-6 text-green-500 mr-2" />
                 1. What Information We Collect
               </h2>
@@ -135,12 +135,12 @@ export const PrivacyPage: React.FC = () => {
 
             {/* How We Use Data */}
             <section id="how-we-use">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                 <UserCheck className="h-6 w-6 text-purple-500 mr-2" />
                 2. How We Use Your Information
               </h2>
               <div className="space-y-4 text-gray-700 dark:text-gray-300">
-                <p className="text-lg">We use your information solely to provide and improve KarnAGT services:</p>
+                <p className="text-fluid-sm">We use your information solely to provide and improve KarnAGT services:</p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg">
@@ -165,7 +165,7 @@ export const PrivacyPage: React.FC = () => {
                 </div>
 
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 p-4 rounded-lg">
-                  <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                  <p className="text-yellow-800 dark:text-yellow-200 text-fluid-xs">
                     <strong>AI Training:</strong> We may use anonymized conversation data to improve our AI models, 
                     but personal identifiers are always removed and we never share your specific conversations.
                   </p>
@@ -175,7 +175,7 @@ export const PrivacyPage: React.FC = () => {
 
             {/* Data Sharing */}
             <section id="data-sharing">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                 <Globe className="h-6 w-6 text-orange-500 mr-2" />
                 3. When We Share Information
               </h2>
@@ -187,7 +187,7 @@ export const PrivacyPage: React.FC = () => {
                   </p>
                 </div>
 
-                <p className="text-lg font-medium">We only share information in these limited circumstances:</p>
+                <p className="text-fluid-sm font-medium">We only share information in these limited circumstances:</p>
                 
                 <div className="space-y-4">
                   <div className="border-l-4 border-blue-500 pl-4">
@@ -215,12 +215,12 @@ export const PrivacyPage: React.FC = () => {
 
             {/* Your Rights */}
             <section id="your-rights">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                 <UserCheck className="h-6 w-6 text-indigo-500 mr-2" />
                 4. Your Privacy Rights
               </h2>
               <div className="space-y-4 text-gray-700 dark:text-gray-300">
-                <p className="text-lg">You have complete control over your data:</p>
+                <p className="text-fluid-sm">You have complete control over your data:</p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-lg">
@@ -261,7 +261,7 @@ export const PrivacyPage: React.FC = () => {
                 </div>
 
                 <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                  <p className="text-fluid-xs text-gray-700 dark:text-gray-300">
                     <strong>How to Exercise Your Rights:</strong> Contact us at privacy@karnagt.com or use the privacy settings in your account dashboard. 
                     We'll respond within 30 days and help you exercise any of these rights free of charge.
                   </p>
@@ -271,19 +271,19 @@ export const PrivacyPage: React.FC = () => {
 
             {/* Security */}
             <section id="security">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                 <Lock className="h-6 w-6 text-red-500 mr-2" />
                 5. How We Protect Your Information
               </h2>
               <div className="space-y-4 text-gray-700 dark:text-gray-300">
-                <p className="text-lg">Security is built into every aspect of KarnAGT:</p>
+                <p className="text-fluid-sm">Security is built into every aspect of KarnAGT:</p>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="bg-red-50 dark:bg-red-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Lock className="h-8 w-8 text-red-600 dark:text-red-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Encryption</h3>
+                    <h3 className="text-fluid-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Encryption</h3>
                     <p className="text-gray-600 dark:text-gray-400">
                       All data is encrypted in transit (TLS 1.3) and at rest (AES-256). Your conversations are encrypted before they leave your device.
                     </p>
@@ -293,7 +293,7 @@ export const PrivacyPage: React.FC = () => {
                     <div className="bg-blue-50 dark:bg-blue-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Access Controls</h3>
+                    <h3 className="text-fluid-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Access Controls</h3>
                     <p className="text-gray-600 dark:text-gray-400">
                       Strict access controls, multi-factor authentication, and regular security audits protect against unauthorized access.
                     </p>
@@ -303,7 +303,7 @@ export const PrivacyPage: React.FC = () => {
                     <div className="bg-green-50 dark:bg-green-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Database className="h-8 w-8 text-green-600 dark:text-green-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Infrastructure</h3>
+                    <h3 className="text-fluid-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Infrastructure</h3>
                     <p className="text-gray-600 dark:text-gray-400">
                       SOC 2 compliant cloud infrastructure with automatic backups, monitoring, and incident response procedures.
                     </p>
@@ -322,7 +322,7 @@ export const PrivacyPage: React.FC = () => {
 
             {/* Updates */}
             <section>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">6. Policy Updates</h2>
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4">6. Policy Updates</h2>
               <div className="space-y-4 text-gray-700 dark:text-gray-300">
                 <p>
                   We may update this privacy policy to reflect changes in our practices or legal requirements. 
@@ -337,7 +337,7 @@ export const PrivacyPage: React.FC = () => {
 
             {/* Contact */}
             <section id="contact">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">7. Contact Information</h2>
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4">7. Contact Information</h2>
               <div className="space-y-4 text-gray-700 dark:text-gray-300">
                 <p>
                   Questions about this privacy policy or how we handle your data? We're here to help:
@@ -353,7 +353,7 @@ export const PrivacyPage: React.FC = () => {
                       <p className="text-blue-800 dark:text-blue-200">help@karnagt.com</p>
                     </div>
                   </div>
-                  <p className="text-blue-700 dark:text-blue-300 text-sm mt-4">
+                  <p className="text-blue-700 dark:text-blue-300 text-fluid-xs mt-4">
                     We typically respond to privacy requests within 30 days and support requests within 24 hours.
                   </p>
                 </div>
@@ -363,8 +363,8 @@ export const PrivacyPage: React.FC = () => {
 
           {/* Summary Box */}
           <div className="mt-8 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-green-900 dark:text-green-100 mb-3">Privacy Summary</h3>
-            <ul className="space-y-2 text-green-800 dark:text-green-200 text-sm">
+            <h3 className="text-fluid-sm font-semibold text-green-900 dark:text-green-100 mb-3">Privacy Summary</h3>
+            <ul className="space-y-2 text-green-800 dark:text-green-200 text-fluid-xs">
               <li>✓ We collect only what's necessary to provide KarnAGT services</li>
               <li>✓ We never sell your personal data to third parties</li>
               <li>✓ You have complete control over your data and can delete it anytime</li>
@@ -377,22 +377,22 @@ export const PrivacyPage: React.FC = () => {
         {/* CTA Section */}
         <div className="bg-gray-100 dark:bg-gray-800 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
               Ready to experience privacy-first AI?
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
+            <p className="text-fluid-sm text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
               Join KarnAGT and experience the power of AI with the privacy and control you deserve.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
                 href="/register"
-                className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                className="inline-flex items-center px-8 py-4 border border-transparent text-fluid-sm font-medium rounded-lg text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
               >
                 Create Account
               </a>
               <a
                 href="/help"
-                className="inline-flex items-center px-8 py-4 border border-gray-300 dark:border-gray-600 text-lg font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center px-8 py-4 border border-gray-300 dark:border-gray-600 text-fluid-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 Learn More
               </a>
@@ -406,13 +406,13 @@ export const PrivacyPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row justify-between items-center">
             <div className="text-center sm:text-left mb-4 sm:mb-0">
-              <p className="text-gray-600 dark:text-gray-400">&copy; 2025 KarnAGT. All rights reserved.</p>
+              <p className="text-gray-600 dark:text-gray-400 text-fluid-xs">&copy; 2025 KarnAGT. All rights reserved.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4 sm:gap-8">
-              <a href="/home" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">Home</a>
-              <a href="/about" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">About</a>
-              <a href="/help" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">Help</a>
-              <a href="/terms" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">Terms</a>
+              <a href="/home" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all text-fluid-xs">Home</a>
+              <a href="/about" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all text-fluid-xs">About</a>
+              <a href="/help" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all text-fluid-xs">Help</a>
+              <a href="/terms" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all text-fluid-xs">Terms</a>
             </div>
           </div>
         </div>
