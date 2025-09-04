@@ -333,7 +333,7 @@ export const ChatApp: React.FC = () => {
                       group relative flex items-center p-3 rounded-lg cursor-pointer transition-colors
                       ${currentConversationId === conv.conversationId 
                         ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700' 
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent [&:has(button:hover)]:bg-gray-100 [&:has(button:hover)]:dark:bg-gray-600 [&:has(button:hover)]:border-gray-200 [&:has(button:hover)]:dark:border-gray-600'
                       }
                     `}
                   >
