@@ -269,7 +269,7 @@
 
   /* Chat-specific fluid typography */
   .text-fluid-message {
-    font-size: clamp(0.95rem, 2.5vw + 0.4rem, 1.1rem);
+    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
     line-height: 1.6;
   }
 
@@ -280,7 +280,7 @@
 
   /* Prose enhancement for fluid typography */
   .prose-fluid {
-    font-size: clamp(0.95rem, 2.5vw + 0.4rem, 1.1rem);
+    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
     line-height: 1.65;
   }
 
@@ -315,7 +315,7 @@
   }
 
   .prose-fluid p, .prose-fluid li {
-    font-size: clamp(0.95rem, 2.5vw + 0.4rem, 1.1rem);
+    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
     line-height: 1.65;
   }
 
@@ -324,7 +324,7 @@
   }
 
   .prose-fluid blockquote {
-    font-size: clamp(0.95rem, 2.5vw + 0.4rem, 1.1rem);
+    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
     line-height: 1.7;
   }
 

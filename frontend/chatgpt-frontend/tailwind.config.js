@@ -127,7 +127,7 @@ export default {
         'fluid-3xl': ['clamp(1.75rem, 5vw + 1rem, 3rem)', { lineHeight: '1.2' }],
         
         // Chat-specific sizes
-        'fluid-message': ['clamp(0.95rem, 2.5vw + 0.4rem, 1.1rem)', { lineHeight: '1.6' }],
+        'fluid-message': ['clamp(0.95rem, 2vw + 0.4rem, 1rem)', { lineHeight: '1.6' }],
         'fluid-ui': ['clamp(0.8rem, 1.5vw + 0.4rem, 0.9rem)', { lineHeight: '1.5' }],
       }
   	}
