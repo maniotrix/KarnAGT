@@ -171,11 +171,11 @@ export const HomePage: React.FC = () => {
               <div className="mb-6">
                 <Logo size="2xl" />
               </div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-gray-100 text-center">
+              <h1 className="text-fluid-h1 font-bold text-gray-900 dark:text-gray-100 text-center">
                 Meet <span className="text-blue-600 dark:text-blue-400">KarnAGT</span>—your advanced AI agent
               </h1>
             </div>
-            <p className="text-xl sm:text-2xl text-gray-600 dark:text-gray-400 mb-8 max-w-3xl mx-auto">
+            <p className="text-fluid-lg text-gray-600 dark:text-gray-400 mb-8 max-w-3xl mx-auto">
               An intelligent agentic system that reasons, sees, remembers, and communicates in any language. 
               Always up‑to‑date. Always learning. Always ready to help you achieve more.
             </p>
@@ -211,16 +211,16 @@ export const HomePage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+              <h2 className="text-fluid-h2 font-bold text-gray-900 dark:text-gray-100 mb-4">
                 Why KarnAGT
               </h2>
               <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 border border-green-200 dark:border-green-700 rounded-full text-green-800 dark:text-green-300 text-sm font-medium mb-6">
                 🎉 Free powerful AI for everyone
               </div>
-              <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+              <p className="text-fluid-base-sm text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                 An advanced agentic system that thinks, sees, remembers, and adapts—transforming how you work with AI-powered intelligence.
               </p>
-              <p className="mt-6 text-sm sm:text-base text-gray-500 dark:text-gray-500 max-w-xl mx-auto">
+              <p className="mt-6 text-fluid-less-sm text-gray-500 dark:text-gray-500 max-w-xl mx-auto">
                 Built for individuals. Private by default. Always ready.
               </p>
             </div>
@@ -234,10 +234,10 @@ export const HomePage: React.FC = () => {
                   <div className="flex justify-center mb-4">
                     {feature.icon}
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  <h3 className="text-fluid-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     {feature.title}
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-fluid-sm text-gray-600 dark:text-gray-400">
                     {feature.description}
                   </p>
                 </div>
@@ -250,30 +250,30 @@ export const HomePage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-10">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3">How it works</h2>
-              <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">From intent to outcome in three clear steps.</p>
+              <h2 className="text-fluid-h2 font-bold text-gray-900 dark:text-gray-100 mb-3">How it works</h2>
+              <p className="text-fluid-base-sm text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">From intent to outcome in three clear steps.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Describe your goal</h3>
+                  <h3 className="text-fluid-base-sm font-semibold text-gray-900 dark:text-gray-100">Describe your goal</h3>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400">Share what you need—drafts, summaries, analysis, plans, or calculations.</p>
+                <p className="text-fluid-sm text-gray-600 dark:text-gray-400">Share what you need—drafts, summaries, analysis, plans, or calculations.</p>
               </div>
               <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI plans and executes</h3>
+                  <h3 className="text-fluid-base-sm font-semibold text-gray-900 dark:text-gray-100">AI plans and executes</h3>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400">KarnAGT reasons, searches the web, analyzes images, works with your files, and executes code—all in any language.</p>
+                <p className="text-fluid-sm text-gray-600 dark:text-gray-400">KarnAGT reasons, searches the web, analyzes images, works with your files, and executes code—all in any language.</p>
               </div>
               <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Get a polished result</h3>
+                  <h3 className="text-fluid-base-sm font-semibold text-gray-900 dark:text-gray-100">Get a polished result</h3>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400">Receive clear, actionable output you can use immediately—no busywork.</p>
+                <p className="text-fluid-sm text-gray-600 dark:text-gray-400">Receive clear, actionable output you can use immediately—no busywork.</p>
               </div>
             </div>
           </div>
@@ -283,7 +283,7 @@ export const HomePage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
             <div className="text-center mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Popular use cases</h3>
+              <h3 className="text-fluid-lg font-semibold text-gray-900 dark:text-gray-100">Popular use cases</h3>
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               {[
@@ -308,7 +308,7 @@ export const HomePage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 p-6 text-center">
-              <p className="text-gray-700 dark:text-gray-300 text-base sm:text-lg">
+              <p className="text-gray-700 dark:text-gray-300 text-fluid-base-sm">
                 Powered by state-of-the-art models with agentic reasoning—so you get intelligent outcomes, not just responses.
               </p>
             </div>
@@ -321,9 +321,9 @@ export const HomePage: React.FC = () => {
             <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Privacy & Control</h3>
+                <h3 className="text-fluid-base-sm font-semibold text-gray-900 dark:text-gray-100">Privacy & Control</h3>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-gray-700 dark:text-gray-300">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-gray-700 dark:text-gray-300 text-fluid-sm">
                 <div>Private by design—your personal workspace.</div>
                 <div>State‑of‑the‑art security infrastructure protects your data.</div>
                 <div>Transparent behavior—you're always in control.</div>
@@ -335,15 +335,15 @@ export const HomePage: React.FC = () => {
         {/* Call to Action Section */}
         <div className="bg-blue-50 dark:bg-blue-900/20 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            <h2 className="text-fluid-h2 font-bold text-gray-900 dark:text-gray-100 mb-4">
               Ready when you are
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
+            <p className="text-fluid-base-sm text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
               Experience agentic AI that understands your goals, thinks through complex problems, and delivers results that matter.
             </p>
             <Link
               to="/register"
-              className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105"
+              className="inline-flex items-center px-8 py-4 border border-transparent text-fluid-sm font-medium rounded-lg text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105"
             >
               Create your account
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -363,12 +363,12 @@ export const HomePage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row justify-between items-center">
             <div className="text-center sm:text-left mb-4 sm:mb-0">
-              <p className="text-gray-600 dark:text-gray-400">&copy; 2025 KarnAGT. All rights reserved.</p>
+              <p className="text-gray-600 dark:text-gray-400 text-fluid-xs">&copy; 2025 KarnAGT. All rights reserved.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4 sm:gap-8">
-              <a href="/about" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">About</a>
-              <a href="/help" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">Help</a>
-              <a href="/terms" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all">Terms</a>
+              <a href="/about" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all text-fluid-xs">About</a>
+              <a href="/help" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all text-fluid-xs">Help</a>
+              <a href="/terms" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline hover:no-underline transition-all text-fluid-xs">Terms</a>
             </div>
           </div>
         </div>

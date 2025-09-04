@@ -239,10 +239,23 @@
     line-height: 1.4;
   }
 
+
+  /* Between xs and sm: 13px min, scales, 15px max */
+  .text-fluid-less-sm {
+    font-size: clamp(0.8125rem, 1.8vw + 0.45rem, 0.9375rem);
+    line-height: 1.45;
+  }
+
   /* Small text: 14px min, scales, 16px max */
   .text-fluid-sm {
     font-size: clamp(0.875rem, 2vw + 0.5rem, 1rem);
     line-height: 1.5;
+  }
+
+  /* Base-small text: equivalent to text-lg with fluid scaling */
+  .text-fluid-base-sm {
+    font-size: clamp(1rem, 2.2vw + 0.4rem, 1.125rem);
+    line-height: 1.75;
   }
 
   /* Large text: 18px min, scales, 24px max */
