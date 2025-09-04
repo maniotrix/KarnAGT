@@ -51,7 +51,7 @@ export const ThComponent: React.FC<TableComponentProps> = ({
   return (
     <th 
       {...props} 
-      className={`px-3 py-2 text-left text-xs font-medium ${styles.table.headerCell}`}
+      className={`px-3 py-2 text-left font-medium ${styles.table.headerCell}`}
     >
       {children}
     </th>
@@ -96,7 +96,7 @@ export const TdComponent: React.FC<TableComponentProps> = ({
   return (
     <td 
       {...props} 
-      className={`px-3 py-2 text-xs leading-relaxed ${styles.table.bodyCell}`}
+      className={`px-3 py-2 ${styles.table.bodyCell}`}
     >
       {children}
     </td>

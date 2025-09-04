@@ -62,7 +62,7 @@ const CopyButton: React.FC<{
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="text-xs font-medium">{copied ? '✓ Copied!' : 'Copy code'}</p>
+          <p className="font-medium">{copied ? '✓ Copied!' : 'Copy code'}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -217,7 +217,7 @@ export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...prop
             <LanguageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
           {/* Enhanced language pill */}
-          <span className="text-xs font-mono text-gray-700 dark:text-gray-200 select-none">
+          <span className="font-mono text-gray-700 dark:text-gray-200 select-none">
             {language ? language.toLowerCase() : 'plaintext'}
           </span>
         </div>
@@ -230,7 +230,7 @@ export const PreBlock: React.FC<PreBlockProps> = ({ children, className, ...prop
         <pre 
           {...props} 
           ref={preRef} 
-          className={`${className || ''} m-0 p-4 border-none overflow-x-auto text-sm leading-relaxed`}
+          className={`${className || ''} m-0 p-4 border-none overflow-x-auto`}
           style={{ maxWidth: '100%' }}
         >
           {children}

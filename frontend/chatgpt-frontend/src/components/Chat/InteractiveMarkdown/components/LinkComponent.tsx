@@ -31,7 +31,7 @@ export const LinkComponent: React.FC<LinkComponentProps> = ({
       {children}
       {shouldOpenNewTab && (
         <span 
-          className={`ml-1 inline-block text-xs ${
+          className={`ml-1 inline-block ${
             theme === 'user' 
               ? 'text-blue-200' 
               : 'text-gray-500 dark:text-gray-400'

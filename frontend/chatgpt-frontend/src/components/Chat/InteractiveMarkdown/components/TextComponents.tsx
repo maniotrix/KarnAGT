@@ -15,7 +15,7 @@ export const ParagraphComponent: React.FC<TextComponentProps> = ({
 }) => (
   <p 
     {...props} 
-    className={`text-sm leading-relaxed ${getTextColor(theme)}`}
+    className={`${getTextColor(theme)}`}
   >
     {children}
   </p>
@@ -58,7 +58,7 @@ export const BlockquoteComponent: React.FC<TextComponentProps> = ({
 }) => (
   <blockquote 
     {...props} 
-    className={`border-l-2 pl-3 py-2 my-3 text-sm italic ${
+    className={`border-l-2 pl-3 py-2 my-3 italic ${
       theme === 'user' 
         ? 'border-blue-300 bg-blue-800/20 text-blue-100' 
         : 'border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/40 text-gray-700 dark:text-gray-300'

@@ -326,12 +326,57 @@
   }
 
   .prose-fluid code {
-    font-size: clamp(0.875rem, 2vw + 0.35rem, 1rem);
+    font-size: clamp(0.8rem, 1.5vw + 0.3rem, 0.9rem) !important;
   }
 
   .prose-fluid blockquote {
     font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
     line-height: 1.7;
+  }
+
+  /* Lists - inherit main typography */
+  .prose-fluid ul, .prose-fluid ol {
+    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
+    line-height: 1.65;
+  }
+
+  /* Pre-formatted blocks - same as code */
+  .prose-fluid pre {
+    font-size: clamp(0.8rem, 1.5vw + 0.3rem, 0.9rem) !important;
+    line-height: 1.5;
+  }
+
+  /* Tables - slightly smaller than text */
+  .prose-fluid table {
+    font-size: clamp(0.875rem, 1.8vw + 0.4rem, 0.95rem);
+    line-height: 1.5;
+  }
+
+  .prose-fluid th, .prose-fluid td {
+    font-size: clamp(0.875rem, 1.8vw + 0.4rem, 0.95rem);
+    line-height: 1.4;
+  }
+
+  /* Inline elements inherit from parent */
+  .prose-fluid strong, .prose-fluid em, .prose-fluid a {
+    font-size: inherit;
+  }
+
+  /* Images and horizontal rules */
+  .prose-fluid img {
+    max-width: 100%;
+    height: auto;
+    margin: 1rem 0;
+  }
+
+  .prose-fluid hr {
+    margin: 1.5rem 0;
+  }
+
+  /* Code block headers - target spans within code block containers */
+  .prose-fluid .group.relative span {
+    font-size: clamp(0.75rem, 1.3vw + 0.3rem, 0.85rem);
+    line-height: 1.4;
   }
 
   /* Responsive adjustments for very small screens */
