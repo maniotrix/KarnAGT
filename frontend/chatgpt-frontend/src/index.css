@@ -379,21 +379,6 @@
     line-height: 1.4;
   }
 
-  /* Remove default prose margins/padding inside message bubbles */
-  .prose-fluid {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .prose-fluid > * {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-  }
-
-  .prose-fluid > * + * {
-    margin-top: 1rem !important;
-  }
-
   /* Small UI elements outside prose flow - status badges, tooltips, helper text */
   .prose-fluid ~ div span,
   .prose-fluid + div span,

@@ -333,19 +333,19 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="prose prose-fluid max-w-full prose-invert text-white">
+              <div>
                 {/* Show saving indicator if message is being edited */}
                 {isSaving && (
                   <div className="flex items-center gap-2 mb-2 opacity-75">
                     <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                    <span>Saving changes...</span>
+                    <span className="text-fluid-xs">Saving changes...</span>
                   </div>
                 )}
                 
                 <InteractiveMarkdown 
                   content={message.content}
                   theme="user"
-                  className="break-words overflow-hidden"
+                  className="prose prose-fluid max-w-full prose-invert text-white break-words overflow-hidden"
                 />
               </div>
             )}

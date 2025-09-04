@@ -166,11 +166,11 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
           {/* Message Bubble - Only show when there's content */}
           {message.content && (
             <div className="px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 w-full min-w-0">
-              <div className="prose prose-fluid max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white overflow-hidden">
+              <div className="min-w-0 overflow-hidden">
                 <InteractiveMarkdown 
                   content={message.content}
                   theme="assistant"
-                  className="break-words"
+                  className="prose prose-fluid max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white break-words"
                 />
               </div>
             </div>
