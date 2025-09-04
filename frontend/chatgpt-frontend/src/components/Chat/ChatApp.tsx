@@ -290,7 +290,7 @@ export const ChatApp: React.FC = () => {
             </h2>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="lg:hidden p-3 min-h-[44px] min-w-[44px] rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors touch-manipulation flex items-center justify-center"
             >
               <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             </button>
@@ -302,15 +302,15 @@ export const ChatApp: React.FC = () => {
               <button
                 onClick={handleNewChat}
                 disabled={createConversationMutation.isPending}
-                className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center px-4 py-3 min-h-[44px] bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation text-fluid-sm font-medium"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
                 {createConversationMutation.isPending ? 'Creating...' : 'New Chat'}
               </button>
               <button
                 onClick={handleRefreshConversations}
                 disabled={isRefreshingConversations}
-                className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-3 min-h-[44px] min-w-[44px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation flex items-center justify-center"
                 title="Refresh conversations"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshingConversations ? 'animate-spin' : ''}`} />
@@ -360,7 +360,7 @@ export const ChatApp: React.FC = () => {
                             openMenuConversationId === conv.conversationId ? null : conv.conversationId
                           );
                         }}
-                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                        className="p-2 min-h-[40px] min-w-[40px] rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors touch-manipulation flex items-center justify-center"
                         title="More options"
                       >
                         <MoreVertical className="h-4 w-4" />
@@ -379,9 +379,9 @@ export const ChatApp: React.FC = () => {
                               handleDeleteConversation(conv.conversationId);
                             }}
                             disabled={deleteConversationMutation.isPending}
-                            className="w-full flex items-center px-3 py-1.5 text-fluid-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full flex items-center px-3 py-3 min-h-[44px] text-fluid-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                           >
-                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            <Trash2 className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
                             Delete
                           </button>
                         </div>
@@ -407,13 +407,13 @@ export const ChatApp: React.FC = () => {
               <div className="flex-shrink-0">
                 {user?.hasAvatar() ? (
                   <img
-                    className="h-8 w-8 rounded-full"
+                    className="h-9 w-9 sm:h-10 sm:w-10 rounded-full"
                     src={user.avatarUrl}
                     alt={user.getDisplayName()}
                   />
                 ) : (
-                  <div className="h-8 w-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center">
-                    <span className="text-white text-sm font-medium">
+                  <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center">
+                    <span className="text-white text-fluid-sm font-medium">
                       {user?.getInitials()}
                     </span>
                   </div>
@@ -450,7 +450,7 @@ export const ChatApp: React.FC = () => {
           <div className="flex items-center space-x-4">
             <button
               onClick={toggleSidebar}
-              className="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="lg:hidden p-3 min-h-[44px] min-w-[44px] rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors touch-manipulation flex items-center justify-center"
             >
               <Menu className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             </button>
@@ -463,11 +463,11 @@ export const ChatApp: React.FC = () => {
           </div>
           <div className="flex items-center space-x-4">
             {/* Header Action Buttons */}
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={handleNewChat}
                 disabled={createConversationMutation.isPending}
-                className="p-3 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 active:scale-95 transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-3 min-h-[44px] min-w-[44px] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 active:scale-95 rounded-md transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 title="Start a new chat"
               >
                 {createConversationMutation.isPending ? (
@@ -481,10 +481,10 @@ export const ChatApp: React.FC = () => {
                 <button
                   onClick={handleReloadChat}
                   disabled={isReloadingChat}
-                  className="p-3 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 active:scale-95 rounded-md transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-3 min-h-[44px] min-w-[44px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 active:scale-95 rounded-md transition-all touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                   title="Reload current chat"
                 >
-                  <RefreshCw className={`h-4 w-4 ${isReloadingChat ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-5 w-5 ${isReloadingChat ? 'animate-spin' : ''}`} />
                 </button>
               )}
             </div>
@@ -492,17 +492,17 @@ export const ChatApp: React.FC = () => {
             <span className="hidden sm:block text-fluid-sm text-gray-600 dark:text-gray-400">
               Hello, {user?.getDisplayName()}
             </span>
-            <div className="flex items-center space-x-2 relative">
+            <div className="flex items-center space-x-3 relative">
               {user?.hasAvatar() ? (
                 <img
-                  className="h-8 w-8 rounded-full cursor-pointer hover:ring-2 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
+                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-full cursor-pointer hover:ring-2 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all touch-manipulation"
                   src={user.avatarUrl}
                   alt={user.getDisplayName()}
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                 />
               ) : (
                 <div 
-                  className="h-8 w-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center cursor-pointer hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center cursor-pointer hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors touch-manipulation"
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                 >
                   <span className="text-white text-sm font-medium">
@@ -517,20 +517,20 @@ export const ChatApp: React.FC = () => {
                   <div className="flex items-start space-x-3 mb-3">
                     {user?.hasAvatar() ? (
                       <img
-                        className="h-10 w-10 rounded-full flex-shrink-0"
+                        className="h-11 w-11 sm:h-12 sm:w-12 rounded-full flex-shrink-0"
                         src={user.avatarUrl}
                         alt={user.getDisplayName()}
                       />
                     ) : (
-                      <div className="h-10 w-10 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-sm font-medium">
+                      <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-fluid-sm font-medium">
                           {user?.getInitials()}
                         </span>
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="text-fluid-base font-medium text-gray-900 dark:text-gray-100 truncate">{user?.getDisplayName()}</div>
-                      <div className="text-fluid-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</div>
+                      <div className="text-fluid-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user?.getDisplayName()}</div>
+                      <div className="text-fluid-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</div>
                       <div className="mt-1 flex items-center">
                         <Crown className="h-3 w-3 mr-1 text-yellow-500 dark:text-yellow-400 flex-shrink-0" />
                         <span className="text-fluid-xs bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full uppercase font-medium text-green-800 dark:text-green-300 truncate">
@@ -558,7 +558,7 @@ export const ChatApp: React.FC = () => {
                   {/* Theme Toggle Section */}
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mb-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-fluid-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <span className="text-fluid-xs font-medium text-gray-700 dark:text-gray-300 flex items-center">
                         <Palette className="h-4 w-4 mr-2" />
                         Theme
                       </span>
@@ -571,19 +571,19 @@ export const ChatApp: React.FC = () => {
                     <div className="space-y-1">
                       <a
                         href="/about"
-                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-3 min-h-[44px] text-fluid-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline touch-manipulation"
                       >
                         About
                       </a>
                       <a
                         href="/help"
-                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-3 min-h-[44px] text-fluid-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline touch-manipulation"
                       >
                         Help
                       </a>
                       <a
                         href="/terms"
-                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline"
+                        className="w-full flex items-center px-3 py-3 min-h-[44px] text-fluid-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors underline hover:no-underline touch-manipulation"
                       >
                         Terms
                       </a>
@@ -592,9 +592,9 @@ export const ChatApp: React.FC = () => {
                           setIsPWAModalOpen(true);
                           setShowUserDropdown(false);
                         }}
-                        className="w-full flex items-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                        className="w-full flex items-center px-3 py-3 min-h-[44px] text-fluid-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors touch-manipulation"
                       >
-                        <Download className="h-4 w-4 mr-2" />
+                        <Download className="h-4 w-4 mr-2 flex-shrink-0" />
                         Install as App
                       </button>
                     </div>
@@ -603,9 +603,9 @@ export const ChatApp: React.FC = () => {
                   <button
                     onClick={handleLogout}
                     disabled={logoutMutation.isPending}
-                    className="w-full flex items-center justify-center px-3 py-2 text-fluid-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center px-3 py-3 min-h-[44px] text-fluid-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                   >
-                    <LogOut className="h-4 w-4 mr-2" />
+                    <LogOut className="h-4 w-4 mr-2 flex-shrink-0" />
                     {logoutMutation.isPending ? 'Signing out...' : 'Sign Out'}
                   </button>
                 </div>
