@@ -170,7 +170,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                 <InteractiveMarkdown 
                   content={message.content}
                   theme="assistant"
-                  className="prose prose-sm max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white break-words"
+                  className="prose prose-fluid max-w-none prose-gray dark:prose-invert text-gray-900 dark:text-white break-words"
                 />
               </div>
             </div>

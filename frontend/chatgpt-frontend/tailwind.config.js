@@ -112,6 +112,23 @@ export default {
             'pre code': null,
           }
         }
+      },
+      fontSize: {
+        // Existing Tailwind sizes remain unchanged
+        ...require('tailwindcss/defaultTheme').fontSize,
+        
+        // 🎯 FLUID TYPOGRAPHY UTILITIES - Industry Standard 2024
+        'fluid-xs': ['clamp(0.75rem, 1.5vw + 0.3rem, 0.875rem)', { lineHeight: '1.5' }],
+        'fluid-sm': ['clamp(0.875rem, 2vw + 0.5rem, 1rem)', { lineHeight: '1.5' }],
+        'fluid-base': ['clamp(1rem, 2.5vw + 0.5rem, 1.25rem)', { lineHeight: '1.6' }],
+        'fluid-lg': ['clamp(1.125rem, 3vw + 0.5rem, 1.5rem)', { lineHeight: '1.6' }],
+        'fluid-xl': ['clamp(1.25rem, 3.5vw + 0.75rem, 1.75rem)', { lineHeight: '1.4' }],
+        'fluid-2xl': ['clamp(1.5rem, 4vw + 0.75rem, 2.25rem)', { lineHeight: '1.3' }],
+        'fluid-3xl': ['clamp(1.75rem, 5vw + 1rem, 3rem)', { lineHeight: '1.2' }],
+        
+        // Chat-specific sizes
+        'fluid-message': ['clamp(0.95rem, 2.5vw + 0.4rem, 1.1rem)', { lineHeight: '1.6' }],
+        'fluid-ui': ['clamp(0.8rem, 1.5vw + 0.4rem, 0.9rem)', { lineHeight: '1.5' }],
       }
   	}
   },
