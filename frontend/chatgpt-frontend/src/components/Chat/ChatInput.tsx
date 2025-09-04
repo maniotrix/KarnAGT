@@ -161,7 +161,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       <form onSubmit={handleFormSubmit} className="relative">
         {/* File Upload Error */}
         {uploadError && (
-          <div className="mb-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
+          <div className="mb-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-fluid-xs text-red-700 dark:text-red-300">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{uploadError}</span>
           </div>
@@ -219,7 +219,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={hasFiles ? "Describe what you'd like me to analyze in these files..." : placeholder}
               disabled={disabled}
-              className="w-full resize-none border-0 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 text-base leading-6"
+              className="w-full resize-none border-0 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 text-fluid-base leading-6"
               rows={1}
               style={{
                 minHeight: '24px',
