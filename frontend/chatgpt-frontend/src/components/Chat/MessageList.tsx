@@ -113,34 +113,37 @@ const MessageListComponent: React.FC<MessageListProps> = ({
 
   if (messages.length === 0) {
     return (
-      <div className={`flex flex-col items-center justify-center h-full p-8 ${className}`}>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center max-w-2xl"
-        >
-          <div className="mb-6 flex justify-center">
-            <Logo size="2xl" backgroundVariant="theme" />
-          </div>
-          
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-            Welcome to KarnAGT
-          </h2>
-          
-          <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
-            Start a conversation by typing a message below.
-          </p>
-          {/* Capability one-liner – wraps gracefully on smaller screens */}
-          <p className="text-gray-500 dark:text-gray-400 mb-10 text-sm sm:text-base flex flex-wrap justify-center gap-x-2 gap-y-1">
-            <span className="whitespace-nowrap">💻 <span className="font-medium">Run code</span></span>
-            <span className="hidden sm:inline">|</span>
-            <span className="whitespace-nowrap">🌐 <span className="font-medium">Search the web</span></span>
-            <span className="hidden sm:inline">|</span>
-            <span className="whitespace-nowrap">📄 <span className="font-medium">Query your docs</span></span>
-            <span className="hidden sm:inline">|</span>
-            <span className="whitespace-nowrap">🧠 <span className="font-medium">Save to memory</span></span>
-          </p>
-          <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
+      <div className={`flex flex-col h-full overflow-hidden ${className}`}>
+        <div className="flex-1 overflow-y-auto mobile-scroll-container" 
+             style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+          <div className="flex flex-col items-center justify-center min-h-full p-4 sm:p-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center max-w-2xl"
+            >
+              <div className="mb-6 flex justify-center">
+                <Logo size="2xl" backgroundVariant="theme" />
+              </div>
+              
+              <h2 className="text-fluid-lg font-bold text-gray-900 dark:text-white mb-4">
+                Welcome to KarnAGT
+              </h2>
+              
+              <p className="text-gray-600 dark:text-gray-400 mb-8 text-fluid-sm">
+                Start a conversation by typing a message below.
+              </p>
+              {/* Capability one-liner – wraps gracefully on smaller screens */}
+              <p className="text-gray-500 dark:text-gray-400 mb-10 text-fluid-xs flex flex-wrap justify-center gap-x-2 gap-y-1">
+                <span className="whitespace-nowrap">💻 <span className="font-medium">Run code</span></span>
+                <span className="hidden sm:inline">|</span>
+                <span className="whitespace-nowrap">🌐 <span className="font-medium">Search the web</span></span>
+                <span className="hidden sm:inline">|</span>
+                <span className="whitespace-nowrap">📄 <span className="font-medium">Query your docs</span></span>
+                <span className="hidden sm:inline">|</span>
+                <span className="whitespace-nowrap">🧠 <span className="font-medium">Save to memory</span></span>
+              </p>
+              <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
             {suggestions.map((suggestion, index) => {
               const Icon = suggestion.icon;
               return (
@@ -158,8 +161,10 @@ const MessageListComponent: React.FC<MessageListProps> = ({
                 </motion.div>
               );
             })}
+              </div>
+            </motion.div>
           </div>
-        </motion.div>
+        </div>
       </div>
     );
   }
@@ -184,12 +189,12 @@ const MessageListComponent: React.FC<MessageListProps> = ({
                 {isLoadingMore ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm font-medium">Loading...</span>
+                    <span className="text-fluid-sm font-medium">Loading...</span>
                   </>
                 ) : (
                   <>
                     <ArrowUp className="w-4 h-4" />
-                    <span className="text-sm font-medium">Load More Messages</span>
+                    <span className="text-fluid-sm font-medium">Load More Messages</span>
                   </>
                 )}
               </button>

@@ -112,17 +112,17 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             <div className="mb-4">
               <Logo size="lg" />
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">
+            <h2 className="text-fluid-xl font-extrabold text-gray-900 dark:text-gray-100">
               KarnAGT
             </h2>
           </div>
-          <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-4 text-center text-fluid-sm text-gray-600 dark:text-gray-400">
             {isLoginMode ? 'Sign in to your account' : 'Create a new account'}
           </p>
           <div className="mt-2 text-center">
             <Link
               to="/home"
-              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors"
+              className="text-fluid-xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors"
             >
               ← Back to Home
             </Link>
@@ -147,7 +147,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300 dark:border-gray-600" />
             </div>
-            <div className="relative flex justify-center text-sm">
+            <div className="relative flex justify-center text-fluid-sm">
               <span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">Or sign {isLoginMode ? 'in' : 'up'} with email</span>
             </div>
           </div>
@@ -157,7 +157,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
           <div className="space-y-4">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="email" className="block text-fluid-sm font-medium text-gray-700 dark:text-gray-300">
                 Email address
               </label>
               <div className="mt-1 relative">
@@ -176,16 +176,16 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                 />
               </div>
                               {errors.email && (
-                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.email?.message || 'Invalid email')}</p>
+                  <p className="mt-2 text-fluid-xs text-red-600 dark:text-red-400">{String(errors.email?.message || 'Invalid email')}</p>
                 )}
             </div>
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="password" className="block text-fluid-sm font-medium text-gray-700 dark:text-gray-300">
                 Password
                 {!isLoginMode && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                  <span className="text-fluid-xs text-gray-500 dark:text-gray-400 ml-1">
                     (8+ chars, uppercase, lowercase, number)
                   </span>
                 )}
@@ -223,7 +223,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                 </button>
               </div>
                               {errors.password && (
-                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.password.message)}</p>
+                  <p className="mt-2 text-fluid-xs text-red-600 dark:text-red-400">{String(errors.password.message)}</p>
                 )}
             </div>
 
@@ -232,7 +232,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
               <>
                 {/* Confirm Password */}
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="confirmPassword" className="block text-fluid-sm font-medium text-gray-700 dark:text-gray-300">
                     Confirm Password
                   </label>
                   <div className="mt-1 relative">
@@ -268,13 +268,13 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                     </button>
                   </div>
                                       {errors.confirmPassword && (
-                      <p className="mt-2 text-sm text-red-600 dark:text-red-400">{String(errors.confirmPassword.message)}</p>
+                      <p className="mt-2 text-fluid-xs text-red-600 dark:text-red-400">{String(errors.confirmPassword.message)}</p>
                     )}
                 </div>
 
                 {/* Full Name */}
                 <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="fullName" className="block text-fluid-sm font-medium text-gray-700 dark:text-gray-300">
                     Full Name (optional)
                   </label>
                   <div className="mt-1 relative">
@@ -324,7 +324,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-fluid-sm font-medium rounded-md text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -336,7 +336,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
 
 
           <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-fluid-sm text-gray-600 dark:text-gray-400">
               {isLoginMode ? "Don't have an account? " : "Already have an account? "}
               <button 
                 type="button"
@@ -350,7 +350,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
 
           {/* Terms and Legal Links */}
           <div className="mt-4 text-center">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-fluid-xs text-gray-500 dark:text-gray-400">
               {!isLoginMode && "By signing up, you agree to our "}
               <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
                 Terms & Conditions

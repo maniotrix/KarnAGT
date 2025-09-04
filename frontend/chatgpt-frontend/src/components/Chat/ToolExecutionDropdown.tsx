@@ -67,7 +67,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
       transition={{ duration: 0.3 }}
       className="w-full"
     >
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm text-fluid-xs">
         {/* Dropdown Header */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
@@ -75,7 +75,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Settings className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="font-medium text-gray-700 dark:text-gray-300">
               {isThinking ? 'Analyzing and Working...' : `Analysis complete  •  Steps : ${sortedTools.length}`}
             </span>
             {isThinking && (
@@ -97,7 +97,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
                     ? 'text-blue-600 dark:text-blue-400' 
                     : 'text-green-600 dark:text-green-400'
                 }`} />
-                <span className={`text-xs font-mono ${
+                <span className={`font-mono ${
                   isThinking 
                     ? 'text-blue-700 dark:text-blue-300' 
                     : 'text-green-700 dark:text-green-300'
@@ -126,7 +126,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
             >
               <div className="p-3 space-y-2">
                 {sortedTools.length === 0 ? (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                  <div className="text-gray-500 dark:text-gray-400 italic">
                     {isThinking ? 'Preparing ...' : 'No steps to show'}
                   </div>
                 ) : (

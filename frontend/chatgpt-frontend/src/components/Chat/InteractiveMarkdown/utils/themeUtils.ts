@@ -5,7 +5,7 @@ export const getThemeStyles = (theme: Theme): ThemeStyles => {
     case 'user':
       return {
         codeBlock: 'bg-gray-50 dark:bg-gray-800 rounded-md p-2 overflow-x-auto border border-gray-200 dark:border-gray-700 max-w-full',
-        inlineCode: 'bg-blue-900/20 px-1 py-0.5 rounded text-sm border border-blue-400/20',
+        inlineCode: 'bg-blue-900/20 px-1 py-0.5 rounded border border-blue-400/20',
         link: 'text-blue-200 hover:text-blue-100 underline',
         table: {
           wrapper: 'border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden',
@@ -20,7 +20,7 @@ export const getThemeStyles = (theme: Theme): ThemeStyles => {
     default:
       return {
         codeBlock: 'bg-gray-50 dark:bg-gray-800 rounded-md p-2 overflow-x-auto border border-gray-200 dark:border-gray-700 max-w-full',
-        inlineCode: 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm',
+        inlineCode: 'bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded',
         link: 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline',
         table: {
           wrapper: 'border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden',

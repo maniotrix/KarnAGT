@@ -14,7 +14,7 @@ export const UlComponent: React.FC<ListComponentProps> = ({
 }) => (
   <ul 
     {...props} 
-    className={`list-disc pl-5 my-2 space-y-1 text-sm ${
+    className={`list-disc pl-5 my-2 space-y-1 ${
       theme === 'user' 
         ? 'text-blue-100 marker:text-blue-300' 
         : 'text-gray-800 dark:text-gray-200 marker:text-gray-500 dark:marker:text-gray-300'
@@ -31,7 +31,7 @@ export const OlComponent: React.FC<ListComponentProps> = ({
 }) => (
   <ol 
     {...props} 
-    className={`list-decimal pl-5 my-2 space-y-1 text-sm ${
+    className={`list-decimal pl-5 my-2 space-y-1 ${
       theme === 'user' 
         ? 'text-blue-100 marker:text-blue-300' 
         : 'text-gray-800 dark:text-gray-200 marker:text-gray-500 dark:marker:text-gray-300'
@@ -48,7 +48,7 @@ export const LiComponent: React.FC<ListComponentProps> = ({
 }) => (
   <li 
     {...props} 
-    className="leading-relaxed"
+    className=""
   >
     {children}
   </li>

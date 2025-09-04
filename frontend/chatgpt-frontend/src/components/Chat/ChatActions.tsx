@@ -102,7 +102,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
   ];
 
   const getButtonStyles = (variant: 'primary' | 'secondary' | 'destructive') => {
-    const baseStyles = "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2";
+    const baseStyles = "flex items-center gap-2 px-3 py-2 rounded-lg text-fluid-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2";
     
     switch (variant) {
       case 'primary':
@@ -164,22 +164,22 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black bg-opacity-50" />
           <Dialog.Content className="fixed top-[50%] left-[50%] max-h-[85vh] w-[90vw] max-w-md translate-x-[-50%] translate-y-[-50%] rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg">
-            <Dialog.Title className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+            <Dialog.Title className="flex items-center gap-2 text-fluid-lg font-semibold text-gray-900 dark:text-white">
               <AlertTriangle className="w-5 h-5 text-red-500" />
               Delete Conversation
             </Dialog.Title>
-            <Dialog.Description className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            <Dialog.Description className="mt-2 text-fluid-xs text-gray-600 dark:text-gray-400">
               Are you sure you want to delete this conversation? This action cannot be undone.
             </Dialog.Description>
             <div className="flex gap-2 mt-6">
               <Dialog.Close asChild>
-                <button className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                <button className="px-4 py-2 text-fluid-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors">
                   Cancel
                 </button>
               </Dialog.Close>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                className="px-4 py-2 text-fluid-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
               >
                 Delete
               </button>
@@ -193,22 +193,22 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black bg-opacity-50" />
           <Dialog.Content className="fixed top-[50%] left-[50%] max-h-[85vh] w-[90vw] max-w-md translate-x-[-50%] translate-y-[-50%] rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg">
-            <Dialog.Title className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+            <Dialog.Title className="flex items-center gap-2 text-fluid-lg font-semibold text-gray-900 dark:text-white">
               <Share2 className="w-5 h-5 text-blue-500" />
               Share Conversation
             </Dialog.Title>
-            <Dialog.Description className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            <Dialog.Description className="mt-2 text-fluid-xs text-gray-600 dark:text-gray-400">
               This will create a shareable link for this conversation.
             </Dialog.Description>
             <div className="flex gap-2 mt-6">
               <Dialog.Close asChild>
-                <button className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                <button className="px-4 py-2 text-fluid-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors">
                   Cancel
                 </button>
               </Dialog.Close>
               <button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-fluid-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >
                 {copied ? (
                   <>

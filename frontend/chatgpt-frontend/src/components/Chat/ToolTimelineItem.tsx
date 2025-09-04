@@ -167,7 +167,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="flex items-start space-x-3"
+      className="flex items-start space-x-3 text-fluid-xs"
     >
       {/* Timeline Line */}
       <div className="flex flex-col items-center">
@@ -183,7 +183,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
       <div className="flex-1 min-w-0 pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
               {getToolDisplayName(tool.tool_name)}
             </div>
             <button
@@ -203,7 +203,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         {/* Status Text */}
         <div className="flex items-center justify-between mt-1">
           <div className="flex items-center space-x-1">
-            <span className={`text-xs font-medium ${
+            <span className={`font-medium ${
               tool.status === 'started' ? 'text-blue-600 dark:text-blue-400' :
               tool.status === 'running' ? 'text-blue-600 dark:text-blue-400' :
               tool.status === 'completed' ? 'text-green-600 dark:text-green-400' :
@@ -239,7 +239,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                 }
               >
                 <AlertTriangle className="w-3 h-3 text-yellow-500" />
-                <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                <span className="text-yellow-600 dark:text-yellow-400">
                   Warning
                 </span>
                 {/* Always show chevron to indicate expandable warning content */}
@@ -265,10 +265,10 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
           <div className="mt-2">
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-md p-2 border border-blue-200 dark:border-blue-800">
               <div className="flex items-start gap-2">
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300 flex-shrink-0">
+                <span className=" font-medium text-blue-700 dark:text-blue-300 flex-shrink-0">
                   Query:
                 </span>
-                <span className="text-xs text-blue-800 dark:text-blue-200 break-words">
+                <span className=" text-blue-800 dark:text-blue-200 break-words">
                   {tool.openai_tool_data.arguments.query}
                 </span>
               </div>
@@ -289,7 +289,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
               {/* Error Message */}
               {(tool.status === 'error' || tool.error) && (
                 <div className="mt-2">
-                  <div className="flex items-center justify-between text-xs font-medium text-red-700 dark:text-red-300 mb-1">
+                  <div className="flex items-center justify-between  font-medium text-red-700 dark:text-red-300 mb-1">
                     <span>Error:</span>
                     <div className="flex items-center gap-1">
                 {tool.error && tool.error.length > 100 && (
@@ -317,12 +317,12 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                     title="Copy error message"
                   >
                     <Copy className="w-3 h-3" />
-                    {copiedError && <span className="text-xs">Copied!</span>}
+                    {copiedError && <span className="">Copied!</span>}
                   </button>
                 )}
               </div>
             </div>
-            <div className="bg-red-50 dark:bg-red-900/20 rounded-md p-2 text-xs border border-red-200 dark:border-red-800">
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-md p-2  border border-red-200 dark:border-red-800">
               <div className="text-red-800 dark:text-red-200">
                 {tool.error ? (
                   <div className={`${isErrorExpanded ? 'max-h-32 overflow-y-auto' : ''}`}>
@@ -332,7 +332,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                         <span className="text-red-600 dark:text-red-400">...</span>
                       </span>
                     ) : (
-                      <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                      <pre className="whitespace-pre-wrap font-mono  leading-relaxed">
                         {tool.error}
                       </pre>
                     )}
@@ -355,7 +355,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
               transition={{ duration: 0.2 }}
               className="overflow-hidden mt-2"
             >
-              <div className="flex items-center justify-between text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
+              <div className="flex items-center justify-between  font-medium text-yellow-700 dark:text-yellow-300 mb-1">
                 <span>Warning Details:</span>
                 <div className="flex items-center gap-1">
                   {tool.stderr && tool.stderr.length > 200 && (
@@ -383,24 +383,24 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                       title="Copy stderr output"
                     >
                       <Copy className="w-3 h-3" />
-                      {copiedStderr && <span className="text-xs">Copied!</span>}
+                      {copiedStderr && <span className="">Copied!</span>}
                     </button>
                   )}
                 </div>
               </div>
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-md p-2 text-xs border border-yellow-200 dark:border-yellow-800">
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-md p-2  border border-yellow-200 dark:border-yellow-800">
                 <div className="text-yellow-800 dark:text-yellow-200">
                   {tool.stderr ? (
                     <div className={`${isStderrFullExpanded ? 'max-h-64 overflow-y-auto' : ''}`}>
                       {tool.stderr.length > 200 && !isStderrFullExpanded ? (
                         <span>
-                          <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed inline">
+                          <pre className="whitespace-pre-wrap font-mono  leading-relaxed inline">
                             {tool.stderr.substring(0, 200)}
                           </pre>
                           <span className="text-yellow-600 dark:text-yellow-400">...</span>
                         </span>
                       ) : (
-                        <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                        <pre className="whitespace-pre-wrap font-mono  leading-relaxed">
                           {tool.stderr}
                         </pre>
                       )}
@@ -416,7 +416,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
         
         {/* Tool Type Badge */}
         {/* <div className="mt-1">
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+          <span className="inline-flex items-center px-2 py-0.5 rounded  font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
             {tool.tool_type}
           </span>
         </div> */}
@@ -426,7 +426,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                 const language = detectLanguage(tool.openai_tool_data.arguments.code);
                 return (
                 <div className="mt-2">
-                  <div className="flex items-center justify-between text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <div className="flex items-center justify-between  font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <div className="flex items-center gap-2">
                       <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">
                         {language.name} Code
@@ -455,7 +455,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                       title="Copy code"
                     >
                       <Copy className="w-3 h-3" />
-                      {copiedCode && <span className="text-xs">Copied!</span>}
+                      {copiedCode && <span className="">Copied!</span>}
                     </button>
                   </div>
                   <AnimatePresence>
@@ -474,14 +474,14 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                                 rehypePlugins={[rehypeHighlight]}
                                 components={{
                                   pre: ({ children, ...props }) => (
-                                    <pre {...props} className="!bg-transparent !p-3 !m-0 text-xs overflow-x-auto">
+                                    <pre {...props} className="!bg-transparent !p-3 !m-0  overflow-x-auto">
                                       {children}
                                     </pre>
                                   ),
                                   code: ({ children, className, ...props }) => (
                                     <code 
                                       {...props} 
-                                      className={`${className || ''} !bg-transparent text-xs leading-relaxed`}
+                                      className={`${className || ''} !bg-transparent  leading-relaxed`}
                                     >
                                       {children}
                                     </code>
@@ -497,7 +497,7 @@ export const ToolTimelineItem: React.FC<ToolTimelineItemProps> = ({ tool, index,
                                         href={href}
                                         target={isExternal && !isProxyUrl ? '_blank' : undefined}
                                         rel={isExternal && !isProxyUrl ? 'noopener noreferrer' : undefined}
-                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-xs"
+                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline "
                                       >
                                         {children}
                                       </a>

@@ -245,7 +245,7 @@ export const ImageModal: React.FC<ImageModalProps> = ({
 
           {/* Image Counter */}
           {hasMultipleImages && (
-            <div className="absolute left-4 top-4 sm:left-6 sm:top-6 md:left-8 md:top-8 z-20 rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-2 shadow-lg border border-gray-200/50 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 text-sm font-medium">
+            <div className="absolute left-4 top-4 sm:left-6 sm:top-6 md:left-8 md:top-8 z-20 rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-2 shadow-lg border border-gray-200/50 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 text-fluid-xs font-medium">
               {currentIndex + 1} of {images.length}
             </div>
           )}
@@ -279,7 +279,7 @@ export const ImageModal: React.FC<ImageModalProps> = ({
 
           {/* Zoom Level Indicator */}
           {zoom !== 1 && (
-            <div className="absolute bottom-20 left-4 sm:bottom-4 sm:left-6 md:left-8 z-20 rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-2 shadow-lg border border-gray-200/50 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 text-sm font-medium">
+            <div className="absolute bottom-20 left-4 sm:bottom-4 sm:left-6 md:left-8 z-20 rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-2 shadow-lg border border-gray-200/50 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 text-fluid-xs font-medium">
               {Math.round(zoom * 100)}%
             </div>
           )}
@@ -351,7 +351,7 @@ export const ImageModal: React.FC<ImageModalProps> = ({
               className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 sm:hidden rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-6 py-3 shadow-lg border border-gray-200/50 dark:border-gray-700/50 transition-all hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 min-h-[52px] flex items-center justify-center gap-2 touch-manipulation"
               aria-label="Close image gallery"
             >
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Close</span>
+              <span className="text-fluid-xs font-medium text-gray-700 dark:text-gray-300">Close</span>
             </button>
           </Dialog.Close>
         </Dialog.Content>

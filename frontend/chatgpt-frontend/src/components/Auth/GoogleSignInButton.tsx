@@ -45,7 +45,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     <div className="w-full relative">
       {googleLoginMutation.isPending && (
         <div className="absolute inset-0 bg-gray-50 bg-opacity-75 flex items-center justify-center z-10 rounded">
-          <div className="text-sm text-gray-500">Signing in with Google...</div>
+          <div className="text-fluid-sm text-gray-500">Signing in with Google...</div>
         </div>
       )}
       <GoogleLogin

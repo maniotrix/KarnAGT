@@ -365,7 +365,7 @@ export const Chat: React.FC<ChatProps> = ({
             <div className="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
               <MessageSquare className="w-8 h-8 text-blue-600 dark:text-blue-400" />
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-fluid-xl font-semibold text-gray-900 dark:text-white">
               Authentication Required
             </h2>
             <p className="text-gray-600 dark:text-gray-400 max-w-md">
@@ -386,7 +386,7 @@ export const Chat: React.FC<ChatProps> = ({
         className="flex justify-between items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0"
       >
         <div className="flex-1">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <h2 className="text-fluid-lg font-semibold text-gray-900 dark:text-white">
             {conversation ? getDisplayTitleFromMessages(
               conversation.title, 
               messages.map(m => ({ content: m.content, role: m.role })), 
@@ -394,7 +394,7 @@ export const Chat: React.FC<ChatProps> = ({
             ) : 'New Chat'}
           </h2>
           {conversation && (
-            <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <div className="flex items-center space-x-4 mt-1 text-fluid-xs text-gray-500 dark:text-gray-400">
               <div className="flex items-center space-x-1">
                 <MessageSquare className="w-4 h-4" />
                 <span>{conversation.message_count} messages</span>
@@ -466,7 +466,7 @@ export const Chat: React.FC<ChatProps> = ({
           <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-20 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+              <p className="text-fluid-xs text-gray-600 dark:text-gray-400 font-medium">
                 Loading conversation...
               </p>
             </div>
@@ -525,7 +525,7 @@ export const Chat: React.FC<ChatProps> = ({
           enableFileUpload={!isQuotaExceeded && !isLoadingConversation && isAuthenticated}
         />
         {error && (
-          <div className="mt-2 text-sm text-red-600 dark:text-red-400">
+          <div className="mt-2 text-fluid-xs text-red-600 dark:text-red-400">
             Error: {typeof error === 'object' && error !== null ? error.message : String(error)}
           </div>
         )}
@@ -534,7 +534,7 @@ export const Chat: React.FC<ChatProps> = ({
           <div className="mt-2 text-center">
             <button
               onClick={stop}
-              className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200"
+              className="px-4 py-2 text-fluid-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200"
             >
               Stop generating
             </button>
