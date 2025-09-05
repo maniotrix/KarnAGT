@@ -376,17 +376,17 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Enhanced Call to Action Section */}
-        <div className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-gray-900 py-20 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-slate-50 dark:from-gray-900 dark:via-blue-950 dark:to-slate-950 py-20 overflow-hidden">
           {/* Animated Background Elements */}
           <div className="absolute inset-0">
             <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,.1)_50%,transparent_75%)] bg-[length:20px_20px] opacity-20" />
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-300/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+            <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-slate-300/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
             
             {/* Floating particles */}
             <div className="absolute top-20 left-20 w-2 h-2 bg-white/30 rounded-full animate-bounce" style={{ animationDelay: '0.5s' }} />
             <div className="absolute top-40 right-32 w-3 h-3 bg-blue-200/40 rounded-full animate-bounce" style={{ animationDelay: '1.5s' }} />
-            <div className="absolute bottom-32 left-1/3 w-2 h-2 bg-purple-200/30 rounded-full animate-bounce" style={{ animationDelay: '2s' }} />
+            <div className="absolute bottom-32 left-1/3 w-2 h-2 bg-slate-200/30 rounded-full animate-bounce" style={{ animationDelay: '2s' }} />
           </div>
           
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
