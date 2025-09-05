@@ -177,7 +177,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
         className="flex-1 h-full overflow-y-auto mobile-scroll-container"
         style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
       >
-        <div className="flex flex-col space-y-4 p-4">
+        <div className="flex flex-col space-y-4 px-2 py-4 sm:px-6">
           {/* Load More Button - Always at top when more messages available */}
           {hasMoreMessages && (
             <div className="flex justify-center py-2">
