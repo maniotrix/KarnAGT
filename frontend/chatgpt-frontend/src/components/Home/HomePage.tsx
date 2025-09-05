@@ -52,7 +52,7 @@ export const HomePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+      <header className="absolute top-0 left-0 right-0 z-50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                       <div className="flex justify-between items-center h-16">
               <div className="flex items-center">
@@ -60,7 +60,7 @@ export const HomePage: React.FC = () => {
                 <div className="relative mr-3" ref={dropdownRef}>
                   <button
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="inline-flex items-center p-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="inline-flex items-center p-2 border border-white/20 dark:border-gray-700/20 rounded-lg text-gray-700 dark:text-gray-300 bg-white/10 dark:bg-gray-800/10 backdrop-blur-md hover:bg-white/20 dark:hover:bg-gray-800/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all shadow-lg"
                     aria-label="Menu"
                   >
                     <Menu className="h-4 w-4" />
@@ -124,7 +124,7 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center">
               <Link
                 to="/login"
-                className="inline-flex items-center px-3 py-2 sm:px-4 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center px-3 py-2 sm:px-4 border border-blue-200/30 dark:border-blue-700/30 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-gray-800/70 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <LogIn className="h-4 w-4 mr-2" />
                 Sign In
