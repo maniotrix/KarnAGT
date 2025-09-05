@@ -69,6 +69,8 @@
     --dvh: 1dvh; /* Dynamic viewport height - modern browsers */
     --lvh: 1lvh; /* Large viewport height */
     --svh: 1svh; /* Small viewport height */
+    /* Universal minimum readable font size for prose/assistant text */
+    --prose-min: 1rem; /* 16px floor - adjust this value to change minimum */
   }
 
   /* Reset and mobile-friendly base styles */
@@ -294,7 +296,7 @@
 
   /* Chat-specific fluid typography */
   .text-fluid-message {
-    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
+    font-size: clamp(var(--prose-min), 2vw + 0.4rem, 1rem);
     line-height: 1.6;
   }
 
@@ -305,7 +307,7 @@
 
   /* Prose enhancement for fluid typography */
   .prose-fluid {
-    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
+    font-size: clamp(var(--prose-min), 2vw + 0.4rem, 1rem);
     line-height: 1.65;
   }
 
@@ -340,7 +342,7 @@
   }
 
   .prose-fluid p, .prose-fluid li {
-    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
+    font-size: clamp(var(--prose-min), 2vw + 0.4rem, 1rem);
     line-height: 1.65;
   }
 
@@ -411,7 +413,7 @@
   /* Responsive adjustments for very small screens */
   @media (max-width: 320px) {
     .prose-fluid p, .prose-fluid li, .text-fluid-message {
-      font-size: 0.95rem; /* Ensure minimum readability on small devices */
+      font-size: var(--prose-min); /* Ensure minimum readability on small devices */
     }
   }
 
