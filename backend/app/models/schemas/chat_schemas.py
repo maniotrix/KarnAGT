@@ -108,18 +108,20 @@ class MessageCreate(BaseSchema):
         content = getattr(self, 'content', '')
         staging_files_dict = getattr(self, 'staging_files', None)
         tool_calls = getattr(self, 'tool_calls', None)
+        status = getattr(self, 'status', 'completed')
         
         has_text = content and content.strip()
         has_files = False
         has_tool_calls = tool_calls and len(tool_calls) > 0
+        is_cancelled = status == 'cancelled'
         
         if staging_files_dict:
             # Convert to object for validation
             staging_collection = StagingFileCollection.from_dict(staging_files_dict)
             has_files = not staging_collection.is_empty
         
-        # Allow messages with content, files, or tool calls
-        if not has_text and not has_files and not has_tool_calls:
+        # Allow messages with content, files, tool calls, OR cancelled status (for timeout/cancellation scenarios)
+        if not has_text and not has_files and not has_tool_calls and not is_cancelled:
             raise ValueError('Message must have either text content, files, or tool calls')
         
         return self
