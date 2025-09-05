@@ -60,7 +60,7 @@ export const HomePage: React.FC = () => {
                 <div className="relative mr-3" ref={dropdownRef}>
                   <button
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="inline-flex items-center p-2 border border-white/20 dark:border-gray-700/20 rounded-lg text-gray-700 dark:text-gray-300 bg-white/10 dark:bg-gray-800/10 backdrop-blur-md hover:bg-white/20 dark:hover:bg-gray-800/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all shadow-lg"
+                    className="inline-flex items-center p-2 border border-white/20 dark:border-gray-700/20 rounded-lg text-gray-700 dark:text-gray-300 bg-white/10 dark:bg-gray-800/10 backdrop-blur-md hover:bg-white/40 hover:border-white/40 dark:hover:bg-gray-700/40 dark:hover:border-gray-600/40 hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all duration-300 shadow-lg"
                     aria-label="Menu"
                   >
                     <Menu className="h-4 w-4" />
@@ -124,7 +124,7 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center">
               <Link
                 to="/login"
-                className="inline-flex items-center px-3 py-2 sm:px-4 border border-white/20 dark:border-gray-700/20 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white/10 dark:bg-gray-800/10 backdrop-blur-md hover:bg-white/20 dark:hover:bg-gray-800/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all shadow-lg"
+                className="inline-flex items-center px-3 py-2 sm:px-4 border border-white/20 dark:border-gray-700/20 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white/10 dark:bg-gray-800/10 backdrop-blur-md hover:bg-white/40 hover:border-white/40 dark:hover:bg-gray-700/40 dark:hover:border-gray-600/40 hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all duration-300 shadow-lg"
               >
                 <LogIn className="h-4 w-4 mr-2" />
                 Sign In
