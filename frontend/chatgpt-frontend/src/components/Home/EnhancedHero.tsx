@@ -57,7 +57,7 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
   const scrollIndicatorOpacity = useTransform(scrollYProgress, [0, 0.8, 1], [1, 0.3, 0]);
 
   return (
-    <div ref={heroRef} className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center overflow-hidden">
+    <div ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Animated Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20">
         {/* Animated Orbs */}
@@ -94,7 +94,7 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
       <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-white/60 dark:to-gray-900/60 pointer-events-none" />
 
       <motion.div 
-        className="relative z-10 w-full px-4 sm:px-6 lg:px-8 text-center flex flex-col justify-center min-h-full py-8"
+        className="relative z-10 w-full px-4 sm:px-6 lg:px-8 text-center flex flex-col justify-center min-h-full py-8 pb-28"
         style={{ y: contentY, opacity: contentOpacity }}
       >
         <div className="max-w-7xl mx-auto">
@@ -260,11 +260,11 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
           </motion.div>
         </div>
 
-        {/* Scroll Indicator - Right positioned */}
+        {/* Scroll Indicator - Bottom center positioned */}
         <motion.div
-          className="absolute bottom-8 right-8"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
           style={{ opacity: scrollIndicatorOpacity }}
-          animate={{ y: [0, 10, 0] }}
+          animate={{ y: [0, 6, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
           <div className="w-6 h-10 border-2 border-gray-400 dark:border-gray-600 rounded-full flex justify-center">
