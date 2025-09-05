@@ -94,7 +94,7 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
       <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-white/60 dark:to-gray-900/60 pointer-events-none" />
 
       <motion.div 
-        className="relative z-10 w-full px-4 sm:px-6 lg:px-8 text-center flex flex-col justify-center min-h-full py-8 pb-28"
+        className="relative z-10 w-full px-4 sm:px-6 lg:px-8 text-center flex flex-col justify-center min-h-full py-8 pb-28 pt-20"
         style={{ y: contentY, opacity: contentOpacity }}
       >
         <div className="max-w-7xl mx-auto">

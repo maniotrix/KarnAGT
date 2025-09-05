@@ -124,7 +124,7 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center">
               <Link
                 to="/login"
-                className="inline-flex items-center px-3 py-2 sm:px-4 border border-blue-200/30 dark:border-blue-700/30 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-gray-800/70 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center px-3 py-2 sm:px-4 border border-white/20 dark:border-gray-700/20 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white/10 dark:bg-gray-800/10 backdrop-blur-md hover:bg-white/20 dark:hover:bg-gray-800/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all shadow-lg"
               >
                 <LogIn className="h-4 w-4 mr-2" />
                 Sign In
