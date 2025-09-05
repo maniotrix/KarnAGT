@@ -423,4 +423,14 @@
       letter-spacing: -0.01em; /* Slight adjustment for crisp text on high-DPI */
     }
   }
+
+  /* Custom animations for enhanced homepage */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%) skewX(-12deg);
+    }
+    100% {
+      transform: translateX(200%) skewX(-12deg);
+    }
+  }
 }
