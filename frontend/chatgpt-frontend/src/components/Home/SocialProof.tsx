@@ -167,7 +167,7 @@ export const SocialProof: React.FC = () => {
                   {stat.icon}
                   
                   {/* Glow effect */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-lg opacity-0 group-hover:opacity-30 transition-opacity duration-300 -z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-lg opacity-0 group-hover:opacity-15 transition-opacity duration-300 -z-10" />
                 </div>
                 
                 <motion.div
@@ -208,15 +208,16 @@ export const SocialProof: React.FC = () => {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {/* Use flexbox for better centering on tablets */}
+          <div className="flex flex-wrap justify-center gap-8 md:gap-6 lg:gap-8">
             {testimonials.map((testimonial, index) => (
               <motion.div
                 key={testimonial.id}
                 variants={itemVariants}
-                className="group relative"
+                className="group relative w-full sm:w-80 md:w-72 lg:w-80 xl:w-96 max-w-sm flex-shrink-0"
               >
                 {/* Testimonial Card */}
-                <div className="relative h-full p-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:border-blue-300/50 dark:hover:border-blue-600/50 transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                <div className="relative h-full p-6 bg-white dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 hover:border-blue-300 dark:hover:border-blue-600/50 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                   {/* Quote Icon */}
                   <div className="absolute -top-3 -left-3 w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-lg">
                     <Quote className="w-4 h-4" />
@@ -260,7 +261,7 @@ export const SocialProof: React.FC = () => {
                   </div>
 
                   {/* Hover Glow */}
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity duration-300 -z-10" />
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-15 blur transition-opacity duration-300 -z-10" />
                 </div>
               </motion.div>
             ))}
