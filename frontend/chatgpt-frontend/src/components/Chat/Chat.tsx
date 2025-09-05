@@ -159,33 +159,26 @@ export const Chat: React.FC<ChatProps> = ({
       console.log('🚀 Auto-submitting with pending attachments:', pendingAttachments);
       
       // Submit the message after a brief delay to ensure conversation is fully loaded
-      const timer = setTimeout(async () => {
-        try {
-          console.log('🚀 Executing auto-submit for message:', pendingMessage);
-          
-          // Create synthetic event with pending attachments if available
-          const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
-          
-          // Attach the pending attachments to the synthetic event
-          if (pendingAttachments) {
-            Object.assign(syntheticEvent, {
-              input: pendingMessage,
-              stagingFiles: pendingAttachments.stagingFiles,
-              imageData: pendingAttachments.imageData,
-              documentData: pendingAttachments.documentData
-            });
-          }
-          
-          await handleSubmit(syntheticEvent as any);
-
-          
-        } catch (error) {
-          console.error('❌ Auto-submit failed:', error);
-          // Don't clear pending message if submission failed
-          return;
+      const timer = setTimeout(() => {
+        console.log('🚀 Executing auto-submit for message:', pendingMessage);
+        
+        // Create synthetic event with pending attachments if available
+        const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
+        
+        // Attach the pending attachments to the synthetic event
+        if (pendingAttachments) {
+          Object.assign(syntheticEvent, {
+            input: pendingMessage,
+            stagingFiles: pendingAttachments.stagingFiles,
+            imageData: pendingAttachments.imageData,
+            documentData: pendingAttachments.documentData
+          });
         }
         
-        // Clear the pending message only on successful submission
+        // Fire-and-forget - don't await, just like normal submission
+        handleSubmit(syntheticEvent as any);
+        
+        // Clear the pending message immediately (consistent with manual submission)
         onPendingMessageSubmitted?.();
       }, 200);
       
