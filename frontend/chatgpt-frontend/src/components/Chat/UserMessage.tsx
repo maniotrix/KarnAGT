@@ -12,7 +12,8 @@ import {
   Copy,
   Check,
   Edit3,
-  FileText
+  FileText,
+  RotateCcw
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -109,6 +110,27 @@ export const UserMessage: React.FC<UserMessageProps> = ({
   const handleCancel = () => {
     setIsEditing(false);
     setEditContent(message.content);
+  };
+
+  const handleResend = async () => {
+    if (!onEdit || !message.message_id) return;
+    
+    const trimmedContent = message.content.trim();
+    if (!trimmedContent) {
+      return;
+    }
+
+    console.log('🚀 [UserMessage] Resending message:', trimmedContent.slice(0, 50), '...');
+    // Set saving state
+    setIsSaving(true);
+    
+    // Call the edit function with the original message content (this will resend the message)
+    const success = await onEdit(message.message_id, trimmedContent);
+    
+    // Clear saving state
+    setIsSaving(false);
+    
+    // Note: No need to reset editContent since we never modified it during resend
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -378,6 +400,26 @@ export const UserMessage: React.FC<UserMessageProps> = ({
               </>
             ) : (
               <>
+                {/* Resend Button */}
+                {canEdit && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={handleResend}
+                        disabled={isSaving}
+                        className={`p-2 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 min-h-[44px] min-w-[44px] flex items-center justify-center ${
+                          isSaving ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Resend message</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
                 {/* Edit Button */}
                 {canEdit && (
                   <Tooltip>
