@@ -132,25 +132,17 @@ export const InteractiveSteps: React.FC = () => {
                 )}
                 
                 {/* Step Card */}
-                <div className={`relative p-6 rounded-2xl border-2 transition-all duration-500 ${
+                <div className={`relative p-6 rounded-2xl border-2 transition-all duration-300 ${
                   activeStep === step.id
-                    ? 'bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600 shadow-xl'
-                    : 'bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                    ? 'bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}>
-                  {/* Active Indicator */}
-                  {activeStep === step.id && (
-                    <motion.div
-                      className={`absolute -inset-1 rounded-2xl bg-gradient-to-r ${step.gradient} opacity-20 blur`}
-                      layoutId="activeStep"
-                      transition={{ duration: 0.5 }}
-                    />
-                  )}
                   
                   <div className="relative flex items-start gap-4">
                     {/* Step Number & Icon */}
-                    <div className={`relative flex items-center justify-center w-16 h-16 rounded-2xl transition-all duration-300 ${
+                    <div className={`relative flex items-center justify-center w-16 h-16 rounded-2xl ${
                       activeStep === step.id
-                        ? `bg-gradient-to-r ${step.gradient} text-white shadow-lg`
+                        ? `bg-gradient-to-r ${step.gradient} text-white`
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                     }`}>
                       <div className="absolute -top-2 -right-2 flex items-center justify-center w-6 h-6 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full text-xs font-bold">

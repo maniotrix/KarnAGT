@@ -89,7 +89,7 @@ export const ModernFeatures: React.FC = () => {
         
         {/* Floating Shapes */}
         <motion.div
-          className="absolute top-1/4 right-1/4 w-32 h-32 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-full blur-xl"
+          className="absolute top-1/4 right-1/4 w-32 h-32 bg-gradient-to-br from-blue-400/5 to-purple-400/5 dark:from-blue-400/10 dark:to-purple-400/10 rounded-full blur-xl"
           animate={{
             scale: [1, 1.2, 1],
             rotate: [0, 180, 360],
@@ -101,7 +101,7 @@ export const ModernFeatures: React.FC = () => {
           }}
         />
         <motion.div
-          className="absolute bottom-1/4 left-1/4 w-24 h-24 bg-gradient-to-br from-green-400/10 to-blue-400/10 rounded-full blur-xl"
+          className="absolute bottom-1/4 left-1/4 w-24 h-24 bg-gradient-to-br from-green-400/5 to-blue-400/5 dark:from-green-400/10 dark:to-blue-400/10 rounded-full blur-xl"
           animate={{
             scale: [1.2, 1, 1.2],
             rotate: [360, 180, 0],
@@ -165,9 +165,9 @@ export const ModernFeatures: React.FC = () => {
               className="group relative"
             >
               {/* Card */}
-              <div className="relative h-full p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:border-gray-300/50 dark:hover:border-gray-600/50 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2">
+              <div className="relative h-full p-8 bg-white dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
                 {/* Gradient Border Effect */}
-                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-20 transition-opacity duration-500 blur-xl`} />
+                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                 
                 {/* Icon Container */}
                 <div className="relative mb-6">
@@ -219,7 +219,7 @@ export const ModernFeatures: React.FC = () => {
                 </div>
 
                 {/* Hover Glow Effect */}
-                <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-30 blur transition-opacity duration-500 -z-10`} />
+                <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-15 blur transition-opacity duration-500 -z-10`} />
               </div>
             </motion.div>
           ))}
