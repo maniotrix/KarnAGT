@@ -20,7 +20,7 @@ const steps: Step[] = [
     description: "Share what you need—drafts, summaries, analysis, plans, or calculations.",
     details: "Simply type your request in natural language. KarnAGT understands context and nuance, so you don't need to use specific commands or formats.",
     gradient: "from-blue-500 to-cyan-500",
-    example: "Analyze this sales report and create a summary with key insights and recommendations for next quarter."
+    example: "Analyze this sales report and create a summary with charts and recommendations for next quarter."
   },
   {
     id: 2,
@@ -35,10 +35,10 @@ const steps: Step[] = [
     id: 3,
     icon: <CheckCircle2 className="h-6 w-6" />,
     title: "Get a polished result",
-    description: "Receive clear, actionable output you can use immediately—no busywork.",
-    details: "Get professionally formatted results with citations, explanations, and next steps. Everything is ready to use or share.",
+    description: "Receive clear, actionable output along with fresh generated files, you can use immediately—no busywork.",
+    details: "Get professionally formatted results with citations, explanations, fresh generated files and next steps. Everything is ready to use or share.",
     gradient: "from-green-500 to-emerald-500",
-    example: "Here's your quarterly analysis with charts, trend insights, and 5 specific recommendations for growth."
+    example: "Here's your Excel file with quarterly analysis, PNG charts, PDF report, and 5 growth recommendations ready to share."
   }
 ];
 
@@ -104,13 +104,13 @@ export const InteractiveSteps: React.FC = () => {
           transition={{ duration: 0.8 }}
         >
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-            How it{' '}
+            Simple interface,{' '}
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              works
+              powerful results
             </span>
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            From intent to outcome in three clear steps.
+            Describe what you need → Get professional deliverables. No complex software to learn.
           </p>
         </motion.div>
 

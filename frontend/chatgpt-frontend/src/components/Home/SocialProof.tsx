@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Star, Quote, Shield, Zap, Users, Globe, Clock } from 'lucide-react';
+import { Star, Quote, Shield, Zap, Users, Globe, Clock, FileText, Download } from 'lucide-react';
 
 interface Testimonial {
   id: number;
@@ -62,6 +62,18 @@ const stats: Stat[] = [
     value: "99.9%",
     label: "Uptime",
     description: "Reliable service when you need it"
+  },
+  {
+    icon: <FileText className="h-6 w-6" />,
+    value: "20+",
+    label: "File Types",
+    description: "PDFs, Excel, PowerPoint, images & more"
+  },
+  {
+    icon: <Download className="h-6 w-6" />,
+    value: "20+",
+    label: "Output Formats",
+    description: "Excel, PDF, HTML, PNG, CSV, JSON and more"
   },
   {
     icon: <Globe className="h-6 w-6" />,
@@ -156,7 +168,7 @@ export const SocialProof: React.FC = () => {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
             {stats.map((stat, index) => (
               <motion.div
                 key={index}

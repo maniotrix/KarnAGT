@@ -7,6 +7,7 @@ import { PWAInstallModal } from '../ui/PWAInstallModal';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { EnhancedHero } from './EnhancedHero';
 import { ModernFeatures } from './ModernFeatures';
+import { DownloadableOutputs } from './DownloadableOutputs';
 import { InteractiveSteps } from './InteractiveSteps';
 import { SocialProof } from './SocialProof';
 
@@ -142,6 +143,9 @@ export const HomePage: React.FC = () => {
         {/* Modern Features Section */}
         <ModernFeatures />
 
+        {/* Downloadable Outputs Section */}
+        <DownloadableOutputs />
+
         {/* Interactive Steps Section */}
         <InteractiveSteps />
 
@@ -158,39 +162,42 @@ export const HomePage: React.FC = () => {
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h3 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-                Popular use cases
+                Real examples people actually ask for
               </h3>
               <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                Discover how professionals use KarnAGT across different industries and workflows
+                From simple questions to complete deliverables—see how KarnAGT creates what you actually need
               </p>
             </div>
             
             {/* Enhanced chips with flex wrap layout */}
             <div className="flex flex-wrap justify-center gap-4">
               {[
-                { name: 'Research summaries', icon: '🔍', color: 'from-blue-500 to-cyan-500' },
-                { name: 'Document Q&A', icon: '📄', color: 'from-green-500 to-emerald-500' },
-                { name: 'Vision analysis', icon: '👁️', color: 'from-purple-500 to-pink-500' },
-                { name: 'Data analysis', icon: '📊', color: 'from-orange-500 to-red-500' },
-                { name: 'Multilingual translation', icon: '🌍', color: 'from-indigo-500 to-purple-500' },
-                { name: 'Code assistance', icon: '💻', color: 'from-blue-500 to-indigo-500' },
-                { name: 'Complex reasoning', icon: '🧠', color: 'from-pink-500 to-rose-500' },
-                { name: 'Learning & tutoring', icon: '📚', color: 'from-yellow-500 to-orange-500' }
+                { name: 'Analyze spending data → budget charts', icon: '📊', color: 'from-blue-500 to-cyan-500' },
+                { name: 'Research paper → study guide', icon: '📚', color: 'from-green-500 to-emerald-500' },
+                { name: 'Compare job offers → decision table', icon: '⚖️', color: 'from-purple-500 to-pink-500' },
+                { name: 'Photo collection → Python organizer', icon: '🐍', color: 'from-orange-500 to-red-500' },
+                { name: 'Dataset → interactive visualizations', icon: '📈', color: 'from-indigo-500 to-purple-500' },
+                { name: 'Lecture notes → formatted summaries', icon: '📝', color: 'from-blue-500 to-indigo-500' },
+                { name: 'Complex topic → clear infographic', icon: '🎨', color: 'from-pink-500 to-rose-500' },
+                { name: 'Web research → sourced report', icon: '🔍', color: 'from-yellow-500 to-orange-500' }
               ].map((chip, index) => (
                 <div
                   key={chip.name}
-                  className="group relative px-6 py-4 text-sm font-medium rounded-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur border border-gray-200/50 dark:border-gray-700/50 hover:border-transparent hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
+                  className="group relative px-6 py-4 text-sm font-medium rounded-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur border border-gray-200/50 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2"
                   style={{ animationDelay: `${index * 0.1}s` }}
                 >
-                  {/* Gradient border on hover */}
-                  <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${chip.color} opacity-0 group-hover:opacity-100 blur transition-opacity duration-300 -z-10`} />
+                  {/* Gradient Border Effect */}
+                  <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${chip.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                   
                   <div className="relative flex items-center gap-3">
-                    <span className="text-lg">{chip.icon}</span>
+                    <span className="text-lg group-hover:scale-110 transition-transform duration-300">{chip.icon}</span>
                     <span className="text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                       {chip.name}
                     </span>
                   </div>
+
+                  {/* Hover Glow Effect */}
+                  <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${chip.color} opacity-0 group-hover:opacity-15 blur transition-opacity duration-500 -z-10`} />
                 </div>
               ))}
             </div>
@@ -209,11 +216,11 @@ export const HomePage: React.FC = () => {
               </div>
               
               <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                Intelligent outcomes, not just responses
+                Creates what you need, not just answers
               </h3>
               
               <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                State-of-the-art models with agentic reasoning deliver comprehensive solutions that understand context, apply logic, and provide actionable results.
+                Most AI gives you information. KarnAGT delivers completed work—professional documents, analysis reports, and ready-to-use outputs you can share immediately.
               </p>
             </div>
 
@@ -408,7 +415,7 @@ export const HomePage: React.FC = () => {
             </h2>
               
               <p className="text-xl text-gray-600 dark:text-blue-100 mb-10 max-w-3xl mx-auto leading-relaxed">
-                Experience agentic AI that understands your goals, thinks through complex problems, and delivers results that matter. Join thousands of professionals already using KarnAGT.
+                Stop settling for just answers. Get completed work—reports, charts, documents, and analysis you can use immediately. Join thousands who've made the switch to outcome-focused AI.
             </p>
             </div>
 

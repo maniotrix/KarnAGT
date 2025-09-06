@@ -14,8 +14,8 @@ interface Feature {
 const features: Feature[] = [
   {
     icon: <Globe className="h-8 w-8" />,
-    title: "Fresh, reliable answers",
-    description: "Get concise summaries backed by up‑to‑date web research when you need it.",
+    title: "Always searches web first",
+    description: "Get current, accurate information with automatic web research and source citations.",
     gradient: "from-purple-500 to-pink-500",
     delay: 0.1
   },
@@ -28,15 +28,15 @@ const features: Feature[] = [
   },
   {
     icon: <FileText className="h-8 w-8" />,
-    title: "Works with your files",
-    description: "Ask questions about your documents and get actionable insights in seconds.",
+    title: "Reads 20+ file types",
+    description: "Upload PDFs, Excel, PowerPoint, images, CSVs and more—get insights from any document.",
     gradient: "from-green-500 to-emerald-500",
     delay: 0.3
   },
   {
     icon: <Code className="h-8 w-8" />,
-    title: "Does the hard parts",
-    description: "Offload analysis and computations to AI‑powered code execution.",
+    title: "Creates what you need",
+    description: "Generate reports, charts, spreadsheets, and documents—not just answers.",
     gradient: "from-blue-500 to-cyan-500",
     delay: 0.4
   },
@@ -81,7 +81,16 @@ const itemVariants = {
 
 export const ModernFeatures: React.FC = () => {
   return (
-    <div className="relative bg-white dark:bg-gray-900 py-20 overflow-hidden">
+    <motion.div 
+      className="relative bg-white dark:bg-gray-900 py-20 overflow-hidden"
+      initial={{ opacity: 0, y: 60 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "0px" }}
+      transition={{ 
+        duration: 0.6, 
+        ease: "easeOut"
+      }}
+    >
       {/* Background Elements */}
       <div className="absolute inset-0">
         {/* Gradient Mesh */}
@@ -118,10 +127,10 @@ export const ModernFeatures: React.FC = () => {
         {/* Section Header */}
         <motion.div
           className="text-center mb-16"
-          initial={{ y: 50, opacity: 0 }}
+          initial={{ y: 20, opacity: 0 }}
           whileInView={{ y: 0, opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
+          viewport={{ once: true, margin: "0px" }}
+          transition={{ duration: 0.5, delay: 0.1 }}
         >
           <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/50 rounded-full text-blue-800 dark:text-blue-300 text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
@@ -136,7 +145,7 @@ export const ModernFeatures: React.FC = () => {
           </h2>
           
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
-            An advanced agentic system that thinks, sees, remembers, and adapts—transforming how you work with AI-powered intelligence.
+            Not just answers—ready-to-use outputs. Research, analyze, and create professional documents, charts, and reports in any language.
           </p>
           
           <motion.p
@@ -156,7 +165,7 @@ export const ModernFeatures: React.FC = () => {
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true }}
+          viewport={{ once: true, margin: "0px" }}
         >
           {features.map((feature, index) => (
             <motion.div
@@ -251,6 +260,6 @@ export const ModernFeatures: React.FC = () => {
           </motion.div>
         </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };

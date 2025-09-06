@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Download, Sparkles, Zap, Users, MessageSquare, Clock, Shield, Cpu } from 'lucide-react';
+import { ArrowRight, Download, Sparkles, Zap, Users, MessageSquare, Clock, Shield, Cpu, ChevronDown } from 'lucide-react';
 
 interface AnimatedCounterProps {
   end: number;
@@ -90,8 +90,8 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#8b5cf6_1px,transparent_1px),linear-gradient(to_bottom,#8b5cf6_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-10 dark:opacity-5" />
       </div>
 
-      {/* Bottom gradient for smooth transition */}
-      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-white/60 dark:to-gray-900/60 pointer-events-none" />
+      {/* Enhanced bottom gradient for smooth transition */}
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent via-white/40 to-white dark:via-gray-900/40 dark:to-gray-900 pointer-events-none" />
 
       <motion.div 
         className="relative z-10 w-full px-4 sm:px-6 lg:px-8 text-center flex flex-col justify-center min-h-full py-8 pb-28 pt-20"
@@ -145,7 +145,15 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
             >
               remembers
             </motion.span>
-            , and communicates in any language.
+            , and{' '}
+            <motion.span
+              className="text-orange-600 dark:text-orange-400 font-semibold"
+              animate={{ opacity: [1, 0.7, 1] }}
+              transition={{ duration: 2, repeat: Infinity, delay: 1.5 }}
+            >
+              creates
+            </motion.span>
+            —delivering ready-to-use files in any language.
           </p>
         </motion.div>
 
@@ -267,12 +275,14 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
           animate={{ y: [0, 6, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
-          <div className="w-6 h-10 border-2 border-gray-400 dark:border-gray-600 rounded-full flex justify-center">
+          <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
+            <span className="text-xs font-medium tracking-wide uppercase">More</span>
             <motion.div
-              className="w-1 h-3 bg-gray-400 dark:bg-gray-600 rounded-full mt-2"
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
-            />
+            >
+              <ChevronDown className="w-5 h-5" />
+            </motion.div>
           </div>
         </motion.div>
       </motion.div>
