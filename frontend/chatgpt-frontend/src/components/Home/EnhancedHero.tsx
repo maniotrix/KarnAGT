@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Download, Sparkles, Zap, Users, MessageSquare, Clock, Shield, Cpu } from 'lucide-react';
+import { ArrowRight, Download, Sparkles, Zap, Users, MessageSquare, Clock, Shield, Cpu, ChevronDown } from 'lucide-react';
 
 interface AnimatedCounterProps {
   end: number;
@@ -275,12 +275,14 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
           animate={{ y: [0, 6, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
-          <div className="w-6 h-10 border-2 border-gray-400 dark:border-gray-600 rounded-full flex justify-center">
+          <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
+            <span className="text-xs font-medium tracking-wide uppercase">More</span>
             <motion.div
-              className="w-1 h-3 bg-gray-400 dark:bg-gray-600 rounded-full mt-2"
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
-            />
+            >
+              <ChevronDown className="w-5 h-5" />
+            </motion.div>
           </div>
         </motion.div>
       </motion.div>
