@@ -462,6 +462,8 @@ export function useChat(options: ChatOptions = {}) {
       filename: doc.filename,
       file: null, // Not available in staging files
       s3Key: doc.s3_key,
+      contentType: doc.content_type, // ✅ PRESERVE original content type
+      fileSize: doc.file_size,      // ✅ PRESERVE original file size
     })) : [];
     
     console.log('📤 Extracted document data:', documentData);
@@ -808,8 +810,9 @@ export function useChat(options: ChatOptions = {}) {
         });
       }
       
-      // Remove the temporary user message on error
-      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
+      // Keep the failed message in UI - user can retry it with temp ID edit/resend
+      // It will be cleaned up on page refresh
+      console.log('🔄 Keeping failed message in UI for retry:', userMessage.id);
     } finally {
       setIsLoading(false);
       setCurrentStreamId(null);
@@ -1002,22 +1005,57 @@ export function useChat(options: ChatOptions = {}) {
         const stagingFiles: Record<string, any> = {};
         const imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> = [];
         
-        // Preserve local images if they exist
+        // Preserve local images if they exist - convert to both imageData and stagingFiles
         if (originalMessage.localImages?.length) {
           console.log('🔄 [editMessage] Preserving localImages:', originalMessage.localImages.length);
+          
+          // Initialize images array if not exists
+          if (!stagingFiles.images) {
+            stagingFiles.images = [];
+          }
+          
           originalMessage.localImages.forEach(img => {
-            imageData.push(img);
+            // Keep for frontend display (only if file object still exists)
+            if (img.file) {
+              imageData.push(img);
+            } else {
+              console.log('📋 Using preserved metadata for image:', img.filename, `(${img.contentType || 'unknown type'})`);
+            }
+            
+            // Convert to backend staging files format (always add since backend only needs file_id/s3_key)
+            stagingFiles.images.push({
+              file_id: img.fileId,
+              s3_key: img.s3Key,
+              filename: img.filename,
+              content_type: img.contentType || img.file?.type || 'image/jpeg', // ✅ Use preserved type first
+              file_size: img.fileSize || img.file?.size || 0 // ✅ Use preserved size first
+            });
           });
         }
         
         // Preserve local documents by converting to staging files format
         if (originalMessage.localDocuments?.length) {
           console.log('🔄 [editMessage] Preserving localDocuments:', originalMessage.localDocuments.length);
-          stagingFiles.vectors = originalMessage.localDocuments.map(doc => ({
-            file_id: doc.fileId,
-            filename: doc.filename,
-            s3_key: doc.s3Key
-          }));
+          
+          // Initialize vectors array if not exists
+          if (!stagingFiles.vectors) {
+            stagingFiles.vectors = [];
+          }
+          
+          originalMessage.localDocuments.forEach(doc => {
+            // Log if file object is null (expected for documents)
+            if (!doc.file) {
+              console.log('📋 Using preserved metadata for document:', doc.filename, `(${doc.contentType || 'unknown type'})`);
+            }
+            
+            stagingFiles.vectors.push({
+              file_id: doc.fileId,
+              filename: doc.filename,
+              s3_key: doc.s3Key,
+              content_type: doc.contentType || doc.file?.type || 'application/octet-stream', // ✅ Use preserved type first
+              file_size: doc.fileSize || doc.file?.size || 0 // ✅ Use preserved size first
+            });
+          });
         }
         
         console.log('🔄 [editMessage->send] Calling sendMessage with preserved attachments:', { 
