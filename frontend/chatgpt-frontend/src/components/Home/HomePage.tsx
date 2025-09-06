@@ -7,6 +7,7 @@ import { PWAInstallModal } from '../ui/PWAInstallModal';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { EnhancedHero } from './EnhancedHero';
 import { ModernFeatures } from './ModernFeatures';
+import { DownloadableOutputs } from './DownloadableOutputs';
 import { InteractiveSteps } from './InteractiveSteps';
 import { SocialProof } from './SocialProof';
 
@@ -143,79 +144,7 @@ export const HomePage: React.FC = () => {
         <ModernFeatures />
 
         {/* Downloadable Outputs Section */}
-        <div className="relative bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-900 dark:via-blue-900/10 dark:to-indigo-900/10 py-20 overflow-hidden">
-          {/* Background Pattern */}
-          <div className="absolute inset-0">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-100/20 via-transparent to-transparent dark:from-blue-500/5" />
-          </div>
-
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 px-6 py-3 bg-blue-100/80 dark:bg-blue-900/30 backdrop-blur rounded-full text-blue-800 dark:text-blue-300 text-sm font-medium mb-6">
-                <Download className="w-4 h-4" />
-                Ready-to-use outputs
-              </div>
-              
-              <h3 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-                Download what you{' '}
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  actually need
-                </span>
-              </h3>
-              
-              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
-                Get professional outputs you can use immediately—no copy-pasting, no reformatting, just results.
-              </p>
-            </div>
-
-            {/* Output Types Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-              {[
-                { name: 'Excel Files', ext: 'XLSX', icon: '📊', color: 'from-green-500 to-emerald-500', desc: 'Data & analysis' },
-                { name: 'Reports', ext: 'PDF', icon: '📄', color: 'from-red-500 to-rose-500', desc: 'Professional docs' },
-                { name: 'Charts', ext: 'PNG', icon: '📈', color: 'from-blue-500 to-cyan-500', desc: 'Visualizations' },
-                { name: 'Web Pages', ext: 'HTML', icon: '🌐', color: 'from-orange-500 to-yellow-500', desc: 'Interactive content' },
-                { name: 'Data Sets', ext: 'CSV', icon: '🗂️', color: 'from-purple-500 to-pink-500', desc: 'Clean data' },
-                { name: 'Structured', ext: 'JSON', icon: '⚡', color: 'from-indigo-500 to-blue-500', desc: 'API ready' }
-              ].map((output, index) => (
-                <div
-                  key={output.name}
-                  className="group relative p-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:border-transparent hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  {/* Gradient border on hover */}
-                  <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${output.color} opacity-0 group-hover:opacity-100 blur transition-opacity duration-300 -z-10`} />
-                  
-                  <div className="relative text-center">
-                    <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">
-                      {output.icon}
-                    </div>
-                    
-                    <div className={`inline-flex items-center justify-center px-3 py-1 bg-gradient-to-r ${output.color} text-white text-xs font-bold rounded-full mb-3`}>
-                      {output.ext}
-                    </div>
-                    
-                    <h4 className="font-bold text-gray-900 dark:text-white mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text group-hover:from-gray-900 group-hover:to-gray-600 dark:group-hover:from-white dark:group-hover:to-gray-300 transition-all duration-300">
-                      {output.name}
-                    </h4>
-                    
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      {output.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Bottom message */}
-            <div className="text-center mt-12">
-              <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                <span className="font-semibold text-blue-600 dark:text-blue-400">Ask once, get everything.</span>{' '}
-                KarnAGT automatically generates multiple formats so you have exactly what you need.
-              </p>
-            </div>
-          </div>
-        </div>
+        <DownloadableOutputs />
 
         {/* Interactive Steps Section */}
         <InteractiveSteps />
