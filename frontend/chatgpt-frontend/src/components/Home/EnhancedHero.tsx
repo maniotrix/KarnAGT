@@ -145,7 +145,15 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
             >
               remembers
             </motion.span>
-            , and communicates in any language.
+            , and{' '}
+            <motion.span
+              className="text-orange-600 dark:text-orange-400 font-semibold"
+              animate={{ opacity: [1, 0.7, 1] }}
+              transition={{ duration: 2, repeat: Infinity, delay: 1.5 }}
+            >
+              creates
+            </motion.span>
+            —delivering ready-to-use files in any language.
           </p>
         </motion.div>
 

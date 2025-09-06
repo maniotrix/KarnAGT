@@ -30,7 +30,7 @@ A conversational AI Agent that researches the web, analyzes your images and file
 - **Custom visualizations** — from simple charts to complex data analysis and interactive graphics
 - **Useful files** — organized spreadsheets, formatted documents, working code
 - **Current information** from web research with sources you can trust
-- **Common output formats** — Excel, CSV, HTML reports, PNG images, PDFs, JSON
+- **Any kind of popular output formats** — Excel, CSV, HTML reports, PNG images, PDFs, JSON and more
 
 ## Where It Shines (What People Actually Ask For)
 

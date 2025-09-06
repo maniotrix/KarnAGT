@@ -14,8 +14,8 @@ interface Feature {
 const features: Feature[] = [
   {
     icon: <Globe className="h-8 w-8" />,
-    title: "Fresh, reliable answers",
-    description: "Get concise summaries backed by up‑to‑date web research when you need it.",
+    title: "Always searches web first",
+    description: "Get current, accurate information with automatic web research and source citations.",
     gradient: "from-purple-500 to-pink-500",
     delay: 0.1
   },
@@ -28,15 +28,15 @@ const features: Feature[] = [
   },
   {
     icon: <FileText className="h-8 w-8" />,
-    title: "Works with your files",
-    description: "Ask questions about your documents and get actionable insights in seconds.",
+    title: "Reads 20+ file types",
+    description: "Upload PDFs, Excel, PowerPoint, images, CSVs and more—get insights from any document.",
     gradient: "from-green-500 to-emerald-500",
     delay: 0.3
   },
   {
     icon: <Code className="h-8 w-8" />,
-    title: "Does the hard parts",
-    description: "Offload analysis and computations to AI‑powered code execution.",
+    title: "Creates what you need",
+    description: "Generate reports, charts, spreadsheets, and documents—not just answers.",
     gradient: "from-blue-500 to-cyan-500",
     delay: 0.4
   },
@@ -136,7 +136,7 @@ export const ModernFeatures: React.FC = () => {
           </h2>
           
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
-            An advanced agentic system that thinks, sees, remembers, and adapts—transforming how you work with AI-powered intelligence.
+            Not just answers—ready-to-use outputs. Research, analyze, and create professional documents, charts, and reports in any language.
           </p>
           
           <motion.p
