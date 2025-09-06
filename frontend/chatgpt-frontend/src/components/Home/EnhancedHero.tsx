@@ -153,7 +153,7 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
             >
               creates
             </motion.span>
-            —delivering ready-to-use files in any language.
+            {' '}ready-to-use files while communicating in your language.
           </p>
         </motion.div>
 

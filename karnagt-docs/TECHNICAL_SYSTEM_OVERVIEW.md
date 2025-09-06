@@ -30,7 +30,7 @@ A production-ready foundational AI agentic system platform featuring advanced re
 - **Reverse Proxy**: Enterprise load balancing with SSL termination
 - **Real-time Communication**: Server-Sent Events with streaming responses
 
-*Both servers are stateless for horizontal scalability. Main backend uses monolithic design for optimal performance and tight integration between AI components, while CodeSandbox runs as isolated service for security*
+*Both servers are stateless for horizontal scalability. Main backend currently uses monolithic design for optimal performance and integration between AI components, while CodeSandbox runs as isolated service for security*
 
 ### **Main Backend Service Layers**
 *Built as modular stateless services within a single FastAPI application using:*
@@ -44,6 +44,8 @@ A production-ready foundational AI agentic system platform featuring advanced re
 - **Streaming Handler** *(Custom)*: Real-time response streaming and tool execution feedback
 - **Auth Service** *(Custom)*: User authentication and session management
 - **Storage Service** *(MinIO + Custom)*: File handling and media processing coordination
+
+>*In future, these would be replaced with proper separate microservices.*
 
 ### **Multi-Database Strategy**
 - **Primary Database**: PostgreSQL for transactional data
