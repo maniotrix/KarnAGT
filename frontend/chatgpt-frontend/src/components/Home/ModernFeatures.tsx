@@ -81,7 +81,16 @@ const itemVariants = {
 
 export const ModernFeatures: React.FC = () => {
   return (
-    <div className="relative bg-white dark:bg-gray-900 py-20 overflow-hidden">
+    <motion.div 
+      className="relative bg-white dark:bg-gray-900 py-20 overflow-hidden"
+      initial={{ opacity: 0, y: 60 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "0px" }}
+      transition={{ 
+        duration: 0.6, 
+        ease: "easeOut"
+      }}
+    >
       {/* Background Elements */}
       <div className="absolute inset-0">
         {/* Gradient Mesh */}
@@ -118,10 +127,10 @@ export const ModernFeatures: React.FC = () => {
         {/* Section Header */}
         <motion.div
           className="text-center mb-16"
-          initial={{ y: 50, opacity: 0 }}
+          initial={{ y: 20, opacity: 0 }}
           whileInView={{ y: 0, opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
+          viewport={{ once: true, margin: "0px" }}
+          transition={{ duration: 0.5, delay: 0.1 }}
         >
           <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/50 rounded-full text-blue-800 dark:text-blue-300 text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
@@ -156,7 +165,7 @@ export const ModernFeatures: React.FC = () => {
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true }}
+          viewport={{ once: true, margin: "0px" }}
         >
           {features.map((feature, index) => (
             <motion.div
@@ -251,6 +260,6 @@ export const ModernFeatures: React.FC = () => {
           </motion.div>
         </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };
