@@ -239,7 +239,9 @@ export const Chat: React.FC<ChatProps> = ({
       filename: file.name,
       file: file.file!,
       blobUrl: URL.createObjectURL(file.file!),
-      s3Key: file.s3_key!
+      s3Key: file.s3_key!,
+      contentType: file.type,  // ✅ Preserve content type
+      fileSize: file.size      // ✅ Preserve file size
     }));
 
     // For documents, we'll store basic info for display

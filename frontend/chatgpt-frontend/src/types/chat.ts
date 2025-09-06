@@ -195,6 +195,8 @@ export interface Message {
     file: File;
     blobUrl: string;
     s3Key: string;
+    contentType?: string; // Preserve original content type
+    fileSize?: number;    // Preserve original file size
   }>;
   // LOCAL DOCUMENT DATA: Keep actual document data for immediate display after send
   localDocuments?: Array<{
@@ -202,6 +204,8 @@ export interface Message {
     filename: string;
     file: File;
     s3Key: string;
+    contentType?: string; // Preserve original content type
+    fileSize?: number;    // Preserve original file size
   }>;
 }
 
