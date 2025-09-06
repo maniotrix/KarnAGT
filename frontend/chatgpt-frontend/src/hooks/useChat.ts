@@ -990,6 +990,46 @@ export function useChat(options: ChatOptions = {}) {
       if (originalMessage.role !== 'user') {
         throw new Error('Can only edit user messages');
       }
+
+      // 🔧 HANDLE TEMP MESSAGE IDS: If this is a temp ID, treat as new send with attachments preserved
+      if (messageId.startsWith('temp_')) {
+        console.log('🔄 [editMessage] Detected temp message ID, converting to send with attachments:', messageId);
+        
+        // Remove the failed temp message and all messages after it
+        setMessages(prev => prev.slice(0, messageIndex));
+        
+        // Extract attachments from the original temp message for resending
+        const stagingFiles: Record<string, any> = {};
+        const imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> = [];
+        
+        // Preserve local images if they exist
+        if (originalMessage.localImages?.length) {
+          console.log('🔄 [editMessage] Preserving localImages:', originalMessage.localImages.length);
+          originalMessage.localImages.forEach(img => {
+            imageData.push(img);
+          });
+        }
+        
+        // Preserve local documents by converting to staging files format
+        if (originalMessage.localDocuments?.length) {
+          console.log('🔄 [editMessage] Preserving localDocuments:', originalMessage.localDocuments.length);
+          stagingFiles.vectors = originalMessage.localDocuments.map(doc => ({
+            file_id: doc.fileId,
+            filename: doc.filename,
+            s3_key: doc.s3Key
+          }));
+        }
+        
+        console.log('🔄 [editMessage->send] Calling sendMessage with preserved attachments:', { 
+          content: newContent.trim(),
+          stagingFiles, 
+          imageData: imageData.length
+        });
+        
+        // Call sendMessage instead of edit API - this preserves all attachments
+        await sendMessage(newContent.trim(), conversation.conversation_id, stagingFiles, imageData);
+        return true;
+      }
       
       // STEP 1: Immediately update the edited message and clear everything after it
       // This gives instant visual feedback to the user
