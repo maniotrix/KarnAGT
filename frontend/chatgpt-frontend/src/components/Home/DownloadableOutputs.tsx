@@ -131,20 +131,9 @@ export const DownloadableOutputs: React.FC = () => {
             transition={{ delay: 0.2, duration: 0.6 }}
           >
             Download what you{' '}
-            <motion.span
-              className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
-              animate={{ 
-                backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] 
-              }}
-              transition={{ 
-                duration: 3, 
-                repeat: Infinity, 
-                ease: "linear" 
-              }}
-              style={{ backgroundSize: "200% 200%" }}
-            >
+            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               actually need
-            </motion.span>
+            </span>
           </motion.h3>
           
           <motion.p 
@@ -171,77 +160,34 @@ export const DownloadableOutputs: React.FC = () => {
               key={output.name}
               variants={itemVariants}
               className="group relative"
-              whileHover={{ 
-                y: -8,
-                transition: { type: "spring", stiffness: 400, damping: 25 }
-              }}
             >
-              <div className="relative h-full p-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:border-transparent hover:shadow-2xl transition-all duration-500 cursor-pointer">
-                {/* Enhanced gradient border on hover */}
-                <motion.div 
-                  className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${output.color} opacity-0 group-hover:opacity-100 blur transition-opacity duration-300 -z-10`}
-                  whileHover={{ scale: 1.02 }}
-                />
+              <div className="relative h-full p-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 shadow-sm hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2">
+                {/* Gradient Border Effect */}
+                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${output.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                 
                 <div className="relative text-center">
-                  {/* Animated icon */}
-                  <motion.div 
-                    className="text-4xl mb-4"
-                    whileHover={{ 
-                      scale: 1.2,
-                      rotate: [0, -5, 5, 0],
-                      transition: { duration: 0.3 }
-                    }}
-                  >
+                  {/* Simple animated icon */}
+                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">
                     {output.icon}
-                  </motion.div>
+                  </div>
                   
-                  {/* Enhanced file extension badge */}
-                  <motion.div 
-                    className={`inline-flex items-center justify-center px-3 py-1 bg-gradient-to-r ${output.color} text-white text-xs font-bold rounded-full mb-3`}
-                    whileHover={{ scale: 1.05 }}
-                    animate={{ 
-                      boxShadow: [
-                        "0 0 0px rgba(0,0,0,0)",
-                        "0 0 20px rgba(59, 130, 246, 0.3)",
-                        "0 0 0px rgba(0,0,0,0)"
-                      ]
-                    }}
-                    transition={{ 
-                      duration: 2, 
-                      repeat: Infinity, 
-                      delay: index * 0.2 
-                    }}
-                  >
+                  {/* File extension badge */}
+                  <div className={`inline-flex items-center justify-center px-3 py-1 bg-gradient-to-r ${output.color} text-white text-xs font-bold rounded-full mb-3`}>
                     {output.ext}
-                  </motion.div>
+                  </div>
                   
-                  {/* Animated title */}
-                  <motion.h4 
-                    className="font-bold text-gray-900 dark:text-white mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text group-hover:from-gray-900 group-hover:to-gray-600 dark:group-hover:from-white dark:group-hover:to-gray-300 transition-all duration-300"
-                    whileHover={{ scale: 1.02 }}
-                  >
+                  {/* Title with clean hover effect */}
+                  <h4 className="font-bold text-gray-900 dark:text-white mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text group-hover:from-gray-900 group-hover:to-gray-600 dark:group-hover:from-white dark:group-hover:to-gray-300 transition-all duration-300">
                     {output.name}
-                  </motion.h4>
+                  </h4>
                   
                   <p className="text-xs text-gray-600 dark:text-gray-400">
                     {output.desc}
                   </p>
                 </div>
 
-                {/* Hover pulse effect */}
-                <motion.div
-                  className="absolute inset-0 rounded-2xl"
-                  initial={false}
-                  whileHover={{
-                    background: [
-                      "radial-gradient(circle at center, rgba(59, 130, 246, 0) 0%, rgba(59, 130, 246, 0) 100%)",
-                      "radial-gradient(circle at center, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0) 70%)",
-                      "radial-gradient(circle at center, rgba(59, 130, 246, 0) 0%, rgba(59, 130, 246, 0) 100%)"
-                    ],
-                    transition: { duration: 1.5, repeat: Infinity }
-                  }}
-                />
+                {/* Hover Glow Effect */}
+                <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${output.color} opacity-0 group-hover:opacity-15 blur transition-opacity duration-500 -z-10`} />
               </div>
             </motion.div>
           ))}
@@ -256,13 +202,9 @@ export const DownloadableOutputs: React.FC = () => {
           transition={{ delay: 0.8, duration: 0.6 }}
         >
           <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            <motion.span 
-              className="font-semibold text-blue-600 dark:text-blue-400"
-              animate={{ opacity: [1, 0.7, 1] }}
-              transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
-            >
+            <span className="font-semibold text-blue-600 dark:text-blue-400">
               Ask once, get everything.
-            </motion.span>{' '}
+            </span>{' '}
             KarnAGT automatically generates multiple formats so you have exactly what you need.
           </p>
         </motion.div>

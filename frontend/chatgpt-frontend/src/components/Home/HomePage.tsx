@@ -183,18 +183,21 @@ export const HomePage: React.FC = () => {
               ].map((chip, index) => (
                 <div
                   key={chip.name}
-                  className="group relative px-6 py-4 text-sm font-medium rounded-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur border border-gray-200/50 dark:border-gray-700/50 hover:border-transparent hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
+                  className="group relative px-6 py-4 text-sm font-medium rounded-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur border border-gray-200/50 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2"
                   style={{ animationDelay: `${index * 0.1}s` }}
                 >
-                  {/* Gradient border on hover */}
-                  <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${chip.color} opacity-0 group-hover:opacity-100 blur transition-opacity duration-300 -z-10`} />
+                  {/* Gradient Border Effect */}
+                  <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${chip.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                   
                   <div className="relative flex items-center gap-3">
-                    <span className="text-lg">{chip.icon}</span>
+                    <span className="text-lg group-hover:scale-110 transition-transform duration-300">{chip.icon}</span>
                     <span className="text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                       {chip.name}
                     </span>
                   </div>
+
+                  {/* Hover Glow Effect */}
+                  <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r ${chip.color} opacity-0 group-hover:opacity-15 blur transition-opacity duration-500 -z-10`} />
                 </div>
               ))}
             </div>
