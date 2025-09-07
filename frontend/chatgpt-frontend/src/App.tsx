@@ -8,6 +8,7 @@ import { useProxyLinkInterceptionSimple } from './hooks/useProxyLinkInterception
 import { ToastNotifications } from './components/ui/ToastNotifications';
 import { ENV } from './config/env';
 import { initViewportUtils } from './utils/viewport';
+import { PageTracker } from './components/common/PageTracker';
 
 
 
@@ -29,6 +30,7 @@ const App: React.FC = () => {
       <GoogleOAuthProvider clientId={googleClientId || ''}>
         <QueryProvider>
           <BrowserRouter>
+            <PageTracker />
             <AppRoutes />
             <ToastNotifications />
           </BrowserRouter>
