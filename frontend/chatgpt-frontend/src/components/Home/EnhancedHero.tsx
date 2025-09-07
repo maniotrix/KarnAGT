@@ -108,7 +108,7 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
           <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold text-gray-900 dark:text-white mb-4">
             Meet{' '}
             <span className="relative">
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
                 KarnAGT
               </span>
               <motion.div
