@@ -137,9 +137,11 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               <p className="text-gray-500 dark:text-gray-400 mb-10 text-fluid-xs flex flex-wrap justify-center gap-x-2 gap-y-1">
                 <span className="whitespace-nowrap">💻 <span className="font-medium">Run code</span></span>
                 <span className="hidden sm:inline">|</span>
-                <span className="whitespace-nowrap">🌐 <span className="font-medium">Search the web</span></span>
+                <span className="whitespace-nowrap">🌐 <span className="font-medium">Search web</span></span>
                 <span className="hidden sm:inline">|</span>
-                <span className="whitespace-nowrap">📄 <span className="font-medium">Query your docs</span></span>
+                <span className="whitespace-nowrap">📄 <span className="font-medium">Upload and Query docs</span></span>
+                <span className="hidden sm:inline">|</span>
+                <span className="whitespace-nowrap">📁 <span className="font-medium">Generate files</span></span>
                 <span className="hidden sm:inline">|</span>
                 <span className="whitespace-nowrap">🧠 <span className="font-medium">Save to memory</span></span>
               </p>
