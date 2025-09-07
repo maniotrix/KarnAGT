@@ -106,7 +106,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-8 px-6 sm:py-12 sm:px-8 lg:px-12 overflow-y-auto" style={{ height: 'auto', minHeight: '100vh' }}>
-      <div className="max-w-md w-full space-y-8">
+      <div className="max-w-md w-full space-y-4">
         <div>
           <div className="flex flex-col items-center">
             <div className="mb-4">
@@ -130,7 +130,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
         </div>
 
         {/* Google Sign-in Button - Primary Option */}
-        <div className="mt-8">
+        <div>
           <GoogleSignInButton
             onSuccess={() => {
               toast.success('Google login successful', 'You have been signed in successfully');
@@ -139,10 +139,24 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
               toast.error('Google login failed', error);
             }}
           />
+          
+          {/* Mode toggle below Google button */}
+          <div className="mt-3 text-center">
+            <p className="text-fluid-sm text-gray-600 dark:text-gray-400">
+              {isLoginMode ? "Don't have an account? " : "Already have an account? "}
+              <button 
+                type="button"
+                onClick={toggleMode}
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
+              >
+                {isLoginMode ? 'Sign up' : 'Sign in'}
+              </button>
+            </p>
+          </div>
         </div>
 
         {/* Divider */}
-        <div className="mt-6">
+        <div>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300 dark:border-gray-600" />
@@ -320,36 +334,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             )}
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-fluid-sm font-medium rounded-md text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              {isLoading ? 'Please wait...' : (isLoginMode ? 'Sign In' : 'Sign Up')}
-            </button>
-          </div>
-
-
-
-          <div className="mt-4 text-center">
-            <p className="text-fluid-sm text-gray-600 dark:text-gray-400">
-              {isLoginMode ? "Don't have an account? " : "Already have an account? "}
-              <button 
-                type="button"
-                onClick={toggleMode}
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
-              >
-                {isLoginMode ? 'Sign up' : 'Sign in'}
-              </button>
-            </p>
-          </div>
-
           {/* Terms and Legal Links */}
-          <div className="mt-4 text-center">
+          <div className="text-center">
             <p className="text-fluid-xs text-gray-500 dark:text-gray-400">
               {!isLoginMode && "By signing up, you agree to our "}
               <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
@@ -370,6 +356,19 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
                 </span>
               )}
             </p>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-fluid-sm font-medium rounded-md text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              {isLoading ? 'Please wait...' : (isLoginMode ? 'Sign In' : 'Sign Up')}
+            </button>
           </div>
         </form>
       </div>

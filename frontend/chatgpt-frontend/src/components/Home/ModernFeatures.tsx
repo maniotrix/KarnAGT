@@ -210,7 +210,7 @@ export const ModernFeatures: React.FC = () => {
                   </p>
                   
                   {/* Learn More Link */}
-                  <motion.div
+                  {/* <motion.div
                     className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-all duration-300"
                     initial={false}
                     animate={{
@@ -224,7 +224,7 @@ export const ModernFeatures: React.FC = () => {
                   >
                     <span>Learn more</span>
                     <ArrowRight className="w-4 h-4" />
-                  </motion.div>
+                  </motion.div> */}
                 </div>
 
                 {/* Hover Glow Effect */}
