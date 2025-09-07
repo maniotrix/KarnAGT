@@ -74,6 +74,7 @@ Ask for what you need in any language. If you can describe it, the Agent can hel
 ## More Documentation Links
 
 - **[KarnAGT App Capabilities](KARNAGT_ONE_PAGER.md)** - Quick overview and real-world examples
+- **[Technical Overview (Mini)](TECHNICAL_SYSTEM_OVERVIEW_MINI.md)** - Concise technical summary
 - **[Technical System Overview](TECHNICAL_SYSTEM_OVERVIEW.md)** - Deep technical dive into architecture and capabilities
 
 ---

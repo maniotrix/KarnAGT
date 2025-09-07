@@ -66,11 +66,12 @@ export default {
   				'sans-serif'
   			]
   		},
-  		animation: {
-  			'fade-in': 'fadeIn 0.2s ease-in-out',
-  			'slide-in': 'slideIn 0.3s ease-out',
-  			typing: 'typing 1.5s infinite'
-  		},
+		animation: {
+			'fade-in': 'fadeIn 0.2s ease-in-out',
+			'slide-in': 'slideIn 0.3s ease-out',
+			typing: 'typing 1.5s infinite',
+			shimmer: 'shimmer 3s linear infinite'
+		},
   		keyframes: {
   			fadeIn: {
   				'0%': {
@@ -90,14 +91,22 @@ export default {
   					opacity: '1'
   				}
   			},
-  			typing: {
-  				'0%, 100%': {
-  					opacity: '1'
-  				},
-  				'50%': {
-  					opacity: '0.5'
-  				}
-  			}
+			typing: {
+				'0%, 100%': {
+					opacity: '1'
+				},
+				'50%': {
+					opacity: '0.5'
+				}
+			},
+			shimmer: {
+				'0%': {
+					backgroundPosition: '0% 50%'
+				},
+				'100%': {
+					backgroundPosition: '200% 50%'
+				}
+			}
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
