@@ -17,8 +17,8 @@ export const AboutPage: React.FC = () => {
   const teamValues = [
     {
       icon: <Brain className="h-8 w-8 text-purple-500" />,
-      title: "Innovation First",
-      description: "We push the boundaries of what's possible with AI technology, creating solutions that truly make a difference."
+      title: "Simplicity First",
+      description: "We eliminate AI complexity so you can focus on results. One agent handles all technical decisions automatically—no configuration needed."
     },
     {
       icon: <Shield className="h-8 w-8 text-blue-500" />,
