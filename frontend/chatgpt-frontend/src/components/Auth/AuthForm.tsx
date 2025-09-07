@@ -320,6 +320,30 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
             )}
           </div>
 
+          {/* Terms and Legal Links */}
+          <div className="text-center">
+            <p className="text-fluid-xs text-gray-500 dark:text-gray-400">
+              {!isLoginMode && "By signing up, you agree to our "}
+              <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
+                Terms & Conditions
+              </a>
+              {!isLoginMode && " and "}
+              {!isLoginMode && (
+                <a href="/privacy-policy" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
+                  Privacy Policy
+                </a>
+              )}
+              {isLoginMode && (
+                <span>
+                  <span className="mx-1">·</span>
+                  <a href="/help" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
+                    Need Help?
+                  </a>
+                </span>
+              )}
+            </p>
+          </div>
+
           <div>
             <button
               type="submit"
@@ -345,30 +369,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ isRegisterMode = false }) =>
               >
                 {isLoginMode ? 'Sign up' : 'Sign in'}
               </button>
-            </p>
-          </div>
-
-          {/* Terms and Legal Links */}
-          <div className="mt-4 text-center">
-            <p className="text-fluid-xs text-gray-500 dark:text-gray-400">
-              {!isLoginMode && "By signing up, you agree to our "}
-              <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
-                Terms & Conditions
-              </a>
-              {!isLoginMode && " and "}
-              {!isLoginMode && (
-                <a href="/privacy-policy" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
-                  Privacy Policy
-                </a>
-              )}
-              {isLoginMode && (
-                <span>
-                  <span className="mx-1">·</span>
-                  <a href="/help" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-all">
-                    Need Help?
-                  </a>
-                </span>
-              )}
             </p>
           </div>
         </form>
