@@ -14,22 +14,22 @@ interface Feature {
 const features: Feature[] = [
   {
     icon: <Globe className="h-8 w-8" />,
-    title: "Always searches web first",
-    description: "Get current, accurate information with automatic web research and source citations.",
+    title: "Zero setup overhead",
+    description: "No model selection, no configuration. The agent auto-selects and optimizes everything for you.",
     gradient: "from-purple-500 to-pink-500",
     delay: 0.1
   },
   {
     icon: <Image className="h-8 w-8" />,
-    title: "Vision built in",
-    description: "Understand images, charts, and screenshots to extract insights and context.",
+    title: "Always searches web first",
+    description: "Get current, accurate information with automatic web research and source citations.",
     gradient: "from-pink-500 to-rose-500",
     delay: 0.2
   },
   {
     icon: <FileText className="h-8 w-8" />,
-    title: "Reads 20+ file types",
-    description: "Upload PDFs, Excel, PowerPoint, images, CSVs and more—get insights from any document.",
+    title: "Inbuilt Vision and File Intelligence",
+    description: "Reads 20+ file types and understands images, charts, screenshots—no setup required.",
     gradient: "from-green-500 to-emerald-500",
     delay: 0.3
   },

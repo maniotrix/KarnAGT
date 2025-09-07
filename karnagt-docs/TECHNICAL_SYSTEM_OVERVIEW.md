@@ -36,7 +36,7 @@ A production-ready foundational AI agentic system platform featuring advanced re
 ### **Main Backend Service Layers**
 *Built as modular stateless services within a single FastAPI application using:*
 
-- **AI Core Engine** *(OpenAI Agents SDK + Custom)*: Configurable AI agent orchestration and reasoning
+- **AI Core Engine** *(Custom Advanced Agents SDK)*: Self-configuring agent orchestration
 - **Memory Service** *(Custom + Qdrant)*: 6-bucket user context and preference management
 - **Knowledge Service** *(LlamaIndex + Qdrant)*: RAG pipeline with document processing and retrieval
 - **Chat Service** *(Custom)*: Conversation management and message processing
@@ -94,7 +94,7 @@ A production-ready foundational AI agentic system platform featuring advanced re
 | **Frontend** | React 19 + TypeScript | Modern UI with type safety |
 | **Main Backend** | FastAPI + Python 3.10 | Stateless high-performance async API with AI service layers |
 | **Code Execution Backend** | FastAPI + Python 3.10 | Stateless isolated execution service with Jupyter kernels |
-| **AI Framework** | OpenAI Agents SDK | Advanced reasoning and tool execution |
+| **AI Framework** | Advanced AI Agents SDK | Automated reasoning and tool execution |
 | **RAG Framework** | LlamaIndex | Production document processing and retrieval |
 | **Streaming** | Server-Sent Events | Real-time bidirectional communication |
 | **Authentication** | OAuth 2.0 + JWT | Enterprise security standards |
@@ -118,7 +118,7 @@ Built from ground-up using LlamaIndex framework with custom optimizations for pr
 
 - **Multi-Format Document Processing**: 20+ file formats (PDF, DOCX, PPT, XLS, CSV, JSON, HTML, etc.)
 - **Intelligent Document Chunking**: Context-aware segmentation preserving semantic meaning
-- **Vector Embedding Pipeline**: OpenAI text-embedding-3-small integration with custom optimization
+- **Vector Embedding Pipeline**: State-of-the-art text embeddings with custom optimization
 - **Semantic Search Engine**: Production Qdrant vector database with sub-second query response
 - **Cross-Document Analysis**: Query and compare across multiple documents simultaneously
 - **Metadata Extraction**: Automatic content classification and source attribution
@@ -136,7 +136,7 @@ Built from ground-up using LlamaIndex framework with custom optimizations for pr
 ### **Service Layer Orchestration & Coordination**
 *Within the monolithic FastAPI backend:*
 
-- **AI Core Engine** orchestrates reasoning and tool selection across conversation context
+- **AI Core Engine** automatically orchestrates optimal reasoning and tool selection across conversation context
 - **Memory Service** provides contextual user information to enhance AI responses
 - **Knowledge Service** processes documents and provides semantic search capabilities  
 - **Context Service** manages conversation history and token optimization strategies
@@ -194,7 +194,7 @@ Built from ground-up using LlamaIndex framework with custom optimizations for pr
 ### **In-House Development**
 - **Production RAG Pipeline**: Custom LlamaIndex-based knowledge processing with 20+ format support
 - **CodeSandbox FastAPI Service**: Microservice with Jupyter kernel management and workspace isolation
-- **AI Core Engine**: Configurable agent orchestration with reasoning and tool execution
+- **AI Core Engine**: Self-configuring agent orchestration with automated reasoning and tool execution
 - **Memory Management System**: Proprietary 6-bucket user context system with importance scoring
 - **Knowledge Service**: Semantic document processing with cross-document analysis capabilities  
 - **Tool Registry Framework**: Dynamic tool registration and execution with parallel processing
@@ -205,7 +205,7 @@ Built from ground-up using LlamaIndex framework with custom optimizations for pr
 - **Integration Layer**: Service coordination and API gateway functionality
 
 ### **External Services & APIs**
-- **LLM Provider**: OpenAI API for language model capabilities
+- **AI Model Providers**: Multiple leading AI model providers for best-in-class capabilities
 - **Infrastructure**: AWS for production hosting and services
 - **Authentication**: OAuth providers for user authentication
 - **Container Registry**: Docker Hub/ECR for image storage

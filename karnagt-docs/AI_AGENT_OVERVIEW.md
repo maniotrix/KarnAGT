@@ -15,6 +15,7 @@ A conversational AI Agent that researches, understands your content, performs ad
 - **Analyzes data & creates visuals** (charts, tables, summaries)
 - **Produces deliverables** you can download and share (reports, images, spreadsheets, presentations)
 - **Adapts to you** by remembering preferences across conversations
+- **Self-configures** for optimal results without any user setup required
 
 ## Ask In any language
 
@@ -40,18 +41,21 @@ A conversational AI Agent that researches, understands your content, performs ad
 
 ## Why It's Different
 
+- **One agent for everything**: No need to choose between different AI models or services
 - **Outcome-focused**: Not just answers — ready-to-use outputs
 - **Simple interface**: Describe what you want; it handles the rest
 - **Consistent quality**: Remembers your style and preferences over time
 
 *Learn more about the user experience in our [KarnAGT App Capabilities](KARNAGT_ONE_PAGER.md) or explore the complete technical architecture in [Technical System Overview](TECHNICAL_SYSTEM_OVERVIEW.md)*
 
-## Quick Example Flow
+## Simple Unified Experience
 
 1) You upload files and ask a question
 2) The AI researches and reads your materials
 3) It analyzes, synthesizes, and drafts results
 4) You receive a concise response plus downloadable outputs
+
+*No model selection, no configuration, no technical decisions needed on your part.*
 
 ## Privacy & Safety
 

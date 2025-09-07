@@ -17,7 +17,7 @@ const steps: Step[] = [
     id: 1,
     icon: <Search className="h-6 w-6" />,
     title: "Describe your goal",
-    description: "Share what you need—drafts, summaries, analysis, plans, or calculations.",
+    description: "Share what you need—drafts, summaries, analysis, plans, or calculations. No setup or model choice required.",
     details: "Simply type your request in natural language. KarnAGT understands context and nuance, so you don't need to use specific commands or formats.",
     gradient: "from-blue-500 to-cyan-500",
     example: "Analyze this sales report and create a summary with charts and recommendations for next quarter."

@@ -10,9 +10,11 @@ A conversational AI Agent that researches the web, analyzes your images and file
 
 ## Why It Matters
 
-- Ask in any language, get exactly what you need in minutes
-- No learning complex software—just describe what you want
-- All the power of coding, research, file QA and analysis, accessible through simple conversation
+- **One simple interface for everyone** - No settings to configure, no models to choose
+- **Automated intelligence** - The agent automatically selects the best approach for your task
+- **Ask in any language, get exactly what you need in minutes** - From data analysis to document creation
+- All the power of **coding, research, file QA and analysis**, accessible through 
+simple conversation
 
 ## How It Works (Any language)
 
@@ -42,6 +44,7 @@ A conversational AI Agent that researches the web, analyzes your images and file
 
 ## What Makes It Powerful (Under the Hood)
 
+- **Intelligent task routing** - automatically determines the best approach for your request
 - **Always searches the web first** for current, accurate information
 - **Reads 20+ file types** including PDFs, Excel, PowerPoint, images, CSVs
 - **Runs real analysis** using Python with 100+ data science and visualization libraries  
@@ -50,23 +53,28 @@ A conversational AI Agent that researches the web, analyzes your images and file
 
 *For detailed technical capabilities, see [AI Agent Overview](AI_AGENT_OVERVIEW.md) and complete system architecture in [Technical System Overview](TECHNICAL_SYSTEM_OVERVIEW.md)*
 
-## The Simple Interface
+## The Unified Agent Interface
 
-**Simple Text Flow:**
+**One Agent, All Capabilities:**
 
 ```text
 You ask: "Compare this chart image with my reports and create outputs"
    ↓
-AI searches web for latest info
+Agent automatically searches web for latest info
    ↓  
-AI reads all your uploaded documents
+Agent reads all your uploaded documents
    ↓
-AI analyzes chart image using vision
+Agent analyzes chart image using vision
    ↓
-AI runs code to process everything
+Agent runs code to process everything
    ↓
 Returns: Excel + HTML + PNG charts + PDF summary
 ```
+
+**Zero Configuration Required:**
+- No model selection needed - uses the best available automatically
+- No parameter tuning - optimized settings applied internally
+- No workflow setup - agent determines optimal approach for each task
 
 **Detailed Flow:**
 

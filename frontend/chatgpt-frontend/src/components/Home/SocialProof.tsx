@@ -44,7 +44,7 @@ const testimonials: Testimonial[] = [
     name: "Emily Johnson",
     role: "Content Creator",
     company: "Creative Studio",
-    content: "Working in multiple languages has never been easier. KarnAGT maintains context perfectly across different languages and cultural nuances.",
+    content: "Love that I don't have to figure out which AI model to use for what task. One agent handles everything—from research to graphics to final deliverables.",
     rating: 5,
     avatar: "EJ"
   }

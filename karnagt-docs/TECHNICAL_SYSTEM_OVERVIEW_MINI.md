@@ -15,7 +15,7 @@ Production-ready agentic AI platform with advanced reasoning, multi-modal capabi
 
 ### **Core Service Layers**
 
-- **AI Core Engine** *(OpenAI Agents SDK)*: Configurable agent orchestration
+- **AI Core Engine** *(Advanced AI SDK)*: Self-configuring agent orchestration with automatic optimization
 - **Memory Service** *(6-bucket system)*: Persistent user context & preferences  
 - **Knowledge Service** *(LlamaIndex + Qdrant)*: RAG pipeline with 20+ file formats
 - **Tool Registry**: Dynamic tool execution with 100+ scientific libraries
@@ -53,7 +53,7 @@ Production-ready agentic AI platform with advanced reasoning, multi-modal capabi
 |-----------|------------|---------|
 | **Frontend** | React 19 + TypeScript | Modern UI with type safety |
 | **Backend** | FastAPI + Python 3.10 | Stateless async API services |
-| **AI Framework** | OpenAI Agents SDK | Advanced reasoning & tools |
+| **AI Framework** | Advanced AI Agents SDK | Automated reasoning & tools |
 | **RAG** | LlamaIndex + Qdrant | Document processing & retrieval |
 | **Auth** | OAuth 2.0 + JWT | Enterprise security |
 | **Deployment** | Docker + AWS | Scalable containerization |
