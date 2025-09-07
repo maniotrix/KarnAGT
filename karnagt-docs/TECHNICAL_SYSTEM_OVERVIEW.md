@@ -1,8 +1,9 @@
-# Production Agentic AI System Foundation- Technical Overview
+# Production Agentic AI System Foundation- KarnAGT Technical Overview
 
 **🌐 [Try KarnAGT Web App](https://karnagt.com/)**
 
-## 📚 Documentation Navigation
+
+- **[Technical Overview (Mini)](TECHNICAL_SYSTEM_OVERVIEW_MINI.md)** - Concise technical summary
 - **[KarnAGT App Capabilities](KARNAGT_ONE_PAGER.md)** - User-friendly overview and examples
 - **[AI Agent Overview](AI_AGENT_OVERVIEW.md)** - Detailed capabilities and features
 
@@ -301,6 +302,7 @@ Built from ground-up using LlamaIndex framework with custom optimizations for pr
 
 ## 📚 **Related Documentation**
 
+- **[Technical Overview (Mini)](TECHNICAL_SYSTEM_OVERVIEW_MINI.md)** - Concise technical summary
 - **[KarnAGT App Capabilities](KARNAGT_ONE_PAGER.md)** - User-friendly overview with real examples
 - **[AI Agent Overview](AI_AGENT_OVERVIEW.md)** - Detailed capabilities and user experience
 

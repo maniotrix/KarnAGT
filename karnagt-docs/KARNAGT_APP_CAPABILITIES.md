@@ -2,7 +2,7 @@
 
 **🌐 [Try KarnAGT Web App](https://karnagt.com/)**
 
-- **[Technical System Overview](TECHNICAL_SYSTEM_OVERVIEW.md)** - Doc with Complete architecture and implementation details
+- **[Technical System Overview](TECHNICAL_SYSTEM_OVERVIEW.md)** - Complete architecture and implementation details
 
 ---
 
@@ -99,6 +99,7 @@ Most AI just gives you answers. This AI Agent actually creates what you need. In
 ## Learn More
 
 - **[AI Agent Overview](AI_AGENT_OVERVIEW.md)** - Deep dive into capabilities and features
+- **[Technical Overview (Mini)](TECHNICAL_SYSTEM_OVERVIEW_MINI.md)** - Concise technical summary
 - **[Technical System Overview](TECHNICAL_SYSTEM_OVERVIEW.md)** - Complete technical architecture and implementation
 
 ---
