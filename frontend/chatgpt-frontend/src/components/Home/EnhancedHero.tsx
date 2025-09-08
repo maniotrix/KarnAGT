@@ -56,6 +56,17 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
   const contentOpacity = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.4, 0.1]);
   const scrollIndicatorOpacity = useTransform(scrollYProgress, [0, 0.8, 1], [1, 0.3, 0]);
 
+  // Smooth scroll function for the more indicator
+  const handleScrollDown = () => {
+    const viewportHeight = window.innerHeight;
+    const scrollAmount = viewportHeight * 0.8; // Scroll down 80% of viewport height
+    
+    window.scrollBy({
+      top: scrollAmount,
+      behavior: 'smooth'
+    });
+  };
+
   return (
     <div ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Animated Background */}
@@ -268,23 +279,33 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
           </motion.div>
         </div>
 
-        {/* Scroll Indicator - Bottom center positioned */}
-        <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
-          style={{ opacity: scrollIndicatorOpacity }}
-          animate={{ y: [0, 6, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
-            <span className="text-xs font-medium tracking-wide uppercase">More</span>
+        {/* Scroll Indicator - Bottom positioned but centered within content container */}
+        <div className="absolute bottom-8 left-0 right-0 z-20 pointer-events-none">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
+              style={{ opacity: scrollIndicatorOpacity }}
+              className="flex justify-center pointer-events-auto"
             >
-              <ChevronDown className="w-5 h-5" />
+              <motion.button
+                className="cursor-pointer group hover:scale-110 transition-transform duration-200 focus:outline-none rounded-lg p-2"
+                animate={{ y: [0, 6, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                onClick={handleScrollDown}
+                aria-label="Scroll down to see more content"
+              >
+                <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors duration-200">
+                  <span className="text-xs font-medium tracking-wide uppercase">More</span>
+                  <motion.div
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <ChevronDown className="w-5 h-5" />
+                  </motion.div>
+                </div>
+              </motion.button>
             </motion.div>
           </div>
-        </motion.div>
+        </div>
       </motion.div>
     </div>
   );
