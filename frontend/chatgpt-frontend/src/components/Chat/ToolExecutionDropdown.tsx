@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ToolExecution } from '../../types/chat';
+import { ToolExecution, Message } from '../../types/chat';
 import { ToolTimelineItem } from './ToolTimelineItem';
 
 // Modern UI Libraries
@@ -10,16 +10,98 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Progressive message component for showing context-aware loading messages
+interface ProgressiveMessageProps {
+  elapsedSeconds: number;
+  userMessage?: Message;
+}
+
+const ProgressiveMessage: React.FC<ProgressiveMessageProps> = ({ elapsedSeconds, userMessage }) => {
+  // Check message context for smart messaging - handle both temp and persisted messages
+  const hasImages = 
+    // Fresh messages (temp IDs): Check localImages
+    (userMessage?.localImages && userMessage.localImages.length > 0) ||
+    // Persisted messages (real IDs): Check attachments for image content types
+    userMessage?.attachments?.some((attachment: any) => {
+      if (typeof attachment === 'string') return false; // Skip string IDs
+      return attachment.content_type && attachment.content_type.startsWith('image/');
+    });
+  
+  const hasFiles = 
+    // Fresh messages (temp IDs): Check localDocuments  
+    (userMessage?.localDocuments && userMessage.localDocuments.length > 0) ||
+    // Persisted messages (real IDs): Check vector_file_references
+    (userMessage?.vector_file_references?.processed_files && 
+     userMessage.vector_file_references.processed_files.length > 0);
+  
+  // Context-specific messages with their durations
+  const getContextMessage = (): { message: string; duration: number } | null => {
+    if (hasImages && hasFiles) {
+      return { message: "Processing images and documents...(<10s)", duration: 10 };
+    }
+    if (hasImages) {
+      return { message: "Analyzing images...(<5s)", duration: 5 };
+    }
+    if (hasFiles) {
+      return { message: "Processing documents...(<10s)", duration: 10 };
+    }
+    return null;
+  };
+
+  // Default cycling messages for general progress
+  const getDefaultMessage = (): string => {
+    const messages = [
+      "Reasoning...(<5s)",
+      "Gathering information...(almost ready)"
+    ];
+    
+    const contextInfo = getContextMessage();
+    // If we had context messages, adjust the elapsed time for cycling
+    const adjustedElapsed = contextInfo ? Math.max(0, elapsedSeconds - contextInfo.duration) : elapsedSeconds;
+    const messageIndex = Math.floor(adjustedElapsed / 3) % messages.length;
+    return messages[messageIndex];
+  };
+
+  // Main message logic with time-based switching
+  const getMessage = (): string => {
+    const contextInfo = getContextMessage();
+    
+    // If we have context-specific messages and haven't exceeded their duration
+    if (contextInfo && elapsedSeconds < contextInfo.duration) {
+      return contextInfo.message;
+    }
+    
+    // Fall back to default cycling messages
+    return getDefaultMessage();
+  };
+
+  return (
+    <motion.span 
+      key={getMessage()} // Key change triggers re-animation
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="truncate bg-gradient-to-r from-gray-500 via-gray-300 to-gray-500 dark:from-gray-400 dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent bg-[length:200%_100%] animate-shimmer"
+    >
+      {getMessage()}
+    </motion.span>
+  );
+};
+
 interface ToolExecutionDropdownProps {
   tools: ToolExecution[];
   isThinking: boolean;
   isStreaming: boolean;
+  userMessage?: Message;
+  assistantContent?: string;
 }
 
 export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({ 
   tools, 
   isThinking, 
-  isStreaming 
+  isStreaming,
+  userMessage,
+  assistantContent
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -127,7 +209,18 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
               <div className="p-3 space-y-2">
                 {sortedTools.length === 0 ? (
                   <div className="text-gray-500 dark:text-gray-400 italic">
-                    {isThinking ? 'Preparing ...' : 'No steps to show'}
+                    {isThinking && (!assistantContent || assistantContent.trim() === '') ? (
+                      // No tokens received yet - show progressive messaging
+                      <ProgressiveMessage 
+                        elapsedSeconds={elapsedSeconds} 
+                        userMessage={userMessage}
+                      />
+                    ) : isThinking ? (
+                      // First token received - switch to simple generating message
+                      'Generating response...'
+                    ) : (
+                      'No steps to show'
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-1">

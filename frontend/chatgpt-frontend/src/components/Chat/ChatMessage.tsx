@@ -9,6 +9,8 @@ interface ChatMessageProps {
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
   messageTools?: ToolExecution[];
   isThinking?: boolean;
+  userMessage?: Message;
+  assistantContent?: string;
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ 
@@ -16,7 +18,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   isStreaming = false, 
   onEdit, 
   messageTools = [],
-  isThinking = false 
+  isThinking = false,
+  userMessage,
+  assistantContent
 }) => {
   if (message.role === 'user') {
     return (
@@ -34,6 +38,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         isStreaming={isStreaming}
         messageTools={messageTools}
         isThinking={isThinking}
+        userMessage={userMessage}
+        assistantContent={assistantContent}
       />
     );
   }
