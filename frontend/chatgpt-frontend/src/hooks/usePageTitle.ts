@@ -15,8 +15,8 @@ export const usePageTitle = () => {
   useEffect(() => {
     // Map routes to specific page titles
     const titleMap: PageTitleConfig = {
-      '/': 'Home | KarnAGT - AI Agent',
-      '/home': 'Home | KarnAGT - AI Agent',
+      '/': 'KarnAGT - AI Agent',
+      '/home': 'KarnAGT - AI Agent',
       '/about': 'About | KarnAGT - AI Agent',
       '/help': 'Help Center | KarnAGT - AI Agent',
       '/login': 'Sign In | KarnAGT - AI Agent',
@@ -39,7 +39,7 @@ export const usePageTitle = () => {
       pageTitle = 'Chat | KarnAGT - AI Agent';
     } else {
       // Fallback for unknown routes
-      pageTitle = 'KarnAGT - AI Agent | Free AI Assistant';
+      pageTitle = 'KarnAGT - AI Agent';
     }
 
     // Update document title
