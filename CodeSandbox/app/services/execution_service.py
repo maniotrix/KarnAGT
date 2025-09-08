@@ -185,7 +185,7 @@ class ExecutionService:
                                    workspace_id=request.workspace_id,
                                    elapsed_seconds=(result.execution_time_ms or 0) / 1000)
                 
-                cleanup_message = "Workspace has been destroyed due to timeout. Create a new workspace to continue."
+                cleanup_message = "Workspace has been destroyed due to timeout. Create a new workspace to continue. Note: Files uploaded to the previous workspace are not preserved; please re-upload them in the new workspace"
                 # ✅ CLEAN: Simple timeout cleanup via workspace service
                 try:
                     await self.workspace_service.delete_workspace(request.workspace_id, reason="timeout")
