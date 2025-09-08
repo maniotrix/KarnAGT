@@ -127,7 +127,7 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
               animate={{ opacity: [1, 0.7, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              reasons
+              thinks
             </motion.span>
             ,{' '}
             <motion.span
