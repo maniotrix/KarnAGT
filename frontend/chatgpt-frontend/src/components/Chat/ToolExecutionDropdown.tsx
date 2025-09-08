@@ -51,7 +51,7 @@ const ProgressiveMessage: React.FC<ProgressiveMessageProps> = ({ elapsedSeconds,
   // Default cycling messages for general progress
   const getDefaultMessage = (): string => {
     const messages = [
-      "Reasoning...(<5s)",
+      "Thinking...(<5s)",
       "Gathering information...(almost ready)"
     ];
     
