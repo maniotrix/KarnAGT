@@ -50,7 +50,7 @@ cd ../backend
 python backend_docker_manager.py start --env=prod
 
 # 4. Start frontend (final service)
-cd ../frontend/chatgpt-frontend
+cd ../frontend/app-frontend
 python frontend_docker_manager.py start --env=prod
 ```
 
@@ -153,7 +153,7 @@ python frontend_docker_manager.py stop --env=prod
 
 ## File Structure
 ```
-frontend/chatgpt-frontend/
+frontend/app-frontend/
 ├── frontend_docker_config.json      # Environment configuration
 ├── frontend_docker_manager.py       # Management script (follows backend pattern)
 ├── docker-compose.dev.yml           # Development setup

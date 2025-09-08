@@ -130,7 +130,7 @@ class EnvUploader:
         # Check for key project structure indicators
         required_paths = [
             self.base_dir / 'backend' / 'docker' / 'database',
-            self.base_dir / 'frontend' / 'chatgpt-frontend',
+            self.base_dir / 'frontend' / 'app-frontend',
             self.base_dir / 'CodeSandbox',
             self.base_dir / 'backend' / 'docker' / 'database' / 'docker-compose-prod-aws.yml'
         ]
