@@ -52,6 +52,7 @@ const ProgressiveMessage: React.FC<ProgressiveMessageProps> = ({ elapsedSeconds,
   const getDefaultMessage = (): string => {
     const messages = [
       "Thinking...(<5s)",
+      "Gathering information...",
       "Gathering information...(almost ready)"
     ];
     
