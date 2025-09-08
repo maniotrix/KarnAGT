@@ -216,6 +216,22 @@ const MessageListComponent: React.FC<MessageListProps> = ({
             const messageTools = messageToolExecutions.get(message.id) || [];
             const shouldShowThinking = isLoading && isLastMessage && message.role === 'assistant';
             
+            // Get latest user message for assistant messages
+            const latestUserMessage = message.role === 'assistant' && index > 0 
+              ? (() => {
+                  // Find the most recent user message before this assistant message
+                  for (let i = index - 1; i >= 0; i--) {
+                    if (messages[i].role === 'user') {
+                      return messages[i];
+                    }
+                  }
+                  return undefined;
+                })()
+              : undefined;
+            
+            // Get assistant content for progressive messaging detection
+            const assistantContent = message.role === 'assistant' ? message.content : undefined;
+            
             return (
               <div key={messageKey} className="mb-4">
                 <ChatMessage 
@@ -224,6 +240,8 @@ const MessageListComponent: React.FC<MessageListProps> = ({
                   onEdit={onEdit}
                   messageTools={messageTools}
                   isThinking={shouldShowThinking}
+                  userMessage={latestUserMessage}
+                  assistantContent={assistantContent}
                 />
               </div>
             );

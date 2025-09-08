@@ -6,45 +6,40 @@ import { useConversationImagesContext } from '../../contexts/ConversationImagesC
 import { InteractiveMarkdown } from './InteractiveMarkdown/InteractiveMarkdown';
 import { ImageModal } from './ImageModal';
 
-// Modern UI Libraries  
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
-import { 
-  Copy,
-  Check,
-  Edit3,
-  FileText,
-  RotateCcw
-} from 'lucide-react';
+// Modern UI Libraries
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@radix-ui/react-tooltip';
+import { Copy, Check, Edit3, FileText, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-
 
 interface UserMessageProps {
   message: Message;
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
 }
 
-export const UserMessage: React.FC<UserMessageProps> = ({ 
-  message, 
-  onEdit
+export const UserMessage: React.FC<UserMessageProps> = ({
+  message,
+  onEdit,
 }) => {
   // Copy functionality
   const [copied, setCopied] = useState(false);
-  
+
   // Edit functionality
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Image modal functionality
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(-1);
-  
+
   // File IDs are now handled at the conversation level by ConversationImagesProvider
 
   // ✅ CONVERSATION CONTEXT: Get image URLs from conversation-level provider
   const { getImageUrl, isLoading, isError } = useConversationImagesContext();
-
-
 
   const handleCopy = async () => {
     try {
@@ -80,25 +75,35 @@ export const UserMessage: React.FC<UserMessageProps> = ({
     setEditContent(message.content);
   };
 
+  // Helper function to check if message has any attachments
+  const hasAttachments = () => {
+    return !!(
+      message.localImages?.length ||
+      message.attachments?.length ||
+      message.localDocuments?.length ||
+      message.vector_file_references?.processed_files?.length
+    );
+  };
+
   const handleSave = async () => {
     if (!onEdit || !message.message_id) return;
-    
+
     const trimmedContent = editContent.trim();
     if (!trimmedContent) {
       setIsEditing(false);
       return;
     }
-    
+
     // STEP 1: Immediately exit edit mode and show saving state
     setIsEditing(false);
     setIsSaving(true);
-    
+
     // STEP 2: Call the edit function (this will update the message and clear subsequent ones)
     const success = await onEdit(message.message_id, trimmedContent);
-    
+
     // STEP 3: Clear saving state
     setIsSaving(false);
-    
+
     // If edit failed, stay in display mode - user must manually click edit to retry
     if (!success) {
       // Reset content to current message content in case backend partially updated it
@@ -114,22 +119,27 @@ export const UserMessage: React.FC<UserMessageProps> = ({
 
   const handleResend = async () => {
     if (!onEdit || !message.message_id) return;
-    
+
     const trimmedContent = message.content.trim();
-    if (!trimmedContent) {
+    // Allow resending if there's content OR if message has attachments
+    if (!trimmedContent && !hasAttachments()) {
       return;
     }
 
-    console.log('🚀 [UserMessage] Resending message:', trimmedContent.slice(0, 50), '...');
+    console.log(
+      '🚀 [UserMessage] Resending message:',
+      trimmedContent.slice(0, 50),
+      '...'
+    );
     // Set saving state
     setIsSaving(true);
-    
+
     // Call the edit function with the original message content (this will resend the message)
     const success = await onEdit(message.message_id, trimmedContent);
-    
+
     // Clear saving state
     setIsSaving(false);
-    
+
     // Note: No need to reset editContent since we never modified it during resend
   };
 
@@ -145,17 +155,17 @@ export const UserMessage: React.FC<UserMessageProps> = ({
 
   const canEdit = onEdit && !isSaving;
 
-  // ✅ MODERN: Get images using metadata + generated URLs  
+  // ✅ MODERN: Get images using metadata + generated URLs
   const getDisplayImages = () => {
     // FIRST: Use local images if available (fresh uploads before AI response)
     if (message.localImages?.length) {
-      return message.localImages.map(img => ({
+      return message.localImages.map((img) => ({
         id: img.fileId,
         filename: img.filename,
-        url: img.blobUrl
+        url: img.blobUrl,
       }));
     }
-    
+
     // SECOND: Use backend attachments with on-demand generated URLs
     if (message.attachments?.length) {
       return message.attachments
@@ -164,28 +174,35 @@ export const UserMessage: React.FC<UserMessageProps> = ({
           if (typeof attachment === 'object' && attachment !== null) {
             const fileId = attachment.file_id;
             const generatedUrl = getImageUrl(fileId);
-            
+
             return {
               id: fileId,
-              filename: attachment.filename || attachment.original_filename || `Image ${index + 1}`,
-              url: generatedUrl // Will be null if loading/error
+              filename:
+                attachment.filename ||
+                attachment.original_filename ||
+                `Image ${index + 1}`,
+              url: generatedUrl, // Will be null if loading/error
             };
           }
-          // Handle string file IDs (legacy/fallback)  
+          // Handle string file IDs (legacy/fallback)
           else if (typeof attachment === 'string') {
             const generatedUrl = getImageUrl(attachment);
-            
+
             return {
               id: attachment,
               filename: `Image ${index + 1}`,
-              url: generatedUrl
+              url: generatedUrl,
             };
           }
           return null;
         })
-        .filter(Boolean) as Array<{ id: string; filename: string; url: string | null }>;
+        .filter(Boolean) as Array<{
+        id: string;
+        filename: string;
+        url: string | null;
+      }>;
     }
-    
+
     return [];
   };
 
@@ -195,14 +212,16 @@ export const UserMessage: React.FC<UserMessageProps> = ({
   const getDocumentFilenames = () => {
     // FIRST: Use local documents if available (fresh uploads before backend processing)
     if (message.localDocuments?.length) {
-      return message.localDocuments.map(doc => doc.filename);
+      return message.localDocuments.map((doc) => doc.filename);
     }
-    
+
     // SECOND: Use backend vector_file_references after processing is complete
     if (message.vector_file_references?.processed_files) {
-      return message.vector_file_references.processed_files.map((file: any) => file.filename).filter(Boolean);
+      return message.vector_file_references.processed_files
+        .map((file: any) => file.filename)
+        .filter(Boolean);
     }
-    
+
     return [];
   };
 
@@ -215,16 +234,16 @@ export const UserMessage: React.FC<UserMessageProps> = ({
     if (displayImages.length === 1) {
       // Single image - larger display
       const image = displayImages[0];
-      
+
       return (
         <div className="flex w-[70%] flex-col items-end mb-2">
           <div className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64">
             {image.url ? (
-              <button 
+              <button
                 onClick={() => setCurrentImageIndex(0)}
                 className="overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64 cursor-pointer hover:opacity-90 transition-opacity"
               >
-                <img 
+                <img
                   alt={image.filename}
                   className="max-w-full object-cover object-center overflow-hidden rounded-lg w-full h-full max-w-96 max-h-64 w-fit transition-opacity duration-300 opacity-100"
                   src={image.url}
@@ -236,7 +255,9 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400"></div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Loading...</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Loading...
+                    </span>
                   </div>
                 ) : isError ? (
                   <div className="text-red-600 dark:text-red-400 text-sm text-center">
@@ -244,7 +265,9 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                     <div className="mt-1">Image unavailable</div>
                   </div>
                 ) : (
-                  <div className="text-gray-400 dark:text-gray-500 text-sm">📷 Image</div>
+                  <div className="text-gray-400 dark:text-gray-500 text-sm">
+                    📷 Image
+                  </div>
                 )}
               </div>
             )}
@@ -257,23 +280,29 @@ export const UserMessage: React.FC<UserMessageProps> = ({
         <div className="flex w-[70%] flex-col items-end mb-2">
           <div className="flex flex-row items-center justify-end gap-1 max-w-72">
             {displayImages.slice(0, 2).map((image, index) => (
-              <div 
+              <div
                 key={image.id}
                 className={`h-32 w-32 overflow-hidden rounded-lg ${
-                  index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
+                  index === 0
+                    ? 'rounded-ss-2xl rounded-es-2xl'
+                    : 'rounded-se-2xl rounded-ee-sm'
                 }`}
               >
                 {image.url ? (
-                  <button 
+                  <button
                     onClick={() => setCurrentImageIndex(index)}
                     className={`h-32 w-32 overflow-hidden rounded-lg cursor-pointer hover:opacity-90 transition-opacity ${
-                      index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
+                      index === 0
+                        ? 'rounded-ss-2xl rounded-es-2xl'
+                        : 'rounded-se-2xl rounded-ee-sm'
                     }`}
                   >
-                    <img 
+                    <img
                       alt={image.filename}
                       className={`max-w-full aspect-square object-cover object-center h-32 w-32 overflow-hidden rounded-lg w-fit transition-opacity duration-300 opacity-100 ${
-                        index === 0 ? 'rounded-ss-2xl rounded-es-2xl' : 'rounded-se-2xl rounded-ee-sm'
+                        index === 0
+                          ? 'rounded-ss-2xl rounded-es-2xl'
+                          : 'rounded-se-2xl rounded-ee-sm'
                       }`}
                       src={image.url}
                     />
@@ -310,8 +339,6 @@ export const UserMessage: React.FC<UserMessageProps> = ({
       >
         {/* Message Content */}
         <div className="flex flex-col max-w-[80%] min-w-0 items-end">
-
-
           {/* Images Display */}
           {renderImages()}
 
@@ -322,12 +349,16 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mb-2">
                   <FileText className="w-4 h-4" />
                   <span className="font-medium">
-                    {documentFilenames.length} document{documentFilenames.length > 1 ? 's' : ''}
+                    {documentFilenames.length} document
+                    {documentFilenames.length > 1 ? 's' : ''}
                   </span>
                 </div>
                 <div className="space-y-1">
                   {documentFilenames.map((filename: string, index: number) => (
-                    <div key={index} className="text-gray-600 dark:text-gray-400 truncate">
+                    <div
+                      key={index}
+                      className="text-gray-600 dark:text-gray-400 truncate"
+                    >
                       📄 {filename}
                     </div>
                   ))}
@@ -363,8 +394,8 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                     <span className="text-fluid-xs">Saving changes...</span>
                   </div>
                 )}
-                
-                <InteractiveMarkdown 
+
+                <InteractiveMarkdown
                   content={message.content}
                   theme="user"
                   className="prose prose-fluid max-w-full prose-invert text-white break-words overflow-hidden"
@@ -387,12 +418,14 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                 >
                   Cancel
                 </button>
-                
+
                 <button
                   onClick={handleSave}
                   disabled={isSaving || !editContent.trim()}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 ${
-                    (isSaving || !editContent.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+                    isSaving || !editContent.trim()
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
                   }`}
                 >
                   {isSaving ? 'Saving...' : 'Send'}
@@ -436,7 +469,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
                     </TooltipContent>
                   </Tooltip>
                 )}
-                
+
                 {/* Copy Button */}
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -459,12 +492,10 @@ export const UserMessage: React.FC<UserMessageProps> = ({
             )}
           </div>
         </div>
-
-
       </motion.div>
 
       {/* Image Modal */}
-      <ImageModal 
+      <ImageModal
         images={displayImages}
         currentIndex={currentImageIndex}
         onClose={() => setCurrentImageIndex(-1)}
@@ -472,4 +503,4 @@ export const UserMessage: React.FC<UserMessageProps> = ({
       />
     </TooltipProvider>
   );
-}; 
+};

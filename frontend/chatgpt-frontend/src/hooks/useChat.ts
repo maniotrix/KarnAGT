@@ -978,18 +978,28 @@ export function useChat(options: ChatOptions = {}) {
 
   // Edit message with streaming support
   const editMessage = useCallback(async (messageId: string, newContent: string) => {
-    if (!conversation || !newContent.trim()) return false;
+    if (!conversation) return false;
+    
+    // Find the message being edited first to check for attachments
+    const messageIndex = messages.findIndex(msg => msg.message_id === messageId);
+    if (messageIndex === -1) return false;
+    
+    const originalMessage = messages[messageIndex];
+    
+    // Check if message has any attachments
+    const hasAttachments = !!(
+      originalMessage.localImages?.length ||
+      originalMessage.attachments?.length ||
+      originalMessage.localDocuments?.length ||
+      originalMessage.vector_file_references?.processed_files?.length
+    );
+    
+    // Allow empty content only if message has attachments (for resend functionality)
+    if (!newContent.trim() && !hasAttachments) return false;
     
     try {
       setError(null);
       
-      // Find the message being edited
-      const messageIndex = messages.findIndex(msg => msg.message_id === messageId);
-      if (messageIndex === -1) {
-        throw new Error('Message not found');
-      }
-      
-      const originalMessage = messages[messageIndex];
       if (originalMessage.role !== 'user') {
         throw new Error('Can only edit user messages');
       }

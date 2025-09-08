@@ -22,13 +22,17 @@ interface AssistantMessageProps {
   isStreaming?: boolean;
   messageTools?: ToolExecution[];
   isThinking?: boolean;
+  userMessage?: Message;
+  assistantContent?: string;
 }
 
 export const AssistantMessage: React.FC<AssistantMessageProps> = ({ 
   message, 
   isStreaming = false,
   messageTools = [],
-  isThinking = false
+  isThinking = false,
+  userMessage,
+  assistantContent
 }) => {
   // Copy functionality
   const [copied, setCopied] = useState(false);
@@ -159,6 +163,8 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
                 tools={messageTools}
                 isThinking={isThinking}
                 isStreaming={isStreaming}
+                userMessage={userMessage}
+                assistantContent={assistantContent}
               />
             </div>
           )}
