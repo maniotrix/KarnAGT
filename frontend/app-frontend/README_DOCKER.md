@@ -155,7 +155,7 @@ cd backend/docker/database && python db_manager.py start --env=dev
 cd ../../ && python backend_docker_manager.py start --env=dev
 
 # 3. Start frontend  
-cd ../frontend/chatgpt-frontend && python frontend_docker_manager.py start
+cd ../frontend/app-frontend && python frontend_docker_manager.py start
 
 # Access: https://localhost (unified HTTPS access)
 ```
@@ -169,7 +169,7 @@ cd backend/docker/database && python db_manager.py start --env=dev
 cd ../../ && python backend_docker_manager.py start --env=dev
 
 # 3. Start frontend locally (bypasses container)
-cd ../frontend/chatgpt-frontend && npm run dev
+cd ../frontend/app-frontend && npm run dev
 
 # Frontend: http://localhost:3000 (local Vite server)
 # Backend API: https://localhost/api/v1/ (via Traefik)
