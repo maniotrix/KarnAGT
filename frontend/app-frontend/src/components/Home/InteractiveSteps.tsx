@@ -16,29 +16,29 @@ const steps: Step[] = [
   {
     id: 1,
     icon: <Search className="h-6 w-6" />,
-    title: "Describe your goal",
-    description: "Share what you need—drafts, summaries, analysis, plans, or calculations. No setup or model choice required.",
-    details: "Simply type your request in natural language. KarnAGT understands context and nuance, so you don't need to use specific commands or formats.",
+    title: "Ask anything",
+    description: "Type your question or task in everyday language—no special prompts or settings needed.",
+    details: "Whether you need research with citations, code debugged, data analysed, or ideas brainstormed, just ask. KarnAGT understands intent and context right away.",
     gradient: "from-blue-500 to-cyan-500",
-    example: "Analyze this sales report and create a summary with charts and recommendations for next quarter."
+    example: "Compare two job offers and summarise the pros & cons in a decision table."
   },
   {
     id: 2,
     icon: <Zap className="h-6 w-6" />,
-    title: "AI plans and executes",
-    description: "KarnAGT reasons, searches the web, analyzes images, works with your files, and executes code—all in any language.",
-    details: "Watch as KarnAGT breaks down complex tasks, uses multiple tools, and applies reasoning to deliver comprehensive solutions.",
+    title: "Agent thinks & tools up",
+    description: "KarnAGT plans, searches the live web, runs code, and even looks at images to solve the task end-to-end.",
+    details: "Behind the scenes it chains reasoning steps, picks the right tools (web, code, vision, files) and iterates until it has a solid answer.",
     gradient: "from-yellow-500 to-orange-500",
-    example: "I'll analyze your sales data, research market trends, and generate visualizations to support my recommendations."
+    example: "I'll fetch latest salary data, analyse your offer details, and build a comparison spreadsheet."
   },
   {
     id: 3,
     icon: <CheckCircle2 className="h-6 w-6" />,
-    title: "Get a polished result",
-    description: "Receive clear, actionable output along with fresh generated files, you can use immediately—no busywork.",
-    details: "Get professionally formatted results with citations, explanations, fresh generated files and next steps. Everything is ready to use or share.",
+    title: "Get clear answers & outputs",
+    description: "Receive cited answers, explanations, and any docs, code or visuals ready to use or share.",
+    details: "KarnAGT packages everything—summaries, next steps, files—so you can act immediately. No extra formatting or copy-pasting.",
     gradient: "from-green-500 to-emerald-500",
-    example: "Here's your Excel file with quarterly analysis, PNG charts, PDF report, and 5 growth recommendations ready to share."
+    example: "Here’s a PDF summary, an Excel comparison sheet, and recommendations for negotiation."
   }
 ];
 
@@ -110,7 +110,7 @@ export const InteractiveSteps: React.FC = () => {
             </span>
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Describe what you need → Get professional deliverables. No complex software to learn.
+            Ask a question → Let the agent work → Get clear answers & assets. Zero setup.
           </p>
         </motion.div>
 

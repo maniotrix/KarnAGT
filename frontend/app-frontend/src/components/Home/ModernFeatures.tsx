@@ -145,7 +145,7 @@ export const ModernFeatures: React.FC = () => {
           </h2>
           
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
-            Not just answers—ready-to-use outputs. Research, analyze, and create professional documents, charts, and reports in any language.
+            Advanced reasoning meets practical action. Think through problems, research current information, and provide complete solutions—from insights to implementation.
           </p>
           
           <motion.p

@@ -1,22 +1,23 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Download } from 'lucide-react';
+import { Download, Search, MessageSquare, Terminal, BarChart3, Eye, FileDown } from 'lucide-react';
 
 interface OutputType {
   name: string;
   ext: string;
-  icon: string;
+  icon: React.ReactNode;
   color: string;
   desc: string;
 }
 
+// Reframed as general capabilities, not just file outputs
 const outputTypes: OutputType[] = [
-  { name: 'Excel Files', ext: 'XLSX', icon: '📊', color: 'from-green-500 to-emerald-500', desc: 'Data & analysis' },
-  { name: 'Reports', ext: 'PDF', icon: '📄', color: 'from-red-500 to-rose-500', desc: 'Professional docs' },
-  { name: 'Charts', ext: 'PNG', icon: '📈', color: 'from-blue-500 to-cyan-500', desc: 'Visualizations' },
-  { name: 'Web Pages', ext: 'HTML', icon: '🌐', color: 'from-orange-500 to-yellow-500', desc: 'Interactive content' },
-  { name: 'Data Sets', ext: 'CSV', icon: '🗂️', color: 'from-purple-500 to-pink-500', desc: 'Clean data' },
-  { name: 'Structured', ext: 'JSON', icon: '⚡', color: 'from-indigo-500 to-blue-500', desc: 'API ready' }
+  { name: 'Research & Citations', ext: '', icon: <Search className="h-6 w-6" />, color: 'from-blue-500 to-cyan-500', desc: 'Live web answers with sources' },
+  { name: 'Conversational Q&A', ext: '', icon: <MessageSquare className="h-6 w-6" />, color: 'from-purple-500 to-pink-500', desc: 'Natural dialogue on any topic' },
+  { name: 'Code & Debug', ext: '', icon: <Terminal className="h-6 w-6" />, color: 'from-green-500 to-emerald-500', desc: 'Write, run & fix code snippets' },
+  { name: 'Data & Charts', ext: '', icon: <BarChart3 className="h-6 w-6" />, color: 'from-yellow-500 to-orange-500', desc: 'Analyze data, create visualizations' },
+  { name: 'Vision & Images', ext: '', icon: <Eye className="h-6 w-6" />, color: 'from-indigo-500 to-purple-500', desc: 'Understand screenshots & photos' },
+  { name: 'Documents & Files', ext: '', icon: <FileDown className="h-6 w-6" />, color: 'from-red-500 to-rose-500', desc: 'Generate share-ready outputs' }
 ];
 
 const containerVariants = {
@@ -120,7 +121,7 @@ export const DownloadableOutputs: React.FC = () => {
             >
               <Download className="w-4 h-4" />
             </motion.div>
-            Ready-to-use outputs
+            What KarnAGT can do
           </motion.div>
           
           <motion.h3 
@@ -130,9 +131,9 @@ export const DownloadableOutputs: React.FC = () => {
             viewport={{ once: true }}
             transition={{ delay: 0.2, duration: 0.6 }}
           >
-            Download what you{' '}
+            Your all-in-one AI toolkit —
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              actually need
+              answers, actions & outputs
             </span>
           </motion.h3>
           
@@ -143,7 +144,7 @@ export const DownloadableOutputs: React.FC = () => {
             viewport={{ once: true }}
             transition={{ delay: 0.4, duration: 0.6 }}
           >
-            Get professional outputs you can use immediately—no copy-pasting, no reformatting, just results.
+            From quick answers with citations to ready-to-share documents, KarnAGT delivers whatever your task demands.
           </motion.p>
         </motion.div>
 
@@ -166,15 +167,19 @@ export const DownloadableOutputs: React.FC = () => {
                 <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${output.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                 
                 <div className="relative text-center">
-                  {/* Simple animated icon */}
-                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">
-                    {output.icon}
+                  {/* Lucide icon with gradient background */}
+                  <div className="flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <div className={`p-3 rounded-2xl bg-gradient-to-r ${output.color} text-white`}>
+                      {output.icon}
+                    </div>
                   </div>
                   
-                  {/* File extension badge */}
-                  <div className={`inline-flex items-center justify-center px-3 py-1 bg-gradient-to-r ${output.color} text-white text-xs font-bold rounded-full mb-3`}>
-                    {output.ext}
-                  </div>
+                  {/* Optional badge (shown when ext present) */}
+                  {output.ext && (
+                    <div className={`inline-flex items-center justify-center px-3 py-1 bg-gradient-to-r ${output.color} text-white text-xs font-bold rounded-full mb-3`}>
+                      {output.ext}
+                    </div>
+                  )}
                   
                   {/* Title with clean hover effect */}
                   <h4 className="font-bold text-gray-900 dark:text-white mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text group-hover:from-gray-900 group-hover:to-gray-600 dark:group-hover:from-white dark:group-hover:to-gray-300 transition-all duration-300">
@@ -205,7 +210,7 @@ export const DownloadableOutputs: React.FC = () => {
             <span className="font-semibold text-blue-600 dark:text-blue-400">
               Ask once, get everything.
             </span>{' '}
-            KarnAGT automatically generates multiple formats so you have exactly what you need.
+            KarnAGT picks the right tools—research, code, vision, or documents—to deliver the outcome you ask for.
           </p>
         </motion.div>
       </div>
