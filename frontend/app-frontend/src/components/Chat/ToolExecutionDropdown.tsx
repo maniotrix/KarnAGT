@@ -37,30 +37,57 @@ const ProgressiveMessage: React.FC<ProgressiveMessageProps> = ({ elapsedSeconds,
   // Context-specific messages with their durations
   const getContextMessage = (): { message: string; duration: number } | null => {
     if (hasImages && hasFiles) {
-      return { message: "Processing images and documents...(<10s)", duration: 10 };
+      return { message: "🖼️📄 Processing images and documents...(<10s)", duration: 10 };
     }
     if (hasImages) {
-      return { message: "Analyzing images...(<5s)", duration: 5 };
+      return { message: "🖼️ Analyzing images...(<5s)", duration: 5 };
     }
     if (hasFiles) {
-      return { message: "Processing documents...(<10s)", duration: 10 };
+      return { message: "📄 Processing documents...(<10s)", duration: 10 };
     }
     return null;
   };
 
   // Default cycling messages for general progress
   const getDefaultMessage = (): string => {
-    const messages = [
-      "Thinking...(<5s)",
-      "Gathering information...",
-      "Gathering information...(almost ready)"
-    ];
-    
     const contextInfo = getContextMessage();
     // If we had context messages, adjust the elapsed time for cycling
     const adjustedElapsed = contextInfo ? Math.max(0, elapsedSeconds - contextInfo.duration) : elapsedSeconds;
-    const messageIndex = Math.floor(adjustedElapsed / 3) % messages.length;
-    return messages[messageIndex];
+    
+    // Message cycles - easily customizable
+    const firstCycleMessages = [
+      "🧠 Thinking...(<5s)",
+      "🔍 Gathering information...",
+      "⏳ Almost ready..."
+    ];
+    
+    const secondCycleMessages = [
+      "🧠 Thinking more...",
+      "🔧 Putting it all together...",
+      "⏳ Working on it..."
+    ];
+    
+    // Dynamic cycle durations based on message count (3 seconds per message)
+    const messageDisplayTime = 3;
+    const firstCycleDuration = firstCycleMessages.length * messageDisplayTime;
+    const secondCycleDuration = secondCycleMessages.length * messageDisplayTime;
+    const totalCycleDuration = firstCycleDuration + secondCycleDuration;
+    
+    // First cycle: Initial thinking process
+    if (adjustedElapsed < firstCycleDuration) {
+      const messageIndex = Math.floor(adjustedElapsed / messageDisplayTime) % firstCycleMessages.length;
+      return firstCycleMessages[messageIndex];
+    }
+    
+    // Second cycle: Working harder
+    if (adjustedElapsed < totalCycleDuration) {
+      const secondCycleElapsed = adjustedElapsed - firstCycleDuration;
+      const messageIndex = Math.floor(secondCycleElapsed / messageDisplayTime) % secondCycleMessages.length;
+      return secondCycleMessages[messageIndex];
+    }
+    
+    // After all cycles: Final steady message to avoid loop feeling
+    return "🔄 Still working... hang tight.";
   };
 
   // Main message logic with time-based switching
@@ -82,7 +109,10 @@ const ProgressiveMessage: React.FC<ProgressiveMessageProps> = ({ elapsedSeconds,
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="truncate bg-gradient-to-r from-gray-500 via-gray-300 to-gray-500 dark:from-gray-400 dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent bg-[length:200%_100%] animate-shimmer"
+      className="truncate text-gray-600 dark:text-gray-300 animate-pulse"
+      style={{
+        fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", system-ui, -apple-system, sans-serif'
+      }}
     >
       {getMessage()}
     </motion.span>
