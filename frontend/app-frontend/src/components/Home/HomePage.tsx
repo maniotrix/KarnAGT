@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, Download, Palette, LogIn, Shield, ArrowRight } from 'lucide-react';
+import { Menu, Download, Palette, LogIn, Shield, ArrowRight, BookOpen, Bug, Plane, Languages as LanguagesIcon, Search as SearchIcon, BarChart3 } from 'lucide-react';
 import { useCurrentUser } from '../../app/hooks/auth';
 import Logo from '../ui/Logo';
 import { PWAInstallModal } from '../ui/PWAInstallModal';
@@ -172,14 +172,12 @@ export const HomePage: React.FC = () => {
             {/* Enhanced chips with flex wrap layout */}
             <div className="flex flex-wrap justify-center gap-4">
               {[
-                { name: 'Analyze spending data → budget charts', icon: '📊', color: 'from-blue-500 to-cyan-500' },
-                { name: 'Research paper → study guide', icon: '📚', color: 'from-green-500 to-emerald-500' },
-                { name: 'Compare job offers → decision table', icon: '⚖️', color: 'from-purple-500 to-pink-500' },
-                { name: 'Photo collection → Python organizer', icon: '🐍', color: 'from-orange-500 to-red-500' },
-                { name: 'Dataset → interactive visualizations', icon: '📈', color: 'from-indigo-500 to-purple-500' },
-                { name: 'Lecture notes → formatted summaries', icon: '📝', color: 'from-blue-500 to-indigo-500' },
-                { name: 'Complex topic → clear infographic', icon: '🎨', color: 'from-pink-500 to-rose-500' },
-                { name: 'Web research → sourced report', icon: '🔍', color: 'from-yellow-500 to-orange-500' }
+                { name: 'Explain quantum computing clearly', icon: <BookOpen className="h-4 w-4" />, color: 'from-indigo-500 to-purple-500' },
+                { name: 'Debug Python error → suggest fix', icon: <Bug className="h-4 w-4" />, color: 'from-red-500 to-orange-500' },
+                { name: 'Plan a 3-day Rome itinerary', icon: <Plane className="h-4 w-4" />, color: 'from-yellow-500 to-red-500' },
+                { name: 'Translate contract to Spanish', icon: <LanguagesIcon className="h-4 w-4" />, color: 'from-green-500 to-teal-500' },
+                { name: 'Find peer-reviewed climate sources', icon: <SearchIcon className="h-4 w-4" />, color: 'from-blue-500 to-cyan-500' },
+                { name: 'Analyze spending data → charts', icon: <BarChart3 className="h-4 w-4" />, color: 'from-blue-600 to-indigo-500' }
               ].map((chip, index) => (
                 <div
                   key={chip.name}
@@ -190,8 +188,8 @@ export const HomePage: React.FC = () => {
                   <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${chip.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                   
                   <div className="relative flex items-center gap-3">
-                    <span className="text-lg group-hover:scale-110 transition-transform duration-300">{chip.icon}</span>
-                    <span className="text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                    <span className="group-hover:scale-110 transition-transform duration-300 text-blue-600 dark:text-blue-400">{chip.icon}</span>
+                    <span className="text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors text-sm">
                       {chip.name}
                     </span>
                   </div>
@@ -216,11 +214,11 @@ export const HomePage: React.FC = () => {
               </div>
               
               <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                Creates what you need, not just answers
+                Solves problems end-to-end, not just answers
               </h3>
               
               <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                Most AI gives you information. KarnAGT delivers completed work—professional documents, analysis reports, and ready-to-use outputs you can share immediately.
+                KarnAGT combines reasoning with live tools—so you get cited answers, clear explanations, and any docs or visuals needed to act right away.
               </p>
             </div>
 
