@@ -1,23 +1,23 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Download } from 'lucide-react';
+import { Download, Search, MessageSquare, Terminal, BarChart3, Eye, FileDown } from 'lucide-react';
 
 interface OutputType {
   name: string;
   ext: string;
-  icon: string;
+  icon: React.ReactNode;
   color: string;
   desc: string;
 }
 
 // Reframed as general capabilities, not just file outputs
 const outputTypes: OutputType[] = [
-  { name: 'Research & Citations', ext: '', icon: '🔍', color: 'from-blue-500 to-cyan-500', desc: 'Live web answers with sources' },
-  { name: 'Conversational Q&A', ext: '', icon: '💬', color: 'from-purple-500 to-pink-500', desc: 'Natural dialogue on any topic' },
-  { name: 'Code & Debug', ext: '', icon: '🛠️', color: 'from-green-500 to-emerald-500', desc: 'Write, run & fix code snippets' },
-  { name: 'Data & Charts', ext: '', icon: '📊', color: 'from-yellow-500 to-orange-500', desc: 'Analyze data, create visualizations' },
-  { name: 'Vision & Images', ext: '', icon: '🖼️', color: 'from-indigo-500 to-purple-500', desc: 'Understand screenshots & photos' },
-  { name: 'Documents & Files', ext: 'PDF', icon: '📄', color: 'from-red-500 to-rose-500', desc: 'Generate share-ready outputs' }
+  { name: 'Research & Citations', ext: '', icon: <Search className="h-6 w-6" />, color: 'from-blue-500 to-cyan-500', desc: 'Live web answers with sources' },
+  { name: 'Conversational Q&A', ext: '', icon: <MessageSquare className="h-6 w-6" />, color: 'from-purple-500 to-pink-500', desc: 'Natural dialogue on any topic' },
+  { name: 'Code & Debug', ext: '', icon: <Terminal className="h-6 w-6" />, color: 'from-green-500 to-emerald-500', desc: 'Write, run & fix code snippets' },
+  { name: 'Data & Charts', ext: '', icon: <BarChart3 className="h-6 w-6" />, color: 'from-yellow-500 to-orange-500', desc: 'Analyze data, create visualizations' },
+  { name: 'Vision & Images', ext: '', icon: <Eye className="h-6 w-6" />, color: 'from-indigo-500 to-purple-500', desc: 'Understand screenshots & photos' },
+  { name: 'Documents & Files', ext: '', icon: <FileDown className="h-6 w-6" />, color: 'from-red-500 to-rose-500', desc: 'Generate share-ready outputs' }
 ];
 
 const containerVariants = {
@@ -167,9 +167,11 @@ export const DownloadableOutputs: React.FC = () => {
                 <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${output.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                 
                 <div className="relative text-center">
-                  {/* Simple animated icon */}
-                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">
-                    {output.icon}
+                  {/* Lucide icon with gradient background */}
+                  <div className="flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <div className={`p-3 rounded-2xl bg-gradient-to-r ${output.color} text-white`}>
+                      {output.icon}
+                    </div>
                   </div>
                   
                   {/* Optional badge (shown when ext present) */}
