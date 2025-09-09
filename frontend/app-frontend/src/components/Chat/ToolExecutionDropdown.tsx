@@ -159,7 +159,7 @@ export const ToolExecutionDropdown: React.FC<ToolExecutionDropdownProps> = ({
           <div className="flex items-center space-x-2">
             <Settings className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               <span className="font-medium text-gray-700 dark:text-gray-300">
-              {isThinking ? 'Analyzing and Working...' : `Analysis complete  •  Steps : ${sortedTools.length}`}
+              {isThinking ? 'Analyzing and Working...' : `Result ready  •  Steps : ${sortedTools.length}`}
             </span>
             {isThinking && (
               <motion.div
