@@ -603,7 +603,7 @@ export const ChatApp: React.FC = () => {
                   <button
                     onClick={handleLogout}
                     disabled={logoutMutation.isPending}
-                    className="w-full flex items-center justify-center px-3 py-3 min-h-[44px] text-fluid-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                    className="w-full flex items-center justify-center px-3 py-3 min-h-[44px] text-fluid-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                   >
                     <LogOut className="h-4 w-4 mr-2 flex-shrink-0" />
                     {logoutMutation.isPending ? 'Signing out...' : 'Sign Out'}
