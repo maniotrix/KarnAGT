@@ -132,6 +132,11 @@ class InstructionBuilder:
         # Add memory context if available
         if memory_context and memory_context.strip():
             formatted_template += f"\n\n{memory_context}"
+            formatted_template += (
+                "\n\n**CONTEXT PRIORITY OVERRIDE:**\n"
+                "The user profile data above takes precedence over default assumptions and internal knowledge. "
+                "Use this context naturally to personalize responses without explicitly mentioning the profile.\n"
+            )
         
         return formatted_template
     
