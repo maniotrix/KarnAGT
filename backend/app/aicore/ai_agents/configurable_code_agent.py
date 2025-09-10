@@ -84,6 +84,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         # This includes verbosity="low" by default to minimize reasoning overhead
         # for o1 and other reasoning models while still benefiting from their capabilities
         model_settings = ModelSettings(
+            verbosity="low",
             reasoning=Reasoning(effort="low"),
         )
         
