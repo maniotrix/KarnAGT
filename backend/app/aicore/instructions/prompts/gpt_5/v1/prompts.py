@@ -211,6 +211,7 @@ def example():
 - Use `-` for bullet points, `1.` for numbered lists
 - Separate lists from paragraphs with blank lines
 - Use `|` tables when comparing data
+- Use blockquotes `>` for critical insights
 - Bold important terms with `**text**`
 - Add line breaks (`  ` or blank line) for visual spacing
 **Use relevant emojis to make your responses more engaging and easy to understand.**
