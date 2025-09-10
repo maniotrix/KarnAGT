@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 # Use absolute imports to avoid circular import issues
 from app.aicore.config.agent_config import AgentConfig
-from app.aicore.instructions.prompt_utils import INITIAL_CORE_PROMPT, ALL_TOOLS_ENABLED_SYSTEM_PROMPT
+from app.aicore.instructions.prompt_utils import get_default_core_prompt, get_default_all_tools_enabled_system_prompt, ModelVersion
 from app.logging.logger import get_logger
 
 # Set up logger
@@ -33,14 +33,16 @@ class InstructionBuilder:
         
     """
     
-    def __init__(self, config: AgentConfig):
+    def __init__(self, config: AgentConfig, model_version: ModelVersion = ModelVersion.GPT_5):
         """
         Initialize the instruction builder
         
         Args:
             config: Agent configuration to use for instruction generation
+            model_version: Model version to use for prompt selection
         """
         self.config = config
+        self.model_version = model_version
         
     async def build_instructions(self, context: InstructionContext) -> str:
         """
@@ -66,6 +68,8 @@ class InstructionBuilder:
         
         # Add the template
         instructions += self._get_original_template(context, memory_context)
+        
+        logger.info(f"Instructions built for model {self.model_version}")
         
         return instructions
     
@@ -115,15 +119,15 @@ class InstructionBuilder:
     
     def _get_core_prompt(self) -> str:
         """Get the core prompt for the agent"""
-        if self.config.core_prompt:
-            return self.config.core_prompt
-        return INITIAL_CORE_PROMPT
+        # if self.config.core_prompt:
+        #     return self.config.core_prompt
+        return get_default_core_prompt(self.model_version)
     
     def _get_original_template(self, context: InstructionContext, memory_context: Optional[str]) -> str:
         """Get the template from prompt_utils.py and append memory context"""
         
         # Start with the system prompt from prompt_utils.py
-        formatted_template = ALL_TOOLS_ENABLED_SYSTEM_PROMPT
+        formatted_template = get_default_all_tools_enabled_system_prompt(self.model_version)
         
         # Add memory context if available
         if memory_context and memory_context.strip():
@@ -133,4 +137,8 @@ class InstructionBuilder:
     
     def update_config(self, new_config: AgentConfig):
         """Update the agent configuration"""
-        self.config = new_config 
+        self.config = new_config
+    
+    def update_model_version(self, model_version: ModelVersion):
+        """Update the model version for prompt selection"""
+        self.model_version = model_version 
