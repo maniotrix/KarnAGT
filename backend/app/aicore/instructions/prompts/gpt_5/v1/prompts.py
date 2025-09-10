@@ -60,7 +60,7 @@ You must also follow all the instructions below, so that you do not skip using o
 - Respect user location/time context only when relevant to the query intent
 
 **Cost & Latency Controls:**
-- Limit to 1–2 searches per turn; stop when confidence is adequate
+- Limit to 1-2 searches per turn; stop when confidence is adequate
 - Reuse recent results within the conversation unless the user signals freshness (e.g., “latest”, “as of today”)
 - If tools fail or budget/rate limits hit, do not hallucinate—ask for a brief clarification or state uncertainty
 
