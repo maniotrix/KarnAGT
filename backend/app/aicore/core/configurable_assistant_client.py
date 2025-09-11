@@ -309,28 +309,6 @@ class ConfigurableAssistantClient:
         else:
             logger.warning("No assistant instance to cancel")
     
-    def get_conversation_history(self) -> List[Dict[str, Any]]:
-        """
-        Get the current conversation history
-        
-        Returns:
-            List of message dictionaries
-        """
-        if self.assistant and hasattr(self.assistant, 'messages'):
-            return self.assistant.messages
-        return []
-    
-    def set_conversation_context(self, messages: List[Dict[str, Any]]):
-        """
-        Set conversation context from existing messages
-        
-        Args:
-            messages: List of message dictionaries to set as context
-        """
-        if self.assistant:
-            self.assistant.messages = messages
-            logger.info(f"Conversation context set with {len(messages)} messages for user {self.user_id}")
-    
     def get_model_capabilities(self) -> Dict[str, Any]:
         """Get current model capabilities"""
         return {

@@ -84,7 +84,7 @@ class AgentConfig:
     reset_tool_choice: bool = True
     
     # Memory and context
-    maintain_conversation_history: bool = True
+    maintain_conversation_history: bool = False  # Disabled: Using database-driven context instead
     max_context_messages: int = 50
     context_window_strategy: str = "sliding"  # sliding, truncate, summarize
     

@@ -104,7 +104,7 @@ class ConfigurableOpenAIAssistant:
         )
         
         # Store conversation history and state
-        self.messages = []
+# Note: Removed self.messages - using database-driven context management
         self.last_response_id = None
         
         # Store the current streaming result for cancellation
@@ -133,10 +133,8 @@ class ConfigurableOpenAIAssistant:
         logger.info(f"Processing user message context with {len(user_message)} messages")
         
         try:
-            # Store the user message in history
-            if self.config.agent.maintain_conversation_history:
-                self.messages.append(user_message)
-                self._manage_conversation_history()
+            # Note: Conversation history is managed by database context builder, not in-memory
+            # This maintains stateless operation for multi-worker deployment
             
             logger.info(f"ConfigurableOpenAIAssistant: Agent model: {self.agent.model}")
             logger.info(f"ConfigurableOpenAIAssistant: Agent tools names: {', '.join([tool.name for tool in self.agent.tools])}")
@@ -182,9 +180,7 @@ class ConfigurableOpenAIAssistant:
         # Update state
         self.last_response_id = getattr(result, 'last_response_id', None)
         
-        # Store AI response in history if maintaining conversation history
-        if self.config.agent.maintain_conversation_history:
-            self.messages.append({"role": "assistant", "content": response_content})
+        # Note: AI responses stored in database, not in-memory for stateless operation
         
         return {
             "content": response_content,
@@ -412,9 +408,7 @@ class ConfigurableOpenAIAssistant:
         # Update state
         self.last_response_id = getattr(result, 'last_response_id', None)
         
-        # Store AI response in history
-        if self.config.agent.maintain_conversation_history:
-            self.messages.append({"role": "assistant", "content": content})
+        # Note: AI responses stored in database, not in-memory for stateless operation
         
         formatted_tool_calls = ToolCallsEventFormatter.format_tool_calls_for_persistence(tool_calls)
         
@@ -488,19 +482,6 @@ class ConfigurableOpenAIAssistant:
         
         return metadata
     
-    def _manage_conversation_history(self):
-        """Manage conversation history based on configuration"""
-        agent_config = self.config.agent
-        
-        if len(self.messages) > agent_config.max_context_messages:
-            if agent_config.context_window_strategy == "sliding":
-                # Keep the most recent messages
-                excess = len(self.messages) - agent_config.max_context_messages
-                self.messages = self.messages[excess:]
-            elif agent_config.context_window_strategy == "truncate":
-                # Truncate to max
-                self.messages = self.messages[:agent_config.max_context_messages]
-            # Note: "summarize" strategy would require additional implementation
     
     def cancel_current_stream(self, reason: str = "user_requested"):
         """Cancel the current streaming operation"""
@@ -551,11 +532,11 @@ class ConfigurableOpenAIAssistant:
         logger.info("[END CANCEL CURRENT STREAM LOG: --------------------------------]")
     
     def clear_memory(self) -> None:
-        """Clear the agent's memory"""
-        logger.info("Clearing agent memory")
-        self.messages = []
+        """Clear the agent's memory (no-op - using database-driven context)"""
+        logger.debug("clear_memory called - no-op since using database-driven context management")
+        # Note: Memory is managed in database, not in-memory
+        # Only clear any response tracking state
         self.last_response_id = None
-        logger.debug("Agent memory cleared")
     
     def update_configuration(self, new_config: Optional[AIConfig] = None, **kwargs):
         """
