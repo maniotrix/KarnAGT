@@ -44,7 +44,7 @@ from app.api.v1.dependencies.auth import (
     check_chat_quota
 )
 from app.services.chat.chat_service import ChatService
-from app.services.chat.streaming_service import StreamingService
+from app.services.streaming.streaming_service import StreamingService
 
 from app.logging.logger import get_logger
 

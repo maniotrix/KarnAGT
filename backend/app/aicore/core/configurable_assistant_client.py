@@ -13,7 +13,7 @@ from datetime import datetime
 from app.aicore.config import AIConfig, ConfigManager, config_manager
 from app.aicore.core.configurable_openai_assistant import ConfigurableOpenAIAssistant
 from app.logging.logger import get_logger
-from app.integrations.openai.streaming_handler import StreamEventUnion
+from app.aicore.core.stream_events import StreamEventUnion
 
 # Set up logger
 logger = get_logger(__name__)

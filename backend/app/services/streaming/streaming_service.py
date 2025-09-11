@@ -10,7 +10,8 @@ import json
 from typing import AsyncGenerator, Dict, Any, Optional, Callable, List
 from datetime import datetime
 
-from app.integrations.openai.streaming_handler import streaming_manager, StreamingHandler
+from app.services.streaming.stream_manager import streaming_manager
+from app.services.streaming.streaming_handler import StreamingHandler
 from app.services.chat.chat_service import ChatService
 from app.models.database.user import User
 from app.models.schemas.chat_schemas import MessageStreamResponse, MessageCreate
