@@ -788,10 +788,10 @@ class DistributedStreamingTester:
         # Run tests
         tests = [
             ("Single-Worker Baseline", self.test_single_worker_baseline),
-            # ("Multi-Worker Cancellation", self.test_multi_worker_cancellation),
-            # ("Redis Failure Recovery", self.test_redis_failure_recovery),
-            # ("Race Conditions", self.test_race_conditions),
-            # ("Worker Registry", self.test_worker_registry),
+            ("Multi-Worker Cancellation", self.test_multi_worker_cancellation),
+            ("Redis Failure Recovery", self.test_redis_failure_recovery),
+            ("Race Conditions", self.test_race_conditions),
+            ("Worker Registry", self.test_worker_registry),
         ]
         
         results = {}
