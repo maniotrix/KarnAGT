@@ -78,7 +78,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         user_id = None
         
         # Try Authorization header first (for API clients, mobile apps)
-        if auth_header and auth_header.startswith("Bearer "):
+        using_bearer_auth = auth_header and auth_header.startswith("Bearer ")
+        if using_bearer_auth and auth_header:
             token = auth_header[7:]  # Remove "Bearer " prefix
         else:
             # Fallback to httpOnly cookie (for web browsers)
@@ -109,18 +110,20 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         if (request.state.authenticated and 
             request.method in ["POST", "PUT", "DELETE", "PATCH"]):
             
-            csrf_token = request.headers.get("X-CSRF-Token")
-            cookie_csrf = request.cookies.get("csrf_token")
-            
-            if not self._validate_csrf_token(csrf_token, cookie_csrf):
-                return JSONResponse(
-                    status_code=403,
-                    content={
-                        "detail": "CSRF token validation failed",
-                        "error_code": "csrf_validation_failed",
-                        "error_type": "security_error"
-                    }
-                )
+            # Skip CSRF validation for Bearer token auth (JWT tokens are not vulnerable to CSRF)
+            if not using_bearer_auth:  # Only validate CSRF for cookie-based auth
+                csrf_token = request.headers.get("X-CSRF-Token")
+                cookie_csrf = request.cookies.get("csrf_token")
+                
+                if not self._validate_csrf_token(csrf_token, cookie_csrf):
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "detail": "CSRF token validation failed",
+                            "error_code": "csrf_validation_failed",
+                            "error_type": "security_error"
+                        }
+                    )
         
         try:
             response = await call_next(request)

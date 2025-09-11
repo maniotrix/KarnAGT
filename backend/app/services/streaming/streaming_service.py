@@ -48,7 +48,7 @@ class StreamingService:
         """
         self.chat_service = chat_service
         self.user = user
-        self.user_uuid = user.user_id
+        self.user_uuid = str(user.user_id)
         
         logger.info(f"StreamingService initialized for user {self.user_uuid}")
     
@@ -75,7 +75,7 @@ class StreamingService:
         logger.info(f"Starting message stream for conversation {conversation_id}")
         
         # Create streaming handler
-        stream_handler = streaming_manager.create_stream(self.user_uuid, conversation_id)
+        stream_handler = await streaming_manager.create_stream(self.user_uuid, conversation_id)
         
         try:
             # Start the streaming generator
@@ -129,7 +129,7 @@ class StreamingService:
             
         finally:
             # Clean up the stream
-            streaming_manager.remove_stream(stream_handler.stream_id)
+            await streaming_manager.remove_stream(stream_handler.stream_id)
             logger.info(f"Completed message stream for conversation {conversation_id}")
     
     async def _process_streaming_message(
@@ -187,7 +187,7 @@ class StreamingService:
             stream_handler.stop_streaming()
             raise
     
-    async def cancel_stream(self, stream_id: str, reason: str = "user_requested") -> bool:
+    async def cancel_stream(self, stream_id: str, reason: str = "user_requested") -> tuple[bool, str]:
         """
         Cancel a specific stream
         
@@ -196,14 +196,16 @@ class StreamingService:
             reason: Reason for cancellation
             
         Returns:
-            True if stream was cancelled, False if not found
+            Tuple of (success: bool, cancel_reason: str)
+            - success: True if stream was cancelled, False if not found
+            - cancel_reason: Detailed reason for the result
         """
-        result = streaming_manager.cancel_stream(stream_id, reason)
-        if result:
-            logger.info(f"Stream {stream_id} cancelled successfully, reason: {reason}")
+        success, cancel_reason = await streaming_manager.cancel_stream(stream_id, reason)
+        if success:
+            logger.info(f"Stream {stream_id} cancelled successfully, reason: {reason}, details: {cancel_reason}")
         else:
-            logger.warning(f"Stream {stream_id} not found for cancellation")
-        return result
+            logger.warning(f"Stream {stream_id} not found for cancellation, details: {cancel_reason}")
+        return success, cancel_reason
     
     async def cancel_user_streams(self, reason: str = "user_requested") -> int:
         """
@@ -215,7 +217,7 @@ class StreamingService:
         Returns:
             Number of streams cancelled
         """
-        cancelled_count = streaming_manager.cancel_user_streams(self.user_uuid, reason)
+        cancelled_count = await streaming_manager.cancel_user_streams(self.user_uuid, reason)
         logger.info(f"Cancelled {cancelled_count} streams for user {self.user_uuid}, reason: {reason}")
         return cancelled_count
     
@@ -226,7 +228,7 @@ class StreamingService:
         Returns:
             List of active stream IDs
         """
-        active_streams = streaming_manager.get_user_active_streams(self.user_uuid)
+        active_streams = await streaming_manager.get_user_active_streams(self.user_uuid)
         logger.debug(f"User {self.user_uuid} has {len(active_streams)} active streams")
         return active_streams
     
@@ -384,30 +386,24 @@ class StreamingService:
     
     async def get_active_streams_count(self) -> int:
         """
-        Get the number of active streams for the user
+        Get the number of active streams for the user (across all workers)
         
         Returns:
             Number of active streams
         """
-        active_count = sum(
-            1 for handler in streaming_manager.streams.values()
-            if handler.user_id == self.user_uuid and handler.is_streaming
-        )
+        # Use distributed method to get accurate count across all workers
+        active_streams = await streaming_manager.get_user_active_streams(self.user_uuid)
+        active_count = len(active_streams)
         
         logger.debug(f"User {self.user_uuid} has {active_count} active streams")
         return active_count
     
     async def cleanup_user_streams(self):
-        """Clean up all streams for the user"""
-        user_streams = [
-            stream_id for stream_id, handler in streaming_manager.streams.items()
-            if handler.user_id == self.user_uuid
-        ]
+        """Clean up all streams for the user (across all workers)"""
+        # Use the distributed cancel method which handles both local and cross-worker streams
+        cancelled_count = await streaming_manager.cancel_user_streams(self.user_uuid, "cleanup_user_streams")
         
-        for stream_id in user_streams:
-            streaming_manager.remove_stream(stream_id)
-        
-        logger.info(f"Cleaned up {len(user_streams)} streams for user {self.user_uuid}")
+        logger.info(f"Cleaned up {cancelled_count} streams for user {self.user_uuid}")
     
     async def stream_edit_message_response(
         self,
@@ -436,7 +432,7 @@ class StreamingService:
         logger.info(f"Starting edit message stream for message {message_id} in conversation {conversation_id}")
         
         # Create streaming handler
-        stream_handler = streaming_manager.create_stream(self.user_uuid, conversation_id)
+        stream_handler = await streaming_manager.create_stream(self.user_uuid, conversation_id)
         
         try:
             # Start the streaming generator
@@ -487,7 +483,7 @@ class StreamingService:
             
         finally:
             # Clean up the stream
-            streaming_manager.remove_stream(stream_handler.stream_id)
+            await streaming_manager.remove_stream(stream_handler.stream_id)
             logger.info(f"Completed edit message stream for conversation {conversation_id}")
     
     async def _process_streaming_edit_message(

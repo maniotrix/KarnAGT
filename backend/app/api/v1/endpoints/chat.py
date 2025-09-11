@@ -407,19 +407,22 @@ async def stream_message(
                     # Check if client is still connected
                     if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
                         logger.info(f"Client disconnected for conversation {conversation_id}")
-                        # Cancel any active streams for this user
-                        await streaming_service.cancel_user_streams("client_disconnected")
+                        # ✅ ROBUST: Explicit cleanup to ensure finally runs
+                        try:
+                            await stream_generator.aclose()  # Explicitly close generator
+                        except Exception as close_error:
+                            logger.error(f"Error closing stream generator: {close_error}")
                         break
                     
                     yield event
                     
             except Exception as e:
                 logger.error(f"Error in stream with disconnection detection: {e}")
-                # Try to cancel streams on error
+                # ✅ ROBUST: Explicit cleanup on exception too
                 try:
-                    await streaming_service.cancel_user_streams("stream_error")
-                except:
-                    pass
+                    await stream_generator.aclose()  # Explicitly close generator
+                except Exception as close_error:
+                    logger.error(f"Error closing stream generator on exception: {close_error}")
                 raise
         
         # Return as Server-Sent Events stream
@@ -471,21 +474,34 @@ async def cancel_stream(
         streaming_service = StreamingService(chat_service, current_user)
         
         # Cancel the specific stream
-        cancelled = await streaming_service.cancel_stream(stream_id, "user_requested")
+        cancelled, cancel_reason = await streaming_service.cancel_stream(stream_id, "user_requested")
         
         if cancelled:
             return {
                 "success": True,
                 "message": f"Stream {stream_id} cancelled successfully",
                 "stream_id": stream_id,
-                "cancelled": True
+                "cancelled": True,
+                "reason": cancel_reason
             }
         else:
-            # Stream not found - client tried to cancel but action failed
-            raise HTTPException(
-                status_code=status.HTTP_410_GONE,
-                detail=f"Stream {stream_id} has already completed and cannot be cancelled"
-            )
+            # Provide specific error based on cancel_reason
+            if cancel_reason == "not_found":
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Stream {stream_id} not found. It may have never existed or already been cleaned up."
+                )
+            elif cancel_reason in ["no_owner", "cross_worker_error"]:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to cancel stream {stream_id} due to system error. Please try again."
+                )
+            else:
+                # Generic fallback for unknown reasons
+                raise HTTPException(
+                    status_code=status.HTTP_410_GONE,
+                    detail=f"Stream {stream_id} could not be cancelled. Reason: {cancel_reason}"
+                )
             
     except Exception as e:
         logger.error(f"Error cancelling stream {stream_id}: {e}")
@@ -839,19 +855,22 @@ async def edit_and_resend_message_streaming(
                     # Check if client is still connected
                     if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
                         logger.info(f"Client disconnected for edit stream in conversation {conversation_id}")
-                        # Cancel any active streams for this user
-                        await streaming_service.cancel_user_streams("client_disconnected")
+                        # ✅ ROBUST: Explicit cleanup to ensure finally runs
+                        try:
+                            await stream_generator.aclose()  # Explicitly close generator
+                        except Exception as close_error:
+                            logger.error(f"Error closing stream generator: {close_error}")
                         break
                     
                     yield event
                     
             except Exception as e:
                 logger.error(f"Error in edit stream with disconnection detection: {e}")
-                # Try to cancel streams on error
+                # ✅ ROBUST: Explicit cleanup on exception too
                 try:
-                    await streaming_service.cancel_user_streams("stream_error")
-                except:
-                    pass
+                    await stream_generator.aclose()  # Explicitly close generator
+                except Exception as close_error:
+                    logger.error(f"Error closing stream generator on exception: {close_error}")
                 raise
         
         # Return as Server-Sent Events stream

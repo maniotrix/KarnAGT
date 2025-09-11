@@ -13,6 +13,10 @@ from app.api.router import api_router
 from app.utils import validate_api_keys
 validate_api_keys()
 
+# Initialize distributed components
+from app.core.worker_registry import worker_registry
+from app.services.streaming.stream_manager import streaming_manager
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,11 +25,26 @@ async def lifespan(app: FastAPI):
     print("[STARTUP] App Backend starting up...")
     print(f"[CONFIG] Environment: {settings.ENVIRONMENT}")
     print(f"[CONFIG] Debug mode: {settings.DEBUG}")
+        
+    try:
+        # Register worker and initialize streaming manager
+        await worker_registry.register_worker()
+        await streaming_manager.initialize()
+        print(f"[STARTUP] ✅ Distributed components initialized for worker {worker_registry.current_worker_id}")
+    except Exception as e:
+        print(f"[STARTUP] ❌ Error initializing distributed components: {e}")
     
     yield
     
     # Shutdown
     print("[SHUTDOWN] App Backend shutting down...")
+    
+    # Graceful shutdown of distributed components
+    try:
+        await worker_registry.deregister_worker()
+        print(f"[SHUTDOWN] ✅ Worker deregistered successfully")
+    except Exception as e:
+        print(f"[SHUTDOWN] ❌ Error during worker deregistration: {e}")
 
 
 # Create FastAPI application
