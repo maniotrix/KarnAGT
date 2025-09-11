@@ -48,7 +48,6 @@ class StreamingService:
         """
         self.chat_service = chat_service
         self.user = user
-        self.user_id = user.id
         self.user_uuid = user.user_id
         
         logger.info(f"StreamingService initialized for user {self.user_uuid}")
@@ -76,7 +75,7 @@ class StreamingService:
         logger.info(f"Starting message stream for conversation {conversation_id}")
         
         # Create streaming handler
-        stream_handler = streaming_manager.create_stream(self.user_id, conversation_id)
+        stream_handler = streaming_manager.create_stream(self.user_uuid, conversation_id)
         
         try:
             # Start the streaming generator
@@ -216,7 +215,7 @@ class StreamingService:
         Returns:
             Number of streams cancelled
         """
-        cancelled_count = streaming_manager.cancel_user_streams(self.user_id, reason)
+        cancelled_count = streaming_manager.cancel_user_streams(self.user_uuid, reason)
         logger.info(f"Cancelled {cancelled_count} streams for user {self.user_uuid}, reason: {reason}")
         return cancelled_count
     
@@ -227,7 +226,7 @@ class StreamingService:
         Returns:
             List of active stream IDs
         """
-        active_streams = streaming_manager.get_user_active_streams(self.user_id)
+        active_streams = streaming_manager.get_user_active_streams(self.user_uuid)
         logger.debug(f"User {self.user_uuid} has {len(active_streams)} active streams")
         return active_streams
     
@@ -392,7 +391,7 @@ class StreamingService:
         """
         active_count = sum(
             1 for handler in streaming_manager.streams.values()
-            if handler.user_id == self.user_id and handler.is_streaming
+            if handler.user_id == self.user_uuid and handler.is_streaming
         )
         
         logger.debug(f"User {self.user_uuid} has {active_count} active streams")
@@ -402,7 +401,7 @@ class StreamingService:
         """Clean up all streams for the user"""
         user_streams = [
             stream_id for stream_id, handler in streaming_manager.streams.items()
-            if handler.user_id == self.user_id
+            if handler.user_id == self.user_uuid
         ]
         
         for stream_id in user_streams:
@@ -437,7 +436,7 @@ class StreamingService:
         logger.info(f"Starting edit message stream for message {message_id} in conversation {conversation_id}")
         
         # Create streaming handler
-        stream_handler = streaming_manager.create_stream(self.user_id, conversation_id)
+        stream_handler = streaming_manager.create_stream(self.user_uuid, conversation_id)
         
         try:
             # Start the streaming generator
