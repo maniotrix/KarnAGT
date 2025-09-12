@@ -30,7 +30,7 @@ if any(request.url.path.startswith(route) for route in self.self_auth_routes):
 ```
 
 **Impact:**
-- ❌ **No rate limiting** (if implemented in middleware)  
+- ✅ **Rate limiting still applies** (RateLimitMiddleware runs first)  
 - ❌ **No request logging/monitoring**
 - ❌ **No security headers** (CORS, XSS protection, etc.)
 - ❌ **No centralized security controls**
@@ -126,6 +126,62 @@ if isinstance(auth, ServiceAuth):
 
 **Risk**: If `CODE_EXECUTOR_TOKEN` is compromised, attacker gains access to ALL files.
 
+### **9. Rate Limiting Bypass: Resource ID Dilution**
+
+**CRITICAL VULNERABILITY**: Rate limits are applied per full endpoint path, allowing bypass through different resource IDs:
+
+```python
+# Current implementation creates separate limits for each resource
+key = f"rate_limit:{client_id}:{endpoint}"  # Uses full path
+
+# Results in separate buckets:
+"rate_limit:ip:1.2.3.4:/api/v1/chat/conversations/conv_123" 
+"rate_limit:ip:1.2.3.4:/api/v1/chat/conversations/conv_456"
+"rate_limit:ip:1.2.3.4:/api/v1/chat/conversations/conv_789"
+```
+
+**Attack**: Attacker can bypass 100 requests/min chat limit by hitting different conversation IDs:
+- 100 requests to `/chat/conversations/conv_001/stream`
+- 100 requests to `/chat/conversations/conv_002/stream`  
+- 100 requests to `/chat/conversations/conv_003/stream`
+- = **300 requests with no effective rate limiting**
+
+### **10. Rate Limiting Ineffectiveness: No Per-User Limits**
+
+**HIGH VULNERABILITY**: Rate limits are IP-based, not user-based, due to middleware execution order:
+
+```python
+# RateLimitMiddleware runs BEFORE AuthenticationMiddleware
+user_id = getattr(request.state, "user_id", None)  # ← Always None!
+if user_id:
+    return f"user:{user_id}"  # ← Never executed
+return f"ip:{client_ip}"     # ← Always falls back to IP
+```
+
+**Impact:**
+- Multiple authenticated users behind same NAT/corporate firewall share rate limits unfairly
+- Single user can create multiple accounts but still share IP-based limits
+- No true per-user quota enforcement
+
+### **11. IP Spoofing Attack on Rate Limiting**
+
+**MEDIUM VULNERABILITY**: Rate limiting blindly trusts proxy headers for IP identification:
+
+```python
+def _get_client_ip(self, request: Request) -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()  # ❌ BLINDLY TRUSTS HEADER
+```
+
+**Attack**: Client can spoof IP addresses to get unlimited rate limit buckets:
+```bash
+curl -H "X-Forwarded-For: 10.0.0.1" /api/v1/chat/...  # 100 requests
+curl -H "X-Forwarded-For: 10.0.0.2" /api/v1/chat/...  # Another 100 requests
+curl -H "X-Forwarded-For: 10.0.0.3" /api/v1/chat/...  # Another 100 requests
+# = Effectively unlimited requests from same attacker
+```
+
 ## 🛡️ Security Recommendations
 
 ### **Immediate (High Priority)**
@@ -153,7 +209,39 @@ async isAuthenticated(): Promise<boolean> {
 }
 ```
 
-3. **Add File ID Validation**:
+3. **Fix Rate Limiting Resource ID Dilution**:
+```python
+def _get_normalized_endpoint(self, path: str) -> str:
+    """Normalize endpoint to prevent resource ID dilution"""
+    if "/auth/" in path:
+        return "/auth/"
+    elif "/chat/" in path:
+        return "/chat/"  # All chat operations share same limit
+    elif "/files/" in path:
+        return "/files/"
+    elif "/proxy/" in path:
+        return "/proxy/"
+    else:
+        return "/default/"
+
+# Use normalized key instead of full path:
+key = f"rate_limit:{client_id}:{normalized_endpoint}"
+```
+
+4. **Secure IP Address Detection**:
+```python
+def _get_client_ip(self, request: Request) -> str:
+    # Only trust forwarded headers if behind trusted proxy
+    if getattr(settings, 'TRUST_PROXY_HEADERS', False):
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+    
+    # Default: direct client IP only
+    return request.client.host if request.client else "unknown"
+```
+
+5. **Add File ID Validation** (Already using UUIDs):
 ```python
 def validate_file_id(file_id: str) -> bool:
     # UUID-based validation instead of predictable patterns
@@ -164,20 +252,36 @@ def validate_file_id(file_id: str) -> bool:
 
 ### **Medium Priority**
 
-4. **Implement Rate Limiting**:
+6. **Enable Per-User Rate Limiting**:
 ```python
-@router.get("/images/{file_id}")
-@rate_limit(max_requests=30, window_seconds=60)  # 30 requests per minute
-async def proxy_image_file(...):
+# Option 1: Move RateLimitMiddleware after AuthenticationMiddleware
+app.add_middleware(AuthenticationMiddleware)  # First
+app.add_middleware(RateLimitMiddleware)       # Second (gets user_id)
+
+# Option 2: Extract user_id from JWT in RateLimitMiddleware
+def _get_client_identifier(self, request: Request) -> str:
+    # Try to extract user_id from JWT token
+    token = request.headers.get("Authorization", "").replace("Bearer ", "") or \
+            request.cookies.get("access_token")
+    if token:
+        try:
+            payload = security.verify_token(token)
+            if payload and payload.get("sub"):
+                return f"user:{payload['sub']}"
+        except:
+            pass
+    
+    # Fallback to IP
+    return f"ip:{self._get_client_ip(request)}"
 ```
 
-5. **Add Request Logging**:
+7. **Add Request Logging**:
 ```python
 # Log all proxy access attempts
 logger.info(f"File access: file_id={file_id}, user={user_id}, ip={client_ip}")
 ```
 
-6. **Uniform Error Responses**:
+8. **Uniform Error Responses**:
 ```python
 # Always return same error format regardless of reason
 if not authorized_to_access_file(file_id, user_id):
@@ -186,10 +290,10 @@ if not authorized_to_access_file(file_id, user_id):
 
 ### **Long Term (Architecture)**
 
-7. **Implement Content Security Policy (CSP)**
-8. **Add File Access Audit Trail**
-9. **Consider JWT tokens for proxy access instead of cookies**
-10. **Implement file access quotas per user**
+9. **Implement Content Security Policy (CSP)**
+10. **Add File Access Audit Trail**
+11. **Consider JWT tokens for proxy access instead of cookies**
+12. **Implement file access quotas per user**
 
 ## **Risk Assessment**
 
@@ -199,11 +303,17 @@ if not authorized_to_access_file(file_id, user_id):
 | Session Hijacking | **HIGH** | Medium | Unauthorized file access |
 | Information Disclosure | **MEDIUM** | Easy | File enumeration |
 | Service Token Compromise | **CRITICAL** | Hard | Complete system access |
+| **Rate Limit Resource Dilution** | **CRITICAL** | **Easy** | **Unlimited API abuse** |
+| **No Per-User Rate Limits** | **HIGH** | **Medium** | **Quota bypasses** |
+| **IP Spoofing Rate Limits** | **MEDIUM** | **Easy** | **Rate limit evasion** |
 
 ## **Conclusion**
 
-Your proxy system has **critical security flaws** that need immediate attention. The complete middleware bypass is particularly dangerous as it removes multiple layers of protection. While the endpoint-level authentication provides some security, the missing middleware protections create significant vulnerabilities that sophisticated attackers could exploit.
+Your system has **critical security flaws** that need immediate attention. The rate limiting system, while implemented, has fundamental flaws that make it ineffective against sophisticated attacks. The resource ID dilution vulnerability effectively renders rate limiting useless, allowing unlimited API abuse.
 
-**Priority 1**: Fix the middleware bypass and implement proper authentication validation.
-**Priority 2**: Add comprehensive input validation and rate limiting.
-**Priority 3**: Implement proper security monitoring and logging.
+**Priority 1**: Fix rate limiting resource ID dilution (normalize endpoint keys).
+**Priority 2**: Secure IP address detection to prevent spoofing attacks.  
+**Priority 3**: Implement true per-user rate limiting.
+**Priority 4**: Add comprehensive input validation and security monitoring.
+
+**Most Critical**: The rate limiting bypass through resource ID dilution can be exploited immediately and should be fixed first.
