@@ -114,18 +114,6 @@ graph TB
 - Channel-based worker communication
 - Status tracking: `active`, `cancelling`, `cancelled`, `completed`
 
-### Phase 4: Authentication System Updates ✅
-
-**Objective**: Support JWT Bearer tokens across multiple worker instances
-
-**Components Implemented:**
-- CSRF bypass for Bearer token authentication
-- Cross-worker token validation
-- httpOnly cookie fallback support
-
-**Key Files:**
-- `backend/app/api/v1/middleware/auth.py`
-- `backend/tests/general/test_distributed_streaming.py`
 
 ---
 
@@ -184,23 +172,7 @@ worker_{uuid}_{pid}
 Example: worker_7a475625-a906-4d69-997e-4512ff73cd55_21460
 ```
 
-### 3. Authentication Middleware
-
-**Location**: `backend/app/api/v1/middleware/auth.py`
-
-**Key Enhancement:**
-```python
-# Skip CSRF validation for Bearer tokens
-using_bearer_auth = auth_header and auth_header.startswith("Bearer ")
-if using_bearer_auth:
-    # Bearer tokens provide inherent CSRF protection
-    pass  # Skip CSRF validation
-else:
-    # Validate CSRF token for cookie-based auth
-    validate_csrf_token(request)
-```
-
-### 4. Shared Worker ID System
+### 3. Shared Worker ID System
 
 **Location**: `backend/app/core/worker_id.py`
 
@@ -352,12 +324,6 @@ RESULT: 5/5 tests passed (100% success rate)
 - [x] Shared environment configuration
 - [x] Monitoring and logging infrastructure
 
-#### Security Considerations  
-- [x] JWT Bearer token authentication working across workers
-- [x] CSRF protection maintained for cookie-based auth
-- [x] Redis connection security (TLS, authentication)
-- [x] No security vulnerabilities introduced
-
 #### Operational Readiness
 - [x] Graceful worker shutdown handling
 - [x] Dead worker cleanup mechanisms  
@@ -455,10 +421,9 @@ services:
 ### Implementation Challenges Overcome
 
 1. **Worker ID Consistency**: Shared worker ID module solved component synchronization
-2. **Authentication Across Workers**: JWT Bearer tokens provided stateless solution
-3. **Test Infrastructure**: Port-based worker identification more reliable than PID tracking
-4. **Race Condition Prevention**: Redis transactions eliminated stream state corruption
-5. **Unicode Issues**: Windows-specific encoding problems resolved with print() statements
+2. **Test Infrastructure**: Port-based worker identification more reliable than PID tracking
+3. **Race Condition Prevention**: Redis transactions eliminated stream state corruption
+4. **Unicode Issues**: Windows-specific encoding problems resolved with print() statements
 
 ### Best Practices Established
 
@@ -539,10 +504,6 @@ REDIS_DB=0
 PORT=8000
 ENVIRONMENT=production
 DEBUG=False
-
-# Authentication
-JWT_SECRET_KEY=your-secret-key
-REQUIRE_EMAIL_VERIFICATION=False
 ```
 
 ### Redis Key Patterns
