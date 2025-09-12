@@ -435,12 +435,12 @@ if __name__ == "__main__":
                 "app.main:app",
                 host="0.0.0.0",
                 port=8000,
-                reload=True,
+                reload=False,
                 reload_dirs=["./app"],
                 reload_excludes=["__pycache__", "*.pyc", "logs", "uploads", "workspaces", "*.log"],
                 reload_delay=0.25,
                 log_level="debug",
-                workers=1
+                workers=4
             )
         else:
             print("🚀 Production configuration:")
@@ -448,18 +448,13 @@ if __name__ == "__main__":
             print(f"   • Workers: 4")
             print(f"   • Log level: info")
             
-            # TODO,  WARNING: Workers more than 1 are not currently supported,
-            # we have not added redis support for workers yet, so workers more than 1 are not supported yet
-            # eg. workers=4 will not work for stream cancellation as stream manager 
-            # in one class cannot cancel streams in other workers, as we store stream id locally in a single process
-            
             uvicorn.run(
                 "app.main:app",
                 host="0.0.0.0",
                 port=8000,
                 reload=False,
                 log_level="info",
-                workers=1,
+                workers=4,
                 access_log=True,
                 use_colors=True
             )
