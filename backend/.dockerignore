@@ -119,6 +119,7 @@ test_*.py
 # Keep start_app.py but exclude old startup scripts
 start_dev.py
 start_prod.py
+dist_dev_start_app.py
 
 # === MyPy and Type Checking ===
 .mypy_cache/
