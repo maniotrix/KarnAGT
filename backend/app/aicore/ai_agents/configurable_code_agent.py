@@ -85,6 +85,7 @@ class ConfigurableCodeExecutorAgent(Agent):
         # for o1 and other reasoning models while still benefiting from their capabilities
         model_settings = ModelSettings(
             verbosity="medium", # for best formatted responses for gpt-5 models
+            # The following tools cannot be used with reasoning.effort 'minimal': web_search.
             reasoning=Reasoning(effort="low"),
         )
         

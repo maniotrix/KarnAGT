@@ -253,22 +253,8 @@ class ChatService:
             # Capture message ID immediately to avoid lazy loading later
             user_message_id = user_message.message_id
             
-            # Get conversation context
-            conversation_history = await self.message_service.get_conversation_messages(
-                conversation_id, 
-                limit=20  # Last 20 messages for context
-            )
-            
             # Get assistant client with memory tools
             assistant_client = self._get_assistant_client_with_memory(conversation_id)
-            
-            # Set conversation context if this is not the first message
-            if len(conversation_history) > 1:
-                context_messages = [
-                    {"role": msg.role, "content": msg.content} 
-                    for msg in conversation_history[:-1]  # Exclude the message we just added
-                ]
-                assistant_client.set_conversation_context(context_messages)
             
             llm_context = await get_context_for_conversation(
                 conversation_id, 
@@ -423,22 +409,8 @@ class ChatService:
             if stream_handler:
                 stream_handler.set_user_message_id(user_message_id)
             
-            # Get conversation context
-            conversation_history = await self.message_service.get_conversation_messages(
-                conversation_id, 
-                limit=20
-            )
-            
             # Get assistant client with memory tools
             assistant_client = self._get_assistant_client_with_memory(conversation_id)
-            
-            # Set conversation context
-            if len(conversation_history) > 1:
-                context_messages = [
-                    {"role": msg.role, "content": msg.content} 
-                    for msg in conversation_history[:-1]
-                ]
-                assistant_client.set_conversation_context(context_messages)
             
             llm_context = await get_context_for_conversation(
                 conversation_id, 
@@ -737,22 +709,8 @@ class ChatService:
                     f"Quota exceeded: {quota_status.get('reason', 'Unknown reason')}"
                 )
             
-            # Get conversation context (all existing messages)
-            conversation_history = await self.message_service.get_conversation_messages(
-                conversation_id, 
-                limit=20  # Last 20 messages for context
-            )
-            
             # Get assistant client with memory tools
             assistant_client = self._get_assistant_client_with_memory(conversation_id)
-            
-            # Set conversation context with all existing messages
-            if conversation_history:
-                context_messages = [
-                    {"role": msg.role, "content": msg.content} 
-                    for msg in conversation_history
-                ]
-                assistant_client.set_conversation_context(context_messages)
             
             llm_context = await get_context_for_conversation(
                 conversation_id, 
@@ -882,22 +840,8 @@ class ChatService:
                     f"Quota exceeded: {quota_status.get('reason', 'Unknown reason')}"
                 )
             
-            # Get conversation context (all existing messages)
-            conversation_history = await self.message_service.get_conversation_messages(
-                conversation_id, 
-                limit=20  # Last 20 messages for context
-            )
-            
             # Get assistant client with memory tools
             assistant_client = self._get_assistant_client_with_memory(conversation_id)
-            
-            # Set conversation context with all existing messages
-            if conversation_history:
-                context_messages = [
-                    {"role": msg.role, "content": msg.content} 
-                    for msg in conversation_history
-                ]
-                assistant_client.set_conversation_context(context_messages)
             
             llm_context = await get_context_for_conversation(
                 conversation_id, 

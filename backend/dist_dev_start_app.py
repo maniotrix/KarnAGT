@@ -417,11 +417,10 @@ if __name__ == "__main__":
         print("🔥" + "="*70 + "🔥")
         print("")
         
-        # Brief pause to ensure the message is seen
-        time.sleep(2)
-        
-        # Environment-specific configuration  
-        print(f"🌐 Starting server on 0.0.0.0:8000")
+        # Environment-specific configuration
+        # ✅ Use PORT environment variable or default to 8000
+        port = int(os.environ.get("PORT", 8000))
+        print(f"🌐 Starting server on 0.0.0.0:{port}")
         print("")
         
         # Start the application
@@ -434,7 +433,7 @@ if __name__ == "__main__":
             uvicorn.run(
                 "app.main:app",
                 host="0.0.0.0",
-                port=8000,
+                port=port,  # ✅ Use PORT environment variable
                 reload=False,
                 reload_dirs=["./app"],
                 reload_excludes=["__pycache__", "*.pyc", "logs", "uploads", "workspaces", "*.log"],
@@ -448,13 +447,18 @@ if __name__ == "__main__":
             print(f"   • Workers: 4")
             print(f"   • Log level: info")
             
+            # TODO,  WARNING: Workers more than 1 are not currently supported,
+            # we have not added redis support for workers yet, so workers more than 1 are not supported yet
+            # eg. workers=4 will not work for stream cancellation as stream manager 
+            # in one class cannot cancel streams in other workers, as we store stream id locally in a single process
+            
             uvicorn.run(
                 "app.main:app",
                 host="0.0.0.0",
-                port=8000,
+                port=port,  # ✅ Use PORT environment variable
                 reload=False,
                 log_level="info",
-                workers=4,
+                workers=1,
                 access_log=True,
                 use_colors=True
             )
