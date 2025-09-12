@@ -174,13 +174,14 @@ class DistributedStreamingTester:
                 # ✅ Start worker using YOUR startup script WITH VENV (loads .env, validates keys, registers worker)
                 # ✅ Use the SAME Python interpreter as the current process (venv Python)
                 venv_python = sys.executable
+                python_file = "dist_dev_start_app.py"
                 print(f"🚀 Starting worker {i+1} with venv Python")
                 print(f"🔧 Python: {venv_python}")
-                print(f"🔧 Script: start_app.py")
+                print(f"🔧 Script: {python_file}")
                 print(f"🔧 Environment: PORT={port}, ENVIRONMENT=production, DEBUG=True")
                 
                 process = subprocess.Popen([
-                    venv_python, "start_app.py"  # ✅ Uses venv Python!
+                    venv_python, python_file  # ✅ Uses venv Python!
                 ], 
                 cwd="backend", 
                 env=env,
