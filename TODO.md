@@ -147,3 +147,4 @@
 * app backend now not much scalable because we put uvicorn workers 1 because of our architecture problems
 * maybe also increase code sandbox timeout to 60 seconds in prod env
 * store prompts in redis
+* handle CRITICAL VULNERABILITY: All proxy routes completely bypass your authentication middleware for ALL clients.
