@@ -340,17 +340,26 @@ export const ModernFeatures: React.FC = () => {
                            </motion.div>
                          </div>
                          
-                         {/* Video Title Badge at Bottom */}
-                         <div className="absolute bottom-3 left-3 right-3">
-                           <div className="px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
-                             <p className="text-white text-xs font-medium flex items-center gap-1">
-                               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                                 <path d="M8 5v14l11-7z"/>
-                               </svg>
-                               {feature.videoTitle}
-                             </p>
-                           </div>
-                         </div>
+                          {/* Enhanced Video Title Badge */}
+                          <div className="absolute bottom-3 left-3 right-3">
+                            <div className="px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
+                              <p className="text-white text-xs font-medium flex items-center gap-2">
+                                {/* Enhanced Play Icon */}
+                                <div className="relative">
+                                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shadow-lg border border-white/30">
+                                    <svg className="w-2.5 h-2.5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" style={{
+                                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))'
+                                    }}>
+                                      <path d="M8 5v14l11-7z"/>
+                                    </svg>
+                                  </div>
+                                  {/* Subtle glow */}
+                                  <div className="absolute inset-0 rounded-full bg-white/10 opacity-50 blur-sm -z-10" />
+                                </div>
+                                <span className="truncate">{feature.videoTitle}</span>
+                              </p>
+                            </div>
+                          </div>
                        </div>
                      </div>
                    )}
