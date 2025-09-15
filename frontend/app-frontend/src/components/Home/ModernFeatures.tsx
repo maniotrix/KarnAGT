@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Globe, Image, FileText, Code, Brain, Languages, Sparkles, ArrowRight } from 'lucide-react';
+import { Zap, Globe, Eye, Code, Brain, Languages, Sparkles, ArrowRight } from 'lucide-react';
 
 interface Feature {
   icon: React.ReactNode;
@@ -16,7 +16,7 @@ interface Feature {
 
 const features: Feature[] = [
   {
-    icon: <Globe className="h-8 w-8" />,
+    icon: <Zap className="h-8 w-8" />,
     title: "Zero setup overhead",
     description: "No model selection, no configuration. KarnAGT auto-selects and optimizes everything for you.",
     gradient: "from-purple-500 to-pink-500",
@@ -25,7 +25,7 @@ const features: Feature[] = [
     videoTitle: "See KarnAGT in action"
   },
   {
-    icon: <Image className="h-8 w-8" />,
+    icon: <Globe className="h-8 w-8" />,
     title: "Always searches web first",
     description: "Get current, accurate information with automatic web research and source citations.",
     gradient: "from-pink-500 to-rose-500",
@@ -34,7 +34,7 @@ const features: Feature[] = [
     videoTitle: "AI Agent Finds the Latest iPhone News in Seconds"
   },
   {
-    icon: <FileText className="h-8 w-8" />,
+    icon: <Eye className="h-8 w-8" />,
     title: "Inbuilt Vision and File Intelligence",
     description: "Reads 20+ file types and understands images, charts, screenshots—no setup required.",
     gradient: "from-green-500 to-emerald-500",
