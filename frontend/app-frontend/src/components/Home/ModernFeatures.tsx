@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Globe, Image, FileText, Code, Brain, Languages, Sparkles, ArrowRight, Play } from 'lucide-react';
+import { Globe, Image, FileText, Code, Brain, Languages, Sparkles, ArrowRight } from 'lucide-react';
 
 interface Feature {
   icon: React.ReactNode;
@@ -58,7 +58,7 @@ const features: Feature[] = [
     gradient: "from-orange-500 to-yellow-500",
     delay: 0.5,
     videoId: "usEGXeNrEh8", // 🧠 This AI Agent That Remembers Your Preferences
-    videoTitle: "AI Agent That Remembers Your Preferences (Like a Real Assistant)"
+    videoTitle: "AI Agent That Remembers Your Preferences"
   },
   {
     icon: <Languages className="h-8 w-8" />,
@@ -203,11 +203,19 @@ export const ModernFeatures: React.FC = () => {
                 {/* Gradient Border Effect */}
                 <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                 
-                 {/* Video Thumbnail Section */}
+                 {/* Enhanced Video Thumbnail Section */}
                  <div className="relative">
+                   {/* Gradient Frame Border */}
+                   <div className={`absolute -inset-0.5 rounded-xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-30 transition-opacity duration-500 blur-sm -z-10`} />
+                   
                    {playingVideo === index ? (
                      // YouTube Embed when playing
-                     <div className="aspect-video">
+                     <motion.div 
+                       className="aspect-video rounded-xl overflow-hidden"
+                       initial={{ scale: 0.98, opacity: 0 }}
+                       animate={{ scale: 1, opacity: 1 }}
+                       transition={{ duration: 0.3, ease: "easeOut" }}
+                     >
                        <iframe
                          src={`https://www.youtube.com/embed/${feature.videoId}?autoplay=1`}
                          title={feature.videoTitle}
@@ -215,70 +223,183 @@ export const ModernFeatures: React.FC = () => {
                          allowFullScreen
                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                        />
-                     </div>
+                       
+                       {/* Close Button */}
+                       <button
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleVideoPlay(index);
+                         }}
+                         className="absolute top-3 right-3 p-2 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-black/70 transition-colors"
+                       >
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                         </svg>
+                       </button>
+                     </motion.div>
                    ) : (
-                     // Video Thumbnail
+                     // Enhanced Video Thumbnail
                      <div 
-                       className="relative aspect-video cursor-pointer group/video"
+                       className="relative aspect-video cursor-pointer group/video rounded-xl overflow-hidden"
                        onClick={() => handleVideoPlay(index)}
                      >
-                      <img 
-                        src={getYoutubeThumbnail(feature.videoId)}
-                        alt={feature.videoTitle}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          // Fallback to standard definition thumbnail
-                          e.currentTarget.src = `https://img.youtube.com/vi/${feature.videoId}/sddefault.jpg`;
-                        }}
-                      />
-                      
-                      {/* Play Button Overlay */}
-                      <div className="absolute inset-0 bg-black/20 group-hover/video:bg-black/10 transition-colors flex items-center justify-center">
-                        <div className="bg-red-600 hover:bg-red-700 transition-colors rounded-full p-4 shadow-lg group-hover/video:scale-110 transform duration-200">
-                          <Play className="w-6 h-6 text-white ml-1" fill="currentColor" />
-                        </div>
-                      </div>
-                      
-                      {/* Video Title Overlay */}
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-                        <p className="text-white text-sm font-medium line-clamp-2">
-                          {feature.videoTitle}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                       {/* Thumbnail Image */}
+                       <img 
+                         src={getYoutubeThumbnail(feature.videoId)}
+                         alt={feature.videoTitle}
+                         className="w-full h-full object-cover transition-transform duration-500 group-hover/video:scale-105"
+                         onError={(e) => {
+                           // Fallback to standard definition thumbnail
+                           e.currentTarget.src = `https://img.youtube.com/vi/${feature.videoId}/sddefault.jpg`;
+                         }}
+                       />
+                       
+                       {/* Shimmer Effect on Hover */}
+                       <motion.div 
+                         className="absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover/video:opacity-100 pointer-events-none"
+                         animate={{
+                           x: ["-100%", "100%"]
+                         }}
+                         transition={{
+                           duration: 1.5,
+                           repeat: Infinity,
+                           ease: "easeOut"
+                         }}
+                       />
+                       
+                       {/* Glassmorphism Overlay */}
+                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/30 group-hover/video:from-black/50 group-hover/video:via-black/15 group-hover/video:to-black/25 transition-all duration-300">
+                         
+                         {/* Enhanced Elevated Play Button */}
+                         <div className="absolute inset-0 flex items-center justify-center">
+                           {/* Backdrop blur circle for depth */}
+                           <div className="absolute w-20 h-20 bg-white/5 backdrop-blur-xl rounded-full opacity-60 group-hover/video:opacity-80 transition-opacity duration-500" />
+                           
+                           {/* Outer glow ring */}
+                           <div className={`absolute w-16 h-16 rounded-full bg-gradient-to-br ${feature.gradient} opacity-20 blur-sm group-hover/video:opacity-30 transition-opacity duration-300`} />
+                           
+                           <motion.div
+                             className={`relative w-14 h-14 rounded-full bg-gradient-to-br ${feature.gradient} backdrop-blur-md border border-white/30 group-hover/video:scale-110 transition-all duration-300 flex items-center justify-center`}
+                             style={{
+                               boxShadow: `
+                                 0 8px 32px rgba(0, 0, 0, 0.3),
+                                 0 4px 16px rgba(0, 0, 0, 0.2),
+                                 0 2px 8px rgba(0, 0, 0, 0.1),
+                                 inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                                 inset 0 -1px 0 rgba(0, 0, 0, 0.1)
+                               `
+                             }}
+                             whileHover={{ 
+                               scale: 1.05,
+                               y: -2,
+                               boxShadow: `
+                                 0 12px 48px rgba(0, 0, 0, 0.4),
+                                 0 8px 24px rgba(0, 0, 0, 0.25),
+                                 0 4px 12px rgba(0, 0, 0, 0.15),
+                                 inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                                 inset 0 -1px 0 rgba(0, 0, 0, 0.15)
+                               `
+                             }}
+                             whileTap={{ 
+                               scale: 0.95,
+                               y: 0,
+                               boxShadow: `
+                                 0 4px 16px rgba(0, 0, 0, 0.3),
+                                 0 2px 8px rgba(0, 0, 0, 0.2),
+                                 inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                                 inset 0 -1px 0 rgba(0, 0, 0, 0.2)
+                               `
+                             }}
+                             animate={{
+                               y: [0, -1, 0],
+                             }}
+                             transition={{
+                               y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+                               boxShadow: { duration: 0.2 }
+                             }}
+                           >
+                             {/* Inner highlight */}
+                             <div className="absolute inset-0.5 rounded-full bg-gradient-to-t from-transparent to-white/20 opacity-60" />
+                             
+                             {/* Play button context hint */}
+                             <div className="absolute inset-0 rounded-full border-2 border-white/10 opacity-0 group-hover/video:opacity-100 transition-opacity duration-300" />
+                             
+                             {/* Icon with enhanced depth */}
+                             <div className="relative h-8 w-8 text-white" style={{ 
+                               filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3)) drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
+                             }}>
+                    {feature.icon}
+                  </div>
+                  
+                             {/* Subtle play symbol overlay for context */}
+                             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-white/20 rounded-full flex items-center justify-center opacity-0 group-hover/video:opacity-100 transition-opacity duration-300">
+                               <svg className="w-2 h-2 text-white/80" fill="currentColor" viewBox="0 0 24 24">
+                                 <path d="M8 5v14l11-7z"/>
+                               </svg>
+                             </div>
+                           </motion.div>
+                         </div>
+                         
+                          {/* Enhanced Video Title Badge */}
+                          <div className="absolute bottom-3 left-3 right-3">
+                            <div className="px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
+                              <p className="text-white text-xs font-medium flex items-center gap-2">
+                                {/* Enhanced Play Icon */}
+                                <div className="relative">
+                                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shadow-lg border border-white/30">
+                                    <svg className="w-2.5 h-2.5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" style={{
+                                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))'
+                                    }}>
+                                      <path d="M8 5v14l11-7z"/>
+                                    </svg>
+                                  </div>
+                                  {/* Subtle glow */}
+                                  <div className="absolute inset-0 rounded-full bg-white/10 opacity-50 blur-sm -z-10" />
+                                </div>
+                                <span className="truncate">{feature.videoTitle}</span>
+                              </p>
+                            </div>
+                          </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
 
                 {/* Content Section */}
-                <div className="p-6">
-                  {/* Icon Container */}
-                  <div className="relative mb-4">
-                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r ${feature.gradient} text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                      {feature.icon}
-                    </div>
-                    
-                    {/* Floating particles */}
-                    <motion.div
-                      className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full opacity-0 group-hover:opacity-100"
-                      animate={{
-                        scale: [0, 1, 0],
-                        opacity: [0, 1, 0],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        delay: feature.delay,
-                      }}
-                    />
-                  </div>
+                <div className="p-6 relative">
+                  {/* Floating particles */}
+                  <motion.div
+                    className="absolute top-2 right-2 w-2 h-2 bg-yellow-400 rounded-full opacity-0 group-hover:opacity-100"
+                    animate={{
+                      scale: [0, 1, 0],
+                      opacity: [0, 1, 0],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: feature.delay,
+                    }}
+                  />
+                  <motion.div
+                    className="absolute bottom-2 left-2 w-1.5 h-1.5 bg-blue-400 rounded-full opacity-0 group-hover:opacity-100"
+                    animate={{
+                      scale: [0, 1, 0],
+                      opacity: [0, 1, 0],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: feature.delay + 0.5,
+                    }}
+                  />
 
                   {/* Text Content */}
-                  <div className="relative">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text group-hover:from-gray-900 group-hover:to-gray-600 dark:group-hover:from-white dark:group-hover:to-gray-300 transition-all duration-300">
+                  <div className="relative text-center">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text group-hover:from-gray-900 group-hover:to-gray-600 dark:group-hover:from-white dark:group-hover:to-gray-300 transition-all duration-300">
                       {feature.title}
                     </h3>
                     
-                    <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                    <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
                       {feature.description}
                     </p>
                   </div>
