@@ -47,6 +47,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const fileUploadRef = useRef<UniversalFileUploadRef>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [fileCount, setFileCount] = useState<number>(0);
+  const [isFileUploading, setIsFileUploading] = useState<boolean>(false);
 
 
 
@@ -71,7 +72,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return;
     }
     
-    if (!disabled && !isLoading && (input.trim() || fileCount > 0)) {
+    if (!disabled && !isLoading && !isFileUploading && (input.trim() || fileCount > 0)) {
       // 🎯 MOBILE UX: Dismiss keyboard immediately on send
       if (textareaRef.current) {
         textareaRef.current.blur();
@@ -89,6 +90,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       console.log('🚫 [ChatInput] Submit blocked - conditions not met:', {
         disabled,
         isLoading,
+        isFileUploading,
         hasInput: !!input.trim(),
         hasFiles: fileCount > 0,
         isOverLimit
@@ -138,6 +140,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const handleFilesChanged = useCallback((allFiles: UploadFile[]) => {
     console.log('📁 [ChatInput] Files changed, updating count to:', allFiles.filter(f => f.status === 'success').length);
     setFileCount(allFiles.filter(f => f.status === 'success').length);
+    
+    // Track upload status to prevent sending while files are uploading
+    const uploading = fileUploadRef.current?.isUploading() || false;
+    setIsFileUploading(uploading);
+    console.log('📁 [ChatInput] Upload status:', uploading);
     
     // CRITICAL FIX: Also notify parent about file changes (including removals)
     if (onFileUpload) {
@@ -232,13 +239,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {/* Send Button */}
           <button
             type="submit"
-            disabled={disabled || isLoading || (!input.trim() && !hasFiles)}
+            disabled={disabled || isLoading || isFileUploading || (!input.trim() && !hasFiles)}
             onClick={(e) => {
               console.log('🖱️ [ChatInput] Send button clicked explicitly');
               // Let the form submission handle the rest
             }}
             className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 ${
-              disabled || isLoading || (!input.trim() && !hasFiles)
+              disabled || isLoading || isFileUploading || (!input.trim() && !hasFiles)
                 ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-md hover:shadow-lg transform hover:scale-105'
             }`}
@@ -247,11 +254,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ? "Input disabled" 
                 : isLoading 
                   ? "Sending..." 
-                  : (!input.trim() && !hasFiles)
-                    ? "Type a message or upload files to send"
-                    : hasFiles
-                      ? "Send message with files"
-                      : "Send message (Enter)"
+                  : isFileUploading
+                    ? "Files uploading, please wait..."
+                    : (!input.trim() && !hasFiles)
+                      ? "Type a message or upload files to send"
+                      : hasFiles
+                        ? "Send message with files"
+                        : "Send message (Enter)"
             }
           >
             {isLoading ? (
