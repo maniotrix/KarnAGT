@@ -199,7 +199,7 @@ export const ModernFeatures: React.FC = () => {
               className="group relative"
             >
               {/* Card */}
-              <div className="relative h-full bg-white dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+                <div className="relative h-full bg-white dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 shadow-lg shadow-gray-400/50 dark:shadow-black/60 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
                 {/* Gradient Border Effect */}
                 <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-lg`} />
                 
