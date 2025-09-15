@@ -43,6 +43,7 @@ export interface UniversalFileUploadRef {
   getFilesByCategory: () => { images: UploadFile[]; documents: UploadFile[]; unknown: UploadFile[] };
   addFiles: (files: File[]) => void;
   openFileDialog: () => void;
+  isUploading: () => boolean;
 }
 
 const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, UniversalFileUploadProps>(({
@@ -101,7 +102,8 @@ const UniversalFileUploadComponent = forwardRef<UniversalFileUploadRef, Universa
     getFilesByCategory: () => getFilesByCategory(),
     addFiles: (files: File[]) => addFiles(files),
     openFileDialog: () => fileInputRef.current?.click(),
-  }), [files, clearFiles, getFilesByCategory, addFiles]);
+    isUploading: () => isUploading,
+  }), [files, clearFiles, getFilesByCategory, addFiles, isUploading]);
 
   // Notify parent when files change
   useEffect(() => {
