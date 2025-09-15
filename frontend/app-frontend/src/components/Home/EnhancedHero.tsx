@@ -291,10 +291,10 @@ export const EnhancedHero: React.FC<EnhancedHeroProps> = ({ onInstallClick }) =>
                 animate={{ y: [0, 6, 0] }}
                 transition={{ duration: 2, repeat: Infinity }}
                 onClick={handleScrollDown}
-                aria-label="Scroll down to see more content"
+                aria-label="Scroll down to watch KarnAGT videos in action"
               >
                 <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors duration-200">
-                  <span className="text-xs font-medium tracking-wide uppercase">More</span>
+                   <span className="text-xs font-medium tracking-wide uppercase">Videos & More</span>
                   <motion.div
                     animate={{ opacity: [1, 0.3, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
