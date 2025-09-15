@@ -16,31 +16,13 @@ interface Feature {
 
 const features: Feature[] = [
   {
-    icon: <Zap className="h-8 w-8" />,
-    title: "Zero setup overhead",
-    description: "No model selection, no configuration. KarnAGT auto-selects and optimizes everything for you.",
-    gradient: "from-purple-500 to-pink-500",
-    delay: 0.1,
-    videoId: "8BXKd4fCJn8", // Replace with actual YouTube video ID
-    videoTitle: "See KarnAGT in action"
-  },
-  {
     icon: <Globe className="h-8 w-8" />,
     title: "Always searches web first",
     description: "Get current, accurate information with automatic web research and source citations.",
     gradient: "from-pink-500 to-rose-500",
     delay: 0.2,
     videoId: "CHDs4PTXkN8", // 🔍 AI Agent Finds the Latest iPhone News in Seconds
-    videoTitle: "AI Agent Finds the Latest iPhone News in Seconds"
-  },
-  {
-    icon: <Eye className="h-8 w-8" />,
-    title: "Inbuilt Vision and File Intelligence",
-    description: "Reads 20+ file types and understands images, charts, screenshots—no setup required.",
-    gradient: "from-green-500 to-emerald-500",
-    delay: 0.3,
-    videoId: "vhArzprR-IY", // 👀 AI Turns a Hand-Drawn Sketch into a Webpage
-    videoTitle: "AI Turns a Hand-Drawn Sketch into a Webpage"
+    videoTitle: "KarnAGT Finds the Latest iPhone News in Seconds"
   },
   {
     icon: <Code className="h-8 w-8" />,
@@ -49,16 +31,34 @@ const features: Feature[] = [
     gradient: "from-blue-500 to-cyan-500",
     delay: 0.4,
     videoId: "8BXKd4fCJn8", // 📊 AI Agent Reads a CSV File and Creates a Chart Instantly
-    videoTitle: "AI Agent Reads a CSV File and Creates a Chart Instantly"
+    videoTitle: "KarnAGT Reads a CSV File and Creates a Chart Instantly"
+  },
+  {
+    icon: <Eye className="h-8 w-8" />,
+    title: "Inbuilt Vision and File Intelligence",
+    description: "Reads 20+ file types and understands images, charts, screenshots—no setup required.",
+    gradient: "from-green-500 to-emerald-500",
+    delay: 0.3,
+    videoId: "vhArzprR-IY", // 👀 AI Turns a Hand-Drawn Sketch into a Webpage
+    videoTitle: "KarnAGT Turns a Hand-Drawn Sketch into a Webpage"
+  },
+  {
+    icon: <Zap className="h-8 w-8" />,
+    title: "Zero setup overhead",
+    description: "No model selection, no configuration. KarnAGT auto-selects and optimizes everything for you.",
+    gradient: "from-purple-500 to-pink-500",
+    delay: 0.1,
+    videoId: "iK6e7-Mfab0", // Replace with actual YouTube video ID
+    videoTitle: "KarnAGT searching pdf docs"
   },
   {
     icon: <Brain className="h-8 w-8" />,
-    title: "Understands You",
-    description: "Remembers preferences and patterns to personalize guidance over time.",
+    title: "Remembers You",
+    description: "Knows your preferences and patterns to personalize guidance over time.",
     gradient: "from-orange-500 to-yellow-500",
     delay: 0.5,
     videoId: "usEGXeNrEh8", // 🧠 This AI Agent That Remembers Your Preferences
-    videoTitle: "AI Agent That Remembers Your Preferences"
+    videoTitle: "KarnAGT Remembers Your Preferences"
   },
   {
     icon: <Languages className="h-8 w-8" />,
@@ -67,7 +67,7 @@ const features: Feature[] = [
     gradient: "from-indigo-500 to-purple-500",
     delay: 0.6,
     videoId: "A-kjbJlxjNo", // 🌍 AI Agent Switches Language Between English, Hindi, Spanish, etc.
-    videoTitle: "AI Agent Switches Between Multiple Languages"
+    videoTitle: "KarnAGT Switches Between Multiple Languages"
   }
 ];
 
