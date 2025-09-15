@@ -49,7 +49,7 @@ const features: Feature[] = [
     gradient: "from-purple-500 to-pink-500",
     delay: 0.1,
     videoId: "iK6e7-Mfab0", // Replace with actual YouTube video ID
-    videoTitle: "KarnAGT searching pdf docs"
+    videoTitle: "KarnAGT Searching Pdf Docs"
   },
   {
     icon: <Brain className="h-8 w-8" />,
