@@ -100,8 +100,10 @@ async def release_conversation_lock(lock_key: str) -> bool:
         
     try:
         # Delete the lock key
+        logger.info(f"🔒 [DEBUG] release_conversation_lock() called with lock_key: {lock_key}")
         result = await redis_client.delete(lock_key)
         released = bool(result)
+        logger.info(f"🔒 [DEBUG] release_conversation_lock() returned: {released}")
         
         if released:
             logger.info(f"✅ Released conversation lock: {lock_key}")
