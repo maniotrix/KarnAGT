@@ -68,14 +68,14 @@ async def acquire_conversation_lock(
                 }
             )
         
-        logger.info(f"✅ Acquired conversation lock for {conversation_id} by user {user.user_id} on worker {worker_id}")
+        logger.info(f"[SUCCESS] Acquired conversation lock for {conversation_id} by user {user.user_id} on worker {worker_id}")
         return lock_key
         
     except HTTPException:
         # Re-raise HTTP exceptions (lock acquisition failure)
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to acquire conversation lock for {conversation_id}: {e}")
+        logger.error(f"[ERROR] Failed to acquire conversation lock for {conversation_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
@@ -100,20 +100,20 @@ async def release_conversation_lock(lock_key: str) -> bool:
         
     try:
         # Delete the lock key
-        logger.info(f"🔒 [DEBUG] release_conversation_lock() called with lock_key: {lock_key}")
+        logger.info(f"[LOCK] [DEBUG] release_conversation_lock() called with lock_key: {lock_key}")
         result = await redis_client.delete(lock_key)
         released = bool(result)
-        logger.info(f"🔒 [DEBUG] release_conversation_lock() returned: {released}")
+        logger.info(f"[LOCK] [DEBUG] release_conversation_lock() returned: {released}")
         
         if released:
-            logger.info(f"✅ Released conversation lock: {lock_key}")
+            logger.info(f"[SUCCESS] Released conversation lock: {lock_key}")
         else:
-            logger.warning(f"⚠️ Lock key {lock_key} was not found (may have been auto-released)")
+            logger.warning(f"[WARN] Lock key {lock_key} was not found (may have been auto-released)")
             
         return released
         
     except Exception as e:
-        logger.error(f"❌ Failed to release conversation lock {lock_key}: {e}")
+        logger.error(f"[ERROR] Failed to release conversation lock {lock_key}: {e}")
         return False
 
 
@@ -129,7 +129,7 @@ class ConversationLockContext:
         
     async def __aenter__(self):
         if self.lock_key:
-            logger.info(f"🔒 Entering conversation lock context: {self.lock_key}")
+            logger.info(f"[LOCK] Entering conversation lock context: {self.lock_key}")
         return self
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -147,15 +147,15 @@ class ConversationLockContext:
                 # Log the exit reason for debugging
                 if exc_type:
                     exc_name = getattr(exc_type, '__name__', str(exc_type))
-                    logger.info(f"🔒 Lock released due to exception: {exc_name}: {exc_val}")
+                    logger.info(f"[LOCK] Lock released due to exception: {exc_name}: {exc_val}")
                 else:
-                    logger.info(f"🔒 Lock released successfully on normal completion")
+                    logger.info(f"[LOCK] Lock released successfully on normal completion")
                     
             except Exception as cleanup_error:
                 # Even if cleanup fails, don't propagate the error
                 # The TTL will handle orphaned locks from dead workers
-                logger.error(f"❌ Failed to release lock {self.lock_key} during cleanup: {cleanup_error}")
-                logger.info(f"⏰ Lock will auto-expire in ≤5 minutes due to TTL protection")
+                logger.error(f"[ERROR] Failed to release lock {self.lock_key} during cleanup: {cleanup_error}")
+                logger.info(f"[TTL] Lock will auto-expire in ≤5 minutes due to TTL protection")
                 
         # Don't suppress the original exception (return None/False)
         return False
@@ -168,13 +168,13 @@ class ConversationLockContext:
         try:
             self.released = await release_conversation_lock(self.lock_key)
             if self.released:
-                logger.info(f"✅ Successfully released conversation lock: {self.lock_key}")
+                logger.info(f"[SUCCESS] Successfully released conversation lock: {self.lock_key}")
             else:
-                logger.warning(f"⚠️ Lock {self.lock_key} was not found (may have expired or been released)")
+                logger.warning(f"[WARN] Lock {self.lock_key} was not found (may have expired or been released)")
             return self.released
             
         except Exception as e:
-            logger.error(f"❌ Error during manual lock release for {self.lock_key}: {e}")
+            logger.error(f"[ERROR] Error during manual lock release for {self.lock_key}: {e}")
             # Mark as released to prevent retry in __aexit__
             self.released = True  
             return False

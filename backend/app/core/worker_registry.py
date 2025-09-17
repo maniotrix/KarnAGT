@@ -142,15 +142,15 @@ class WorkerRegistry:
                         deleted = await self.redis_client.delete(lock_key)
                         if deleted:
                             cleaned_locks += 1
-                            logger.info(f"🔒 Cleaned up orphaned conversation lock for conversation {conversation_id} from dead worker {dead_worker_id}")
+                            logger.info(f"[LOCK] Cleaned up orphaned conversation lock for conversation {conversation_id} from dead worker {dead_worker_id}")
             
             if cleaned_locks > 0:
-                logger.info(f"✅ Cleaned up {cleaned_locks} orphaned conversation locks from dead worker {dead_worker_id}")
+                logger.info(f"[SUCCESS] Cleaned up {cleaned_locks} orphaned conversation locks from dead worker {dead_worker_id}")
             else:
-                logger.info(f"ℹ️ No orphaned conversation locks found for dead worker {dead_worker_id}")
+                logger.info(f"[INFO] No orphaned conversation locks found for dead worker {dead_worker_id}")
                     
         except Exception as e:
-            logger.error(f"❌ Error cleaning up conversation locks for dead worker {dead_worker_id}: {e}")
+            logger.error(f"[ERROR] Error cleaning up conversation locks for dead worker {dead_worker_id}: {e}")
     
     async def cleanup_dead_worker_resources(self, dead_worker_id: str):
         """
@@ -162,7 +162,7 @@ class WorkerRegistry:
         Args:
             dead_worker_id: The worker ID to clean up resources for
         """
-        logger.info(f"🧹 Starting cleanup for dead worker: {dead_worker_id}")
+        logger.info(f"[CLEANUP] Starting cleanup for dead worker: {dead_worker_id}")
         
         try:
             # Clean up streams
@@ -175,10 +175,10 @@ class WorkerRegistry:
             await self.redis_client.srem("workers:active", dead_worker_id)
             await self.redis_client.delete(f"worker:{dead_worker_id}")
             
-            logger.info(f"✅ Completed cleanup for dead worker: {dead_worker_id}")
+            logger.info(f"[SUCCESS] Completed cleanup for dead worker: {dead_worker_id}")
             
         except Exception as e:
-            logger.error(f"❌ Error during cleanup for dead worker {dead_worker_id}: {e}")
+            logger.error(f"[ERROR] Error during cleanup for dead worker {dead_worker_id}: {e}")
             raise
     
     async def get_active_workers(self) -> List[str]:

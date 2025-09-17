@@ -152,10 +152,10 @@ class S3StorageBackend(StorageBackend):
         
         is_valid, errors = validate_bucket_name(bucket_name)
         if not is_valid:
-            error_msg = f"❌ Cannot create S3StorageBackend: Invalid bucket name '{bucket_name}'\n"
+            error_msg = f"[ERROR] Cannot create S3StorageBackend: Invalid bucket name '{bucket_name}'\n"
             for error in errors:
                 error_msg += f"   • {error}\n"
-            error_msg += "\n📋 See S3 bucket naming guidelines: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html"
+            error_msg += "\n[GUIDE] See S3 bucket naming guidelines: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html"
             
             # STRICT: No object creation with invalid bucket names
             raise ValueError(error_msg)

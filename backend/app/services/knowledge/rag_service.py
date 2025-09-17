@@ -117,9 +117,9 @@ class RAGService:
                 # Sort by max score (primary source = highest score)
                 sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1]['max_score'], reverse=True)
                 
-                logger.info(f"  📊 Document Relevance Ranking:")
+                logger.info(f"  [DATA] Document Relevance Ranking:")
                 for rank, (doc_name, stats) in enumerate(sorted_docs, 1):
-                    status = "🎯 PRIMARY" if rank == 1 else f"📄 SECONDARY-{rank-1}"
+                    status = "[TARGET] PRIMARY" if rank == 1 else f"[DOC] SECONDARY-{rank-1}"
                     logger.info(f"    {status}: {doc_name}")
                     logger.info(f"      Max Score: {stats['max_score']:.4f}, Avg: {stats['avg_score']:.4f}, Chunks: {stats['count']}")
             else:
