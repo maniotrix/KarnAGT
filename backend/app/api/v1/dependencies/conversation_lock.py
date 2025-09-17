@@ -49,7 +49,11 @@ async def acquire_conversation_lock(
         if not acquired:
             # Check who owns the lock for better error messaging
             current_owner = await redis_client.get(lock_key)
-            current_owner_str = current_owner.decode() if current_owner else "unknown"
+            # Handle both bytes and string responses (depends on decode_responses setting)
+            if current_owner:
+                current_owner_str = current_owner.decode() if isinstance(current_owner, bytes) else str(current_owner)
+            else:
+                current_owner_str = "unknown"
             
             logger.warning(f"Conversation {conversation_id} lock acquisition failed - already locked by {current_owner_str}")
             
