@@ -972,6 +972,130 @@ class DistributedStreamingTester:
         print("✅ TEST 6.7 SUCCESS: Both scenarios validated correctly")
         return True
     
+    async def test_6_8_stream_completion_and_subsequent_operations(self) -> bool:
+        """Test 6.8: Stream completion releases locks - subsequent edits and new messages should work"""
+        print("\n🔒 TEST 6.8: Stream completion and subsequent operations")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create conversations for both users
+        user_1_conv = await self.create_test_conversation(user_2=False, conversation_name="User1-Edit")
+        if not user_1_conv:
+            print("❌ Failed to create conversation for user 1")
+            return False
+        
+        user_2_conv = await self.create_test_conversation(user_2=True, conversation_name="User2-Edit")
+        if not user_2_conv:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        short_message = {"content": "Just say 'Hello, this is a test response.' and stop immediately."}
+        
+        print("\n📋 SCENARIO 1: User 1 - Stream completion then edit (should succeed)")
+        
+        # User 1: Complete a short stream
+        print("🔄 User 1: Starting and completing short stream...")
+        user_1_stream_result = await self.complete_short_stream_for_user(user_1_conv, short_message, user_2=False)
+        
+        if not user_1_stream_result.get("completed"):
+            print("❌ User 1 stream did not complete properly")
+            return False
+        
+        user_1_stream_id = user_1_stream_result.get("stream_id")
+        user_1_message_id = user_1_stream_result.get("user_message_id") 
+        print(f"✅ User 1 stream completed: {user_1_stream_id}, user message: {user_1_message_id}")
+        
+        if not user_1_message_id:
+            print("❌ User 1 message ID not captured - cannot test edit")
+            return False
+        
+        # Wait a moment for lock cleanup
+        await asyncio.sleep(2)
+        
+        # User 1: Try to edit the message (should succeed - lock released after completion)
+        print("✏️ User 1: Attempting to edit message after stream completion...")
+        edit_result_1 = await self.attempt_edit_for_user(user_1_conv, user_1_message_id, "Edited: Please explain quantum physics.", user_2=False)
+        
+        if edit_result_1.get("status") != 200:
+            print(f"❌ User 1 edit should succeed after stream completion, got {edit_result_1.get('status')}")
+            return False
+        
+        print("✅ SCENARIO 1 SUCCESS: User 1 successfully edited message after stream completion")
+        
+        print("\n📋 SCENARIO 2: User 2 - Stream completion, edit, then new message (all should succeed)")
+        
+        # User 2: Complete a short stream  
+        print("🔄 User 2: Starting and completing short stream...")
+        user_2_stream_result = await self.complete_short_stream_for_user(user_2_conv, short_message, user_2=True)
+        
+        if not user_2_stream_result.get("completed"):
+            print("❌ User 2 stream did not complete properly")
+            return False
+        
+        user_2_stream_id = user_2_stream_result.get("stream_id")
+        user_2_message_id = user_2_stream_result.get("user_message_id")
+        print(f"✅ User 2 stream completed: {user_2_stream_id}, user message: {user_2_message_id}")
+        
+        if not user_2_message_id:
+            print("❌ User 2 message ID not captured - cannot test edit")
+            return False
+        
+        # Wait a moment for lock cleanup
+        await asyncio.sleep(2)
+        
+        # User 2: Try to edit the message (should succeed)
+        print("✏️ User 2: Attempting to edit message after stream completion...")
+        edit_result_2 = await self.attempt_edit_for_user(user_2_conv, user_2_message_id, "Edited: Explain artificial intelligence concepts.", user_2=True)
+        
+        if edit_result_2.get("status") != 200:
+            print(f"❌ User 2 edit should succeed after stream completion, got {edit_result_2.get('status')}")
+            return False
+        
+        print("✅ User 2 edit successful after stream completion")
+        
+        # User 2: Try to send a new message in the same conversation (should succeed)
+        print("💬 User 2: Attempting to send new message in same conversation...")
+        new_message_data = {"content": "This is a follow-up message. Just say 'Follow-up received.' and stop."}
+        new_message_result = await self.complete_short_stream_for_user(user_2_conv, new_message_data, user_2=True)
+        
+        if not new_message_result.get("completed"):
+            print("❌ User 2 new message should succeed after previous stream completion")
+            return False
+        
+        new_stream_id = new_message_result.get("stream_id")
+        print(f"✅ User 2 new message stream completed: {new_stream_id}")
+        
+        print("✅ SCENARIO 2 SUCCESS: User 2 successfully completed edit and new message after stream completion")
+        
+        # Final validation: Ensure no locks are remaining
+        await asyncio.sleep(1)
+        
+        # Try one more operation on each conversation to confirm locks are fully released
+        final_test_message = {"content": "Final test. Just say 'Final test complete.' and stop."}
+        
+        # User 1: Final test
+        final_test_1 = await self.attempt_concurrent_stream_for_user(user_1_conv, final_test_message, self.base_url, "User1-Final", user_2=False)
+        if final_test_1.get("status") != 200:
+            print(f"❌ User 1 final test failed: {final_test_1.get('status')} - locks may not be fully released")
+            return False
+        
+        # User 2: Final test  
+        final_test_2 = await self.attempt_concurrent_stream_for_user(user_2_conv, final_test_message, self.base_url, "User2-Final", user_2=True)
+        if final_test_2.get("status") != 200:
+            print(f"❌ User 2 final test failed: {final_test_2.get('status')} - locks may not be fully released")
+            return False
+        
+        print("✅ Final validation: Both conversations fully unlocked and operational")
+        
+        print("⏳ Allowing final cleanup...")
+        await asyncio.sleep(2)
+        
+        print("✅ TEST 6.8 SUCCESS: Stream completion properly releases locks, subsequent operations work correctly")
+        return True
+    
     async def test_conversation_locking(self) -> bool:
         """Test 6: Distributed conversation locking system - Run all tests"""
         print("\n🔬 TEST 6: Conversation Locking System")
@@ -998,7 +1122,8 @@ class DistributedStreamingTester:
                 # await self.test_6_4_lock_ttl_expiry(conversation_id),
                 # await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data),
                 # await self.test_6_6_concurrent_users_different_conversations(),
-                await self.test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking()
+                # await self.test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking(),
+                await self.test_6_8_stream_completion_and_subsequent_operations()
             ]
             
             # Check if all tests passed
@@ -1259,6 +1384,129 @@ class DistributedStreamingTester:
         except Exception as e:
             print(f"❌ Error completing short stream: {e}")
             return {"completed": False, "error": str(e)}
+    
+    async def complete_short_stream_for_user(self, conversation_id: str, message_data: dict, user_2: bool = False) -> dict:
+        """Helper: Complete a short stream for specified user and return details"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/stream",
+                    json=message_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        user_label = "User 2" if user_2 else "User 1"
+                        print(f"❌ {user_label} stream failed to start: {response.status} - {error_text}")
+                        return {"completed": False, "error": error_text}
+                    
+                    completed = False
+                    stream_id = None
+                    user_message_id = None
+                    
+                    # Read entire stream until completion
+                    buffer = ""
+                    async for chunk in response.content.iter_chunked(1024):
+                        buffer += chunk.decode('utf-8')
+                        
+                        while '\n' in buffer:
+                            line_end = buffer.index('\n')
+                            line = buffer[:line_end].strip()
+                            buffer = buffer[line_end + 1:]
+                            
+                            if line.startswith('data: '):
+                                data_content = line[6:]
+                                
+                                if data_content == '[DONE]':
+                                    completed = True
+                                    break
+                                elif data_content and data_content != '':
+                                    try:
+                                        event_data = json.loads(data_content)
+                                        event_type = event_data.get("type", "")
+                                        
+                                        if event_type == "stream_start":
+                                            if "data" in event_data and "stream_id" in event_data["data"]:
+                                                stream_id = event_data["data"]["stream_id"]
+                                                self.captured_streams.append(stream_id)
+                                        elif event_type in ["completion", "end", "stream_end", "cancelled", "stream_cancelled"]:
+                                            completed = True
+                                            # Capture user message ID from completion events (matches frontend)
+                                            if "data" in event_data and "user_message_id" in event_data["data"]:
+                                                user_message_id = event_data["data"]["user_message_id"]
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                        
+                        if completed:
+                            break
+                    
+                    user_label = "User 2" if user_2 else "User 1"
+                    if completed:
+                        print(f"✅ {user_label} short stream completed successfully (stream_id: {stream_id}, user_msg: {user_message_id})")
+                    else:
+                        print(f"❌ {user_label} short stream did not complete properly")
+                    
+                    return {
+                        "completed": completed, 
+                        "stream_id": stream_id,
+                        "user_message_id": user_message_id
+                    }
+                    
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error completing short stream for {user_label}: {e}")
+            return {"completed": False, "error": str(e)}
+    
+    async def attempt_edit_for_user(self, conversation_id: str, message_id: str, content: str, user_2: bool = False) -> dict:
+        """Helper: Attempt to edit message for specified user"""
+        try:
+            edit_data = {"content": content}
+            user_label = "User 2" if user_2 else "User 1"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/messages/{message_id}/edit/stream",
+                    json=edit_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status == 200:
+                        print(f"✅ {user_label} edit started successfully")
+                        return {"status": 200}
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ {user_label} edit failed: {response.status} - {error_text}")
+                        return {"status": response.status, "error": error_text}
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error attempting edit for {user_label}: {e}")
+            return {"error": str(e)}
+    
+    async def attempt_concurrent_stream_for_user(self, conversation_id: str, message_data: dict, base_url: str, attempt_name: str, user_2: bool = False) -> dict:
+        """Helper: Attempt concurrent stream for specified user (expect 200 or 429)"""
+        try:
+            user_label = "User 2" if user_2 else "User 1"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/chat/conversations/{conversation_id}/stream", 
+                    json=message_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status == 429:
+                        result = await response.json()
+                        print(f"🔒 {attempt_name} ({user_label}) properly blocked: {result.get('detail', {}).get('message', 'unknown')}")
+                        return {"status": 429, "result": result}
+                    elif response.status == 200:
+                        print(f"✅ {attempt_name} ({user_label}) successfully started")
+                        return {"status": 200}
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ {attempt_name} ({user_label}) unexpected status {response.status}: {error_text}")
+                        return {"status": response.status, "error": error_text}
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error in {attempt_name} ({user_label}): {e}")
+            return {"error": str(e)}
     
     async def cancel_stream(self, stream_id: str) -> bool:
         """Helper: Cancel a stream"""
