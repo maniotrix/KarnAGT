@@ -1077,13 +1077,13 @@ class DistributedStreamingTester:
         final_test_message = {"content": "Final test. Just say 'Final test complete.' and stop."}
         
         # User 1: Final test
-        final_test_1 = await self.attempt_concurrent_stream_for_user(user_1_conv, final_test_message, self.base_url, "User1-Final", user_2=False)
+        final_test_1 = await self.attempt_concurrent_stream_for_user(user_1_conv, final_test_message, self.base_url, "User1-Final", user_2=False, expect_success=True)
         if final_test_1.get("status") != 200:
             print(f"❌ User 1 final test failed: {final_test_1.get('status')} - locks may not be fully released")
             return False
         
         # User 2: Final test  
-        final_test_2 = await self.attempt_concurrent_stream_for_user(user_2_conv, final_test_message, self.base_url, "User2-Final", user_2=True)
+        final_test_2 = await self.attempt_concurrent_stream_for_user(user_2_conv, final_test_message, self.base_url, "User2-Final", user_2=True, expect_success=True)
         if final_test_2.get("status") != 200:
             print(f"❌ User 2 final test failed: {final_test_2.get('status')} - locks may not be fully released")
             return False
@@ -1459,7 +1459,7 @@ class DistributedStreamingTester:
             return {"completed": False, "error": str(e)}
     
     async def attempt_edit_for_user(self, conversation_id: str, message_id: str, content: str, user_2: bool = False) -> dict:
-        """Helper: Attempt to edit message for specified user"""
+        """Helper: Attempt to edit message for specified user and track stream for cleanup"""
         try:
             edit_data = {"content": content}
             user_label = "User 2" if user_2 else "User 1"
@@ -1470,20 +1470,59 @@ class DistributedStreamingTester:
                     json=edit_data,
                     headers=self.get_headers(user_2=user_2)
                 ) as response:
-                    if response.status == 200:
-                        print(f"✅ {user_label} edit started successfully")
-                        return {"status": 200}
-                    else:
+                    if response.status != 200:
                         error_text = await response.text()
                         print(f"❌ {user_label} edit failed: {response.status} - {error_text}")
                         return {"status": response.status, "error": error_text}
+                    
+                    # Track edit stream for cleanup by consuming first few events
+                    stream_id = None
+                    token_count = 0
+                    
+                    # Parse SSE to capture stream ID for cleanup
+                    buffer = ""
+                    async for chunk in response.content.iter_chunked(1024):
+                        buffer += chunk.decode('utf-8')
+                        
+                        while '\n' in buffer:
+                            line_end = buffer.index('\n')
+                            line = buffer[:line_end].strip()
+                            buffer = buffer[line_end + 1:]
+                            
+                            if line.startswith('data: '):
+                                data_content = line[6:]
+                                
+                                if data_content == '[DONE]':
+                                    print(f"✅ {user_label} edit completed")
+                                    break
+                                elif data_content and data_content != '':
+                                    try:
+                                        event_data = json.loads(data_content)
+                                        event_type = event_data.get("type", "")
+                                        
+                                        if event_type == "stream_start":
+                                            if "data" in event_data and "stream_id" in event_data["data"]:
+                                                stream_id = event_data["data"]["stream_id"]
+                                                self.captured_streams.append(stream_id)
+                                                print(f"📡 {user_label} edit stream captured for cleanup: {stream_id}")
+                                        elif event_type == "token":
+                                            token_count += 1
+                                        elif event_type in ["completion", "end", "stream_end", "cancelled", "stream_cancelled"]:
+                                            print(f"✅ {user_label} edit stream completed")
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                    
+                    print(f"✅ {user_label} edit successful - tokens: {token_count}")
+                    return {"status": 200, "stream_id": stream_id, "tokens": token_count}
+                    
         except Exception as e:
             user_label = "User 2" if user_2 else "User 1"
             print(f"❌ Error attempting edit for {user_label}: {e}")
             return {"error": str(e)}
     
-    async def attempt_concurrent_stream_for_user(self, conversation_id: str, message_data: dict, base_url: str, attempt_name: str, user_2: bool = False) -> dict:
-        """Helper: Attempt concurrent stream for specified user (expect 200 or 429)"""
+    async def attempt_concurrent_stream_for_user(self, conversation_id: str, message_data: dict, base_url: str, attempt_name: str, user_2: bool = False, expect_success: bool = False) -> dict:
+        """Helper: Attempt concurrent stream for specified user (expect 200 or 429) and track streams"""
         try:
             user_label = "User 2" if user_2 else "User 1"
             async with aiohttp.ClientSession() as session:
@@ -1494,11 +1533,50 @@ class DistributedStreamingTester:
                 ) as response:
                     if response.status == 429:
                         result = await response.json()
-                        print(f"🔒 {attempt_name} ({user_label}) properly blocked: {result.get('detail', {}).get('message', 'unknown')}")
+                        if expect_success:
+                            print(f"❌ {attempt_name} ({user_label}) unexpectedly blocked: {result.get('detail', {}).get('message', 'unknown')}")
+                        else:
+                            print(f"🔒 {attempt_name} ({user_label}) properly blocked: {result.get('detail', {}).get('message', 'unknown')}")
                         return {"status": 429, "result": result}
                     elif response.status == 200:
-                        print(f"✅ {attempt_name} ({user_label}) successfully started")
-                        return {"status": 200}
+                        if expect_success:
+                            print(f"✅ {attempt_name} ({user_label}) succeeded as expected - capturing stream for cleanup")
+                        else:
+                            print(f"✅ {attempt_name} ({user_label}) unexpectedly succeeded - capturing stream for cleanup")
+                        
+                        # Capture stream ID for cleanup (expected or unexpected success)
+                        stream_id = None
+                        buffer = ""
+                        async for chunk in response.content.iter_chunked(1024):
+                            buffer += chunk.decode('utf-8')
+                            
+                            while '\n' in buffer:
+                                line_end = buffer.index('\n')
+                                line = buffer[:line_end].strip()
+                                buffer = buffer[line_end + 1:]
+                                
+                                if line.startswith('data: '):
+                                    data_content = line[6:]
+                                    
+                                    if data_content and data_content != '':
+                                        try:
+                                            event_data = json.loads(data_content)
+                                            event_type = event_data.get("type", "")
+                                            
+                                            if event_type == "stream_start":
+                                                if "data" in event_data and "stream_id" in event_data["data"]:
+                                                    stream_id = event_data["data"]["stream_id"]
+                                                    self.captured_streams.append(stream_id)
+                                                    if expect_success:
+                                                        print(f"📡 {attempt_name} ({user_label}) stream captured for cleanup: {stream_id}")
+                                                    else:
+                                                        print(f"📡 {attempt_name} ({user_label}) unexpected stream captured: {stream_id}")
+                                                    # Return early after capturing stream ID
+                                                    return {"status": 200, "stream_id": stream_id, "unexpected": not expect_success}
+                                        except json.JSONDecodeError:
+                                            continue
+                        
+                        return {"status": 200, "unexpected": not expect_success}
                     else:
                         error_text = await response.text()
                         print(f"❌ {attempt_name} ({user_label}) unexpected status {response.status}: {error_text}")
