@@ -805,6 +805,173 @@ class DistributedStreamingTester:
         
         return True
     
+    async def test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking(self) -> bool:
+        """Test 6.7: Mixed scenarios - User 1 multiple conversations (success) vs User 2 same conversation blocking (fail)"""
+        print("\n🔒 TEST 6.7: Mixed scenarios - Multiple conversations vs Same conversation blocking")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create two conversations for User 1
+        user_1_conv_A = await self.create_test_conversation(user_2=False, conversation_name="User1-ConvA")
+        if not user_1_conv_A:
+            print("❌ Failed to create conversation A for user 1")
+            return False
+        
+        user_1_conv_B = await self.create_test_conversation(user_2=False, conversation_name="User1-ConvB")  
+        if not user_1_conv_B:
+            print("❌ Failed to create conversation B for user 1")
+            return False
+        
+        # Create one conversation for User 2
+        user_2_conv = await self.create_test_conversation(user_2=True, conversation_name="User2-Conv")
+        if not user_2_conv:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        message_data = {"content": "Explain machine learning algorithms with practical examples."}
+        
+        print("\n📋 SCENARIO 1: User 1 streaming in different conversations (should succeed)")
+        
+        # User 1: Start stream in conversation A
+        user_1_stream_A_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conv_A, message_data, self.base_url, "User1-StreamA", user_2=False)
+        )
+        
+        # Wait for User 1 Stream A to start
+        user_1_stream_A_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User1-StreamA" in self.active_stream_ids:
+                user_1_stream_A_id = self.active_stream_ids["User1-StreamA"]
+                print(f"✅ User 1 Stream A started: {user_1_stream_A_id}")
+                break
+        
+        if not user_1_stream_A_id:
+            print("❌ Failed to start User 1 Stream A")
+            user_1_stream_A_task.cancel()
+            return False
+        
+        # User 1: Start stream in conversation B (should succeed - different conversation)
+        user_1_stream_B_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conv_B, message_data, self.base_url, "User1-StreamB", user_2=False)
+        )
+        
+        # Wait for User 1 Stream B to start
+        user_1_stream_B_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User1-StreamB" in self.active_stream_ids:
+                user_1_stream_B_id = self.active_stream_ids["User1-StreamB"]
+                print(f"✅ User 1 Stream B started: {user_1_stream_B_id}")
+                break
+        
+        if not user_1_stream_B_id:
+            print("❌ User 1 failed to start Stream B - different conversations should be allowed!")
+            await self.cancel_stream(user_1_stream_A_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            return False
+        
+        print("✅ SCENARIO 1 SUCCESS: User 1 successfully streaming in two different conversations simultaneously")
+        
+        print("\n📋 SCENARIO 2: User 2 attempting concurrent streams in same conversation (should fail)")
+        
+        # User 2: Start stream in their conversation
+        user_2_stream_1_task = asyncio.create_task(
+            self.start_stream_for_user(user_2_conv, message_data, self.base_url, "User2-Stream1", user_2=True)
+        )
+        
+        # Wait for User 2 Stream 1 to start
+        user_2_stream_1_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User2-Stream1" in self.active_stream_ids:
+                user_2_stream_1_id = self.active_stream_ids["User2-Stream1"]
+                print(f"✅ User 2 Stream 1 started: {user_2_stream_1_id}")
+                break
+        
+        if not user_2_stream_1_id:
+            print("❌ Failed to start User 2 Stream 1")
+            # Cleanup User 1 streams
+            await self.cancel_stream(user_1_stream_A_id)
+            await self.cancel_stream(user_1_stream_B_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            user_2_stream_1_task.cancel()
+            return False
+        
+        # User 2: Try to start another stream in the SAME conversation (should fail with 429)
+        concurrent_attempt_result = await self.attempt_concurrent_stream(user_2_conv, message_data, self.base_url, "User2-Blocked")
+        
+        if concurrent_attempt_result.get("status") != 429:
+            print(f"❌ User 2 concurrent stream should be blocked with 429, got {concurrent_attempt_result.get('status')}")
+            # Cleanup all streams
+            await self.cancel_stream(user_1_stream_A_id)
+            await self.cancel_stream(user_1_stream_B_id)
+            await self.cancel_stream(user_2_stream_1_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            user_2_stream_1_task.cancel()
+            return False
+        
+        print("✅ SCENARIO 2 SUCCESS: User 2 concurrent stream in same conversation properly blocked with 429")
+        
+        # Verify all legitimate streams are still active
+        await asyncio.sleep(1)
+        user_1_a_active = "User1-StreamA" in self.active_stream_ids
+        user_1_b_active = "User1-StreamB" in self.active_stream_ids  
+        user_2_active = "User2-Stream1" in self.active_stream_ids
+        
+        if not (user_1_a_active and user_1_b_active and user_2_active):
+            print(f"❌ Some legitimate streams stopped unexpectedly - A: {user_1_a_active}, B: {user_1_b_active}, User2: {user_2_active}")
+            # Cleanup
+            if user_1_stream_A_id:
+                await self.cancel_stream(user_1_stream_A_id)
+            if user_1_stream_B_id:
+                await self.cancel_stream(user_1_stream_B_id)
+            if user_2_stream_1_id:
+                await self.cancel_stream(user_2_stream_1_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            user_2_stream_1_task.cancel()
+            return False
+        
+        print("✅ All legitimate streams confirmed running concurrently")
+        
+        # Clean up all streams
+        print("🛑 Cancelling all streams")
+        cleanup_tasks = []
+        if user_1_stream_A_id:
+            cleanup_tasks.append(self.cancel_stream(user_1_stream_A_id))
+        if user_1_stream_B_id:
+            cleanup_tasks.append(self.cancel_stream(user_1_stream_B_id))
+        if user_2_stream_1_id:
+            cleanup_tasks.append(self.cancel_stream(user_2_stream_1_id))
+        
+        # Execute all cancellations concurrently
+        await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+        
+        # Cancel tasks
+        user_1_stream_A_task.cancel()
+        user_1_stream_B_task.cancel()
+        user_2_stream_1_task.cancel()
+        
+        # Wait for task cancellations
+        for task_name, task in [("User1-StreamA", user_1_stream_A_task), ("User1-StreamB", user_1_stream_B_task), ("User2-Stream1", user_2_stream_1_task)]:
+            try:
+                await task
+            except asyncio.CancelledError:
+                print(f"✅ {task_name} task cancelled")
+        
+        print("⏳ Allowing worker cleanup...")
+        await asyncio.sleep(2)
+        
+        print("✅ TEST 6.7 SUCCESS: Both scenarios validated correctly")
+        return True
+    
     async def test_conversation_locking(self) -> bool:
         """Test 6: Distributed conversation locking system - Run all tests"""
         print("\n🔬 TEST 6: Conversation Locking System")
@@ -830,7 +997,8 @@ class DistributedStreamingTester:
                 # await self.test_6_3_lock_release_after_completion(conversation_id),
                 # await self.test_6_4_lock_ttl_expiry(conversation_id),
                 # await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data),
-                await self.test_6_6_concurrent_users_different_conversations()
+                # await self.test_6_6_concurrent_users_different_conversations(),
+                await self.test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking()
             ]
             
             # Check if all tests passed
