@@ -48,6 +48,8 @@ class DistributedStreamingTester:
         self.jwt_token: Optional[str] = None   # ✅ JWT token for authentication
         self.redis_client: Optional[redis.Redis] = None
         self.test_user_email: Optional[str] = None
+        self.test_user_2_email: Optional[str] = None
+        self.jwt_token_user_2: Optional[str] = None
         self.test_conversations: List[str] = []
         self.captured_streams: List[str] = []
         self.test_results: Dict[str, bool] = {}
@@ -72,15 +74,18 @@ class DistributedStreamingTester:
         await self.cleanup_test_workers()
         await self.cleanup_test_data()
     
-    def get_headers(self, include_auth: bool = True) -> Dict[str, str]:
+    def get_headers(self, include_auth: bool = True, user_2: bool = False) -> Dict[str, str]:
         """Get request headers for authentication"""
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'text/event-stream',
         }
         # ✅ Add JWT token in Authorization header (works across all ports)
-        if include_auth and hasattr(self, 'jwt_token') and self.jwt_token:
-            headers['Authorization'] = f'Bearer {self.jwt_token}'
+        if include_auth:
+            if user_2 and hasattr(self, 'jwt_token_user_2') and self.jwt_token_user_2:
+                headers['Authorization'] = f'Bearer {self.jwt_token_user_2}'
+            elif hasattr(self, 'jwt_token') and self.jwt_token:
+                headers['Authorization'] = f'Bearer {self.jwt_token}'
         return headers
     
     async def setup_test_user(self) -> bool:
@@ -139,31 +144,90 @@ class DistributedStreamingTester:
             print(f"❌ Error setting up test user: {e}")
             return False
     
-    async def create_test_conversation(self) -> Optional[str]:
-        """Create a test conversation"""
+    async def setup_test_user_2(self) -> bool:
+        """Create and authenticate second test user for concurrent testing"""
+        try:
+            # Generate unique second test user
+            timestamp = int(time.time())
+            self.test_user_2_email = f"distrib_test_user2_{timestamp}@example.com"
+            
+            # ✅ Register second user
+            register_data = {
+                "email": self.test_user_2_email,
+                "password": "TestPass123!",
+                "confirm_password": "TestPass123!",
+                "full_name": "Distributed Tester 2"
+            }
+            
+            async with self.session.post(f"{self.base_url}/api/v1/auth/register", json=register_data) as response:
+                if response.status != 201:
+                    error_text = await response.text()
+                    print(f"❌ User 2 registration failed ({response.status}): {error_text}")
+                    return False
+                
+                print(f"✅ User 2 registration successful")
+            
+            # ✅ Login second user
+            login_data = {
+                "email": self.test_user_2_email,
+                "password": "TestPass123!"
+            }
+            
+            async with self.session.post(f"{self.base_url}/api/v1/auth/login", json=login_data) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    print(f"❌ User 2 login failed ({response.status}): {error_text}")
+                    return False
+                
+                login_result = await response.json()
+                
+                # ✅ Extract JWT token for user 2
+                cookies = response.cookies
+                if 'access_token' in cookies:
+                    self.jwt_token_user_2 = cookies['access_token'].value
+                    print(f"✅ User 2 JWT token extracted: {self.jwt_token_user_2[:20]}...")
+                else:
+                    print("❌ No JWT token found for user 2")
+                    return False
+                    
+                print(f"✅ User 2 login successful: {login_result.get('user', {}).get('email', 'unknown')}")
+                
+            print(f"✅ Test user 2 setup complete: {self.test_user_2_email}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error setting up test user 2: {e}")
+            return False
+    
+    async def create_test_conversation(self, user_2: bool = False, conversation_name: str = "Test") -> Optional[str]:
+        """Create a test conversation for specified user"""
         try:
             conversation_data = {
-                "title": f"Distributed Test {datetime.now().isoformat()}",
+                "title": f"Distributed {conversation_name} {datetime.now().isoformat()}",
                 "system_instructions": "You are a helpful assistant for testing distributed streaming."
             }
             
             async with self.session.post(
                 f"{self.base_url}/api/v1/chat/conversations", 
                 json=conversation_data,
-                headers=self.get_headers()
+                headers=self.get_headers(user_2=user_2)
             ) as response:
                 if response.status != 201:
                     error_text = await response.text()
-                    print(f"❌ Failed to create conversation: {response.status} - {error_text}")
+                    user_label = "User 2" if user_2 else "User 1"
+                    print(f"❌ Failed to create conversation for {user_label}: {response.status} - {error_text}")
                     return None
                 
                 result = await response.json()
                 conversation_id = result["conversation_id"]
                 self.test_conversations.append(conversation_id)
+                user_label = "User 2" if user_2 else "User 1"
+                print(f"✅ Created conversation for {user_label}: {conversation_id}")
                 return conversation_id
                 
         except Exception as e:
-            print(f"❌ Error creating conversation: {e}")
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error creating conversation for {user_label}: {e}")
             return None
     
     async def start_test_workers(self, worker_count: int = 2) -> bool:
@@ -630,6 +694,117 @@ class DistributedStreamingTester:
         
         return True
     
+    async def test_6_6_concurrent_users_different_conversations(self) -> bool:
+        """Test 6.6: Different users can stream simultaneously in their own conversations"""
+        print("\n🔒 TEST 6.6: Different users streaming simultaneously in different conversations")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create conversations for both users
+        user_1_conversation = await self.create_test_conversation(user_2=False, conversation_name="User1")
+        if not user_1_conversation:
+            print("❌ Failed to create conversation for user 1")
+            return False
+        
+        user_2_conversation = await self.create_test_conversation(user_2=True, conversation_name="User2")  
+        if not user_2_conversation:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        message_data = {"content": "Explain quantum computing in detail with examples."}
+        
+        # Start stream for user 1
+        user_1_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conversation, message_data, self.base_url, "User1-Stream", user_2=False)
+        )
+        
+        # Wait for user 1 stream to start
+        user_1_stream_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User1-Stream" in self.active_stream_ids:
+                user_1_stream_id = self.active_stream_ids["User1-Stream"]
+                print(f"✅ User 1 stream started: {user_1_stream_id}")
+                break
+        
+        if not user_1_stream_id:
+            print("❌ Failed to start User 1 stream")
+            user_1_task.cancel()
+            return False
+        
+        # Start stream for user 2 (should succeed - different conversation)
+        user_2_task = asyncio.create_task(
+            self.start_stream_for_user(user_2_conversation, message_data, self.base_url, "User2-Stream", user_2=True)
+        )
+        
+        # Wait for user 2 stream to start
+        user_2_stream_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User2-Stream" in self.active_stream_ids:
+                user_2_stream_id = self.active_stream_ids["User2-Stream"]
+                print(f"✅ User 2 stream started: {user_2_stream_id}")
+                break
+        
+        if not user_2_stream_id:
+            print("❌ Failed to start User 2 stream - concurrent users should be allowed!")
+            await self.cancel_stream(user_1_stream_id)
+            user_1_task.cancel()
+            user_2_task.cancel()
+            return False
+        
+        print("✅ Both users successfully streaming simultaneously in different conversations")
+        
+        # Verify both streams are actually running
+        await asyncio.sleep(2)  # Let streams run for a bit
+        
+        # Check if both streams are still active
+        user_1_active = "User1-Stream" in self.active_stream_ids
+        user_2_active = "User2-Stream" in self.active_stream_ids
+        
+        if not user_1_active or not user_2_active:
+            print(f"❌ Streams unexpectedly stopped - User1: {user_1_active}, User2: {user_2_active}")
+            # Cleanup
+            if user_1_stream_id:
+                await self.cancel_stream(user_1_stream_id)
+            if user_2_stream_id:
+                await self.cancel_stream(user_2_stream_id)
+            user_1_task.cancel()
+            user_2_task.cancel()
+            return False
+        
+        print("✅ Both streams confirmed running concurrently")
+        
+        # Clean up both streams
+        print("🛑 Cancelling both streams")
+        if user_1_stream_id:
+            await self.cancel_stream(user_1_stream_id)
+        if user_2_stream_id:
+            await self.cancel_stream(user_2_stream_id)
+        
+        # Cancel tasks
+        user_1_task.cancel()
+        user_2_task.cancel()
+        
+        # Wait for task cancellations
+        try:
+            await user_1_task
+        except asyncio.CancelledError:
+            print("✅ User 1 task cancelled")
+        
+        try:
+            await user_2_task
+        except asyncio.CancelledError:
+            print("✅ User 2 task cancelled")
+        
+        print("⏳ Allowing worker cleanup...")
+        await asyncio.sleep(2)
+        
+        return True
+    
     async def test_conversation_locking(self) -> bool:
         """Test 6: Distributed conversation locking system - Run all tests"""
         print("\n🔬 TEST 6: Conversation Locking System")
@@ -650,11 +825,12 @@ class DistributedStreamingTester:
             
             # Run all individual tests - comment out any test you don't want to run
             tests = [
-                await self.test_6_1_concurrent_streaming_attempts(conversation_id, message_data),
+                # await self.test_6_1_concurrent_streaming_attempts(conversation_id, message_data),
                 # await self.test_6_2_edit_during_stream(conversation_id, message_data), 
                 # await self.test_6_3_lock_release_after_completion(conversation_id),
                 # await self.test_6_4_lock_ttl_expiry(conversation_id),
-                # await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data)
+                # await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data),
+                await self.test_6_6_concurrent_users_different_conversations()
             ]
             
             # Check if all tests passed
@@ -739,6 +915,76 @@ class DistributedStreamingTester:
                     return {"status": 200, "stream_id": stream_id, "tokens": token_count}
         except Exception as e:
             print(f"❌ Error in {stream_name}: {e}")
+            # Clean up stream_id from active tracking
+            if stream_name in self.active_stream_ids:
+                del self.active_stream_ids[stream_name]
+            return {"error": str(e)}
+    
+    async def start_stream_for_user(self, conversation_id: str, message_data: dict, base_url: str, stream_name: str, user_2: bool = False) -> dict:
+        """Helper: Start stream for specified user and capture stream ID"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/chat/conversations/{conversation_id}/stream",
+                    json=message_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        user_label = "User 2" if user_2 else "User 1"
+                        print(f"❌ {stream_name} ({user_label}) failed to start: {response.status} - {error_text}")
+                        return {"status": response.status, "error": error_text}
+                    
+                    stream_id = None
+                    token_count = 0
+                    
+                    # Parse SSE to get stream ID
+                    buffer = ""
+                    async for chunk in response.content.iter_chunked(1024):
+                        buffer += chunk.decode('utf-8')
+                        
+                        while '\n' in buffer:
+                            line_end = buffer.index('\n')
+                            line = buffer[:line_end].strip()
+                            buffer = buffer[line_end + 1:]
+                            
+                            if line.startswith('data: '):
+                                data_content = line[6:]
+                                
+                                if data_content == '[DONE]':
+                                    user_label = "User 2" if user_2 else "User 1"
+                                    print(f"✅ {stream_name} ({user_label}) completed naturally")
+                                    break
+                                elif data_content and data_content != '':
+                                    try:
+                                        event_data = json.loads(data_content)
+                                        event_type = event_data.get("type", "")
+                                        
+                                        if event_type == "token":
+                                            token_count += 1
+                                        elif event_type == "stream_start":
+                                            if "data" in event_data and "stream_id" in event_data["data"]:
+                                                stream_id = event_data["data"]["stream_id"]
+                                                self.captured_streams.append(stream_id)
+                                                # Store stream_id for external access
+                                                self.active_stream_ids[stream_name] = stream_id
+                                                user_label = "User 2" if user_2 else "User 1"
+                                                print(f"📡 {stream_name} ({user_label}) captured stream ID: {stream_id}")
+                                        elif event_type == "stream_end":
+                                            user_label = "User 2" if user_2 else "User 1"
+                                            print(f"✅ {stream_name} ({user_label}) ended normally")
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                    
+                    # Clean up stream_id from active tracking
+                    if stream_name in self.active_stream_ids:
+                        del self.active_stream_ids[stream_name]
+                    
+                    return {"status": 200, "stream_id": stream_id, "tokens": token_count}
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error in {stream_name} ({user_label}): {e}")
             # Clean up stream_id from active tracking
             if stream_name in self.active_stream_ids:
                 del self.active_stream_ids[stream_name]
