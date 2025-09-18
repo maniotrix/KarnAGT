@@ -7,12 +7,14 @@ to prevent concurrent stream/edit requests on the same conversation.
 
 import asyncio
 from typing import Optional
+import redis  # Sync Redis client for deterministic cleanup
 from fastapi import Depends, HTTPException, status, Path
 from app.core.database import redis_client
 from app.core.worker_id import get_worker_id
 from app.models.database.user import User
 from app.api.v1.dependencies.auth import get_current_verified_user
 from app.logging.logger import get_logger
+from app.core.config import settings
 
 logger = get_logger(__name__)
 
@@ -86,9 +88,50 @@ async def acquire_conversation_lock(
         )
 
 
+def _sync_release_conversation_lock(lock_key: str, sync_redis_client, context: str = "MANUAL") -> bool:
+    """
+    Synchronous deterministic conversation lock release.
+    
+    This is the core lock release logic used by both context manager 
+    and manual release operations.
+    
+    Args:
+        lock_key: The lock key to release
+        sync_redis_client: Synchronous Redis client instance
+        context: Context string for logging (e.g., "MANUAL", "CONTEXT-MGR")
+        
+    Returns:
+        bool: True if lock was released successfully, False otherwise
+    """
+    if not lock_key:
+        logger.warning(f"[{context}] No lock key provided")
+        return False
+    
+    try:
+        logger.info(f"[{context}] Deterministic lock release: {lock_key}")
+        
+        # Sync Redis operation - cannot be cancelled by asyncio
+        result = sync_redis_client.delete(lock_key)  # type: ignore
+        released = bool(result)
+        
+        if released:
+            logger.info(f"[{context}] [SUCCESS] Lock released deterministically: {lock_key}")
+        else:
+            logger.warning(f"[{context}] [WARNING] Lock not found (may have expired): {lock_key}")
+        
+        return released
+        
+    except Exception as e:
+        logger.error(f"[{context}] [ERROR] Deterministic cleanup failed: {e}")
+        logger.info(f"[{context}] [TTL-FALLBACK] Lock will auto-expire in ≤5 minutes: {lock_key}")
+        return False
+
+
 async def release_conversation_lock(lock_key: str) -> bool:
     """
-    Release conversation lock with multi-layer shielded protection.
+    Release conversation lock (async wrapper for manual use).
+    
+    Uses deterministic sync Redis operations for guaranteed results.
     
     Args:
         lock_key: The lock key to release
@@ -99,75 +142,40 @@ async def release_conversation_lock(lock_key: str) -> bool:
     if not lock_key:
         return False
     
-    released = False
+    # Create sync Redis client for deterministic operation
+    sync_redis = redis.from_url(
+        settings.REDIS_URL,
+        decode_responses=True,
+        socket_timeout=5,
+        socket_connect_timeout=5
+    )
     
-    # 🛡️ LAYER 1: Normal shielded cleanup
     try:
-        logger.info(f"[LAYER-1] [DEBUG] release_conversation_lock() called with lock_key: {lock_key}")
-        # 🛡️ Shield the Redis operation from cancellation
-        result = await asyncio.shield(redis_client.delete(lock_key))
-        released = bool(result)
-        logger.info(f"[LAYER-1] [DEBUG] release_conversation_lock() returned: {released}")
-        
-        if released:
-            logger.info(f"[LAYER-1] [SUCCESS] Released conversation lock: {lock_key}")
-        else:
-            logger.warning(f"[LAYER-1] [WARN] Lock key {lock_key} was not found (may have been auto-released)")
-        
-        return released
-        
-    except Exception as e:
-        # 🛡️ LAYER 2: Exception recovery with shield  
-        if not released:
-            try:
-                logger.info(f"[LAYER-2] Exception recovery cleanup: {lock_key}")
-                result = await asyncio.shield(redis_client.delete(lock_key))
-                released = bool(result)
-                logger.info(f"[LAYER-2] Exception recovery result: {released}")
-            except Exception as e2:
-                logger.error(f"[LAYER-2] Exception recovery failed: {e2}")
-        
-        logger.error(f"[ERROR] Layer-1 failed to release conversation lock {lock_key}: {e}")
-        
-    except BaseException as e:
-        # 🛡️ LAYER 3: BaseException (CancelledError) recovery with shield
-        if not released:
-            try:
-                logger.info(f"[LAYER-3] BaseException recovery cleanup: {lock_key}")
-                result = await asyncio.shield(redis_client.delete(lock_key))
-                released = bool(result)
-                logger.info(f"[LAYER-3] BaseException recovery result: {released}")
-            except BaseException as be2:
-                logger.error(f"[LAYER-3] BaseException recovery failed: {be2}")
-        
-        logger.error(f"[ERROR] BaseException: Failed to release conversation lock {lock_key}: {e}")
-        
+        return _sync_release_conversation_lock(lock_key, sync_redis, "MANUAL")
     finally:
-        # 🛡️ LAYER 4: Final safety net with shield
-        if not released:
-            try:
-                logger.info(f"[LAYER-4] Final safety net cleanup: {lock_key}")
-                result = await asyncio.shield(redis_client.delete(lock_key))
-                released = bool(result)
-                logger.info(f"[LAYER-4] Final safety net result: {released}")
-            except Exception as fe:
-                logger.error(f"[LAYER-4] Final cleanup failed (Exception): {fe}")
-            except BaseException as fe:
-                logger.error(f"[LAYER-4] Final cleanup failed (BaseException): {fe}")
-                logger.error(f"[TTL-FALLBACK] All layers failed - TTL will handle: {lock_key}")
-    
-    return released
+        # Cleanup sync client connection
+        try:
+            sync_redis.close()
+        except:
+            pass  # Ignore cleanup errors
 
 
 class ConversationLockContext:
     """
     Context manager for conversation locks to ensure deterministic release.
-    Used internally by streaming services with enhanced cleanup handling.
+    Uses synchronous Redis operations for guaranteed deterministic cleanup.
     """
     
     def __init__(self, lock_key: Optional[str]):
         self.lock_key = lock_key
         self.released = False
+        # Create sync Redis client for deterministic cleanup operations
+        self._sync_redis = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=5,  # 5 second timeout for cleanup
+            socket_connect_timeout=5
+        )
         
     async def __aenter__(self):
         if self.lock_key:
@@ -176,80 +184,34 @@ class ConversationLockContext:
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """
-        Clean, simple cleanup with shield protection.
+        Deterministic cleanup using shared synchronous lock release logic.
         
-        Handles all exit scenarios including:
-        - Normal completion
-        - Client disconnections  
-        - Early generator termination
-        - AsyncIO cancellation
+        Sync operations cannot be cancelled by asyncio, providing guaranteed
+        deterministic results when context manager exits.
         
-        Uses finally block for guaranteed cleanup attempt.
+        Returns:
+            False: Never suppress exceptions - let them propagate normally
         """
         if self.lock_key and not self.released:
-            try:
-                # Attempt shielded cleanup - let exceptions bubble up naturally
-                logger.info(f"[INITIAL-CLEANUP] Attempting shielded cleanup: {self.lock_key}")
-                await asyncio.shield(self._redis_delete("INITIAL-CLEANUP"))
-            except Exception as ce:
-                logger.error(f"[INITIAL-CLEANUP] Cleanup Exception: {ce}")
-            except BaseException as cbe:
-                logger.error(f"[INITIAL-CLEANUP] Cleanup BaseException: {cbe}")
-            finally:
-                # ALWAYS attempt cleanup if not already released
-                # This handles any case where the shielded attempt failed/was cancelled
-                if not self.released:
-                    try:
-                        logger.info(f"[FINALLY-CLEANUP] Final cleanup attempt: {self.lock_key}")
-                        await asyncio.shield(self._redis_delete("FINALLY-CLEANUP"))
-                    except Exception as fe:
-                        logger.error(f"[FINALLY-CLEANUP] Cleanup Exception: {fe}")
-                        logger.info(f"[TTL-FALLBACK] Relying on TTL auto-expiry: {self.lock_key}")
-                    except BaseException as fbe:
-                        logger.error(f"[FINALLY-CLEANUP] Cleanup BaseException: {fbe}")
-                        logger.info(f"[TTL-FALLBACK] Relying on TTL auto-expiry: {self.lock_key}")
-                
-                # Final status log
-                if self.released:
-                    logger.info(f"[SUCCESS] Lock {self.lock_key} successfully released")
-                    # Log the exit reason for debugging
-                    if exc_type:
-                        exc_name = getattr(exc_type, '__name__', str(exc_type))
-                        logger.info(f"[LOCK] Lock released due to exception: {exc_name}: {exc_val}")
-                    else:
-                        logger.info(f"[LOCK] Lock released successfully on normal completion")
+            # Use shared deterministic lock release logic
+            self.released = _sync_release_conversation_lock(
+                self.lock_key, 
+                self._sync_redis, 
+                "CONTEXT-MGR"
+            )
+            
+            # Log the completion reason for context
+            if self.released:
+                if exc_type:
+                    exc_name = getattr(exc_type, '__name__', str(exc_type))
+                    logger.info(f"[COMPLETION] Lock released due to exception: {exc_name}")
                 else:
-                    logger.error(f"[FAILURE] Lock {self.lock_key} not released - relying on TTL")
-                    logger.info(f"[TTL] Lock will auto-expire in ≤5 minutes due to TTL protection")
+                    logger.info(f"[COMPLETION] Lock released on normal completion")
                     
-        # Don't suppress the original exception (return None/False)
+        elif not self.lock_key:
+            logger.debug("[SKIP] No lock key provided - nothing to release")
+        else:
+            logger.debug(f"[SKIP] Lock already released: {self.lock_key}")
+            
+        # Never suppress exceptions - let them propagate normally
         return False
-    
-    async def _redis_delete(self, layer: str) -> bool:
-        """Redis delete with comprehensive logging (shield protection handled at caller level)"""
-        if not self.lock_key:
-            logger.warning(f"[{layer}] [WARN] _redis_delete() No lock key to release")
-            return False
-            
-        try:
-            logger.info(f"[{layer}] [DEBUG] _redis_delete() called with lock_key: {self.lock_key}")
-            
-            # Direct Redis operation - shield protection handled by caller
-            result = await redis_client.delete(self.lock_key)
-            released = bool(result)
-            
-            logger.info(f"[{layer}] [DEBUG] _redis_delete() returned: {released}")
-            
-            if released:
-                self.released = True
-                logger.info(f"[{layer}] [SUCCESS] _redis_delete() Released conversation lock: {self.lock_key}")
-            else:
-                logger.warning(f"[{layer}] [WARN] _redis_delete() Lock {self.lock_key} was not found (may have expired or been released)")
-                # Consider it "released" if Redis says it doesn't exist
-                self.released = True
-                
-            return released
-            
-        except Exception as e:
-            logger.error(f"[{layer}] [ERROR] _redis_delete() Redis operation failed: {e}")
-            return False
