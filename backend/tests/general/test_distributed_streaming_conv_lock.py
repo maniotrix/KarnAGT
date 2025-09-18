@@ -904,7 +904,7 @@ class DistributedStreamingTester:
             return False
         
         # User 2: Try to start another stream in the SAME conversation (should fail with 429)
-        concurrent_attempt_result = await self.attempt_concurrent_stream(user_2_conv, message_data, self.base_url, "User2-Blocked")
+        concurrent_attempt_result = await self.attempt_concurrent_stream_for_user(user_2_conv, message_data, self.base_url, "User2-Blocked", user_2=True, expect_success=False)
         
         if concurrent_attempt_result.get("status") != 429:
             print(f"❌ User 2 concurrent stream should be blocked with 429, got {concurrent_attempt_result.get('status')}")
@@ -1260,14 +1260,14 @@ class DistributedStreamingTester:
             
             # Run all individual tests - comment out any test you don't want to run
             tests = [
-                # await self.test_6_1_concurrent_streaming_attempts(conversation_id, message_data),
-                # await self.test_6_2_edit_during_stream(conversation_id, message_data), 
-                # await self.test_6_3_lock_release_after_completion(conversation_id),
-                # await self.test_6_4_lock_ttl_expiry(conversation_id),
-                # await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data),
-                # await self.test_6_6_concurrent_users_different_conversations(),
-                # await self.test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking(),
-                # await self.test_6_8_stream_completion_and_subsequent_operations(),
+                await self.test_6_1_concurrent_streaming_attempts(conversation_id, message_data),
+                await self.test_6_2_edit_during_stream(conversation_id, message_data), 
+                await self.test_6_3_lock_release_after_completion(conversation_id),
+                await self.test_6_4_lock_ttl_expiry(conversation_id),
+                await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data),
+                await self.test_6_6_concurrent_users_different_conversations(),
+                await self.test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking(),
+                await self.test_6_8_stream_completion_and_subsequent_operations(),
                 await self.test_6_9_cross_user_auth_during_streams()
             ]
             
