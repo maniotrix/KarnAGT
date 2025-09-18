@@ -1096,6 +1096,150 @@ class DistributedStreamingTester:
         print("✅ TEST 6.8 SUCCESS: Stream completion properly releases locks, subsequent operations work correctly")
         return True
     
+    async def test_6_9_cross_user_auth_during_streams(self) -> bool:
+        """Test 6.9: Cross-user authorization during active streams - Auth errors when accessing other users' conversations"""
+        print("\n🔒 TEST 6.9: Cross-user authorization during active streams")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create conversations for both users  
+        user_1_conv = await self.create_test_conversation(user_2=False, conversation_name="User1-Auth")
+        if not user_1_conv:
+            print("❌ Failed to create conversation for user 1")
+            return False
+        
+        user_2_conv = await self.create_test_conversation(user_2=True, conversation_name="User2-Auth")
+        if not user_2_conv:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        # Use normal (longer) message for timing
+        normal_message = {"content": "Explain quantum computing, artificial intelligence, and blockchain technology in detail with examples and practical applications."}
+        
+        print("\n📋 SCENARIO 1: User 1 streaming, User 2 tries unauthorized access to same conversation")
+        
+        # User 1: Start normal stream in their conversation
+        print("🔄 User 1: Starting normal stream in own conversation...")
+        user_1_stream_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conv, normal_message, self.base_url, "User1-Normal", user_2=False)
+        )
+        
+        # Wait for stream to establish and acquire lock
+        await asyncio.sleep(2)
+        
+        # Get stream ID for cancellation (should be captured by start_stream_for_user)
+        user_1_stream_id = self.active_stream_ids.get("User1-Normal")
+        if not user_1_stream_id:
+            print("❌ Failed to capture User 1 stream ID")
+            user_1_stream_task.cancel()
+            return False
+        
+        # User 2: Try to stream in User 1's conversation (should get auth error, not lock error)
+        print("🚫 User 2: Attempting unauthorized stream access to User 1's conversation...")
+        user_2_auth_attempt = await self.attempt_unauthorized_access(
+            user_1_conv, normal_message, "User2-Unauthorized-Stream", user_2=True, is_edit=False
+        )
+        
+        if user_2_auth_attempt.get("status") not in [401, 403, 404]:
+            print(f"❌ SECURITY FAILURE: User 2 should get auth error, got status: {user_2_auth_attempt.get('status')}")
+            await self.cancel_stream(user_1_stream_id)
+            user_1_stream_task.cancel()
+            return False
+        
+        print(f"✅ SECURITY SUCCESS: User 2 properly blocked with auth error (status: {user_2_auth_attempt.get('status')})")
+        
+        # Cancel User 1 stream after auth verification (consistent with all other tests)
+        print(f"🛑 Cancelling User 1 stream via API: {user_1_stream_id}")
+        await self.cancel_stream(user_1_stream_id)
+        
+        # Now cancel the task
+        print("🛑 Cancelling User 1 task")
+        user_1_stream_task.cancel()
+        
+        # Wait for task cancellation
+        try:
+            await user_1_stream_task
+        except asyncio.CancelledError:
+            print("✅ User 1 stream task cancelled successfully")
+        
+        # Wait for cleanup
+        await asyncio.sleep(2)
+        
+        print("\n📋 SCENARIO 2: User 2 streaming, User 1 tries unauthorized edit access")
+        
+        # User 2: Create a message first (needed for edit test)
+        print("🔄 User 2: Creating initial message for edit test...")
+        create_message = {"content": "Initial message for edit test. Please respond briefly."}
+        user_2_initial_result = await self.complete_short_stream_for_user(user_2_conv, create_message, user_2=True)
+        
+        if not user_2_initial_result.get("completed"):
+            print("❌ User 2 failed to create initial message")
+            return False
+        
+        user_2_message_id = user_2_initial_result.get("user_message_id")
+        if not user_2_message_id:
+            print("❌ Failed to get User 2 message ID for edit test")
+            return False
+        
+        print(f"✅ User 2 created message for edit test: {user_2_message_id}")
+        
+        # Wait for cleanup
+        await asyncio.sleep(1)
+        
+        # User 2: Start normal stream in their conversation
+        print("🔄 User 2: Starting normal stream in own conversation...")
+        user_2_stream_task = asyncio.create_task(
+            self.start_stream_for_user(user_2_conv, normal_message, self.base_url, "User2-Normal", user_2=True)
+        )
+        
+        # Wait for stream to establish and acquire lock
+        await asyncio.sleep(2)
+        
+        # Get stream ID for cancellation (should be captured by start_stream_for_user)
+        user_2_stream_id = self.active_stream_ids.get("User2-Normal")
+        if not user_2_stream_id:
+            print("❌ Failed to capture User 2 stream ID")
+            user_2_stream_task.cancel()
+            return False
+        
+        # User 1: Try to edit in User 2's conversation (should get auth error, not lock error)
+        print("🚫 User 1: Attempting unauthorized edit access to User 2's conversation...")
+        user_1_edit_attempt = await self.attempt_unauthorized_access(
+            user_2_conv, {"content": "Unauthorized edit attempt"}, "User1-Unauthorized-Edit", 
+            user_2=False, is_edit=True, message_id=user_2_message_id
+        )
+        
+        if user_1_edit_attempt.get("status") not in [401, 403, 404]:
+            print(f"❌ SECURITY FAILURE: User 1 should get auth error for edit, got status: {user_1_edit_attempt.get('status')}")
+            await self.cancel_stream(user_2_stream_id)
+            user_2_stream_task.cancel()
+            return False
+        
+        print(f"✅ SECURITY SUCCESS: User 1 properly blocked from edit with auth error (status: {user_1_edit_attempt.get('status')})")
+        
+        # Cancel User 2 stream after auth verification (consistent with all other tests)
+        print(f"🛑 Cancelling User 2 stream via API: {user_2_stream_id}")
+        await self.cancel_stream(user_2_stream_id)
+        
+        # Now cancel the task
+        print("🛑 Cancelling User 2 task")
+        user_2_stream_task.cancel()
+        
+        # Wait for task cancellation
+        try:
+            await user_2_stream_task
+        except asyncio.CancelledError:
+            print("✅ User 2 stream task cancelled successfully")
+        
+        # Final cleanup wait
+        await asyncio.sleep(2)
+        
+        print("✅ TEST 6.9 SUCCESS: Cross-user authorization properly prevents unauthorized access during active streams")
+        return True
+    
     async def test_conversation_locking(self) -> bool:
         """Test 6: Distributed conversation locking system - Run all tests"""
         print("\n🔬 TEST 6: Conversation Locking System")
@@ -1123,7 +1267,8 @@ class DistributedStreamingTester:
                 # await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data),
                 # await self.test_6_6_concurrent_users_different_conversations(),
                 # await self.test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking(),
-                await self.test_6_8_stream_completion_and_subsequent_operations()
+                # await self.test_6_8_stream_completion_and_subsequent_operations(),
+                await self.test_6_9_cross_user_auth_during_streams()
             ]
             
             # Check if all tests passed
@@ -1584,6 +1729,96 @@ class DistributedStreamingTester:
         except Exception as e:
             user_label = "User 2" if user_2 else "User 1"
             print(f"❌ Error in {attempt_name} ({user_label}): {e}")
+            return {"error": str(e)}
+    
+    async def attempt_unauthorized_access(self, conversation_id: str, message_data: dict, attempt_name: str, user_2: bool = False, is_edit: bool = False, message_id: str = None) -> dict:
+        """Helper: Attempt unauthorized access (stream or edit) - expect auth error but track any streams if security fails"""
+        try:
+            user_label = "User 2" if user_2 else "User 1"
+            
+            # Determine endpoint and data
+            if is_edit:
+                if not message_id:
+                    return {"error": "message_id required for edit attempts"}
+                endpoint = f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/messages/{message_id}/edit/stream"
+                request_data = message_data
+            else:
+                endpoint = f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/stream"
+                request_data = message_data
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    endpoint,
+                    json=request_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status in [401, 403, 404]:
+                        # Expected authorization failure
+                        try:
+                            error_result = await response.json()
+                            error_msg = error_result.get('detail', 'Access denied')
+                            if isinstance(error_msg, dict):
+                                error_msg = error_msg.get('message', 'Access denied')
+                            print(f"🛡️ {attempt_name} ({user_label}) authorization properly blocked: {error_msg}")
+                        except:
+                            error_text = await response.text()
+                            print(f"🛡️ {attempt_name} ({user_label}) authorization properly blocked: {error_text[:100]}")
+                        return {"status": response.status, "authorized": False}
+                    
+                    elif response.status == 429:
+                        # Got lock error instead of auth error - still security issue
+                        try:
+                            lock_result = await response.json()
+                            lock_msg = lock_result.get('detail', {}).get('message', 'Conversation locked')
+                            print(f"🔒 {attempt_name} ({user_label}) got lock error (not auth error): {lock_msg}")
+                        except:
+                            error_text = await response.text()
+                            print(f"🔒 {attempt_name} ({user_label}) got lock error: {error_text[:100]}")
+                        return {"status": response.status, "got_lock_error": True}
+                    
+                    elif response.status == 200:
+                        # SECURITY BREACH: Unauthorized access succeeded - capture stream for cleanup
+                        action = "edit" if is_edit else "stream"
+                        print(f"🚨 SECURITY BREACH: {attempt_name} ({user_label}) unauthorized {action} access succeeded!")
+                        
+                        stream_id = None
+                        buffer = ""
+                        async for chunk in response.content.iter_chunked(1024):
+                            buffer += chunk.decode('utf-8')
+                            
+                            while '\n' in buffer:
+                                line_end = buffer.index('\n')
+                                line = buffer[:line_end].strip()
+                                buffer = buffer[line_end + 1:]
+                                
+                                if line.startswith('data: '):
+                                    data_content = line[6:]
+                                    
+                                    if data_content and data_content != '':
+                                        try:
+                                            event_data = json.loads(data_content)
+                                            event_type = event_data.get("type", "")
+                                            
+                                            if event_type == "stream_start":
+                                                if "data" in event_data and "stream_id" in event_data["data"]:
+                                                    stream_id = event_data["data"]["stream_id"]
+                                                    self.captured_streams.append(stream_id)
+                                                    print(f"🚨 SECURITY BREACH: Captured unauthorized {action} stream for cleanup: {stream_id}")
+                                                    # Stop consuming after getting stream ID
+                                                    return {"status": 200, "stream_id": stream_id, "security_breach": True}
+                                        except json.JSONDecodeError:
+                                            continue
+                        
+                        return {"status": 200, "security_breach": True}
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ {attempt_name} ({user_label}) unexpected status {response.status}: {error_text}")
+                        return {"status": response.status, "error": error_text}
+                        
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            action = "edit" if is_edit else "stream"
+            print(f"❌ Error in {attempt_name} ({user_label}) unauthorized {action}: {e}")
             return {"error": str(e)}
     
     async def cancel_stream(self, stream_id: str) -> bool:

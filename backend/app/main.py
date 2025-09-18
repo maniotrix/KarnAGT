@@ -80,10 +80,12 @@ from app.api.v1.middleware.auth import (
     UserContextMiddleware
 )
 from app.api.v1.middleware.rate_limit import RateLimitMiddleware
+from app.api.v1.middleware.resource_auth import ResourceAuthorizationMiddleware
 
 # Add custom middleware
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(UserContextMiddleware) 
+app.add_middleware(ResourceAuthorizationMiddleware)  # After auth, before business logic
 app.add_middleware(AuthenticationMiddleware)
 app.add_middleware(RateLimitMiddleware)
 

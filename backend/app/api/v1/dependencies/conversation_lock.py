@@ -31,8 +31,11 @@ async def acquire_conversation_lock(
     
     The lock has a 5-minute TTL to prevent permanent deadlocks if workers die.
     
+    Note: Conversation ownership validation is handled by ResourceAuthorizationMiddleware
+    before this dependency executes. This dependency focuses purely on distributed locking.
+    
     Args:
-        conversation_id: The conversation ID to lock
+        conversation_id: The conversation ID to lock  
         user: Current authenticated user (already resolved from endpoint)
         
     Returns:
