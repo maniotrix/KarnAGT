@@ -176,52 +176,38 @@ class ConversationLockContext:
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """
-        Multi-layer shielded cleanup with maximum redundancy.
-        Handles both normal completion and exceptions including:
-        - Generator completion
+        Clean, simple cleanup with shield protection.
+        
+        Handles all exit scenarios including:
+        - Normal completion
         - Client disconnections  
         - Early generator termination
-        - Asyncio cancellation
+        - AsyncIO cancellation
+        
+        Uses finally block for guaranteed cleanup attempt.
         """
         if self.lock_key and not self.released:
-            
-            # 🛡️ LAYER 1: Normal cleanup with shield
             try:
-                logger.info(f"[LAYER-1] Attempting normal shielded cleanup: {self.lock_key}")
-                await asyncio.shield(self._redis_delete("LAYER-1"))
-                
-            except Exception as e:
-                # 🛡️ LAYER 2: Exception fallback with shield
-                logger.warning(f"[LAYER-1] Failed: {e}")
-                if not self.released:
-                    try:
-                        logger.info(f"[LAYER-2] Attempting Exception fallback cleanup: {self.lock_key}")
-                        await asyncio.shield(self._redis_delete("LAYER-2"))
-                    except Exception as e2:
-                        logger.error(f"[LAYER-2] Failed: {e2}")
-                        
-            except BaseException as be:
-                # 🛡️ LAYER 3: BaseException (CancelledError) fallback with shield  
-                logger.warning(f"[LAYER-1] BaseException: {be}")
-                if not self.released:
-                    try:
-                        logger.info(f"[LAYER-3] Attempting BaseException fallback cleanup: {self.lock_key}")
-                        await asyncio.shield(self._redis_delete("LAYER-3"))
-                    except BaseException as be2:
-                        logger.error(f"[LAYER-3] Failed: {be2}")
-                        
+                # Attempt shielded cleanup - let exceptions bubble up naturally
+                logger.info(f"[INITIAL-CLEANUP] Attempting shielded cleanup: {self.lock_key}")
+                await asyncio.shield(self._redis_delete("INITIAL-CLEANUP"))
+            except Exception as ce:
+                logger.error(f"[INITIAL-CLEANUP] Cleanup Exception: {ce}")
+            except BaseException as cbe:
+                logger.error(f"[INITIAL-CLEANUP] Cleanup BaseException: {cbe}")
             finally:
-                # 🛡️ LAYER 4: Final safety net with shield
+                # ALWAYS attempt cleanup if not already released
+                # This handles any case where the shielded attempt failed/was cancelled
                 if not self.released:
                     try:
-                        logger.info(f"[LAYER-4] Final safety net cleanup: {self.lock_key}")
-                        await asyncio.shield(self._redis_delete("LAYER-4"))
+                        logger.info(f"[FINALLY-CLEANUP] Final cleanup attempt: {self.lock_key}")
+                        await asyncio.shield(self._redis_delete("FINALLY-CLEANUP"))
                     except Exception as fe:
-                        logger.error(f"[LAYER-4] Failed: {fe}")
-                        logger.error(f"[TTL-FALLBACK] All layers failed - TTL will handle: {self.lock_key}")
-                    except BaseException as fe:
-                        logger.error(f"[LAYER-4] Final cleanup failed: {fe}")
-                        logger.error(f"[TTL-FALLBACK] All layers failed - TTL will handle: {self.lock_key}")
+                        logger.error(f"[FINALLY-CLEANUP] Cleanup Exception: {fe}")
+                        logger.info(f"[TTL-FALLBACK] Relying on TTL auto-expiry: {self.lock_key}")
+                    except BaseException as fbe:
+                        logger.error(f"[FINALLY-CLEANUP] Cleanup BaseException: {fbe}")
+                        logger.info(f"[TTL-FALLBACK] Relying on TTL auto-expiry: {self.lock_key}")
                 
                 # Final status log
                 if self.released:
@@ -242,28 +228,28 @@ class ConversationLockContext:
     async def _redis_delete(self, layer: str) -> bool:
         """Redis delete with comprehensive logging (shield protection handled at caller level)"""
         if not self.lock_key:
-            logger.warning(f"[{layer}] [WARN] No lock key to release")
+            logger.warning(f"[{layer}] [WARN] _redis_delete() No lock key to release")
             return False
             
         try:
-            logger.info(f"[{layer}] [DEBUG] release_conversation_lock() called with lock_key: {self.lock_key}")
+            logger.info(f"[{layer}] [DEBUG] _redis_delete() called with lock_key: {self.lock_key}")
             
             # Direct Redis operation - shield protection handled by caller
             result = await redis_client.delete(self.lock_key)
             released = bool(result)
             
-            logger.info(f"[{layer}] [DEBUG] release_conversation_lock() returned: {released}")
+            logger.info(f"[{layer}] [DEBUG] _redis_delete() returned: {released}")
             
             if released:
                 self.released = True
-                logger.info(f"[{layer}] [SUCCESS] Released conversation lock: {self.lock_key}")
+                logger.info(f"[{layer}] [SUCCESS] _redis_delete() Released conversation lock: {self.lock_key}")
             else:
-                logger.warning(f"[{layer}] [WARN] Lock {self.lock_key} was not found (may have expired or been released)")
+                logger.warning(f"[{layer}] [WARN] _redis_delete() Lock {self.lock_key} was not found (may have expired or been released)")
                 # Consider it "released" if Redis says it doesn't exist
                 self.released = True
                 
             return released
             
         except Exception as e:
-            logger.error(f"[{layer}] [ERROR] Redis operation failed: {e}")
+            logger.error(f"[{layer}] [ERROR] _redis_delete() Redis operation failed: {e}")
             return False
