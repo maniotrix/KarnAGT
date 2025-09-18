@@ -594,10 +594,15 @@ class DistributedStreamingTester:
         # Verify lock is released - new stream should succeed
         await asyncio.sleep(1)
         
-        follow_up_result = await self.attempt_concurrent_stream(conversation_id, short_message, self.base_url, "Follow-up")
-        if follow_up_result.get("status") != 200:
-            print(f"❌ Follow-up stream after completion failed: {follow_up_result.get('status')}")
+        follow_up_result = await self.complete_short_stream(conversation_id, short_message)
+        if not follow_up_result.get("completed"):
+            print(f"❌ Follow-up stream after completion failed: {follow_up_result}")
             return False
+        
+        # Extract stream_id for cleanup tracking
+        follow_up_stream_id = follow_up_result.get("stream_id")
+        if follow_up_stream_id:
+            print(f"📡 Follow-up captured stream ID for cleanup: {follow_up_stream_id}")
         
         print("✅ Lock properly released after stream completion")
         return True
