@@ -14,6 +14,7 @@ import { chatKeys } from '../app/hooks/chat/useSidebar';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
 import { imageService, hasStagingFiles } from '../app/services';
 import { authService } from '../services/authService';
+import { useToast } from '../app/stores/uiStore';
 
 export function useChat(options: ChatOptions = {}) {
   // Auth state
@@ -21,6 +22,7 @@ export function useChat(options: ChatOptions = {}) {
   const authStatus = useAuthStatus();
   const isAuthenticated = authStatus.data?.authenticated ?? false;
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   // Image handling is now managed directly in message data
 
@@ -802,6 +804,12 @@ export function useChat(options: ChatOptions = {}) {
       
     } catch (error) {
       console.error('❌ Error in sendMessage:', error);
+      
+      // Network error during streaming - show helpful toast
+      if (error instanceof TypeError) {
+        toast.warning('Connection Lost', 'AI may still be processing. Please wait and reload chat.');
+      }
+      
       setError(error as Error);
       
       // Create proper StreamErrorEvent for callback
@@ -1417,6 +1425,11 @@ export function useChat(options: ChatOptions = {}) {
       
       return true;
     } catch (error) {
+      // Network error during streaming - show helpful toast
+      if (error instanceof TypeError) {
+        toast.warning('Connection Lost', 'AI may still be processing. Please wait and reload chat.');
+      }
+      
       setError(error instanceof Error ? error : new Error('Failed to edit message'));
       setIsLoading(false);
       setCurrentStreamId(null);
