@@ -383,7 +383,14 @@ async def stream_message(
         
         # Create the streaming generator with client disconnection detection
         async def stream_with_disconnection_detection():
-            """Wrapper generator that detects client disconnection and handles conversation locking"""
+            """Wrapper generator that detects client disconnection and handles conversation locking
+            
+            TODO: EDGE CASE - On client disconnection/cancellation, the context manager releases 
+            the lock immediately, but background edit tasks in streaming service may continue 
+            running and saving AI responses. This could lead to race conditions where the lock 
+            is released before AI processing completes. Consider moving lock management to the 
+            edit task itself or implementing cancellation-resistant waiting patterns.
+            """
             # Use conversation lock context for deterministic cleanup
             async with ConversationLockContext(lock_key):
                 # Convert staging files from dict to object at API boundary
@@ -850,7 +857,14 @@ async def edit_and_resend_message_streaming(
         
         # Create the streaming generator with client disconnection detection
         async def stream_edit_with_disconnection_detection():
-            """Wrapper generator that detects client disconnection for edit streaming and handles conversation locking"""
+            """Wrapper generator that detects client disconnection for edit streaming and handles conversation locking
+            
+            TODO: EDGE CASE - On client disconnection/cancellation, the context manager releases 
+            the lock immediately, but background edit tasks in streaming service may continue 
+            running and saving AI responses. This could lead to race conditions where the lock 
+            is released before AI processing completes. Consider moving lock management to the 
+            edit task itself or implementing cancellation-resistant waiting patterns.
+            """
             # Use conversation lock context for deterministic cleanup
             async with ConversationLockContext(lock_key):
                 stream_generator = streaming_service.stream_edit_message_response(

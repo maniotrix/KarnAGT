@@ -63,6 +63,13 @@ class StreamingService:
         """
         Stream a message response using Server-Sent Events
         
+        TODO: EDGE CASE - When client disconnection causes cancellation, the background
+        message_task continues running but the conversation lock (held by the endpoint
+        context manager) is released immediately. This creates a race condition where
+        the message_task might save AI responses after the lock is released. Potential
+        solutions: 1) Move lock management into message_task, 2) Use cancellation-resistant
+        waiting patterns, or 3) Implement task handoff patterns.
+        
         Args:
             conversation_id: The conversation ID
             content: Message content
@@ -427,6 +434,13 @@ class StreamingService:
         
         This method handles editing a user message and streaming the new AI response.
         It performs the same edit operations as the non-streaming version but with real-time streaming.
+        
+        TODO: EDGE CASE - When client disconnection causes cancellation, the background
+        edit_task continues running but the conversation lock (held by the endpoint
+        context manager) is released immediately. This creates a race condition where
+        the edit task might save AI responses after the lock is released. Potential
+        solutions: 1) Move lock management into edit_task, 2) Use cancellation-resistant
+        waiting patterns, or 3) Implement task handoff patterns.
         
         Args:
             conversation_id: The conversation ID

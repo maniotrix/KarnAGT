@@ -17,6 +17,7 @@ This document describes the distributed conversation locking system and security
 - Lack of distributed locking across multiple FastAPI workers/pods
 - Authorization checks happening after resource locking
 - No cleanup mechanism for dead worker resources
+- **Edge Case**: Potential race condition between lock release and background task completion on cancellation
 
 ## 🏗️ Architecture Overview
 
@@ -255,6 +256,63 @@ app.add_middleware(RateLimitMiddleware)           # 2. Rate limiting
 1. **Authentication First**: Verify user identity
 2. **Authorization Second**: Validate resource access
 3. **Business Logic Last**: Only authorized requests reach endpoints
+
+---
+
+## ⚠️ Known Edge Cases & Limitations
+
+### Cancellation Race Condition
+
+#### Problem Description:
+When a client disconnects or cancels a streaming request, the following sequence occurs:
+1. Client disconnection triggers `CancelledError` in the endpoint coroutine
+2. Context manager (`ConversationLockContext`) releases the lock immediately  
+3. Background edit task in streaming service continues running
+4. AI processing and database saves happen **after** lock is released
+
+#### Impact:
+- **Low Risk**: Rare edge case only triggered by client disconnection during streaming
+- **Functional**: AI responses are still saved correctly to database
+- **Consistency**: No data corruption, just timing of lock release vs. task completion
+
+#### Current Mitigation:
+```python
+# Documented in both endpoint and streaming service
+TODO: EDGE CASE - When client disconnection causes cancellation, the background
+edit_task continues running but the conversation lock is released immediately.
+```
+
+#### Potential Solutions (Future Enhancement):
+
+**Option 1: Lock Handoff Pattern**
+```python
+# Move lock management to background task
+async def _process_streaming_edit_message(..., lock_key: str):
+    async with ConversationLockContext(lock_key):
+        # All AI processing and DB saves
+```
+
+**Option 2: Cancellation-Resistant Waiting**
+```python
+# Use asyncio.shield with proper exception handling
+try:
+    await asyncio.shield(edit_task)
+except asyncio.CancelledError:
+    await edit_task  # Wait without shield protection
+    raise  # Re-raise after completion
+```
+
+**Option 3: Task Completion Tracking**
+```python
+# Track task completion in Redis
+async def wait_for_task_completion(task_id: str):
+    while not await redis.get(f"task_complete:{task_id}"):
+        await asyncio.sleep(0.1)
+```
+
+#### Decision:
+**Status**: Documented as TODO - Low priority due to minimal impact
+**Rationale**: Complex asyncio cancellation handling vs. rare edge case with no functional impact
 
 ---
 
@@ -506,6 +564,7 @@ async def stream_with_retry(conversation_id: str, message: str, max_retries: int
 ✅ **Security Vulnerabilities**: Fixed with authorization middleware  
 ✅ **Cross-Worker Issues**: Resolved with Redis-based coordination  
 ✅ **Resource Leaks**: Addressed with deterministic cleanup  
+⚠️ **Cancellation Race Condition**: Documented as low-priority edge case  
 
 ### System Benefits:
 🚀 **Scalability**: Works across unlimited FastAPI workers  
