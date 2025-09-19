@@ -15,6 +15,7 @@ import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
 import { imageService, hasStagingFiles } from '../app/services';
 import { authService } from '../services/authService';
 import { useToast } from '../app/stores/uiStore';
+import { handle429Error } from '../utils/httpErrorHandlers';
 
 export function useChat(options: ChatOptions = {}) {
   // Auth state
@@ -537,7 +538,7 @@ export function useChat(options: ChatOptions = {}) {
 
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error('Conversation busy. Please wait or reload.');
+          throw await handle429Error(response);
         }
         throw new Error(`Stream request failed: ${response.statusText}`);
       }

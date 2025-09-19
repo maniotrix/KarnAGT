@@ -9,6 +9,7 @@ import {
 } from '../types/chat';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../config/env';
 import { authService } from './authService';
+import { handle429Error } from '../utils/httpErrorHandlers';
 
 class ChatApiService {
   /**
@@ -191,7 +192,7 @@ class ChatApiService {
 
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error('Conversation busy. Please wait or reload.');
+        throw await handle429Error(response);
       }
       const errorData = await response.text().catch(() => 'Failed to start streaming edit');
       throw new Error(errorData || 'Failed to start streaming edit');
@@ -246,7 +247,7 @@ class ChatApiService {
 
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error('Conversation busy. Please wait or reload.');
+          throw await handle429Error(response);
         }
         throw new Error(`Stream request failed: ${response.statusText}`);
       }
