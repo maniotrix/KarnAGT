@@ -532,6 +532,9 @@ export function useChat(options: ChatOptions = {}) {
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Conversation busy. Please wait or reload.');
+        }
         throw new Error(`Stream request failed: ${response.statusText}`);
       }
 
