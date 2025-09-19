@@ -209,6 +209,10 @@ const MessageListComponent: React.FC<MessageListProps> = ({
             const isLastMessage = index === messages.length - 1;
             const isStreamingThisMessage = isLoading && isLastMessage && message.role === 'assistant';
             
+            // For user messages, disable actions if ANY streaming is happening
+            // For assistant messages, only show streaming state if this specific message is streaming
+            const messageStreamingState = message.role === 'user' ? isLoading : isStreamingThisMessage;
+            
             // Create a more stable key
             const messageKey = message.id || `${conversationId}-${message.role}-${index}`;
             
@@ -236,7 +240,7 @@ const MessageListComponent: React.FC<MessageListProps> = ({
               <div key={messageKey} className="mb-4">
                 <ChatMessage 
                   message={message} 
-                  isStreaming={isStreamingThisMessage}
+                  isStreaming={messageStreamingState}
                   onEdit={onEdit}
                   messageTools={messageTools}
                   isThinking={shouldShowThinking}

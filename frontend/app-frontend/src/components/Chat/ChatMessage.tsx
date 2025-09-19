@@ -27,6 +27,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       <UserMessage 
         message={message}
         onEdit={onEdit}
+        isStreaming={isStreaming}
       />
     );
   }

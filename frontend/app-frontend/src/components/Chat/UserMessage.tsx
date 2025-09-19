@@ -19,11 +19,13 @@ import { motion } from 'framer-motion';
 interface UserMessageProps {
   message: Message;
   onEdit?: (messageId: string, newContent: string) => Promise<boolean>;
+  isStreaming?: boolean;
 }
 
 export const UserMessage: React.FC<UserMessageProps> = ({
   message,
   onEdit,
+  isStreaming = false,
 }) => {
   // Copy functionality
   const [copied, setCopied] = useState(false);
@@ -153,7 +155,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
     }
   };
 
-  const canEdit = onEdit && !isSaving;
+  const canEdit = onEdit && !isSaving && !isStreaming;
 
   // ✅ MODERN: Get images using metadata + generated URLs
   const getDisplayImages = () => {

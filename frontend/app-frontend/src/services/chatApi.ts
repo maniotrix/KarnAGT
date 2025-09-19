@@ -190,6 +190,9 @@ class ChatApiService {
     );
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('Conversation busy. Please wait or reload.');
+      }
       const errorData = await response.text().catch(() => 'Failed to start streaming edit');
       throw new Error(errorData || 'Failed to start streaming edit');
     }
@@ -242,6 +245,9 @@ class ChatApiService {
       );
 
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Conversation busy. Please wait or reload.');
+        }
         throw new Error(`Stream request failed: ${response.statusText}`);
       }
 
