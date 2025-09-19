@@ -435,12 +435,12 @@ if __name__ == "__main__":
                 "app.main:app",
                 host="0.0.0.0",
                 port=8000,
-                reload=True,
+                reload=False,
                 reload_dirs=["./app"],
                 reload_excludes=["__pycache__", "*.pyc", "logs", "uploads", "workspaces", "*.log"],
                 reload_delay=0.25,
                 log_level="debug",
-                workers=1
+                workers=4
             )
         else:
             print("🚀 Production configuration:")
