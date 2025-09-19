@@ -450,6 +450,8 @@ export function useChat(options: ChatOptions = {}) {
 
   // Send message with SSE streaming
   const sendMessage = useCallback(async (content: string, conversationId: string, stagingFiles: Record<string, any> = {}, imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }> = []) => {
+    let capturedStreamId: string | null = null; // Variable to store stream ID for error handling
+    
     if (!conversationId) {
       console.error('❌ No conversation ID provided');
       return;
@@ -588,6 +590,7 @@ export function useChat(options: ChatOptions = {}) {
               const extractedStreamId = extractStreamIdFromSSE(data);
               if (extractedStreamId) {
                 setCurrentStreamId(extractedStreamId);
+                capturedStreamId = extractedStreamId; // Store for error handling
                 streamIdCaptured = true;
                 console.log('🎯 NORMAL STREAM_ID CAPTURED:', extractedStreamId);
               }
@@ -802,13 +805,17 @@ export function useChat(options: ChatOptions = {}) {
       // STEP 6: Update user message with final backend message ID if available
       // The localImages will remain for display, backend attachments will be available on refresh
       
-    } catch (error) {
-      console.error('❌ Error in sendMessage:', error);
-      
-      // Network error during streaming - show helpful toast
-      if (error instanceof TypeError) {
-        toast.warning('Connection Lost', 'AI may still be processing. Please wait and reload chat.');
-      }
+      } catch (error) {
+        console.error('❌ Error in sendMessage:', error);
+        
+        // Network error during streaming - show helpful toast
+        if (error instanceof TypeError) {
+          const message = capturedStreamId 
+            ? 'AI is still processing. Please wait and reload chat.'
+            : 'AI may still be processing. Please wait and reload chat.';
+          console.log('🔄 [sendMessage Toast] Connection Lost:', message);
+          toast.warning('Connection Lost', message);
+        }
       
       setError(error as Error);
       
@@ -989,6 +996,8 @@ export function useChat(options: ChatOptions = {}) {
 
   // Edit message with streaming support
   const editMessage = useCallback(async (messageId: string, newContent: string) => {
+    let capturedStreamId: string | null = null; // Variable to store stream ID for error handling
+    
     if (!conversation) return false;
     
     // Find the message being edited first to check for attachments
@@ -1166,6 +1175,7 @@ export function useChat(options: ChatOptions = {}) {
                 const extractedStreamId = extractStreamIdFromSSE(data);
                 if (extractedStreamId) {
                   setCurrentStreamId(extractedStreamId);
+                  capturedStreamId = extractedStreamId; // Store for error handling
                   streamIdCaptured = true;
                   console.log('🎯 EDIT STREAM_ID CAPTURED:', extractedStreamId);
                 }
@@ -1424,11 +1434,15 @@ export function useChat(options: ChatOptions = {}) {
       queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
       
       return true;
-    } catch (error) {
-      // Network error during streaming - show helpful toast
-      if (error instanceof TypeError) {
-        toast.warning('Connection Lost', 'AI may still be processing. Please wait and reload chat.');
-      }
+      } catch (error) {
+        // Network error during streaming - show helpful toast
+        if (error instanceof TypeError) {
+          const message = capturedStreamId 
+            ? 'AI is still processing. Please wait and reload chat.'
+            : 'AI may still be processing. Please wait and reload chat.';
+          console.log('🔄 [editMessage Toast] Connection Lost:', message);
+          toast.warning('Connection Lost', message);
+        }
       
       setError(error instanceof Error ? error : new Error('Failed to edit message'));
       setIsLoading(false);
