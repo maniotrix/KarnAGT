@@ -162,18 +162,18 @@ def format_bucket_validation_error_message(bucket_name: str) -> str:
     result = validate_and_suggest_bucket_name(bucket_name)
     
     if result["is_valid"]:
-        return f"✅ Bucket name '{bucket_name}' is valid"
+        return f"[VALID] Bucket name '{bucket_name}' is valid"
     
-    error_msg = f"❌ Invalid bucket name '{bucket_name}':\n"
+    error_msg = f"[ERROR] Invalid bucket name '{bucket_name}':\n"
     for error in result["errors"]:
         error_msg += f"  • {error}\n"
     
     if "suggested_name" in result:
         if result.get("suggestion_is_valid", False):
-            error_msg += f"\n💡 Suggested valid name: '{result['suggested_name']}'"
+            error_msg += f"\n[HINT] Suggested valid name: '{result['suggested_name']}'"
         else:
-            error_msg += f"\n⚠️  Could not generate a valid suggestion from '{bucket_name}'"
-            error_msg += f"\n💡 Try a name like: 'my-app-files' or 'user-data-bucket'"
+            error_msg += f"\n[WARN] Could not generate a valid suggestion from '{bucket_name}'"
+            error_msg += f"\n[HINT] Try a name like: 'my-app-files' or 'user-data-bucket'"
     
     return error_msg
 
@@ -188,13 +188,13 @@ def get_bucket_naming_guidelines() -> str:
     guidelines = """
 📋 S3/MinIO Bucket Naming Guidelines:
 
-✅ ALLOWED:
+[VALID] ALLOWED:
   • Lowercase letters (a-z)
   • Numbers (0-9)  
   • Hyphens (-) in the middle
   • Length: 3-63 characters
 
-❌ NOT ALLOWED:
+[INVALID] NOT ALLOWED:
   • Uppercase letters (A-Z)
   • Underscores (_) 
   • Starting or ending with hyphen
@@ -203,13 +203,13 @@ def get_bucket_naming_guidelines() -> str:
   • Special characters (!@#$%^&*)
   • IP address format (192.168.1.1)
 
-✅ GOOD EXAMPLES:
+[VALID] GOOD EXAMPLES:
   • my-app-files
   • user-data-2024
   • chatgpt-uploads
   • company-documents
 
-❌ BAD EXAMPLES:
+[INVALID] BAD EXAMPLES:
   • My_App_Files (uppercase & underscores)
   • user_data (underscore)
   • -files (starts with hyphen)

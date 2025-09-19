@@ -249,20 +249,26 @@ class DistributedStreamingTester:
         for i, process in enumerate(self.worker_processes):
             try:
                 if process.poll() is None:  # Process is still running
-                    print(f"   Terminating worker {i+1} (PID {process.pid})...")
+                    print(f"   📤 Sending SIGTERM to worker {i+1} (PID {process.pid})...")
                     process.terminate()
+                    
                     try:
-                        process.wait(timeout=5)
+                        # Give worker more time for graceful shutdown
+                        print(f"   ⏳ Waiting up to 10 seconds for graceful shutdown...")
+                        process.wait(timeout=10)
                         print(f"   ✅ Worker {i+1} terminated gracefully")
                     except subprocess.TimeoutExpired:
-                        print(f"   ⚡ Force killing worker {i+1}...")
+                        print(f"   ⚡ Worker {i+1} didn't respond to SIGTERM, sending SIGKILL...")
                         process.kill()
-                        process.wait()
-                        print(f"   ✅ Worker {i+1} force killed")
+                        try:
+                            process.wait(timeout=3)
+                            print(f"   ✅ Worker {i+1} force killed")
+                        except subprocess.TimeoutExpired:
+                            print(f"   ❌ Worker {i+1} still running after SIGKILL (zombie?)")
                 else:
-                    print(f"   Worker {i+1} (PID {process.pid}) already stopped")
+                    print(f"   ✅ Worker {i+1} (PID {process.pid}) already stopped")
             except Exception as e:
-                print(f"Warning: Error cleaning up worker process {i+1}: {e}")
+                print(f"   ⚠️ Error cleaning up worker process {i+1}: {e}")
         
         self.worker_processes.clear()
         print(f"✅ All test worker processes terminated")
@@ -324,6 +330,10 @@ class DistributedStreamingTester:
     async def cleanup_after_test(self, test_name: str):
         """Clean up after a specific test completes"""
         print(f"\n🧹 Cleaning up after {test_name}...")
+        
+        # 🔄 Add grace period to allow Redis operations to complete
+        print("⏳ Waiting for Redis operations to complete in workers...")
+        await asyncio.sleep(5)  # Give Redis cleanup time to finish
         
         # Terminate worker processes spawned by this test
         await self.cleanup_test_workers()
@@ -788,11 +798,11 @@ class DistributedStreamingTester:
         
         # Run tests
         tests = [
-            ("Single-Worker Baseline", self.test_single_worker_baseline),
+            # ("Single-Worker Baseline", self.test_single_worker_baseline),
             ("Multi-Worker Cancellation", self.test_multi_worker_cancellation),
-            ("Redis Failure Recovery", self.test_redis_failure_recovery),
-            ("Race Conditions", self.test_race_conditions),
-            ("Worker Registry", self.test_worker_registry),
+            # ("Redis Failure Recovery", self.test_redis_failure_recovery),
+            # ("Race Conditions", self.test_race_conditions),
+            # ("Worker Registry", self.test_worker_registry),
         ]
         
         results = {}

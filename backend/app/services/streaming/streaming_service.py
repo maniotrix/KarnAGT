@@ -128,8 +128,17 @@ class StreamingService:
             yield error_event
             
         finally:
-            # Clean up the stream
-            await streaming_manager.remove_stream(stream_handler.stream_id)
+            # Clean up the stream with shielded protection (best-effort cleanup)
+            if stream_handler and stream_handler.stream_id:
+                try:
+                    logger.info(f"[STREAM-CLEANUP] Attempting shielded cleanup: {stream_handler.stream_id}")
+                    await asyncio.shield(streaming_manager.remove_stream(stream_handler.stream_id))
+                    logger.info(f"[STREAM-CLEANUP] [SUCCESS] Stream cleaned up: {stream_handler.stream_id}")
+                except Exception as e:
+                    logger.warning(f"[STREAM-CLEANUP] Exception during cleanup: {e}")
+                except BaseException as e:
+                    logger.error(f"[STREAM-CLEANUP] BaseException during cleanup: {e}")
+            
             logger.info(f"Completed message stream for conversation {conversation_id}")
     
     async def _process_streaming_message(
@@ -482,8 +491,17 @@ class StreamingService:
             yield error_event
             
         finally:
-            # Clean up the stream
-            await streaming_manager.remove_stream(stream_handler.stream_id)
+            # Clean up the stream with shielded protection (best-effort cleanup)
+            if stream_handler and stream_handler.stream_id:
+                try:
+                    logger.info(f"[STREAM-CLEANUP] Attempting shielded cleanup: {stream_handler.stream_id}")
+                    await asyncio.shield(streaming_manager.remove_stream(stream_handler.stream_id))
+                    logger.info(f"[STREAM-CLEANUP] [SUCCESS] Stream cleaned up: {stream_handler.stream_id}")
+                except Exception as e:
+                    logger.warning(f"[STREAM-CLEANUP] Exception during cleanup: {e}")
+                except BaseException as e:
+                    logger.error(f"[STREAM-CLEANUP] BaseException during cleanup: {e}")
+            
             logger.info(f"Completed edit message stream for conversation {conversation_id}")
     
     async def _process_streaming_edit_message(

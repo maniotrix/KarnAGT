@@ -33,11 +33,11 @@ class WorkerRegistry:
         try:
             # Register worker with metadata
             worker_data = {
-                "worker_id": self.worker_id,
-                "pid": os.getpid(),
+                "worker_id": str(self.worker_id),
+                "pid": str(os.getpid()),
                 "started_at": datetime.utcnow().isoformat(),
                 "last_heartbeat": datetime.utcnow().isoformat(),
-                "active_streams": 0,
+                "active_streams": "0",
                 "status": "healthy"
             }
             
@@ -113,13 +113,73 @@ class WorkerRegistry:
                     
                     # Remove orphaned stream
                     await self.redis_client.delete(stream_key)
-                    if user_id:
+                    if user_id and stream_id:
                         await self.redis_client.srem(f"user:{user_id}:streams", stream_id)
                     
                     logger.info(f"Cleaned up orphaned stream {stream_id} from dead worker {dead_worker_id}")
                     
         except Exception as e:
             logger.error(f"Error cleaning up streams for dead worker {dead_worker_id}: {e}")
+    
+    async def _cleanup_dead_worker_conversation_locks(self, dead_worker_id: str):
+        """Clean up conversation locks from a dead worker"""
+        try:
+            # Find all conversation locks owned by the dead worker
+            all_lock_keys = await self.redis_client.keys("conv_lock:*")
+            cleaned_locks = 0
+            
+            for lock_key in all_lock_keys:
+                lock_value = await self.redis_client.get(lock_key)
+                if lock_value:
+                    lock_value_str = lock_value.decode() if isinstance(lock_value, bytes) else str(lock_value)
+                    
+                    # Check if this lock belongs to the dead worker
+                    if f"worker:{dead_worker_id}" in lock_value_str:
+                        # Extract conversation ID from key for logging
+                        conversation_id = lock_key.decode().replace("conv_lock:", "") if isinstance(lock_key, bytes) else lock_key.replace("conv_lock:", "")
+                        
+                        # Remove orphaned conversation lock
+                        deleted = await self.redis_client.delete(lock_key)
+                        if deleted:
+                            cleaned_locks += 1
+                            logger.info(f"[LOCK] Cleaned up orphaned conversation lock for conversation {conversation_id} from dead worker {dead_worker_id}")
+            
+            if cleaned_locks > 0:
+                logger.info(f"[SUCCESS] Cleaned up {cleaned_locks} orphaned conversation locks from dead worker {dead_worker_id}")
+            else:
+                logger.info(f"[INFO] No orphaned conversation locks found for dead worker {dead_worker_id}")
+                    
+        except Exception as e:
+            logger.error(f"[ERROR] Error cleaning up conversation locks for dead worker {dead_worker_id}: {e}")
+    
+    async def cleanup_dead_worker_resources(self, dead_worker_id: str):
+        """
+        Clean up all resources (streams, locks, etc.) from a dead worker
+        
+        This method can be called manually when a worker is known to be dead,
+        or integrated with future dead worker detection mechanisms.
+        
+        Args:
+            dead_worker_id: The worker ID to clean up resources for
+        """
+        logger.info(f"[CLEANUP] Starting cleanup for dead worker: {dead_worker_id}")
+        
+        try:
+            # Clean up streams
+            await self._cleanup_dead_worker_streams(dead_worker_id)
+            
+            # Clean up conversation locks  
+            await self._cleanup_dead_worker_conversation_locks(dead_worker_id)
+            
+            # Remove from active workers set (if still present)
+            await self.redis_client.srem("workers:active", dead_worker_id)
+            await self.redis_client.delete(f"worker:{dead_worker_id}")
+            
+            logger.info(f"[SUCCESS] Completed cleanup for dead worker: {dead_worker_id}")
+            
+        except Exception as e:
+            logger.error(f"[ERROR] Error during cleanup for dead worker {dead_worker_id}: {e}")
+            raise
     
     async def get_active_workers(self) -> List[str]:
         """Get list of active workers"""

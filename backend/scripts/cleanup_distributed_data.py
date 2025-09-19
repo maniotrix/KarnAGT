@@ -2,16 +2,17 @@
 """
 Cleanup Distributed Data Script
 
-This script manually deletes all worker and stream data from Redis.
+This script manually deletes all worker, stream, and conversation lock data from Redis.
 Useful for testing, debugging, and system maintenance.
 
 Usage:
-    python scripts/cleanup_distributed_data.py [--force] [--workers-only] [--streams-only]
+    python scripts/cleanup_distributed_data.py [--force] [--workers-only] [--streams-only] [--locks-only]
 
 Options:
     --force         Skip confirmation prompts
     --workers-only  Delete only worker registry data
     --streams-only  Delete only stream data
+    --locks-only    Delete only conversation lock data
     --dry-run       Show what would be deleted without actually deleting
 """
 
@@ -39,7 +40,8 @@ class DistributedDataCleanup:
             'workers': 0,
             'streams': 0, 
             'user_streams': 0,
-            'worker_metadata': 0
+            'worker_metadata': 0,
+            'conversation_locks': 0
         }
     
     async def connect_redis(self):
@@ -85,6 +87,16 @@ class DistributedDataCleanup:
         
         return keys
     
+    async def get_conversation_lock_keys(self) -> List[str]:
+        """Get all conversation lock keys"""
+        keys = []
+        
+        # Get all conversation lock keys
+        conv_lock_keys = await self.redis_client.keys("conv_lock:*")
+        keys.extend(conv_lock_keys)
+        
+        return keys
+    
     async def analyze_data(self) -> dict:
         """Analyze current distributed data"""
         analysis = {
@@ -92,6 +104,7 @@ class DistributedDataCleanup:
             'worker_metadata_count': 0,
             'active_streams': [],
             'user_streams_count': 0,
+            'conversation_locks': [],
             'total_keys': 0
         }
         
@@ -112,8 +125,12 @@ class DistributedDataCleanup:
             user_stream_keys = await self.redis_client.keys("user:*:streams")
             analysis['user_streams_count'] = len(user_stream_keys)
             
+            # Get conversation locks
+            conv_lock_keys = await self.redis_client.keys("conv_lock:*")
+            analysis['conversation_locks'] = [key.replace('conv_lock:', '') for key in conv_lock_keys]
+            
             # Total keys
-            all_keys = await self.get_worker_keys() + await self.get_stream_keys()
+            all_keys = await self.get_worker_keys() + await self.get_stream_keys() + await self.get_conversation_lock_keys()
             analysis['total_keys'] = len(set(all_keys))  # Remove duplicates
             
         except Exception as e:
@@ -175,11 +192,35 @@ class DistributedDataCleanup:
             print(f"❌ Error cleaning stream data: {e}")
             return False
     
+    async def cleanup_conversation_locks(self) -> bool:
+        """Delete all conversation lock data"""
+        try:
+            conv_lock_keys = await self.get_conversation_lock_keys()
+            
+            if not conv_lock_keys:
+                print("🔍 No conversation lock data found")
+                return True
+            
+            print(f"🗑️ {'[DRY RUN] Would delete' if self.dry_run else 'Deleting'} {len(conv_lock_keys)} conversation lock keys...")
+            
+            for key in conv_lock_keys:
+                if not self.dry_run:
+                    await self.redis_client.delete(key)
+                print(f"  {'[DRY RUN] Would delete' if self.dry_run else 'Deleted'}: {key}")
+                self.deleted_count['conversation_locks'] += 1
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error cleaning conversation lock data: {e}")
+            return False
+    
     async def cleanup_all(self) -> bool:
         """Delete all distributed data"""
         success = True
         success &= await self.cleanup_workers()
         success &= await self.cleanup_streams()
+        success &= await self.cleanup_conversation_locks()
         return success
     
     def print_analysis(self, analysis: dict):
@@ -198,6 +239,12 @@ class DistributedDataCleanup:
             print(f"   • ... and {len(analysis['active_streams']) - 5} more")
         
         print(f"👥 User Stream Keys: {analysis['user_streams_count']}")
+        print(f"🔒 Active Conversation Locks: {len(analysis['conversation_locks'])}")
+        for conv_id in analysis['conversation_locks'][:3]:  # Show first 3
+            print(f"   • {conv_id}")
+        if len(analysis['conversation_locks']) > 3:
+            print(f"   • ... and {len(analysis['conversation_locks']) - 3} more")
+        
         print(f"🔑 Total Keys to Delete: {analysis['total_keys']}")
         print()
     
@@ -209,6 +256,7 @@ class DistributedDataCleanup:
         print(f"📦 Worker Metadata: {self.deleted_count['worker_metadata']}")
         print(f"🌊 Stream Data: {self.deleted_count['streams']}")
         print(f"👥 User Streams: {self.deleted_count['user_streams']}")
+        print(f"🔒 Conversation Locks: {self.deleted_count['conversation_locks']}")
         
         total = sum(self.deleted_count.values())
         print(f"🎯 Total Deleted: {total} keys")
@@ -228,6 +276,7 @@ async def main():
     parser.add_argument("--force", action="store_true", help="Skip confirmation prompts")
     parser.add_argument("--workers-only", action="store_true", help="Delete only worker data")
     parser.add_argument("--streams-only", action="store_true", help="Delete only stream data")
+    parser.add_argument("--locks-only", action="store_true", help="Delete only conversation lock data")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without deleting")
     
     args = parser.parse_args()
@@ -271,6 +320,9 @@ async def main():
         elif args.streams_only:
             print("\n🌊 Cleaning stream data only...")
             success = await cleanup.cleanup_streams()
+        elif args.locks_only:
+            print("\n🔒 Cleaning conversation locks only...")
+            success = await cleanup.cleanup_conversation_locks()
         else:
             print("\n🗑️ Cleaning all distributed data...")
             success = await cleanup.cleanup_all()

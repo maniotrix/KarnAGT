@@ -445,9 +445,9 @@ class StreamingManager:
                     success = False
                 
                 if success:
-                    logger.info(f"✅ Successfully cancelled stream {stream_id} via cross-worker command")
+                    logger.info(f"[SUCCESS] Successfully cancelled stream {stream_id} via cross-worker command")
                 else:
-                    logger.error(f"❌ Partial failure cancelling stream {stream_id}: {'; '.join(cleanup_errors)}")
+                    logger.error(f"[ERROR] Partial failure cancelling stream {stream_id}: {'; '.join(cleanup_errors)}")
                     
                     # ✅ FUTURE: Could publish failure notification back to initiating worker
                     # This would require implementing acknowledgment system

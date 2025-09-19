@@ -43,6 +43,10 @@ from app.api.v1.dependencies.auth import (
     get_current_verified_user,
     check_chat_quota
 )
+from app.api.v1.dependencies.conversation_lock import (
+    acquire_conversation_lock,
+    ConversationLockContext
+)
 from app.services.chat.chat_service import ChatService
 from app.services.streaming.streaming_service import StreamingService
 
@@ -349,6 +353,7 @@ async def stream_message(
     conversation_id: str,
     message_data: MessageCreate,
     current_user: User = Depends(check_chat_quota),
+    lock_key: str = Depends(acquire_conversation_lock),
     db: AsyncSession = Depends(get_db),
     request: Request = None
 ):
@@ -378,52 +383,54 @@ async def stream_message(
         
         # Create the streaming generator with client disconnection detection
         async def stream_with_disconnection_detection():
-            """Wrapper generator that detects client disconnection"""
-            # Convert staging files from dict to object at API boundary
-            staging_collection = None
-            if message_data.staging_files:
-                from app.models.schemas.staging_schemas import StagingFileCollection
-                staging_collection = StagingFileCollection.from_dict(message_data.staging_files)
-            
-            # Determine message type based on staging files content
-            message_type = "text"
-            if staging_collection and not staging_collection.is_empty:
-                if staging_collection.has_images and staging_collection.has_vectors:
-                    message_type = "multimodal_rag"
-                elif staging_collection.has_images:
-                    message_type = "multimodal"
-                elif staging_collection.has_vectors:
-                    message_type = "rag"
-            
-            stream_generator = streaming_service.stream_message_response(
-                conversation_id=conversation_id,
-                content=message_data.content,
-                message_type=message_type,
-                staging_files=staging_collection
-            )
-            
-            try:
-                async for event in stream_generator:
-                    # Check if client is still connected
-                    if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
-                        logger.info(f"Client disconnected for conversation {conversation_id}")
-                        # ✅ ROBUST: Explicit cleanup to ensure finally runs
-                        try:
-                            await stream_generator.aclose()  # Explicitly close generator
-                        except Exception as close_error:
-                            logger.error(f"Error closing stream generator: {close_error}")
-                        break
-                    
-                    yield event
-                    
-            except Exception as e:
-                logger.error(f"Error in stream with disconnection detection: {e}")
-                # ✅ ROBUST: Explicit cleanup on exception too
+            """Wrapper generator that detects client disconnection and handles conversation locking"""
+            # Use conversation lock context for deterministic cleanup
+            async with ConversationLockContext(lock_key):
+                # Convert staging files from dict to object at API boundary
+                staging_collection = None
+                if message_data.staging_files:
+                    from app.models.schemas.staging_schemas import StagingFileCollection
+                    staging_collection = StagingFileCollection.from_dict(message_data.staging_files)
+                
+                # Determine message type based on staging files content
+                message_type = "text"
+                if staging_collection and not staging_collection.is_empty:
+                    if staging_collection.has_images and staging_collection.has_vectors:
+                        message_type = "multimodal_rag"
+                    elif staging_collection.has_images:
+                        message_type = "multimodal"
+                    elif staging_collection.has_vectors:
+                        message_type = "rag"
+                
+                stream_generator = streaming_service.stream_message_response(
+                    conversation_id=conversation_id,
+                    content=message_data.content,
+                    message_type=message_type,
+                    staging_files=staging_collection
+                )
+                
                 try:
-                    await stream_generator.aclose()  # Explicitly close generator
-                except Exception as close_error:
-                    logger.error(f"Error closing stream generator on exception: {close_error}")
-                raise
+                    async for event in stream_generator:
+                        # Check if client is still connected
+                        if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
+                            logger.info(f"Client disconnected for conversation {conversation_id}")
+                            # ✅ ROBUST: Explicit cleanup to ensure finally runs
+                            try:
+                                await stream_generator.aclose()  # Explicitly close generator
+                            except Exception as close_error:
+                                logger.error(f"Error closing stream generator: {close_error}")
+                            break
+                        
+                        yield event
+                        
+                except Exception as e:
+                    logger.error(f"Error in stream with disconnection detection: {e}")
+                    # ✅ ROBUST: Explicit cleanup on exception too
+                    try:
+                        await stream_generator.aclose()  # Explicitly close generator
+                    except Exception as close_error:
+                        logger.error(f"Error closing stream generator on exception: {close_error}")
+                    raise
         
         # Return as Server-Sent Events stream
         return StreamingResponse(
@@ -778,6 +785,7 @@ async def edit_and_resend_message_streaming(
     message_id: str,
     update_data: MessageUpdate,
     current_user: User = Depends(check_chat_quota),
+    lock_key: str = Depends(acquire_conversation_lock),
     db: AsyncSession = Depends(get_db),
     request: Request = None
 ):
@@ -842,36 +850,38 @@ async def edit_and_resend_message_streaming(
         
         # Create the streaming generator with client disconnection detection
         async def stream_edit_with_disconnection_detection():
-            """Wrapper generator that detects client disconnection for edit streaming"""
-            stream_generator = streaming_service.stream_edit_message_response(
-                conversation_id=conversation_id,
-                message_id=message_id,
-                content=update_data.content,
-                message_type="text"
-            )
-            
-            try:
-                async for event in stream_generator:
-                    # Check if client is still connected
-                    if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
-                        logger.info(f"Client disconnected for edit stream in conversation {conversation_id}")
-                        # ✅ ROBUST: Explicit cleanup to ensure finally runs
-                        try:
-                            await stream_generator.aclose()  # Explicitly close generator
-                        except Exception as close_error:
-                            logger.error(f"Error closing stream generator: {close_error}")
-                        break
-                    
-                    yield event
-                    
-            except Exception as e:
-                logger.error(f"Error in edit stream with disconnection detection: {e}")
-                # ✅ ROBUST: Explicit cleanup on exception too
+            """Wrapper generator that detects client disconnection for edit streaming and handles conversation locking"""
+            # Use conversation lock context for deterministic cleanup
+            async with ConversationLockContext(lock_key):
+                stream_generator = streaming_service.stream_edit_message_response(
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                    content=update_data.content,
+                    message_type="text"
+                )
+                
                 try:
-                    await stream_generator.aclose()  # Explicitly close generator
-                except Exception as close_error:
-                    logger.error(f"Error closing stream generator on exception: {close_error}")
-                raise
+                    async for event in stream_generator:
+                        # Check if client is still connected
+                        if request and hasattr(request, 'is_disconnected') and await request.is_disconnected():
+                            logger.info(f"Client disconnected for edit stream in conversation {conversation_id}")
+                            # ✅ ROBUST: Explicit cleanup to ensure finally runs
+                            try:
+                                await stream_generator.aclose()  # Explicitly close generator
+                            except Exception as close_error:
+                                logger.error(f"Error closing stream generator: {close_error}")
+                            break
+                        
+                        yield event
+                        
+                except Exception as e:
+                    logger.error(f"Error in edit stream with disconnection detection: {e}")
+                    # ✅ ROBUST: Explicit cleanup on exception too
+                    try:
+                        await stream_generator.aclose()  # Explicitly close generator
+                    except Exception as close_error:
+                        logger.error(f"Error closing stream generator on exception: {close_error}")
+                    raise
         
         # Return as Server-Sent Events stream
         return StreamingResponse(
