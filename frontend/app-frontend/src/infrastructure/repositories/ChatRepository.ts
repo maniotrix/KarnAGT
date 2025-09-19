@@ -11,6 +11,7 @@ import {
 } from '../../types/chat';
 import { API_ENDPOINTS, buildApiUrl, ENV } from '../../config/env';
 import { authService } from '../../services/authService';
+import { handle429Error } from '../../utils/httpErrorHandlers';
 
 export class ChatRepository implements IChatRepository {
   /**
@@ -248,7 +249,7 @@ export class ChatRepository implements IChatRepository {
 
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error('Conversation busy. Please wait or reload.');
+        throw await handle429Error(response);
       }
       throw new Error(`Stream request failed: ${response.statusText}`);
     }
@@ -361,7 +362,7 @@ export class ChatRepository implements IChatRepository {
 
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error('Conversation busy. Please wait or reload.');
+          throw await handle429Error(response);
         }
         throw new Error(`Stream request failed: ${response.statusText}`);
       }
