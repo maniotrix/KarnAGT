@@ -1,0 +1,70 @@
+{
+  "short_name": "KarnAGT",
+  "name": "KarnAGT - Advanced AI Agent", 
+  "id": "/",
+  "description": "An intelligent agentic system that reasons, sees, remembers, and communicates in any language",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "favicon-16x16.png",
+      "type": "image/png",
+      "sizes": "16x16"
+    },
+    {
+      "src": "favicon-32x32.png",
+      "type": "image/png",
+      "sizes": "32x32"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "android-chrome-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "chat-mobile.png",
+      "sizes": "1080x2414", 
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "KarnAGT Mobile Chat Interface"
+    },
+    {
+      "src": "chat-desktop.png",
+      "sizes": "1920x918",
+      "type": "image/png", 
+      "form_factor": "wide",
+      "label": "KarnAGT Desktop Chat Interface"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone", 
+  "orientation": "portrait-primary",
+  "theme_color": "#f3f4f6",
+  "background_color": "#f3f4f6",
+  "scope": "/"
+}

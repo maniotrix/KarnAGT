@@ -1,0 +1,442 @@
+/* Highlight.js theme for syntax highlighting */
+@import 'highlight.js/styles/github.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* hsl(0, 0%, 100%) = #ffffff */
+    --foreground: 0 0% 3.9%; /* hsl(0, 0%, 3.9%) = #0a0a0a */
+    --card: 0 0% 100%; /* hsl(0, 0%, 100%) = #ffffff */
+    --card-foreground: 0 0% 3.9%; /* hsl(0, 0%, 3.9%) = #0a0a0a */
+    --popover: 0 0% 100%; /* hsl(0, 0%, 100%) = #ffffff */
+    --popover-foreground: 0 0% 3.9%; /* hsl(0, 0%, 3.9%) = #0a0a0a */
+    --primary: 0 0% 9%; /* hsl(0, 0%, 9%) = #171717 */
+    --primary-foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --secondary: 0 0% 96.1%; /* hsl(0, 0%, 96.1%) = #f5f5f5 */
+    --secondary-foreground: 0 0% 9%; /* hsl(0, 0%, 9%) = #171717 */
+    --muted: 0 0% 96.1%; /* hsl(0, 0%, 96.1%) = #f5f5f5 */
+    --muted-foreground: 0 0% 45.1%; /* hsl(0, 0%, 45.1%) = #737373 */   
+    --accent: 0 0% 96.1%; /* hsl(0, 0%, 96.1%) = #f5f5f5 */
+    --accent-foreground: 0 0% 9%; /* hsl(0, 0%, 9%) = #171717 */
+    --destructive: 0 84.2% 60.2%; /* hsl(0, 84.2%, 60.2%) = #ef4444 */
+    --destructive-foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --border: 0 0% 89.8%; /* hsl(0, 0%, 89.8%) = #e5e5e5 */
+    --input: 0 0% 89.8%; /* hsl(0, 0%, 89.8%) = #e5e5e5 */
+    --ring: 0 0% 3.9%; /* hsl(0, 0%, 3.9%) = #0a0a0a */
+    --chart-1: 12 76% 61%; /* hsl(12, 76%, 61%) = #f2875a */
+    --chart-2: 173 58% 39%; /* hsl(173, 58%, 39%) = #2a9d8f */
+    --chart-3: 197 37% 24%; /* hsl(197, 37%, 24%) = #264653 */
+    --chart-4: 43 74% 66%; /* hsl(43, 74%, 66%) = #f4a261 */
+    --chart-5: 27 87% 67%; /* hsl(27, 87%, 67%) = #e76f51 */
+    --radius: 0.5rem /* 0.5rem = 8px */
+  }
+  .dark {
+    --background: 0 0% 3.9%; /* hsl(0, 0%, 3.9%) = #0a0a0a */
+    --foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --card: 0 0% 3.9%; /* hsl(0, 0%, 3.9%) = #0a0a0a */
+    --card-foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --popover: 0 0% 3.9%; /* hsl(0, 0%, 3.9%) = #0a0a0a */
+    --popover-foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --primary: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --primary-foreground: 0 0% 9%; /* hsl(0, 0%, 9%) = #171717 */
+    --secondary: 0 0% 14.9%; /* hsl(0, 0%, 14.9%) = #262626 */
+    --secondary-foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --muted: 0 0% 14.9%; /* hsl(0, 0%, 14.9%) = #262626 */
+    --muted-foreground: 0 0% 63.9%; /* hsl(0, 0%, 63.9%) = #a3a3a3 */
+    --accent: 0 0% 14.9%; /* hsl(0, 0%, 14.9%) = #262626 */
+    --accent-foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --destructive: 0 62.8% 30.6%; /* hsl(0, 62.8%, 30.6%) = #991b1b */
+    --destructive-foreground: 0 0% 98%; /* hsl(0, 0%, 98%) = #fafafa */
+    --border: 0 0% 14.9%; /* hsl(0, 0%, 14.9%) = #262626 */
+    --input: 0 0% 14.9%; /* hsl(0, 0%, 14.9%) = #262626 */
+    --ring: 0 0% 83.1%; /* hsl(0, 0%, 83.1%) = #d4d4d4 */
+    --chart-1: 220 70% 50%; /* hsl(220, 70%, 50%) = #2663eb */
+    --chart-2: 160 60% 45%; /* hsl(160, 60%, 45%) = #2da58a */
+    --chart-3: 30 80% 55%; /* hsl(30, 80%, 55%) = #e6a84a */
+    --chart-4: 280 65% 60%; /* hsl(280, 65%, 60%) = #b366f7 */
+    --chart-5: 340 75% 55%; /* hsl(340, 75%, 55%) = #e74d8a */
+  }
+}
+
+@layer base {
+  /* CSS Custom Properties for Mobile Viewport Height */
+  :root {
+    /* Set up dynamic viewport height variables */
+    --vh: 1vh;
+    --dvh: 1dvh; /* Dynamic viewport height - modern browsers */
+    --lvh: 1lvh; /* Large viewport height */
+    --svh: 1svh; /* Small viewport height */
+    /* Universal minimum readable font size for prose/assistant text */
+    --prose-min: 1rem; /* 16px floor - adjust this value to change minimum */
+  }
+
+  /* Reset and mobile-friendly base styles */
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    /* Prevent horizontal scroll */
+    overflow-x: hidden;
+    /* Ensure proper height calculation */
+    height: 100%;
+    /* Support for dynamic viewport height */
+    height: 100dvh;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    /* Allow browser to handle scroll for keyboard */
+    height: 100%;
+    height: 100dvh;
+    /* Prevent pull-to-refresh and overscroll */
+    overscroll-behavior: none;
+    /* No fixed positioning here */
+    width: 100%;
+  }
+
+  /* Main app container should fill viewport */
+  #root {
+    height: 100%;
+    height: 100dvh;
+    /* No overflow hidden to allow page scroll */
+  }
+}
+
+/* Override highlight.js to work with custom theme system */
+@layer components {
+  .hljs {
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  
+  /* Base code styling - inherit from theme */
+  pre code.hljs {
+    background: transparent !important;
+    color: inherit;
+  }
+
+  /* Theme-aware syntax highlighting overrides */
+  /* Light theme syntax colors */
+  .hljs-string { color: #0d7377 !important; }
+  .hljs-number, .hljs-literal { color: #e36209 !important; }
+  .hljs-keyword, .hljs-built_in { color: #d73a49 !important; }
+  .hljs-comment { color: #6a737d !important; }
+  .hljs-function { color: #005cc5 !important; }
+  .hljs-variable, .hljs-attr { color: #e36209 !important; }
+  .hljs-tag { color: #22863a !important; }
+  .hljs-section { color: #005cc5 !important; }
+  .hljs-code { color: #24292e !important; }
+  
+  /* Dark theme syntax colors */
+  .dark .hljs-string { color: #9ecbff !important; }
+  .dark .hljs-number, .dark .hljs-literal { color: #79b8ff !important; }
+  .dark .hljs-keyword, .dark .hljs-built_in { color: #f97583 !important; }
+  .dark .hljs-comment { color: #8b949e !important; }
+  .dark .hljs-function { color: #79b8ff !important; }
+  .dark .hljs-variable, .dark .hljs-attr { color: #ffab70 !important; }
+  .dark .hljs-tag { color: #7fdbca !important; }
+  .dark .hljs-section { color: #79b8ff !important; }
+  .dark .hljs-code { color: #e1e4e8 !important; }
+  
+  /* Missing syntax elements causing purple colors */
+  .hljs-title { color: #6f42c1 !important; } /* Class/function names */
+  .hljs-type { color: #005cc5 !important; } /* Data types */
+  .hljs-meta { color: #e36209 !important; } /* Preprocessor */
+  .hljs-params { color: #24292e !important; } /* Parameters */
+  
+  .dark .hljs-title { color: #b392f0 !important; }
+  .dark .hljs-type { color: #79b8ff !important; }
+  .dark .hljs-meta { color: #ffab70 !important; }
+  .dark .hljs-params { color: #e1e4e8 !important; }
+  
+  /* User message theme (blue tinted) - COMMENTED OUT to match assistant code blocks */
+  /* .bg-blue-600 .hljs-string, .bg-blue-700 .hljs-string { color: #e3f2fd !important; }
+  .bg-blue-600 .hljs-number, .bg-blue-700 .hljs-number { color: #bbdefb !important; }
+  .bg-blue-600 .hljs-keyword, .bg-blue-700 .hljs-keyword { color: #90caf9 !important; }
+  .bg-blue-600 .hljs-comment, .bg-blue-700 .hljs-comment { color: #64b5f6 !important; }
+  .bg-blue-600 .hljs-function, .bg-blue-700 .hljs-function { color: #42a5f5 !important; }
+  .bg-blue-600 .hljs-section, .bg-blue-700 .hljs-section { color: #90caf9 !important; }
+  .bg-blue-600 .hljs-code, .bg-blue-700 .hljs-code { color: #e3f2fd !important; } */
+  
+  /* User message variants for missing syntax elements - COMMENTED OUT */
+  /* .bg-blue-600 .hljs-title, .bg-blue-700 .hljs-title { color: #c8e6c9 !important; }
+  .bg-blue-600 .hljs-type, .bg-blue-700 .hljs-type { color: #81c784 !important; }
+  .bg-blue-600 .hljs-meta, .bg-blue-700 .hljs-meta { color: #ffcc02 !important; }
+  .bg-blue-600 .hljs-params, .bg-blue-700 .hljs-params { color: #e3f2fd !important; } */
+  
+  /* Ensure ONLY unstyled hljs elements inherit color (not ones with syntax classes) */
+  .hljs :not([class]) {
+    color: inherit;
+  }
+  
+  /* Base text color for code blocks */
+  .hljs {
+    color: #24292e !important; /* Light theme base */
+  }
+  
+  .dark .hljs {
+    color: #e1e4e8 !important; /* Dark theme base */
+  }
+
+  /* Mobile Viewport Height Utility Class */
+  .mobile-viewport-height {
+    height: 100vh; /* Fallback for older browsers */
+    height: 100dvh; /* Modern browsers - dynamic viewport height */
+    height: calc(var(--vh, 1vh) * 100); /* JavaScript fallback via custom property */
+  }
+
+  /* Improved mobile touch and scroll behavior */
+  .mobile-scroll-container {
+    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
+    overscroll-behavior: contain; /* Prevent overscroll effects */
+    overflow-y: auto !important; /* Ensure scrollbar appears */
+    height: 100% !important; /* Ensure container has height */
+  }
+
+  /* Generic hidden utility class */
+  .hidden {
+    display: none !important;
+  }
+
+  /* Prevent zoom on input focus (mobile) */
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Mobile-friendly button sizes */
+  @media (max-width: 768px) {
+    button {
+      min-height: 44px; /* Apple's recommended touch target size */
+    }
+  }
+
+  /* Better word breaking for URLs and long content */
+  .break-words {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  /* Specific handling for links in messages */
+  .prose a {
+    word-break: break-all;
+    overflow-wrap: break-word;
+    max-width: 100%;
+  }
+
+  /* 🎯 FLUID TYPOGRAPHY - Industry Standard 2024 */
+  /* Base: 16px min, scales with viewport, 20px max */
+  .text-fluid-base {
+    font-size: clamp(1rem, 2.5vw + 0.5rem, 1.25rem);
+    line-height: 1.6;
+  }
+
+  /* More extra small: equivalent to text-xs with fluid scaling */
+  .text-fluid-more-xs {
+    font-size: clamp(0.6875rem, 1.2vw + 0.35rem, 0.75rem);
+    line-height: 1rem;
+  }
+
+  /* Extra small text: 12px min, scales, 14px max */
+  .text-fluid-xs {
+    font-size: clamp(0.75rem, 1.5vw + 0.4rem, 0.875rem);
+    line-height: 1.4;
+  }
+
+
+  /* Between xs and sm: 13px min, scales, 15px max */
+  .text-fluid-less-sm {
+    font-size: clamp(0.8125rem, 1.8vw + 0.45rem, 0.9375rem);
+    line-height: 1.45;
+  }
+
+  /* Small text: 14px min, scales, 16px max */
+  .text-fluid-sm {
+    font-size: clamp(0.875rem, 2vw + 0.5rem, 1rem);
+    line-height: 1.5;
+  }
+
+  /* Base-small text: equivalent to text-lg with fluid scaling */
+  .text-fluid-base-sm {
+    font-size: clamp(1rem, 2.2vw + 0.4rem, 1.125rem);
+    line-height: 1.75;
+  }
+
+  /* Large text: 18px min, scales, 24px max */
+  .text-fluid-lg {
+    font-size: clamp(1.125rem, 3vw + 0.5rem, 1.5rem);
+    line-height: 1.6;
+  }
+
+  /* Extra large: 20px min, scales, 28px max */
+  .text-fluid-xl {
+    font-size: clamp(1.25rem, 3.5vw + 0.75rem, 1.75rem);
+    line-height: 1.4;
+  }
+
+  /* Headings */
+  .text-fluid-h1 {
+    font-size: clamp(1.75rem, 5vw + 1rem, 3rem);
+    line-height: 1.2;
+  }
+
+  .text-fluid-h2 {
+    font-size: clamp(1.5rem, 4vw + 0.75rem, 2.25rem);
+    line-height: 1.3;
+  }
+
+  .text-fluid-h3 {
+    font-size: clamp(1.25rem, 3vw + 0.5rem, 1.875rem);
+    line-height: 1.4;
+  }
+
+  /* Chat-specific fluid typography */
+  .text-fluid-message {
+    font-size: clamp(var(--prose-min), 2vw + 0.4rem, 1rem);
+    line-height: 1.6;
+  }
+
+  .text-fluid-ui {
+    font-size: clamp(0.8rem, 1.5vw + 0.4rem, 0.9rem);
+    line-height: 1.5;
+  }
+
+  /* Prose enhancement for fluid typography */
+  .prose-fluid {
+    font-size: clamp(var(--prose-min), 2vw + 0.4rem, 1rem);
+    line-height: 1.65;
+  }
+
+  .prose-fluid h1 {
+    font-size: clamp(1.375rem, 3vw + 0.5rem, 1.625rem);
+    line-height: 1.2;
+    font-weight: 700;
+  }
+
+  .prose-fluid h2 {
+    font-size: clamp(1.2rem, 2.5vw + 0.4rem, 1.4rem);
+    line-height: 1.25;
+    font-weight: 600;
+  }
+
+  .prose-fluid h3 {
+    font-size: clamp(1.125rem, 2.2vw + 0.3rem, 1.25rem);
+    line-height: 1.3;
+    font-weight: 600;
+  }
+
+  .prose-fluid h4 {
+    font-size: clamp(1.0625rem, 2vw + 0.25rem, 1.125rem);
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .prose-fluid h5 {
+    font-size: clamp(1.03125rem, 1.8vw + 0.2rem, 1.0625rem);
+    line-height: 1.45;
+    font-weight: 500;
+  }
+
+  .prose-fluid h6 {
+    font-size: clamp(1.015625rem, 1.5vw + 0.15rem, 1.03125rem);
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  .prose-fluid p, .prose-fluid li {
+    font-size: clamp(var(--prose-min), 2vw + 0.4rem, 1rem);
+    line-height: 1.65;
+  }
+
+  .prose-fluid code {
+    font-size: clamp(0.8rem, 1.5vw + 0.3rem, 0.9rem) !important;
+  }
+
+  .prose-fluid blockquote {
+    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
+    line-height: 1.7;
+  }
+
+  /* Lists - inherit main typography */
+  .prose-fluid ul, .prose-fluid ol {
+    font-size: clamp(0.95rem, 2vw + 0.4rem, 1rem);
+    line-height: 1.65;
+  }
+
+  /* Pre-formatted blocks - same as code */
+  .prose-fluid pre {
+    font-size: clamp(0.8rem, 1.5vw + 0.3rem, 0.9rem) !important;
+    line-height: 1.5;
+  }
+
+  /* Tables - slightly smaller than text */
+  .prose-fluid table {
+    font-size: clamp(0.875rem, 1.8vw + 0.4rem, 0.95rem);
+    line-height: 1.5;
+  }
+
+  .prose-fluid th, .prose-fluid td {
+    font-size: clamp(0.875rem, 1.8vw + 0.4rem, 0.95rem);
+    line-height: 1.4;
+  }
+
+  /* Inline elements inherit from parent */
+  .prose-fluid strong, .prose-fluid em, .prose-fluid a {
+    font-size: inherit;
+  }
+
+  /* Images and horizontal rules */
+  .prose-fluid img {
+    max-width: 100%;
+    height: auto;
+    margin: 1rem 0;
+  }
+
+  .prose-fluid hr {
+    margin: 1.5rem 0;
+  }
+
+  /* Code block headers - target spans within code block containers */
+  .prose-fluid .group.relative span {
+    font-size: clamp(0.75rem, 1.3vw + 0.3rem, 0.85rem);
+    line-height: 1.4;
+  }
+
+  /* Small UI elements outside prose flow - status badges, tooltips, helper text */
+  .prose-fluid ~ div span,
+  .prose-fluid + div span,
+  .prose-fluid [class*="tooltip"] *,
+  .prose-fluid [class*="status"] span,
+  .prose-fluid [class*="badge"] span {
+    font-size: clamp(0.75rem, 1.3vw + 0.3rem, 0.85rem);
+    line-height: 1.4;
+  }
+
+  /* Responsive adjustments for very small screens */
+  @media (max-width: 320px) {
+    .prose-fluid p, .prose-fluid li, .text-fluid-message {
+      font-size: var(--prose-min); /* Ensure minimum readability on small devices */
+    }
+  }
+
+  /* High DPI screen support */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .prose-fluid, .text-fluid-message {
+      letter-spacing: -0.01em; /* Slight adjustment for crisp text on high-DPI */
+    }
+  }
+
+  /* Custom animations for enhanced homepage */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%) skewX(-12deg);
+    }
+    100% {
+      transform: translateX(200%) skewX(-12deg);
+    }
+  }
+}

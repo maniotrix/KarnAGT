@@ -1,0 +1,10 @@
+Open Ai - 
+YOUR_OPENAI_API_KEY_HERE
+Api doc - https://github.com/openai/openai-python/tree/main
+        - https://platform.openai.com/docs/api-reference/introduction
+
+Gemini Key-
+AIzaSyDze2_9hUOswgCR_r6hvNEyrRLAFVVvkrM
+Api-doc - https://ai.google.dev/gemini-api/docs
+        - https://github.com/googleapis/python-genai
+        - https://googleapis.github.io/python-genai/

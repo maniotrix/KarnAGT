@@ -1,0 +1,52 @@
+version: '3.8'
+
+# Unified production network - created by database compose
+networks:
+  prod-network:
+    name: prod-network
+    external: true
+
+services:
+  codesandbox:
+    container_name: codesandbox-production
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        CS_USER: code_sandbox
+    networks:
+      - prod-network  # Unified network
+    labels:
+      # SECURITY: No public Traefik exposure - internal access only
+      - "traefik.enable=false"
+      # Metadata labels
+      - "com.app.environment=prod"
+      - "com.app.service=code_execution"
+      - "com.app.component=codesandbox"
+      - "com.app.access=internal-only"
+    # No volume mounts for production - code is baked into image
+    # Production logging configuration (controlled code execution logs)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=prod,service=codesandbox"
+        compress: "true"
+    # Resource limits - optimized for 30s execution workload
+    deploy:
+      resources:
+        limits:
+          cpus: '1.2'          # Allow burst for kernel creation and code execution
+          memory: 1G           # Sufficient for short executions + kernel overhead
+        reservations:
+          cpus: '0.25'         # Reserve for FastAPI server baseline
+          memory: 512M         # Reserve for server baseline
+    
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

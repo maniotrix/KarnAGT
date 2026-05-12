@@ -1,0 +1,48 @@
+CONVERSATION CONTEXT BUILDER - ANALYSIS REPORT
+================================================================================
+
+Conversation ID: ac70e87f-6f96-40d0-bfac-f5d71e45b67a
+Analysis Date: 2025-06-12 22:20:59
+Token Limit Used: 1500 tokens
+
+ORIGINAL CONVERSATION STATISTICS
+----------------------------------------
+Total Messages: 42
+User Messages: 21
+Assistant Messages: 21
+Total Tokens: 2,540
+
+BUILT CONTEXT STATISTICS
+----------------------------------------
+Context Messages: 32
+Context Tokens: 986
+Has Summary: Yes
+Summary Tokens: 156
+
+TRANSFORMATION ANALYSIS
+----------------------------------------
+Messages Reduced: 42 → 32 (10 removed)
+Tokens Reduced: 2,540 → 986 (1,554 saved)
+Compression Ratio: 38.8%
+Token Limit Respected: ✅
+
+SUMMARIZATION ANALYSIS
+----------------------------------------
+✅ Summarization was triggered
+Summary Length: 156 tokens
+Summary Preview:
+Previous conversation summary: The conversation began with a casual greeting and progressed to the user inquiring about the assistant's name and previous messages sent. The assistant summarized these ...
+
+MESSAGE INCLUSION BREAKDOWN
+----------------------------------------
+Summarized messages: (old messages beyond token limit)
+  - 12 messages summarized
+  - 30 recent messages included directly
+
+FILES GENERATED
+----------------------------------------
+📄 original_messages.json - Complete original conversation
+📄 original_messages.txt  - Human-readable original messages
+📄 built_context.json     - Final context sent to LLM
+📄 built_context.txt      - Human-readable context
+📄 analysis_report.txt    - This analysis report

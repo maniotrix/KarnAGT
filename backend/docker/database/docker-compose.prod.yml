@@ -1,0 +1,340 @@
+version: '3.9'
+name: 'app_db_prod'
+
+# File-based secrets for database credentials
+secrets:
+  postgres_password:
+    file: ./secrets/prod/postgres_password.txt
+  neo4j_auth:
+    file: ./secrets/prod/neo4j_auth.txt
+  minio_user:
+    file: ./secrets/prod/minio_user.txt
+  minio_password:
+    file: ./secrets/prod/minio_password.txt
+
+# Unified production network
+networks:
+  prod-network:
+    driver: bridge
+    name: prod-network
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_prod
+    restart: unless-stopped
+    
+    # Security context - never run as root
+    user: "999:999"  # postgres user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Secrets-based authentication
+    environment:
+      POSTGRES_USER: app_prod_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: app_prod_db
+      # Production PostgreSQL settings (minimal logging for performance)
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
+      POSTGRES_LOG_MIN_DURATION_STATEMENT: 10000  # Only log slow queries
+      POSTGRES_LOG_STATEMENT: none
+      POSTGRES_LOG_LINE_PREFIX: '%t [%p]: [%l-1] '
+    
+    secrets:
+      - postgres_password
+      
+    # Production-specific port mapping (5432 - standard PostgreSQL port)
+    ports:
+      - "5432:5432"
+      
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+      # Optional: Custom config files (uncomment if needed)
+      # - ./config/prod/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      # - ./config/prod/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      # - ./init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./backups/prod:/backups
+      
+    networks:
+      - prod-network
+      
+    # Structured logging with rotation
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"  # More log files for production
+        labels: "environment=prod,service=postgres"
+        
+    # Metadata labels for organization
+    labels:
+      - "traefik.enable=false"  # SECURITY: Database not exposed
+      - "com.app.environment=prod"
+      - "com.app.service=database"
+      - "com.app.component=postgres"
+      - "com.app.backup.enable=true"
+      - "com.app.monitoring=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_prod_user -d app_prod_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  redis:
+    image: redis:7
+    container_name: redis_prod
+    restart: unless-stopped
+    
+    # Security context
+    user: "999:999"  # redis user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Redis without password authentication for production
+    command: >
+      sh -c '
+        redis-server 
+        --appendonly yes 
+        --appendfsync everysec
+        --maxmemory 1G
+        --maxmemory-policy allkeys-lru
+        --save 900 1
+        --save 300 10  
+        --save 60 10000
+        --tcp-keepalive 300
+      '
+      
+    # Production-specific port mapping (6379 - standard Redis port)
+    ports:
+      - "6379:6379"
+      
+    volumes:
+      - redisdata_prod:/data
+      # Optional: Custom config file (uncomment if needed)
+      # - ./config/prod/redis.conf:/etc/redis/redis.conf:ro
+      
+    networks:
+      - prod-network
+      
+    # Structured logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        labels: "environment=prod,service=redis"
+        
+    labels:
+      - "traefik.enable=false"  # SECURITY: Cache not exposed
+      - "com.app.environment=prod"
+      - "com.app.service=cache"
+      - "com.app.component=redis"
+      - "com.app.backup.enable=true"
+      - "com.app.monitoring=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  neo4j:
+    image: neo4j:5.19
+    container_name: neo4j_prod
+    restart: unless-stopped
+    
+    # Security context
+    user: "7474:7474"  # neo4j user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Simple environment-based authentication (from secrets folder)
+    environment:
+      NEO4J_AUTH: "neo4j/YOUR_PROD_NEO4J_PASSWORD"
+      
+    # Production-specific port mapping (7474, 7687 - standard Neo4j ports)
+    ports:
+      - "7474:7474"   # HTTP Browser
+      - "7687:7687"   # Bolt Driver
+      
+    volumes:
+      - neo4jdata_prod:/data
+      - neo4jlogs_prod:/logs
+      # Optional: Custom config file (uncomment if needed)
+      # - ./config/prod/neo4j.conf:/etc/neo4j/neo4j.conf:ro
+      
+    networks:
+      - prod-network
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        labels: "environment=prod,service=neo4j"
+        
+    labels:
+      - "traefik.enable=false"  # SECURITY: Graph database not exposed
+      - "com.app.environment=prod"
+      - "com.app.service=graph_database"
+      - "com.app.component=neo4j"
+      - "com.app.backup.enable=true"
+      - "com.app.monitoring=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell 'RETURN 1;' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    container_name: qdrant_prod
+    restart: unless-stopped
+      
+    # Production-specific port mapping (6333, 6334 - standard Qdrant ports)
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+      
+    environment:
+      QDRANT__SERVICE__HOST: 0.0.0.0
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: ERROR
+      
+    volumes:
+      - qdrantdata_prod:/qdrant/storage
+      # Optional: Custom config file (uncomment if needed)
+      # - ./config/prod/qdrant_config.yaml:/qdrant/config/production.yaml:ro
+      
+    networks:
+      - prod-network
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        labels: "environment=prod,service=qdrant"
+        
+    labels:
+      - "traefik.enable=false"  # SECURITY: Vector database not exposed
+      - "com.app.environment=prod"
+      - "com.app.service=vector_database"
+      - "com.app.component=qdrant"
+      - "com.app.backup.enable=true"
+      - "com.app.monitoring=true"
+      
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/health || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    container_name: minio_prod
+    restart: unless-stopped
+      
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
+      MINIO_DEFAULT_BUCKETS: app-files-prod
+      MINIO_BROWSER_REDIRECT_URL: https://console.myappdomain.com
+      
+    secrets:
+      - minio_user
+      - minio_password
+      
+    # Production-specific port mapping (standard MinIO ports)
+    ports:
+      - "9000:9000"  # API port
+      - "9001:9001"  # Console port
+      
+    volumes:
+      - minio_data_prod:/data
+      
+    networks:
+      - prod-network  # Unified network
+      
+    command: server /data --console-address ":9001"
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        labels: "environment=prod,service=minio"
+        
+    # Traefik labels - Direct routing for presigned URLs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`files.myappdomain.com`)"
+      - "traefik.http.routers.minio.entrypoints=websecure"
+
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.docker.network=prod-network"
+      # PRODUCTION: Let's Encrypt SSL
+      - "traefik.http.routers.minio.tls.certresolver=letsencrypt"
+      # Metadata labels
+      - "com.app.environment=prod"
+      - "com.app.service=object_storage"
+      - "com.app.component=minio"
+      - "com.app.backup.enable=true"
+      - "com.app.monitoring=true"
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+
+# Production environment volumes with consistent naming
+volumes:
+  pgdata_prod:
+    driver: local
+    name: pgdata_prod
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.data-type=database"
+      
+  redisdata_prod:
+    driver: local
+    name: redisdata_prod
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.data-type=cache"
+      
+  neo4jdata_prod:
+    driver: local
+    name: neo4jdata_prod
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.data-type=graph_database"
+      
+  neo4jlogs_prod:
+    driver: local
+    name: neo4jlogs_prod
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.data-type=graph_logs"
+      
+  qdrantdata_prod:
+    driver: local
+    name: qdrantdata_prod
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.data-type=vector_database"
+      
+  minio_data_prod:
+    driver: local
+    name: minio_data_prod
+    labels:
+      - "com.app.environment=prod"
+      - "com.app.data-type=object_storage"

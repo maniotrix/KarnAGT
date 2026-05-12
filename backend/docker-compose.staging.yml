@@ -1,0 +1,114 @@
+version: '3.8'
+
+# Unified staging network - EXTERNAL (created by database services)  
+networks:
+  staging-network:
+    name: staging-network
+    external: true
+
+services:
+  # Traefik - STAGING SECURITY (IDENTICAL to prod/dev except domains)
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik-staging
+    ports:
+      - "80:80"       # HTTP
+      - "443:443"     # HTTPS
+      # NO dashboard port in staging for security
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # IDENTICAL security
+      - ./data:/data  # For Let's Encrypt certificates
+      - ./traefik:/etc/traefik:ro  # Middleware definitions
+    command:
+      # NO dashboard in staging - SECURITY
+      - --api.dashboard=false
+      
+      # IDENTICAL security to prod/dev
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=staging-network
+      
+      # File provider for middlewares
+      - --providers.file.directory=/etc/traefik
+      - --providers.file.watch=true
+      
+      # IDENTICAL entry points
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      
+      # Let's Encrypt for staging domain
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=admin@yourdomain.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      
+      # IDENTICAL security redirects
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      
+      # Global security headers (applied to all routes)
+      - --entrypoints.websecure.http.middlewares=security-headers@file
+      
+      # Staging logging
+      - --log.level=INFO
+    networks:
+      - staging-network
+    labels:
+      - "traefik.enable=true"
+    restart: unless-stopped
+    # Staging logging configuration (balanced monitoring)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "75m"
+        max-file: "7"
+        labels: "environment=staging,service=traefik"
+        compress: "true"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Backend Application - IDENTICAL pattern except domain
+  app-backend-staging:
+    container_name: app-backend-staging
+    build: 
+      context: .
+      dockerfile: Dockerfile.staging  # Use staging-specific dockerfile
+      args:
+        BACKEND_USER: app_backend_staging
+    networks:
+      - staging-network  # ONLY network needed
+    environment:
+      - ENVIRONMENT=staging
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"  # IDENTICAL
+      # STAGING DOMAIN
+      - "traefik.http.routers.backend.rule=Host(`api-staging.yourdomain.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"  # HTTPS only
+
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"  # IDENTICAL
+      - "traefik.docker.network=staging-network"  # Network name only
+      # STAGING: Let's Encrypt SSL
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+    # Staging logging configuration (pre-production monitoring)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "environment=staging,service=backend"
+        compress: "true"
+    volumes:
+      # Staging logs
+      - ./logs:/app/logs:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health", "-H", "Host: api-staging.yourdomain.com"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - traefik

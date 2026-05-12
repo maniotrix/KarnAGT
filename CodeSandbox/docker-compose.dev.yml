@@ -1,0 +1,55 @@
+version: '3.8'
+
+# Unified development network - created by database compose
+networks:
+  dev-network:
+    name: dev-network
+    external: true
+
+services:
+  codesandbox:
+    container_name: codesandbox-development
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        CS_USER: code_sandbox
+    networks:
+      - dev-network  # Unified network
+    labels:
+      # SECURITY: No public Traefik exposure - internal access only (even in dev)
+      - "traefik.enable=false"
+      # Metadata labels
+      - "com.app.environment=dev"
+      - "com.app.service=code_execution"
+      - "com.app.component=codesandbox"
+      - "com.app.access=internal-only"
+    volumes:
+      # Mount only what's needed for development hot reload
+      - ./app:/home/code_sandbox/app                    # Hot reload (matches uvicorn reload_dirs)  
+      - ./.env.docker.dev:/home/code_sandbox/.env       # Environment config
+    # Development logging configuration (code execution can be verbose)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "3"
+        labels: "environment=dev,service=codesandbox"
+        compress: "true"
+    # Resource limits - optimized for 30s execution workload
+    deploy:
+      resources:
+        limits:
+          cpus: '1.2'          # Allow burst for kernel creation and code execution
+          memory: 1G           # Sufficient for short executions + kernel overhead
+        reservations:
+          cpus: '0.25'         # Reserve for FastAPI server baseline
+          memory: 512M         # Reserve for server baseline
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    # No restart policy in dev mode for easier debugging

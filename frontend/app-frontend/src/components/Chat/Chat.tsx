@@ -1,0 +1,541 @@
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useChat } from '../../hooks/useChat';
+import { ConversationResponse } from '../../types/chat';
+import { MessageList } from './MessageList';
+import { getDisplayTitleFromMessages } from '../../utils/conversationUtils';
+import { ChatInput } from './ChatInput';
+import { ChatActions } from './ChatActions';
+import type { UploadFile } from '../../types/upload';
+
+// Modern UI Libraries
+import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
+import { Progress } from '@radix-ui/react-progress';
+import { ScrollArea } from '@radix-ui/react-scroll-area';
+import { Separator } from '@radix-ui/react-separator';
+
+import { 
+  User, 
+  Bot, 
+  Settings, 
+  X, 
+  AlertTriangle,
+  Crown,
+  MessageSquare,
+  DollarSign,
+  Zap
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Clean Architecture - ONLY use these layers
+import { useCurrentUser, useAuthStatus } from '../../app/hooks/auth/useAuth';
+import { useUiStore } from '../../app/stores';
+import { ConversationImagesProvider } from '../../contexts/ConversationImagesContext';
+import { convertUploadFilesToStagingFiles, hasStagingFiles } from '../../app/services';
+
+interface ChatProps {
+  conversationId?: string;
+  onConversationChange?: (conversation: ConversationResponse | null) => void;
+  onCreateConversationForMessage?: (
+    messageContent: string,
+    attachments?: {
+      stagingFiles: Record<string, any>;
+      imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }>;
+      documentData: Array<{ fileId: string; filename: string; file: File; fileType: string; fileSize: number; s3Key: string }>;
+    }
+  ) => Promise<ConversationResponse | null>;
+  isCreatingConversation?: boolean;
+  pendingMessage?: string | null;
+  pendingAttachments?: {
+    stagingFiles: Record<string, any>;
+    imageData: Array<{ fileId: string; filename: string; file: File; blobUrl: string; s3Key: string }>;
+    documentData: Array<{ fileId: string; filename: string; file: File; fileType: string; fileSize: number; s3Key: string }>;
+  } | null;
+  onPendingMessageSubmitted?: () => void;
+}
+
+export const Chat: React.FC<ChatProps> = ({ 
+  conversationId, 
+  onConversationChange,
+  onCreateConversationForMessage,
+  isCreatingConversation,
+  pendingMessage,
+  pendingAttachments,
+  onPendingMessageSubmitted
+}) => {
+  // console.log('🎨 [Chat] KEYSTROKE - Component render started:', {
+  //   timestamp: new Date().toISOString(),
+  //   conversationId,
+  //   isCreatingConversation,
+  //   hasPendingMessage: !!pendingMessage,
+  //   hasPendingAttachments: !!pendingAttachments,
+  // });
+
+  // Clean Architecture Integration  
+  const userQuery = useCurrentUser();
+  const authStatus = useAuthStatus();
+  const { theme } = useUiStore();
+  const currentUser = userQuery.data;
+  const isAuthenticated = authStatus.data?.authenticated ?? false;
+  const [showActions, setShowActions] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
+  const [scrollToBottomFn, setScrollToBottomFn] = useState<((behavior?: 'auto' | 'smooth') => void) | null>(null);
+
+  // Calculate quota using clean architecture user data
+  const calculateQuota = () => {
+    if (!currentUser) return { used: 0, total: 20, percentage: 0 };
+    
+    const quota = currentUser.getMessageQuota();
+    // This would normally come from a usage tracking service
+    // For now, using mock data - this should be implemented in clean architecture
+    const used = 15; // Mock usage - should come from usage repository
+    
+    return {
+      used,
+      total: quota.total,
+      percentage: (used / quota.total) * 100
+    };
+  };
+  
+  const quota = calculateQuota();
+  const isQuotaExceeded = quota.percentage >= 100;
+
+  // 🚀 PERFORMANCE FIX: Memoize useChat options to prevent unnecessary re-renders
+  // 
+  // PROBLEM: Inline functions were creating new references on every keystroke, causing:
+  // 1. useChat hook to recreate all internal functions (loadMoreMessages, etc.)
+  // 2. handleLoadMore to recreate, making MessageList re-render unnecessarily  
+  // 3. MessageList re-rendering with 20+ messages + animations = typing lag
+  //
+  // SOLUTION: useMemo ensures these functions only change when dependencies change
+  //
+  // ⚠️  FUTURE RISK: If these callbacks need to access changing state (input, messages, etc.),
+  //    add those dependencies to the useMemo array, or the callbacks will use stale values
+  const chatOptions = useMemo(() => ({
+    conversationId,
+    memoryEnabled: true,
+    onConversationUpdate: onConversationChange,
+    onStreamStart: () => {
+      setShowActions(false); // Hide actions during streaming
+      // 🎯 SCROLL HERE: After AI message added, before API call starts
+      // scrollToBottomFn?.('smooth');
+    },
+    onStreamEnd: (data: any) => {
+      console.log('Stream completed:', data);
+      setShowActions(true); // Show actions after completion
+    },
+    onError: (error: any) => {
+      console.error('Chat error:', error);
+    }
+  }), [conversationId, onConversationChange, scrollToBottomFn]); // Added scrollToBottomFn dependency
+
+  // ✅ Simple Chat Integration
+  const {
+    messages,
+    isLoading,
+    isLoadingConversation,
+    error,
+    conversation,
+    tokenUsage,
+    handleSubmit,
+    createConversation,
+    deleteConversation,
+    shareConversation,
+    stop,
+    clearError,
+    hasConversation,
+    loadMoreMessages,
+    hasMoreMessages,
+    editMessage,
+    messageToolExecutions,
+  } = useChat(chatOptions);
+
+  // Quota is already calculated above using clean architecture
+
+  // Auto-submit pending message when conversation is loaded
+  useEffect(() => {
+    const hasPendingContent = (pendingMessage && pendingMessage.trim()) || pendingAttachments;
+    if (hasConversation && hasPendingContent && !isLoading && !isLoadingConversation) {
+      console.log('🚀 Auto-submitting pending message:', pendingMessage);
+      console.log('🚀 Auto-submitting with pending attachments:', pendingAttachments);
+      
+      // Submit the message after a brief delay to ensure conversation is fully loaded
+      const timer = setTimeout(() => {
+        console.log('🚀 Executing auto-submit for message:', pendingMessage);
+        
+        // Create synthetic event with pending attachments if available
+        const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
+        
+        // Attach the pending attachments to the synthetic event
+        if (pendingAttachments) {
+          Object.assign(syntheticEvent, {
+            input: pendingMessage,
+            stagingFiles: pendingAttachments.stagingFiles,
+            imageData: pendingAttachments.imageData,
+            documentData: pendingAttachments.documentData
+          });
+        }
+        
+        // Fire-and-forget - don't await, just like normal submission
+        handleSubmit(syntheticEvent as any);
+        
+        // Clear the pending message immediately (consistent with manual submission)
+        onPendingMessageSubmitted?.();
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [hasConversation, pendingMessage, pendingAttachments, isLoading, isLoadingConversation, handleSubmit, onPendingMessageSubmitted]);
+
+  // Handle scroll function ready from MessageList
+  const handleScrollFunctionReady = useCallback((scrollFn: (behavior?: 'auto' | 'smooth') => void) => {
+    setScrollToBottomFn(() => scrollFn);
+  }, []);
+
+  // Handle file upload - store files for message submission
+  const handleFileUpload = useCallback((files: UploadFile[]) => {
+    console.log('🔍 DEBUG: handleFileUpload called with files:', files);
+    console.log('🔍 DEBUG: Files details:', files.map(f => ({
+      name: f.name,
+      status: f.status,
+      file_id: f.file_id,
+      s3_key: f.s3_key,
+      fileCategory: f.fileCategory,
+      hasFile: !!f.file
+    })));
+    
+    // REPLACE uploaded files state for message submission (don't append)
+    console.log('🔍 DEBUG: Replacing uploadedFiles state with:', files);
+    setUploadedFiles(files);
+  }, []);
+
+  // Handle message submission with quota check and universal file support
+  const handleMessageSubmit = async (inputMessage: string, e: React.FormEvent) => {
+    // 🚀 PERFORMANCE FIX: Sync useChat input state only on submit (not every keystroke)
+    console.log('🔄 DEBUG: Syncing useChat input state before submit:', inputMessage);
+    console.log('🔍 DEBUG: handleMessageSubmit called');
+    console.log('🔍 DEBUG: Current uploadedFiles state:', uploadedFiles);
+    console.log('🔍 DEBUG: Input content:', inputMessage);
+    console.log('🔍 DEBUG: hasConversation:', hasConversation);
+    
+    if (isQuotaExceeded) {
+      alert(`Quota exceeded! You've used ${quota.used}/${quota.total} messages. Please upgrade your plan.`);
+      return;
+    }
+
+    // Get successful uploads
+    console.log('🔍 DEBUG: Filtering uploadedFiles for successful uploads...');
+    const successfulFiles = uploadedFiles.filter(file => file.status === 'success' && file.file_id && file.s3_key && file.file);
+    console.log('🔍 DEBUG: Successful files after filter:', successfulFiles);
+    
+    // Prepare staging files for backend using utility function (UNIVERSAL FORMAT)
+    const stagingFiles = convertUploadFilesToStagingFiles(successfulFiles);
+
+    // Prepare file data for frontend display (support both images and documents)
+    const imageFiles = successfulFiles.filter(f => f.fileCategory === 'image');
+    const documentFiles = successfulFiles.filter(f => f.fileCategory === 'document');
+    
+    const imageData = imageFiles.map(file => ({
+      fileId: file.file_id!,
+      filename: file.name,
+      file: file.file!,
+      blobUrl: URL.createObjectURL(file.file!),
+      s3Key: file.s3_key!,
+      contentType: file.type,  // ✅ Preserve content type
+      fileSize: file.size      // ✅ Preserve file size
+    }));
+
+    // For documents, we'll store basic info for display
+    const documentData = documentFiles.map(file => ({
+      fileId: file.file_id!,
+      filename: file.name,
+      file: file.file!,
+      fileType: file.type,
+      fileSize: file.size,
+      s3Key: file.s3_key!
+    }));
+
+    console.log('🔍 DEBUG: Final staging files for backend (UNIVERSAL FORMAT):', stagingFiles);
+    console.log('🔍 DEBUG: Image data for frontend:', imageData);
+    console.log('🔍 DEBUG: Document data for frontend:', documentData);
+    console.log('🔍 DEBUG: Total staging files count:', Object.values(stagingFiles).flat().length);
+
+    // If we don't have a conversation, ask parent to create one
+    if (!hasConversation && onCreateConversationForMessage && (inputMessage.trim() || hasStagingFiles(stagingFiles))) {
+      // Parent will create conversation and navigate to proper URL
+      // The message will be submitted after navigation completes
+      // Generate appropriate title for attachment-only messages
+      // log total images and documents
+      console.log('[ON_CREATE_CONVERSATION_FOR_MESSAGE]🔍 DEBUG: Total images:', imageData.length);
+      console.log('[ON_CREATE_CONVERSATION_FOR_MESSAGE]🔍 DEBUG: Total documents:', documentData.length);
+      const input = inputMessage.trim() || "";
+      await onCreateConversationForMessage(
+        input,
+        {
+          stagingFiles,
+          imageData,
+          documentData
+        }
+      );
+      return;
+    }
+
+    // We have a conversation, submit the message with staging files and file data
+    if (hasConversation) {
+      console.log('🔍 DEBUG: Creating submitEvent with staging files and file data');
+      // Create custom event with staging files and both image and document data
+      const submitEvent = {
+        ...e,
+        preventDefault: e.preventDefault.bind(e),
+        input: inputMessage,
+        stagingFiles, // For backend
+        imageData, // For frontend display (images)
+        documentData, // For frontend display (documents) 
+      };
+      
+      console.log('🔍 DEBUG: submitEvent created:', submitEvent);
+      console.log('🔍 DEBUG: submitEvent.input:', submitEvent.input);
+      console.log('🔍 DEBUG: submitEvent.stagingFiles:', submitEvent.stagingFiles);
+      console.log('🔍 DEBUG: submitEvent.imageData:', submitEvent.imageData);
+      console.log('🔍 DEBUG: submitEvent.documentData:', submitEvent.documentData);
+      console.log('🔍 DEBUG: Calling handleSubmit with submitEvent');
+      
+      handleSubmit(submitEvent as any);
+      
+      // Clear uploaded files after sending
+      console.log('🔍 DEBUG: Clearing uploadedFiles state');
+      setUploadedFiles([]);
+
+    }
+  };
+
+  // Handle share conversation
+  const handleShare = async () => {
+    if (!conversation) return;
+    
+    try {
+      const shareUrl = await shareConversation();
+      if (shareUrl) {
+        navigator.clipboard.writeText(shareUrl);
+        alert('Share link copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Failed to share conversation:', error);
+    }
+  };
+
+  // Handle delete conversation
+  const handleDelete = async () => {
+    if (!conversation) return;
+    
+    if (window.confirm('Are you sure you want to delete this conversation?')) {
+      const success = await deleteConversation();
+      if (success && onConversationChange) {
+        onConversationChange(null);
+      }
+    }
+  };
+
+  // Handle load more messages - memoized to prevent unnecessary re-renders
+  const handleLoadMore = useCallback(async (offset: number): Promise<number> => {
+    if (!conversation?.conversation_id) {
+      console.log('No conversation ID available for loadMore');
+      return 0;
+    }
+    console.log('Chat handleLoadMore called:', { conversationId: conversation.conversation_id, offset });
+    return await loadMoreMessages(conversation.conversation_id, offset);
+  }, [conversation?.conversation_id, loadMoreMessages]);
+
+
+
+  // Show loading state during auth check
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col items-center justify-center h-full text-center p-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center space-y-4"
+          >
+            <div className="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <MessageSquare className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2 className="text-fluid-xl font-semibold text-gray-900 dark:text-white">
+              Authentication Required
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
+              Please log in to start chatting with AI assistant.
+            </p>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+      {/* Chat Header */}
+      {/* <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-between items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0"
+      >
+        <div className="flex-1">
+          <h2 className="text-fluid-lg font-semibold text-gray-900 dark:text-white">
+            {conversation ? getDisplayTitleFromMessages(
+              conversation.title, 
+              messages.map(m => ({ content: m.content, role: m.role })), 
+              50
+            ) : 'New Chat'}
+          </h2>
+          {conversation && (
+            <div className="flex items-center space-x-4 mt-1 text-fluid-xs text-gray-500 dark:text-gray-400">
+              <div className="flex items-center space-x-1">
+                <MessageSquare className="w-4 h-4" />
+                <span>{conversation.message_count} messages</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Zap className="w-4 h-4" />
+                <span>{tokenUsage?.total || 0} tokens</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <DollarSign className="w-4 h-4" />
+                <span>~${(tokenUsage?.cost || 0).toFixed(4)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div> */}
+
+      {/* Error Display */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 mx-4 mt-2 rounded-lg flex-shrink-0"
+          >
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5" />
+              <span>{typeof error === 'object' && error !== null ? error.message : String(error)}</span>
+            </div>
+            <button 
+              onClick={clearError}
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Quota Warning */}
+      {/* <AnimatePresence>
+        {quota.percentage > 80 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`flex items-center justify-center px-4 py-3 mx-4 mt-2 rounded-lg flex-shrink-0 ${
+              quota.percentage >= 100 
+                ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+                : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'
+            }`}
+          >
+            <AlertTriangle className="w-5 h-5 mr-2" />
+            <span>
+              {quota.percentage >= 100 
+                ? `⚠️ Quota exceeded! Upgrade your ${currentUser?.subscriptionTier} plan to continue.`
+                : `⚠️ Quota warning: ${quota.percentage.toFixed(0)}% used`
+              }
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence> */}
+
+      {/* Main Content Area - This will grow and the inner MessageList will scroll */}
+      <div className="flex-1 overflow-hidden min-h-0 relative">
+        {/* Conversation Loading Overlay */}
+        {isLoadingConversation && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-20 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-fluid-xs text-gray-600 dark:text-gray-400 font-medium">
+                Loading conversation...
+              </p>
+            </div>
+          </div>
+        )}
+        
+        <ConversationImagesProvider 
+          messages={messages} 
+          conversationId={conversation?.conversation_id}
+        >
+          <MessageList
+            messages={messages}
+            isLoading={isLoading}
+            onLoadMore={handleLoadMore}
+            conversationId={conversation?.conversation_id}
+            hasMoreMessages={hasMoreMessages}
+            onEdit={editMessage}
+            messageToolExecutions={messageToolExecutions}
+            onScrollFunctionReady={handleScrollFunctionReady}
+          />
+        </ConversationImagesProvider>
+
+      </div>
+
+      {/* Chat Actions (conditionally rendered) */}
+      {/* {showActions && conversation && (
+        <div className="px-4 pb-2 flex-shrink-0">
+          <ChatActions
+            onShare={handleShare}
+            onDelete={handleDelete}
+            onStop={stop}
+            onRegenerate={() => console.log('Regenerate not implemented')}
+            isStreaming={isLoading}
+            canShare={!!conversation}
+            canDelete={!!conversation}
+          />
+        </div>
+      )} */}
+
+      {/* Chat Input & Error Display */}
+      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex-shrink-0">
+        <ChatInput
+          onSubmit={handleMessageSubmit}
+          isLoading={isLoading || isLoadingConversation || (isCreatingConversation ?? false)}
+          disabled={isQuotaExceeded || isLoadingConversation || (isCreatingConversation ?? false)}
+          placeholder={
+            isLoadingConversation
+              ? "Loading conversation..."
+              : (isCreatingConversation ?? false)
+              ? "Creating conversation..."
+              : isQuotaExceeded
+              ? "Quota exceeded. Please upgrade your plan."
+              : "Type your message..."
+          }
+          onFileUpload={handleFileUpload}
+          enableFileUpload={!isQuotaExceeded && !isLoadingConversation && isAuthenticated}
+        />
+        {error && (
+          <div className="mt-2 text-fluid-xs text-red-600 dark:text-red-400">
+            Error: {typeof error === 'object' && error !== null ? error.message : String(error)}
+          </div>
+        )}
+        {/* Stop generating button */}
+        {isLoading && (
+          <div className="mt-2 text-center">
+            <button
+              onClick={stop}
+              className="px-4 py-2 text-fluid-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200"
+            >
+              Stop generating
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}; 

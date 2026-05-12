@@ -1,0 +1,100 @@
+# Application Backend - Development Docker Image
+FROM python:3.10.11
+
+# === System Dependencies ===
+# Comprehensive package installation for heavy ML/AI backend requirements
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        # Build tools (NOT guaranteed in full Python image)
+        build-essential \
+        gcc \
+        g++ \
+        make \
+        # PostgreSQL development headers (for psycopg2 compilation) - REQUIRED
+        libpq-dev \
+        # Python development headers (for C extensions)
+        python3-dev \
+        # PDF processing (for file uploads)
+        poppler-utils \
+        # OCR capabilities  
+        tesseract-ocr tesseract-ocr-eng \
+        # File type detection
+        libmagic1 \
+        # PostgreSQL client (for debugging)
+        postgresql-client \
+        # Image processing libraries (for OpenCV, Pillow, scikit-image)
+        libjpeg-dev \
+        libpng-dev \
+        libwebp-dev \
+        libtiff-dev \
+        libopenjp2-7-dev \
+        # System libraries for ML/AI packages (PyTorch, OpenCV)
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender-dev \
+        libgomp1 \
+        libgfortran5 \
+        # Additional system libs for Python packages
+        pkg-config \
+        libffi-dev \
+        # Font support (for matplotlib, document processing)
+        libfreetype6-dev \
+        # XML processing (for lxml, document parsing)
+        libxml2-dev \
+        libxslt1-dev \
+        # SSL/crypto support
+        libssl-dev \
+        # Audio/video processing (if needed for ML models)
+        libsndfile1 \
+        # Network tools
+        curl \
+        git \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# === Create Non-Root User ===
+ARG BACKEND_USER=app_backend_dev
+ENV BACKEND_USER=${BACKEND_USER}
+RUN useradd --create-home --shell /bin/bash ${BACKEND_USER}
+
+# === Create Application Directories ===
+RUN mkdir -p /app/logs && \
+    chown -R ${BACKEND_USER}:${BACKEND_USER} /app
+
+# === Switch to Non-Root User BEFORE installing Python packages ===
+USER ${BACKEND_USER}
+
+# === Ensure user-installed packages are in PATH ===
+ENV PATH="/home/${BACKEND_USER}/.local/bin:${PATH}"
+
+# === Install Python Dependencies (as non-root user) ===
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} requirements-linux.txt /tmp/requirements.txt
+RUN pip install --user --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+WORKDIR /app
+
+# === Copy Environment Configuration ===
+# Development uses .env.docker.dev -> .env (same as CodeSandbox pattern)
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} .env.docker.app.dev ./.env
+
+# === Copy Application Code ===
+# Copy core application
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} app/ ./app/
+
+# Copy configuration files
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} alembic.ini ./
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} migrations/ ./migrations/
+
+# Copy startup and migration scripts
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} start_app.py ./
+COPY --chown=${BACKEND_USER}:${BACKEND_USER} run_migrations.py ./
+
+# === Expose Port ===
+EXPOSE 8000
+
+# === Health Check ===
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/health || exit 1
+
+# === Start Application ===
+CMD ["python", "start_app.py"]

@@ -1,0 +1,117 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Production build files
+/dist
+/build
+
+/tmp
+/temp_lib
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# .env.docker.app.* # REMOVED: Allow AWS prod environment files
+
+# Testing
+/coverage
+.nyc_output
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Local Netlify folder
+.netlify 
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+venv/
+ENV/
+env/
+.venv/
+adk-samples-main/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# API Keys and environment variables
+# .env # REMOVED: Duplicate - already on line 14
+
+# Logs
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+examples/
+
+data/
+logs/
+output/
+output_plots/
+
+node_modules/
+/workspaces
+
+# ignore kernel file
+kernel-*.json

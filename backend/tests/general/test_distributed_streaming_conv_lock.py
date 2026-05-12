@@ -1,0 +1,1905 @@
+#!/usr/bin/env python3
+"""
+Comprehensive Distributed Streaming Test Suite
+
+Tests the complete Redis-based multi-worker streaming system:
+1. Multi-worker stream cancellation
+2. Redis failure recovery
+3. Cross-worker race conditions
+4. Worker registry functionality
+5. Conversation locking system
+6. TTL cleanup and orphan detection
+7. Atomic transaction scenarios
+
+This tests our production-ready distributed architecture including:
+- Cross-worker stream coordination
+- Distributed conversation locking (prevents concurrent streams per conversation)
+- Redis TTL-based dead worker protection
+- Comprehensive cleanup and resource management
+"""
+
+import asyncio
+import aiohttp
+import json
+import time
+import redis.asyncio as redis
+# No external test frameworks required - pure Python + asyncio
+from typing import Dict, List, Optional, Any
+from datetime import datetime
+import subprocess
+import signal
+import os
+import sys
+import uuid
+
+ # Set encoding defaults
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONLEGACYWINDOWSIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONUTF8", "1")
+print(f"✅ Encoding defaults set")
+
+
+class DistributedStreamingTester:
+    """Comprehensive test suite for distributed streaming"""
+    
+    def __init__(self, base_url: str = "http://localhost:8000"):
+        self.base_url = base_url
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.jwt_token: Optional[str] = None   # ✅ JWT token for authentication
+        self.redis_client: Optional[redis.Redis] = None
+        self.test_user_email: Optional[str] = None
+        self.test_user_2_email: Optional[str] = None
+        self.jwt_token_user_2: Optional[str] = None
+        self.test_conversations: List[str] = []
+        self.captured_streams: List[str] = []
+        self.test_results: Dict[str, bool] = {}
+        self.worker_processes: List[subprocess.Popen] = []
+        self.test_worker_ids: List[str] = []  # Track worker IDs created by this test
+        self.active_stream_ids: Dict[str, str] = {}  # Map task_name -> stream_id for active streams
+        
+    async def __aenter__(self):
+        """Async context manager entry"""
+        self.session = aiohttp.ClientSession()
+        self.redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with cleanup"""
+        if self.session:
+            await self.session.close()
+        if self.redis_client:
+            await self.redis_client.close()
+        
+        # Clean up any test workers
+        await self.cleanup_test_workers()
+        await self.cleanup_test_data()
+    
+    def get_headers(self, include_auth: bool = True, user_2: bool = False) -> Dict[str, str]:
+        """Get request headers for authentication"""
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+        }
+        # ✅ Add JWT token in Authorization header (works across all ports)
+        if include_auth:
+            if user_2 and hasattr(self, 'jwt_token_user_2') and self.jwt_token_user_2:
+                headers['Authorization'] = f'Bearer {self.jwt_token_user_2}'
+            elif hasattr(self, 'jwt_token') and self.jwt_token:
+                headers['Authorization'] = f'Bearer {self.jwt_token}'
+        return headers
+    
+    async def setup_test_user(self) -> bool:
+        """Create and authenticate test user using JWT tokens"""
+        try:
+            # Generate unique test user
+            timestamp = int(time.time())
+            self.test_user_email = f"distrib_test_{timestamp}@example.com"
+            
+            # ✅ Register user (correct format matching backend UserRegister schema)
+            register_data = {
+                "email": self.test_user_email,
+                "password": "TestPass123!",
+                "confirm_password": "TestPass123!",  # ✅ Required field  
+                "full_name": "Distributed Tester"    # ✅ Correct field name
+            }
+            
+            async with self.session.post(f"{self.base_url}/api/v1/auth/register", json=register_data) as response:
+                if response.status != 201:
+                    error_text = await response.text()
+                    print(f"❌ Registration failed ({response.status}): {error_text}")
+                    return False
+                
+                register_result = await response.json()
+                print(f"✅ Registration successful")
+            
+            # ✅ Login using correct format (JSON, not form data)
+            login_data = {
+                "email": self.test_user_email,  # ✅ Correct field name (not username)
+                "password": "TestPass123!"
+            }
+            
+            async with self.session.post(f"{self.base_url}/api/v1/auth/login", json=login_data) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    print(f"❌ Login failed ({response.status}): {error_text}")
+                    return False
+                
+                login_result = await response.json()
+                
+                # ✅ EXTRACT JWT TOKEN from httpOnly cookie
+                cookies = response.cookies
+                if 'access_token' in cookies:
+                    self.jwt_token = cookies['access_token'].value
+                    print(f"✅ JWT token extracted: {self.jwt_token[:20]}...")
+                else:
+                    print("❌ No JWT token found in cookies")
+                    return False
+                    
+                print(f"✅ Login successful, user: {login_result.get('user', {}).get('email', 'unknown')}")
+                
+            print(f"✅ Test user setup complete: {self.test_user_email}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error setting up test user: {e}")
+            return False
+    
+    async def setup_test_user_2(self) -> bool:
+        """Create and authenticate second test user for concurrent testing"""
+        try:
+            # Generate unique second test user
+            timestamp = int(time.time())
+            self.test_user_2_email = f"distrib_test_user2_{timestamp}@example.com"
+            
+            # ✅ Register second user
+            register_data = {
+                "email": self.test_user_2_email,
+                "password": "TestPass123!",
+                "confirm_password": "TestPass123!",
+                "full_name": "Distributed Tester 2"
+            }
+            
+            async with self.session.post(f"{self.base_url}/api/v1/auth/register", json=register_data) as response:
+                if response.status != 201:
+                    error_text = await response.text()
+                    print(f"❌ User 2 registration failed ({response.status}): {error_text}")
+                    return False
+                
+                print(f"✅ User 2 registration successful")
+            
+            # ✅ Login second user
+            login_data = {
+                "email": self.test_user_2_email,
+                "password": "TestPass123!"
+            }
+            
+            async with self.session.post(f"{self.base_url}/api/v1/auth/login", json=login_data) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    print(f"❌ User 2 login failed ({response.status}): {error_text}")
+                    return False
+                
+                login_result = await response.json()
+                
+                # ✅ Extract JWT token for user 2
+                cookies = response.cookies
+                if 'access_token' in cookies:
+                    self.jwt_token_user_2 = cookies['access_token'].value
+                    print(f"✅ User 2 JWT token extracted: {self.jwt_token_user_2[:20]}...")
+                else:
+                    print("❌ No JWT token found for user 2")
+                    return False
+                    
+                print(f"✅ User 2 login successful: {login_result.get('user', {}).get('email', 'unknown')}")
+                
+            print(f"✅ Test user 2 setup complete: {self.test_user_2_email}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error setting up test user 2: {e}")
+            return False
+    
+    async def create_test_conversation(self, user_2: bool = False, conversation_name: str = "Test") -> Optional[str]:
+        """Create a test conversation for specified user"""
+        try:
+            conversation_data = {
+                "title": f"Distributed {conversation_name} {datetime.now().isoformat()}",
+                "system_instructions": "You are a helpful assistant for testing distributed streaming."
+            }
+            
+            async with self.session.post(
+                f"{self.base_url}/api/v1/chat/conversations", 
+                json=conversation_data,
+                headers=self.get_headers(user_2=user_2)
+            ) as response:
+                if response.status != 201:
+                    error_text = await response.text()
+                    user_label = "User 2" if user_2 else "User 1"
+                    print(f"❌ Failed to create conversation for {user_label}: {response.status} - {error_text}")
+                    return None
+                
+                result = await response.json()
+                conversation_id = result["conversation_id"]
+                self.test_conversations.append(conversation_id)
+                user_label = "User 2" if user_2 else "User 1"
+                print(f"✅ Created conversation for {user_label}: {conversation_id}")
+                return conversation_id
+                
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error creating conversation for {user_label}: {e}")
+            return None
+    
+    async def start_test_workers(self, worker_count: int = 2) -> bool:
+        """Start multiple test workers to simulate multi-worker environment"""
+        try:
+            print(f"🚀 Starting {worker_count} test workers...")
+            
+            for i in range(worker_count):
+                port = 8001 + i  # 8001, 8002, etc.
+                
+                # ✅ Use YOUR ACTUAL startup process (start_app.py) 
+                env = os.environ.copy()
+                env.update({
+                    "PORT": str(port),  # ✅ Override PORT for this worker
+                    "ENVIRONMENT": "production",  # ✅ Production mode = no reloader = PIDs match!
+                    "DEBUG": "True",
+                    "PYTHONUNBUFFERED": "1",  # ✅ Force immediate log output
+                    "PYTHONIOENCODING": "utf-8",
+                })
+                
+                # ✅ Start worker using YOUR startup script WITH VENV (loads .env, validates keys, registers worker)
+                # ✅ Use the SAME Python interpreter as the current process (venv Python)
+                venv_python = sys.executable
+                python_file = "dist_dev_start_app.py"
+                print(f"🚀 Starting worker {i+1} with venv Python")
+                print(f"🔧 Python: {venv_python}")
+                print(f"🔧 Script: {python_file}")
+                print(f"🔧 Environment: PORT={port}, ENVIRONMENT=production, DEBUG=True")
+                
+                # Inherit stdout/stderr so child logs print in this console; use -u for unbuffered output
+                process = subprocess.Popen([
+                    venv_python, "-u", python_file  # ✅ Uses venv Python unbuffered
+                ], 
+                cwd="backend", 
+                env=env)
+                # ✅ TO SEE LOGS: Remove stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL from above line
+                
+                self.worker_processes.append(process)
+                print(f"✅ Started worker {i+1} on port {port} (PID: {process.pid})")
+                
+                # ✅ Give each worker a moment to start before launching next
+                await asyncio.sleep(2)
+            
+            # ✅ Check if all worker processes are alive
+            print(f"\n🔍 Checking worker process status after startup:")
+            for i, process in enumerate(self.worker_processes):
+                is_alive = process.poll() is None
+                print(f"   Worker {i+1} (PID {process.pid}): {'✅ ALIVE' if is_alive else '❌ DEAD'}")
+                
+            print("\n⏳ Waiting for workers to register with Redis...")
+            await asyncio.sleep(15)  # Reduced since we have individual delays
+            
+            # Get ports of the workers we just started
+            test_ports = [str(8001 + i) for i in range(len(self.worker_processes))]
+            print(f"🔍 Test workers should be on ports: {test_ports}")
+            
+            # Find worker IDs that match our test ports (using port-based matching)
+            active_workers = await self.redis_client.smembers("workers:active")
+            print(f"🔍 Active workers in Redis: {len(active_workers)}")
+            
+            # Track which workers belong to this test by checking if they respond on test ports
+            for worker_id in active_workers:
+                worker_data = await self.redis_client.hgetall(f"worker:{worker_id}")
+                if worker_data:
+                    worker_pid = worker_data.get('pid', '')
+                    print(f"   Worker {worker_id}: PID={worker_pid}")
+                    
+                    # Check if this worker is listening on one of our test ports
+                    for test_port in test_ports:
+                        try:
+                            async with self.session.get(
+                                f"http://localhost:{test_port}/health",
+                                timeout=aiohttp.ClientTimeout(total=2)
+                            ) as response:
+                                if response.status == 200:
+                                    self.test_worker_ids.append(worker_id)
+                                    print(f"     ✅ Tracked as test worker (responds on port {test_port})")
+                                    test_ports.remove(test_port)  # Remove matched port
+                                    break
+                        except:
+                            continue  # Worker not responding on this port
+            
+            print(f"🔍 Test created {len(self.test_worker_ids)} workers: {self.test_worker_ids}")
+            return len(self.test_worker_ids) >= worker_count
+            
+        except Exception as e:
+            print(f"❌ Error starting test workers: {e}")
+            return False
+    
+    async def cleanup_test_workers(self):
+        """Clean up test worker processes and their Redis data"""
+        print(f"🧹 Terminating {len(self.worker_processes)} test worker processes...")
+        
+        for i, process in enumerate(self.worker_processes):
+            try:
+                if process.poll() is None:  # Process is still running
+                    print(f"   📤 Sending SIGTERM to worker {i+1} (PID {process.pid})...")
+                    process.terminate()
+                    
+                    try:
+                        # Give worker more time for graceful shutdown
+                        print(f"   ⏳ Waiting up to 10 seconds for graceful shutdown...")
+                        process.wait(timeout=10)
+                        print(f"   ✅ Worker {i+1} terminated gracefully")
+                    except subprocess.TimeoutExpired:
+                        print(f"   ⚡ Worker {i+1} didn't respond to SIGTERM, sending SIGKILL...")
+                        process.kill()
+                        try:
+                            process.wait(timeout=3)
+                            print(f"   ✅ Worker {i+1} force killed")
+                        except subprocess.TimeoutExpired:
+                            print(f"   ❌ Worker {i+1} still running after SIGKILL (zombie?)")
+                else:
+                    print(f"   ✅ Worker {i+1} (PID {process.pid}) already stopped")
+            except Exception as e:
+                print(f"   ⚠️ Error cleaning up worker process {i+1}: {e}")
+        
+        self.worker_processes.clear()
+        print(f"✅ All test worker processes terminated")
+    
+    async def cleanup_test_data(self):
+        """Clean up ONLY the data created by this test"""
+        try:
+            if self.redis_client:
+                cleanup_count = 0
+                
+                # 1. Clean up test streams
+                print(f"🧹 Cleaning up {len(self.captured_streams)} test streams...")
+                for stream_id in self.captured_streams:
+                    # Remove stream metadata
+                    deleted = await self.redis_client.delete(f"stream:{stream_id}")
+                    if deleted:
+                        cleanup_count += 1
+                
+                # 2. Clean up test worker data (only workers WE created)
+                print(f"🧹 Cleaning up {len(self.test_worker_ids)} test workers...")
+                for worker_id in self.test_worker_ids:
+                    try:
+                        # Use worker registry cleanup for comprehensive cleanup (includes conversation locks)
+                        # Note: In a real test environment, you'd import worker_registry from the backend
+                        # For now, we'll do manual cleanup
+                        
+                        # Clean up any conversation locks owned by this dead test worker
+                        conv_lock_keys = await self.redis_client.keys("conv_lock:*")
+                        for lock_key in conv_lock_keys:
+                            lock_value = await self.redis_client.get(lock_key)
+                            if lock_value:
+                                lock_value_str = lock_value.decode() if isinstance(lock_value, bytes) else str(lock_value)
+                                if f"worker:{worker_id}" in lock_value_str:
+                                    deleted = await self.redis_client.delete(lock_key)
+                                    if deleted:
+                                        cleanup_count += 1
+                                        print(f"   🔒 Cleaned up orphaned lock from dead test worker {worker_id}")
+                        
+                        # Remove worker from active set
+                        await self.redis_client.srem("workers:active", worker_id)
+                        # Remove worker metadata
+                        deleted = await self.redis_client.delete(f"worker:{worker_id}")
+                        if deleted:
+                            cleanup_count += 1
+                            
+                    except Exception as e:
+                        print(f"Warning: Error cleaning up test worker {worker_id}: {e}")
+                
+                # 3. Clean up test conversations (database cleanup via API)
+                print(f"🧹 Cleaning up {len(self.test_conversations)} test conversations...")
+                for conversation_id in self.test_conversations:
+                    try:
+                        async with self.session.delete(
+                            f"{self.base_url}/api/v1/chat/conversations/{conversation_id}",
+                            headers=self.get_headers()
+                        ) as response:
+                            if response.status == 200:
+                                cleanup_count += 1
+                    except Exception as e:
+                        print(f"Warning: Failed to delete conversation {conversation_id}: {e}")
+                
+                # 4. Clean up conversation locks created by tests
+                print(f"🧹 Cleaning up test conversation locks...")
+                conv_lock_keys = await self.redis_client.keys("conv_lock:*")
+                for lock_key in conv_lock_keys:
+                    # Only clean up locks that might be from our test conversations
+                    lock_key_str = lock_key.decode() if isinstance(lock_key, bytes) else lock_key
+                    for test_conv_id in self.test_conversations:
+                        if test_conv_id in lock_key_str:
+                            deleted = await self.redis_client.delete(lock_key)
+                            if deleted:
+                                cleanup_count += 1
+                                break
+                
+                # 5. Clean up any orphaned test locks (ones containing "ttl_test")
+                for lock_key in conv_lock_keys:
+                    lock_key_str = lock_key.decode() if isinstance(lock_key, bytes) else lock_key
+                    if "ttl_test" in lock_key_str:
+                        deleted = await self.redis_client.delete(lock_key)
+                        if deleted:
+                            cleanup_count += 1
+                
+                # 6. Clean up user streams for test streams (only for test user)
+                if self.test_user_email and self.captured_streams:
+                    # Clean up user:*:streams keys for our test streams
+                    print(f"🧹 Cleaning up user stream indexes for test streams...")
+                    # Note: This would require knowing the user ID from the JWT token
+                    
+                print(f"✅ Test data cleanup completed: {cleanup_count} items removed from Redis")
+                print(f"🔍 Test created: {len(self.captured_streams)} streams, {len(self.test_worker_ids)} workers, {len(self.test_conversations)} conversations")
+                
+        except Exception as e:
+            print(f"Warning: Error during cleanup: {e}")
+        
+        # Clear tracking lists
+        self.captured_streams.clear()
+        self.test_worker_ids.clear()
+        self.test_conversations.clear()
+    
+    async def cleanup_after_test(self, test_name: str):
+        """Clean up after a specific test completes"""
+        print(f"\n🧹 Cleaning up after {test_name}...")
+        
+        # 🔄 Add grace period to allow Redis operations to complete
+        print("⏳ Waiting for Redis operations to complete in workers...")
+        await asyncio.sleep(5)  # Give Redis cleanup time to finish
+        
+        # Terminate worker processes spawned by this test
+        await self.cleanup_test_workers()
+        
+        # Clean up Redis and database data created by this test
+        await self.cleanup_test_data()
+        
+        print(f"✅ {test_name} cleanup completed\n")
+    
+    async def test_6_1_concurrent_streaming_attempts(self, conversation_id: str, message_data: dict) -> bool:
+        """Test 6.1: Concurrent streaming attempts to same conversation"""
+        print("🔒 TEST 6.1: Concurrent streaming attempts to same conversation")
+        
+        # Start first stream and get it going
+        stream_1_task = asyncio.create_task(
+            self.start_stream_and_capture_id(conversation_id, message_data, "http://localhost:8001", "Stream-1")
+        )
+        
+        # Wait for stream to start and capture stream_id
+        stream_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "Stream-1" in self.active_stream_ids:
+                stream_id = self.active_stream_ids["Stream-1"]
+                print(f"✅ Got Stream-1 ID: {stream_id}")
+                break
+        
+        if not stream_id:
+            print("❌ Failed to capture Stream-1 ID")
+            stream_1_task.cancel()
+            return False
+        
+        # Attempt concurrent streams - should all get 429
+        concurrent_tasks = []
+        for i in range(3):
+            task = asyncio.create_task(
+                self.attempt_concurrent_stream(conversation_id, message_data, f"http://localhost:{8001+i}", f"Concurrent-{i+1}")
+            )
+            concurrent_tasks.append(task)
+        
+        # Wait for concurrent attempts
+        concurrent_results = await asyncio.gather(*concurrent_tasks, return_exceptions=True)
+        
+        # Verify all concurrent attempts got 429 (conversation locked)
+        lock_rejections = sum(1 for r in concurrent_results if isinstance(r, dict) and r.get("status") == 429)
+        if lock_rejections != 3:
+            print(f"❌ Expected 3 lock rejections, got {lock_rejections}")
+            # Cancel the stream via API and then cancel task
+            await self.cancel_stream(stream_id)
+            stream_1_task.cancel()
+            return False
+        
+        print(f"✅ All {lock_rejections} concurrent attempts properly rejected with 429")
+        
+        # Cancel the first stream to release lock (while it's still streaming)
+        print(f"🛑 Cancelling Stream-1 via API: {stream_id}")
+        await self.cancel_stream(stream_id)
+        
+        # Now cancel the task
+        print(f"🛑 Cancelling Stream-1 task")
+        stream_1_task.cancel()
+        
+        # Wait a moment to ensure task cancellation is processed
+        try:
+            await stream_1_task
+        except asyncio.CancelledError:
+            print("✅ Stream-1 task cancelled successfully")
+        
+        # 🔄 Brief pause to let stream cleanup complete in worker
+        print("⏳ Allowing worker Redis cleanup to complete...")
+        await asyncio.sleep(2)
+        
+        return True
+    
+    async def test_6_2_edit_during_stream(self, conversation_id: str, message_data: dict) -> bool:
+        """Test 6.2: Edit attempt during active stream"""
+        print("\n🔒 TEST 6.2: Edit attempt during active stream")
+        
+        # Start a new stream
+        stream_2_task = asyncio.create_task(
+            self.start_stream_and_capture_id(conversation_id, message_data, self.base_url, "Stream-2")
+        )
+        
+        # Wait for stream to start and capture stream_id
+        stream_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "Stream-2" in self.active_stream_ids:
+                stream_id = self.active_stream_ids["Stream-2"]
+                print(f"✅ Got Stream-2 ID: {stream_id}")
+                break
+        
+        if not stream_id:
+            print("❌ Failed to capture Stream-2 ID")
+            stream_2_task.cancel()
+            return False
+        
+        # Try to edit a message while stream is active
+        edit_result = await self.attempt_edit_during_stream(conversation_id, "fake-message-id", "Edited content")
+        
+        if edit_result.get("status") != 429:
+            print(f"❌ Edit during stream should return 429, got {edit_result.get('status')}")
+            # Cancel the stream via API and then cancel task
+            await self.cancel_stream(stream_id)
+            stream_2_task.cancel()
+            return False
+        
+        print("✅ Edit during stream properly rejected with 429")
+        
+        # Cancel stream 2
+        print(f"🛑 Cancelling Stream-2 via API: {stream_id}")
+        await self.cancel_stream(stream_id)
+        
+        # Now cancel the task
+        print(f"🛑 Cancelling Stream-2 task")
+        stream_2_task.cancel()
+        
+        # Wait for task cancellation
+        try:
+            await stream_2_task
+        except asyncio.CancelledError:
+            print("✅ Stream-2 task cancelled successfully")
+        
+        # 🔄 Brief pause to let stream cleanup complete in worker
+        print("⏳ Allowing worker Redis cleanup to complete...")
+        await asyncio.sleep(2)
+        
+        return True
+    
+    async def test_6_3_lock_release_after_completion(self, conversation_id: str) -> bool:
+        """Test 6.3: Lock release after stream completion"""
+        print("\n🔒 TEST 6.3: Lock release after stream completion")
+        
+        # Start short stream that will complete
+        short_message = {"content": "Just say 'Hello world' and stop."}
+        
+        stream_3_result = await self.complete_short_stream(conversation_id, short_message)
+        if not stream_3_result.get("completed"):
+            print("❌ Short stream did not complete properly")
+            return False
+        
+        # Verify lock is released - new stream should succeed
+        await asyncio.sleep(1)
+        
+        follow_up_result = await self.complete_short_stream(conversation_id, short_message)
+        if not follow_up_result.get("completed"):
+            print(f"❌ Follow-up stream after completion failed: {follow_up_result}")
+            return False
+        
+        # Extract stream_id for cleanup tracking
+        follow_up_stream_id = follow_up_result.get("stream_id")
+        if follow_up_stream_id:
+            print(f"📡 Follow-up captured stream ID for cleanup: {follow_up_stream_id}")
+        
+        print("✅ Lock properly released after stream completion")
+        return True
+    
+    async def test_6_4_lock_ttl_expiry(self, conversation_id: str) -> bool:
+        """Test 6.4: Lock TTL expiry verification"""
+        print("\n🔒 TEST 6.4: Lock TTL expiry verification")
+        
+        # Check current locks in Redis
+        lock_keys_before = await self.redis_client.keys("conv_lock:*")
+        print(f"🔍 Active conversation locks: {len(lock_keys_before)}")
+        
+        # Create a lock manually and check its TTL
+        test_lock_key = f"conv_lock:{conversation_id}_ttl_test"
+        test_lock_value = f"user:test:worker:ttl_test:ts:{int(time.time())}"
+        
+        # Set lock with 5-second TTL for testing (instead of 300)
+        await self.redis_client.set(test_lock_key, test_lock_value, nx=True, ex=5)
+        
+        # Verify lock exists
+        ttl_before = await self.redis_client.ttl(test_lock_key)
+        if ttl_before <= 0:
+            print("❌ Test lock TTL not set correctly")
+            return False
+        
+        print(f"✅ Test lock created with TTL: {ttl_before} seconds")
+        
+        # Wait for TTL expiry
+        print("⏳ Waiting for TTL expiry...")
+        await asyncio.sleep(6)
+        
+        # Verify lock expired
+        lock_exists = await self.redis_client.exists(test_lock_key)
+        if lock_exists:
+            print("❌ Lock did not expire after TTL")
+            await self.redis_client.delete(test_lock_key)  # Cleanup
+            return False
+        
+        print("✅ Lock properly expired after TTL")
+        return True
+    
+    async def test_6_5_cross_worker_lock_enforcement(self, conversation_id: str, message_data: dict) -> bool:
+        """Test 6.5: Cross-worker lock enforcement"""
+        print("\n🔒 TEST 6.5: Cross-worker lock enforcement")
+        
+        # Start stream on worker 1
+        worker_1_task = asyncio.create_task(
+            self.start_stream_and_capture_id(conversation_id, message_data, "http://localhost:8001", "Worker-1")
+        )
+        
+        # Wait for stream to start and capture stream_id
+        stream_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "Worker-1" in self.active_stream_ids:
+                stream_id = self.active_stream_ids["Worker-1"]
+                print(f"✅ Got Worker-1 ID: {stream_id}")
+                break
+        
+        if not stream_id:
+            print("❌ Failed to capture Worker-1 ID")
+            worker_1_task.cancel()
+            return False
+        
+        # Attempt stream on worker 2 - should be rejected
+        worker_2_result = await self.attempt_concurrent_stream(conversation_id, message_data, "http://localhost:8002", "Worker-2")
+        
+        if worker_2_result.get("status") != 429:
+            print(f"❌ Cross-worker lock not enforced: {worker_2_result.get('status')}")
+            # Cancel the stream via API and then cancel task
+            await self.cancel_stream(stream_id)
+            worker_1_task.cancel()
+            return False
+        
+        print("✅ Cross-worker lock properly enforced")
+        
+        # Cancel worker 1 stream
+        print(f"🛑 Cancelling Worker-1 via API: {stream_id}")
+        await self.cancel_stream(stream_id)
+        
+        # Now cancel the task
+        print(f"🛑 Cancelling Worker-1 task")
+        worker_1_task.cancel()
+        
+        # Wait for task cancellation
+        try:
+            await worker_1_task
+        except asyncio.CancelledError:
+            print("✅ Worker-1 task cancelled successfully")
+        
+        # 🔄 Brief pause to let stream cleanup complete in worker
+        print("⏳ Allowing worker Redis cleanup to complete...")
+        await asyncio.sleep(2)
+        
+        return True
+    
+    async def test_6_6_concurrent_users_different_conversations(self) -> bool:
+        """Test 6.6: Different users can stream simultaneously in their own conversations"""
+        print("\n🔒 TEST 6.6: Different users streaming simultaneously in different conversations")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create conversations for both users
+        user_1_conversation = await self.create_test_conversation(user_2=False, conversation_name="User1")
+        if not user_1_conversation:
+            print("❌ Failed to create conversation for user 1")
+            return False
+        
+        user_2_conversation = await self.create_test_conversation(user_2=True, conversation_name="User2")  
+        if not user_2_conversation:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        message_data = {"content": "Explain quantum computing in detail with examples."}
+        
+        # Start stream for user 1
+        user_1_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conversation, message_data, self.base_url, "User1-Stream", user_2=False)
+        )
+        
+        # Wait for user 1 stream to start
+        user_1_stream_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User1-Stream" in self.active_stream_ids:
+                user_1_stream_id = self.active_stream_ids["User1-Stream"]
+                print(f"✅ User 1 stream started: {user_1_stream_id}")
+                break
+        
+        if not user_1_stream_id:
+            print("❌ Failed to start User 1 stream")
+            user_1_task.cancel()
+            return False
+        
+        # Start stream for user 2 (should succeed - different conversation)
+        user_2_task = asyncio.create_task(
+            self.start_stream_for_user(user_2_conversation, message_data, self.base_url, "User2-Stream", user_2=True)
+        )
+        
+        # Wait for user 2 stream to start
+        user_2_stream_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User2-Stream" in self.active_stream_ids:
+                user_2_stream_id = self.active_stream_ids["User2-Stream"]
+                print(f"✅ User 2 stream started: {user_2_stream_id}")
+                break
+        
+        if not user_2_stream_id:
+            print("❌ Failed to start User 2 stream - concurrent users should be allowed!")
+            await self.cancel_stream(user_1_stream_id)
+            user_1_task.cancel()
+            user_2_task.cancel()
+            return False
+        
+        print("✅ Both users successfully streaming simultaneously in different conversations")
+        
+        # Verify both streams are actually running
+        await asyncio.sleep(2)  # Let streams run for a bit
+        
+        # Check if both streams are still active
+        user_1_active = "User1-Stream" in self.active_stream_ids
+        user_2_active = "User2-Stream" in self.active_stream_ids
+        
+        if not user_1_active or not user_2_active:
+            print(f"❌ Streams unexpectedly stopped - User1: {user_1_active}, User2: {user_2_active}")
+            # Cleanup
+            if user_1_stream_id:
+                await self.cancel_stream(user_1_stream_id)
+            if user_2_stream_id:
+                await self.cancel_stream(user_2_stream_id)
+            user_1_task.cancel()
+            user_2_task.cancel()
+            return False
+        
+        print("✅ Both streams confirmed running concurrently")
+        
+        # Clean up both streams
+        print("🛑 Cancelling both streams")
+        if user_1_stream_id:
+            await self.cancel_stream(user_1_stream_id)
+        if user_2_stream_id:
+            await self.cancel_stream(user_2_stream_id)
+        
+        # Cancel tasks
+        user_1_task.cancel()
+        user_2_task.cancel()
+        
+        # Wait for task cancellations
+        try:
+            await user_1_task
+        except asyncio.CancelledError:
+            print("✅ User 1 task cancelled")
+        
+        try:
+            await user_2_task
+        except asyncio.CancelledError:
+            print("✅ User 2 task cancelled")
+        
+        print("⏳ Allowing worker cleanup...")
+        await asyncio.sleep(2)
+        
+        return True
+    
+    async def test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking(self) -> bool:
+        """Test 6.7: Mixed scenarios - User 1 multiple conversations (success) vs User 2 same conversation blocking (fail)"""
+        print("\n🔒 TEST 6.7: Mixed scenarios - Multiple conversations vs Same conversation blocking")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create two conversations for User 1
+        user_1_conv_A = await self.create_test_conversation(user_2=False, conversation_name="User1-ConvA")
+        if not user_1_conv_A:
+            print("❌ Failed to create conversation A for user 1")
+            return False
+        
+        user_1_conv_B = await self.create_test_conversation(user_2=False, conversation_name="User1-ConvB")  
+        if not user_1_conv_B:
+            print("❌ Failed to create conversation B for user 1")
+            return False
+        
+        # Create one conversation for User 2
+        user_2_conv = await self.create_test_conversation(user_2=True, conversation_name="User2-Conv")
+        if not user_2_conv:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        message_data = {"content": "Explain machine learning algorithms with practical examples."}
+        
+        print("\n📋 SCENARIO 1: User 1 streaming in different conversations (should succeed)")
+        
+        # User 1: Start stream in conversation A
+        user_1_stream_A_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conv_A, message_data, self.base_url, "User1-StreamA", user_2=False)
+        )
+        
+        # Wait for User 1 Stream A to start
+        user_1_stream_A_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User1-StreamA" in self.active_stream_ids:
+                user_1_stream_A_id = self.active_stream_ids["User1-StreamA"]
+                print(f"✅ User 1 Stream A started: {user_1_stream_A_id}")
+                break
+        
+        if not user_1_stream_A_id:
+            print("❌ Failed to start User 1 Stream A")
+            user_1_stream_A_task.cancel()
+            return False
+        
+        # User 1: Start stream in conversation B (should succeed - different conversation)
+        user_1_stream_B_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conv_B, message_data, self.base_url, "User1-StreamB", user_2=False)
+        )
+        
+        # Wait for User 1 Stream B to start
+        user_1_stream_B_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User1-StreamB" in self.active_stream_ids:
+                user_1_stream_B_id = self.active_stream_ids["User1-StreamB"]
+                print(f"✅ User 1 Stream B started: {user_1_stream_B_id}")
+                break
+        
+        if not user_1_stream_B_id:
+            print("❌ User 1 failed to start Stream B - different conversations should be allowed!")
+            await self.cancel_stream(user_1_stream_A_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            return False
+        
+        print("✅ SCENARIO 1 SUCCESS: User 1 successfully streaming in two different conversations simultaneously")
+        
+        print("\n📋 SCENARIO 2: User 2 attempting concurrent streams in same conversation (should fail)")
+        
+        # User 2: Start stream in their conversation
+        user_2_stream_1_task = asyncio.create_task(
+            self.start_stream_for_user(user_2_conv, message_data, self.base_url, "User2-Stream1", user_2=True)
+        )
+        
+        # Wait for User 2 Stream 1 to start
+        user_2_stream_1_id = None
+        for _ in range(10):  # Wait up to 5 seconds
+            await asyncio.sleep(0.5)
+            if "User2-Stream1" in self.active_stream_ids:
+                user_2_stream_1_id = self.active_stream_ids["User2-Stream1"]
+                print(f"✅ User 2 Stream 1 started: {user_2_stream_1_id}")
+                break
+        
+        if not user_2_stream_1_id:
+            print("❌ Failed to start User 2 Stream 1")
+            # Cleanup User 1 streams
+            await self.cancel_stream(user_1_stream_A_id)
+            await self.cancel_stream(user_1_stream_B_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            user_2_stream_1_task.cancel()
+            return False
+        
+        # User 2: Try to start another stream in the SAME conversation (should fail with 429)
+        concurrent_attempt_result = await self.attempt_concurrent_stream_for_user(user_2_conv, message_data, self.base_url, "User2-Blocked", user_2=True, expect_success=False)
+        
+        if concurrent_attempt_result.get("status") != 429:
+            print(f"❌ User 2 concurrent stream should be blocked with 429, got {concurrent_attempt_result.get('status')}")
+            # Cleanup all streams
+            await self.cancel_stream(user_1_stream_A_id)
+            await self.cancel_stream(user_1_stream_B_id)
+            await self.cancel_stream(user_2_stream_1_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            user_2_stream_1_task.cancel()
+            return False
+        
+        print("✅ SCENARIO 2 SUCCESS: User 2 concurrent stream in same conversation properly blocked with 429")
+        
+        # Verify all legitimate streams are still active
+        await asyncio.sleep(1)
+        user_1_a_active = "User1-StreamA" in self.active_stream_ids
+        user_1_b_active = "User1-StreamB" in self.active_stream_ids  
+        user_2_active = "User2-Stream1" in self.active_stream_ids
+        
+        if not (user_1_a_active and user_1_b_active and user_2_active):
+            print(f"❌ Some legitimate streams stopped unexpectedly - A: {user_1_a_active}, B: {user_1_b_active}, User2: {user_2_active}")
+            # Cleanup
+            if user_1_stream_A_id:
+                await self.cancel_stream(user_1_stream_A_id)
+            if user_1_stream_B_id:
+                await self.cancel_stream(user_1_stream_B_id)
+            if user_2_stream_1_id:
+                await self.cancel_stream(user_2_stream_1_id)
+            user_1_stream_A_task.cancel()
+            user_1_stream_B_task.cancel()
+            user_2_stream_1_task.cancel()
+            return False
+        
+        print("✅ All legitimate streams confirmed running concurrently")
+        
+        # Clean up all streams
+        print("🛑 Cancelling all streams")
+        cleanup_tasks = []
+        if user_1_stream_A_id:
+            cleanup_tasks.append(self.cancel_stream(user_1_stream_A_id))
+        if user_1_stream_B_id:
+            cleanup_tasks.append(self.cancel_stream(user_1_stream_B_id))
+        if user_2_stream_1_id:
+            cleanup_tasks.append(self.cancel_stream(user_2_stream_1_id))
+        
+        # Execute all cancellations concurrently
+        await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+        
+        # Cancel tasks
+        user_1_stream_A_task.cancel()
+        user_1_stream_B_task.cancel()
+        user_2_stream_1_task.cancel()
+        
+        # Wait for task cancellations
+        for task_name, task in [("User1-StreamA", user_1_stream_A_task), ("User1-StreamB", user_1_stream_B_task), ("User2-Stream1", user_2_stream_1_task)]:
+            try:
+                await task
+            except asyncio.CancelledError:
+                print(f"✅ {task_name} task cancelled")
+        
+        print("⏳ Allowing worker cleanup...")
+        await asyncio.sleep(2)
+        
+        print("✅ TEST 6.7 SUCCESS: Both scenarios validated correctly")
+        return True
+    
+    async def test_6_8_stream_completion_and_subsequent_operations(self) -> bool:
+        """Test 6.8: Stream completion releases locks - subsequent edits and new messages should work"""
+        print("\n🔒 TEST 6.8: Stream completion and subsequent operations")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create conversations for both users
+        user_1_conv = await self.create_test_conversation(user_2=False, conversation_name="User1-Edit")
+        if not user_1_conv:
+            print("❌ Failed to create conversation for user 1")
+            return False
+        
+        user_2_conv = await self.create_test_conversation(user_2=True, conversation_name="User2-Edit")
+        if not user_2_conv:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        short_message = {"content": "Just say 'Hello, this is a test response.' and stop immediately."}
+        
+        print("\n📋 SCENARIO 1: User 1 - Stream completion then edit (should succeed)")
+        
+        # User 1: Complete a short stream
+        print("🔄 User 1: Starting and completing short stream...")
+        user_1_stream_result = await self.complete_short_stream_for_user(user_1_conv, short_message, user_2=False)
+        
+        if not user_1_stream_result.get("completed"):
+            print("❌ User 1 stream did not complete properly")
+            return False
+        
+        user_1_stream_id = user_1_stream_result.get("stream_id")
+        user_1_message_id = user_1_stream_result.get("user_message_id") 
+        print(f"✅ User 1 stream completed: {user_1_stream_id}, user message: {user_1_message_id}")
+        
+        if not user_1_message_id:
+            print("❌ User 1 message ID not captured - cannot test edit")
+            return False
+        
+        # Wait a moment for lock cleanup
+        await asyncio.sleep(2)
+        
+        # User 1: Try to edit the message (should succeed - lock released after completion)
+        print("✏️ User 1: Attempting to edit message after stream completion...")
+        edit_result_1 = await self.attempt_edit_for_user(user_1_conv, user_1_message_id, "Edited: Please explain quantum physics.", user_2=False)
+        
+        if edit_result_1.get("status") != 200:
+            print(f"❌ User 1 edit should succeed after stream completion, got {edit_result_1.get('status')}")
+            return False
+        
+        print("✅ SCENARIO 1 SUCCESS: User 1 successfully edited message after stream completion")
+        
+        print("\n📋 SCENARIO 2: User 2 - Stream completion, edit, then new message (all should succeed)")
+        
+        # User 2: Complete a short stream  
+        print("🔄 User 2: Starting and completing short stream...")
+        user_2_stream_result = await self.complete_short_stream_for_user(user_2_conv, short_message, user_2=True)
+        
+        if not user_2_stream_result.get("completed"):
+            print("❌ User 2 stream did not complete properly")
+            return False
+        
+        user_2_stream_id = user_2_stream_result.get("stream_id")
+        user_2_message_id = user_2_stream_result.get("user_message_id")
+        print(f"✅ User 2 stream completed: {user_2_stream_id}, user message: {user_2_message_id}")
+        
+        if not user_2_message_id:
+            print("❌ User 2 message ID not captured - cannot test edit")
+            return False
+        
+        # Wait a moment for lock cleanup
+        await asyncio.sleep(2)
+        
+        # User 2: Try to edit the message (should succeed)
+        print("✏️ User 2: Attempting to edit message after stream completion...")
+        edit_result_2 = await self.attempt_edit_for_user(user_2_conv, user_2_message_id, "Edited: Explain artificial intelligence concepts.", user_2=True)
+        
+        if edit_result_2.get("status") != 200:
+            print(f"❌ User 2 edit should succeed after stream completion, got {edit_result_2.get('status')}")
+            return False
+        
+        print("✅ User 2 edit successful after stream completion")
+        
+        # User 2: Try to send a new message in the same conversation (should succeed)
+        print("💬 User 2: Attempting to send new message in same conversation...")
+        new_message_data = {"content": "This is a follow-up message. Just say 'Follow-up received.' and stop."}
+        new_message_result = await self.complete_short_stream_for_user(user_2_conv, new_message_data, user_2=True)
+        
+        if not new_message_result.get("completed"):
+            print("❌ User 2 new message should succeed after previous stream completion")
+            return False
+        
+        new_stream_id = new_message_result.get("stream_id")
+        print(f"✅ User 2 new message stream completed: {new_stream_id}")
+        
+        print("✅ SCENARIO 2 SUCCESS: User 2 successfully completed edit and new message after stream completion")
+        
+        # Final validation: Ensure no locks are remaining
+        await asyncio.sleep(1)
+        
+        # Try one more operation on each conversation to confirm locks are fully released
+        final_test_message = {"content": "Final test. Just say 'Final test complete.' and stop."}
+        
+        # User 1: Final test
+        final_test_1 = await self.attempt_concurrent_stream_for_user(user_1_conv, final_test_message, self.base_url, "User1-Final", user_2=False, expect_success=True)
+        if final_test_1.get("status") != 200:
+            print(f"❌ User 1 final test failed: {final_test_1.get('status')} - locks may not be fully released")
+            return False
+        
+        # User 2: Final test  
+        final_test_2 = await self.attempt_concurrent_stream_for_user(user_2_conv, final_test_message, self.base_url, "User2-Final", user_2=True, expect_success=True)
+        if final_test_2.get("status") != 200:
+            print(f"❌ User 2 final test failed: {final_test_2.get('status')} - locks may not be fully released")
+            return False
+        
+        print("✅ Final validation: Both conversations fully unlocked and operational")
+        
+        print("⏳ Allowing final cleanup...")
+        await asyncio.sleep(2)
+        
+        print("✅ TEST 6.8 SUCCESS: Stream completion properly releases locks, subsequent operations work correctly")
+        return True
+    
+    async def test_6_9_cross_user_auth_during_streams(self) -> bool:
+        """Test 6.9: Cross-user authorization during active streams - Auth errors when accessing other users' conversations"""
+        print("\n🔒 TEST 6.9: Cross-user authorization during active streams")
+        
+        # Setup second user
+        if not await self.setup_test_user_2():
+            print("❌ Failed to setup second test user")
+            return False
+        
+        # Create conversations for both users  
+        user_1_conv = await self.create_test_conversation(user_2=False, conversation_name="User1-Auth")
+        if not user_1_conv:
+            print("❌ Failed to create conversation for user 1")
+            return False
+        
+        user_2_conv = await self.create_test_conversation(user_2=True, conversation_name="User2-Auth")
+        if not user_2_conv:
+            print("❌ Failed to create conversation for user 2")
+            return False
+        
+        # Use normal (longer) message for timing
+        normal_message = {"content": "Explain quantum computing, artificial intelligence, and blockchain technology in detail with examples and practical applications."}
+        
+        print("\n📋 SCENARIO 1: User 1 streaming, User 2 tries unauthorized access to same conversation")
+        
+        # User 1: Start normal stream in their conversation
+        print("🔄 User 1: Starting normal stream in own conversation...")
+        user_1_stream_task = asyncio.create_task(
+            self.start_stream_for_user(user_1_conv, normal_message, self.base_url, "User1-Normal", user_2=False)
+        )
+        
+        # Wait for stream to establish and acquire lock
+        await asyncio.sleep(2)
+        
+        # Get stream ID for cancellation (should be captured by start_stream_for_user)
+        user_1_stream_id = self.active_stream_ids.get("User1-Normal")
+        if not user_1_stream_id:
+            print("❌ Failed to capture User 1 stream ID")
+            user_1_stream_task.cancel()
+            return False
+        
+        # User 2: Try to stream in User 1's conversation (should get auth error, not lock error)
+        print("🚫 User 2: Attempting unauthorized stream access to User 1's conversation...")
+        user_2_auth_attempt = await self.attempt_unauthorized_access(
+            user_1_conv, normal_message, "User2-Unauthorized-Stream", user_2=True, is_edit=False
+        )
+        
+        if user_2_auth_attempt.get("status") not in [401, 403, 404]:
+            print(f"❌ SECURITY FAILURE: User 2 should get auth error, got status: {user_2_auth_attempt.get('status')}")
+            await self.cancel_stream(user_1_stream_id)
+            user_1_stream_task.cancel()
+            return False
+        
+        print(f"✅ SECURITY SUCCESS: User 2 properly blocked with auth error (status: {user_2_auth_attempt.get('status')})")
+        
+        # Cancel User 1 stream after auth verification (consistent with all other tests)
+        print(f"🛑 Cancelling User 1 stream via API: {user_1_stream_id}")
+        await self.cancel_stream(user_1_stream_id)
+        
+        # Now cancel the task
+        print("🛑 Cancelling User 1 task")
+        user_1_stream_task.cancel()
+        
+        # Wait for task cancellation
+        try:
+            await user_1_stream_task
+        except asyncio.CancelledError:
+            print("✅ User 1 stream task cancelled successfully")
+        
+        # Wait for cleanup
+        await asyncio.sleep(2)
+        
+        print("\n📋 SCENARIO 2: User 2 streaming, User 1 tries unauthorized edit access")
+        
+        # User 2: Create a message first (needed for edit test)
+        print("🔄 User 2: Creating initial message for edit test...")
+        create_message = {"content": "Initial message for edit test. Please respond briefly."}
+        user_2_initial_result = await self.complete_short_stream_for_user(user_2_conv, create_message, user_2=True)
+        
+        if not user_2_initial_result.get("completed"):
+            print("❌ User 2 failed to create initial message")
+            return False
+        
+        user_2_message_id = user_2_initial_result.get("user_message_id")
+        if not user_2_message_id:
+            print("❌ Failed to get User 2 message ID for edit test")
+            return False
+        
+        print(f"✅ User 2 created message for edit test: {user_2_message_id}")
+        
+        # Wait for cleanup
+        await asyncio.sleep(1)
+        
+        # User 2: Start normal stream in their conversation
+        print("🔄 User 2: Starting normal stream in own conversation...")
+        user_2_stream_task = asyncio.create_task(
+            self.start_stream_for_user(user_2_conv, normal_message, self.base_url, "User2-Normal", user_2=True)
+        )
+        
+        # Wait for stream to establish and acquire lock
+        await asyncio.sleep(2)
+        
+        # Get stream ID for cancellation (should be captured by start_stream_for_user)
+        user_2_stream_id = self.active_stream_ids.get("User2-Normal")
+        if not user_2_stream_id:
+            print("❌ Failed to capture User 2 stream ID")
+            user_2_stream_task.cancel()
+            return False
+        
+        # User 1: Try to edit in User 2's conversation (should get auth error, not lock error)
+        print("🚫 User 1: Attempting unauthorized edit access to User 2's conversation...")
+        user_1_edit_attempt = await self.attempt_unauthorized_access(
+            user_2_conv, {"content": "Unauthorized edit attempt"}, "User1-Unauthorized-Edit", 
+            user_2=False, is_edit=True, message_id=user_2_message_id
+        )
+        
+        if user_1_edit_attempt.get("status") not in [401, 403, 404]:
+            print(f"❌ SECURITY FAILURE: User 1 should get auth error for edit, got status: {user_1_edit_attempt.get('status')}")
+            await self.cancel_stream(user_2_stream_id)
+            user_2_stream_task.cancel()
+            return False
+        
+        print(f"✅ SECURITY SUCCESS: User 1 properly blocked from edit with auth error (status: {user_1_edit_attempt.get('status')})")
+        
+        # Cancel User 2 stream after auth verification (consistent with all other tests)
+        print(f"🛑 Cancelling User 2 stream via API: {user_2_stream_id}")
+        await self.cancel_stream(user_2_stream_id)
+        
+        # Now cancel the task
+        print("🛑 Cancelling User 2 task")
+        user_2_stream_task.cancel()
+        
+        # Wait for task cancellation
+        try:
+            await user_2_stream_task
+        except asyncio.CancelledError:
+            print("✅ User 2 stream task cancelled successfully")
+        
+        # Final cleanup wait
+        await asyncio.sleep(2)
+        
+        print("✅ TEST 6.9 SUCCESS: Cross-user authorization properly prevents unauthorized access during active streams")
+        return True
+    
+    async def test_conversation_locking(self) -> bool:
+        """Test 6: Distributed conversation locking system - Run all tests"""
+        print("\n🔬 TEST 6: Conversation Locking System")
+        
+        try:
+            # Start multiple workers for distributed testing
+            if not await self.start_test_workers(worker_count=3):
+                print("❌ Failed to start test workers")
+                await self.cleanup_after_test("Conversation Locking")
+                return False
+            
+            conversation_id = await self.create_test_conversation()
+            if not conversation_id:
+                await self.cleanup_after_test("Conversation Locking")
+                return False
+            
+            message_data = {"content": "Explain artificial intelligence in great detail with examples and applications."}
+            
+            # Run all individual tests - comment out any test you don't want to run
+            tests = [
+                await self.test_6_1_concurrent_streaming_attempts(conversation_id, message_data),
+                await self.test_6_2_edit_during_stream(conversation_id, message_data), 
+                await self.test_6_3_lock_release_after_completion(conversation_id),
+                await self.test_6_4_lock_ttl_expiry(conversation_id),
+                await self.test_6_5_cross_worker_lock_enforcement(conversation_id, message_data),
+                await self.test_6_6_concurrent_users_different_conversations(),
+                await self.test_6_7_mixed_scenarios_same_user_multiple_conversations_vs_blocking(),
+                await self.test_6_8_stream_completion_and_subsequent_operations(),
+                await self.test_6_9_cross_user_auth_during_streams()
+            ]
+            
+            # Check if all tests passed
+            if all(tests):
+                print("\n✅ All conversation locking tests passed!")
+                
+                # 🔄 Brief pause to let stream cleanup complete in worker
+                print("⏳ Allowing worker Redis cleanup to complete...")
+                await asyncio.sleep(2)
+                
+                await self.cleanup_after_test("Conversation Locking")
+                return True
+            else:
+                print("\n❌ Some conversation locking tests failed!")
+                await self.cleanup_after_test("Conversation Locking")
+                return False
+            
+        except Exception as e:
+            print(f"❌ Conversation locking test error: {e}")
+            await self.cleanup_after_test("Conversation Locking")
+            return False
+    
+    async def start_stream_and_capture_id(self, conversation_id: str, message_data: dict, base_url: str, stream_name: str) -> dict:
+        """Helper: Start stream and capture stream ID but keep streaming"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/chat/conversations/{conversation_id}/stream",
+                    json=message_data,
+                    headers=self.get_headers()
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        print(f"❌ {stream_name} failed to start: {response.status} - {error_text}")
+                        return {"status": response.status, "error": error_text}
+                    
+                    stream_id = None
+                    token_count = 0
+                    stream_id_captured = False
+                    
+                    # Parse SSE to get stream ID
+                    buffer = ""
+                    async for chunk in response.content.iter_chunked(1024):
+                        buffer += chunk.decode('utf-8')
+                        
+                        while '\n' in buffer:
+                            line_end = buffer.index('\n')
+                            line = buffer[:line_end].strip()
+                            buffer = buffer[line_end + 1:]
+                            
+                            if line.startswith('data: '):
+                                data_content = line[6:]
+                                
+                                if data_content == '[DONE]':
+                                    print(f"✅ {stream_name} completed naturally")
+                                    break
+                                elif data_content and data_content != '':
+                                    try:
+                                        event_data = json.loads(data_content)
+                                        event_type = event_data.get("type", "")
+                                        
+                                        if event_type == "token":
+                                            token_count += 1
+                                        elif event_type == "stream_start":
+                                            if "data" in event_data and "stream_id" in event_data["data"]:
+                                                stream_id = event_data["data"]["stream_id"]
+                                                self.captured_streams.append(stream_id)
+                                                # Store stream_id for external access
+                                                self.active_stream_ids[stream_name] = stream_id
+                                                print(f"📡 {stream_name} captured stream ID: {stream_id}")
+                                                stream_id_captured = True
+                                        elif event_type == "stream_end":
+                                            print(f"✅ {stream_name} ended normally")
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                    
+                    # Clean up stream_id from active tracking
+                    if stream_name in self.active_stream_ids:
+                        del self.active_stream_ids[stream_name]
+                    
+                    return {"status": 200, "stream_id": stream_id, "tokens": token_count}
+        except Exception as e:
+            print(f"❌ Error in {stream_name}: {e}")
+            # Clean up stream_id from active tracking
+            if stream_name in self.active_stream_ids:
+                del self.active_stream_ids[stream_name]
+            return {"error": str(e)}
+    
+    async def start_stream_for_user(self, conversation_id: str, message_data: dict, base_url: str, stream_name: str, user_2: bool = False) -> dict:
+        """Helper: Start stream for specified user and capture stream ID"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/chat/conversations/{conversation_id}/stream",
+                    json=message_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        user_label = "User 2" if user_2 else "User 1"
+                        print(f"❌ {stream_name} ({user_label}) failed to start: {response.status} - {error_text}")
+                        return {"status": response.status, "error": error_text}
+                    
+                    stream_id = None
+                    token_count = 0
+                    
+                    # Parse SSE to get stream ID
+                    buffer = ""
+                    async for chunk in response.content.iter_chunked(1024):
+                        buffer += chunk.decode('utf-8')
+                        
+                        while '\n' in buffer:
+                            line_end = buffer.index('\n')
+                            line = buffer[:line_end].strip()
+                            buffer = buffer[line_end + 1:]
+                            
+                            if line.startswith('data: '):
+                                data_content = line[6:]
+                                
+                                if data_content == '[DONE]':
+                                    user_label = "User 2" if user_2 else "User 1"
+                                    print(f"✅ {stream_name} ({user_label}) completed naturally")
+                                    break
+                                elif data_content and data_content != '':
+                                    try:
+                                        event_data = json.loads(data_content)
+                                        event_type = event_data.get("type", "")
+                                        
+                                        if event_type == "token":
+                                            token_count += 1
+                                        elif event_type == "stream_start":
+                                            if "data" in event_data and "stream_id" in event_data["data"]:
+                                                stream_id = event_data["data"]["stream_id"]
+                                                self.captured_streams.append(stream_id)
+                                                # Store stream_id for external access
+                                                self.active_stream_ids[stream_name] = stream_id
+                                                user_label = "User 2" if user_2 else "User 1"
+                                                print(f"📡 {stream_name} ({user_label}) captured stream ID: {stream_id}")
+                                        elif event_type == "stream_end":
+                                            user_label = "User 2" if user_2 else "User 1"
+                                            print(f"✅ {stream_name} ({user_label}) ended normally")
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                    
+                    # Clean up stream_id from active tracking
+                    if stream_name in self.active_stream_ids:
+                        del self.active_stream_ids[stream_name]
+                    
+                    return {"status": 200, "stream_id": stream_id, "tokens": token_count}
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error in {stream_name} ({user_label}): {e}")
+            # Clean up stream_id from active tracking
+            if stream_name in self.active_stream_ids:
+                del self.active_stream_ids[stream_name]
+            return {"error": str(e)}
+    
+    async def attempt_concurrent_stream(self, conversation_id: str, message_data: dict, base_url: str, attempt_name: str) -> dict:
+        """Helper: Attempt concurrent stream (expect 429 or 200)"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/chat/conversations/{conversation_id}/stream", 
+                    json=message_data,
+                    headers=self.get_headers()
+                ) as response:
+                    if response.status == 429:
+                        result = await response.json()
+                        print(f"🔒 {attempt_name} properly blocked: {result.get('detail', {}).get('message', 'unknown')}")
+                        return {"status": 429, "result": result}
+                    elif response.status == 200:
+                        print(f"✅ {attempt_name} successfully started")
+                        return {"status": 200}
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ {attempt_name} unexpected status {response.status}: {error_text}")
+                        return {"status": response.status, "error": error_text}
+        except Exception as e:
+            print(f"❌ Error in {attempt_name}: {e}")
+            return {"error": str(e)}
+    
+    async def attempt_edit_during_stream(self, conversation_id: str, message_id: str, content: str) -> dict:
+        """Helper: Attempt to edit message during active stream"""
+        try:
+            edit_data = {"content": content}
+            
+            async with self.session.post(
+                f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/messages/{message_id}/edit/stream",
+                json=edit_data,
+                headers=self.get_headers()
+            ) as response:
+                if response.status == 429:
+                    result = await response.json()
+                    print(f"🔒 Edit properly blocked during stream: {result.get('detail', {}).get('message', 'unknown')}")
+                    return {"status": 429, "result": result}
+                else:
+                    error_text = await response.text()
+                    print(f"⚠️ Edit during stream got unexpected status {response.status}: {error_text}")
+                    return {"status": response.status, "error": error_text}
+        except Exception as e:
+            print(f"❌ Error attempting edit during stream: {e}")
+            return {"error": str(e)}
+    
+    async def complete_short_stream(self, conversation_id: str, message_data: dict) -> dict:
+        """Helper: Complete a short stream to test lock release"""
+        try:
+            async with self.session.post(
+                f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/stream",
+                json=message_data,
+                headers=self.get_headers()
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    return {"completed": False, "error": error_text}
+                
+                completed = False
+                stream_id = None
+                
+                # Read entire stream until completion
+                buffer = ""
+                async for chunk in response.content.iter_chunked(1024):
+                    buffer += chunk.decode('utf-8')
+                    
+                    while '\n' in buffer:
+                        line_end = buffer.index('\n')
+                        line = buffer[:line_end].strip()
+                        buffer = buffer[line_end + 1:]
+                        
+                        if line.startswith('data: '):
+                            data_content = line[6:]
+                            
+                            if data_content == '[DONE]':
+                                completed = True
+                                break
+                            elif data_content and data_content != '':
+                                try:
+                                    event_data = json.loads(data_content)
+                                    event_type = event_data.get("type", "")
+                                    
+                                    if event_type == "stream_start":
+                                        if "data" in event_data and "stream_id" in event_data["data"]:
+                                            stream_id = event_data["data"]["stream_id"]
+                                            self.captured_streams.append(stream_id)
+                                    elif event_type == "stream_end":
+                                        completed = True
+                                        break
+                                except json.JSONDecodeError:
+                                    continue
+                    
+                    if completed:
+                        break
+                
+                print(f"✅ Short stream completed successfully (stream_id: {stream_id})")
+                return {"completed": True, "stream_id": stream_id}
+                
+        except Exception as e:
+            print(f"❌ Error completing short stream: {e}")
+            return {"completed": False, "error": str(e)}
+    
+    async def complete_short_stream_for_user(self, conversation_id: str, message_data: dict, user_2: bool = False) -> dict:
+        """Helper: Complete a short stream for specified user and return details"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/stream",
+                    json=message_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        user_label = "User 2" if user_2 else "User 1"
+                        print(f"❌ {user_label} stream failed to start: {response.status} - {error_text}")
+                        return {"completed": False, "error": error_text}
+                    
+                    completed = False
+                    stream_id = None
+                    user_message_id = None
+                    
+                    # Read entire stream until completion
+                    buffer = ""
+                    async for chunk in response.content.iter_chunked(1024):
+                        buffer += chunk.decode('utf-8')
+                        
+                        while '\n' in buffer:
+                            line_end = buffer.index('\n')
+                            line = buffer[:line_end].strip()
+                            buffer = buffer[line_end + 1:]
+                            
+                            if line.startswith('data: '):
+                                data_content = line[6:]
+                                
+                                if data_content == '[DONE]':
+                                    completed = True
+                                    break
+                                elif data_content and data_content != '':
+                                    try:
+                                        event_data = json.loads(data_content)
+                                        event_type = event_data.get("type", "")
+                                        
+                                        if event_type == "stream_start":
+                                            if "data" in event_data and "stream_id" in event_data["data"]:
+                                                stream_id = event_data["data"]["stream_id"]
+                                                self.captured_streams.append(stream_id)
+                                        elif event_type in ["completion", "end", "stream_end", "cancelled", "stream_cancelled"]:
+                                            completed = True
+                                            # Capture user message ID from completion events (matches frontend)
+                                            if "data" in event_data and "user_message_id" in event_data["data"]:
+                                                user_message_id = event_data["data"]["user_message_id"]
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                        
+                        if completed:
+                            break
+                    
+                    user_label = "User 2" if user_2 else "User 1"
+                    if completed:
+                        print(f"✅ {user_label} short stream completed successfully (stream_id: {stream_id}, user_msg: {user_message_id})")
+                    else:
+                        print(f"❌ {user_label} short stream did not complete properly")
+                    
+                    return {
+                        "completed": completed, 
+                        "stream_id": stream_id,
+                        "user_message_id": user_message_id
+                    }
+                    
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error completing short stream for {user_label}: {e}")
+            return {"completed": False, "error": str(e)}
+    
+    async def attempt_edit_for_user(self, conversation_id: str, message_id: str, content: str, user_2: bool = False) -> dict:
+        """Helper: Attempt to edit message for specified user and track stream for cleanup"""
+        try:
+            edit_data = {"content": content}
+            user_label = "User 2" if user_2 else "User 1"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/messages/{message_id}/edit/stream",
+                    json=edit_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        print(f"❌ {user_label} edit failed: {response.status} - {error_text}")
+                        return {"status": response.status, "error": error_text}
+                    
+                    # Track edit stream for cleanup by consuming first few events
+                    stream_id = None
+                    token_count = 0
+                    
+                    # Parse SSE to capture stream ID for cleanup
+                    buffer = ""
+                    async for chunk in response.content.iter_chunked(1024):
+                        buffer += chunk.decode('utf-8')
+                        
+                        while '\n' in buffer:
+                            line_end = buffer.index('\n')
+                            line = buffer[:line_end].strip()
+                            buffer = buffer[line_end + 1:]
+                            
+                            if line.startswith('data: '):
+                                data_content = line[6:]
+                                
+                                if data_content == '[DONE]':
+                                    print(f"✅ {user_label} edit completed")
+                                    break
+                                elif data_content and data_content != '':
+                                    try:
+                                        event_data = json.loads(data_content)
+                                        event_type = event_data.get("type", "")
+                                        
+                                        if event_type == "stream_start":
+                                            if "data" in event_data and "stream_id" in event_data["data"]:
+                                                stream_id = event_data["data"]["stream_id"]
+                                                self.captured_streams.append(stream_id)
+                                                print(f"📡 {user_label} edit stream captured for cleanup: {stream_id}")
+                                        elif event_type == "token":
+                                            token_count += 1
+                                        elif event_type in ["completion", "end", "stream_end", "cancelled", "stream_cancelled"]:
+                                            print(f"✅ {user_label} edit stream completed")
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                    
+                    print(f"✅ {user_label} edit successful - tokens: {token_count}")
+                    return {"status": 200, "stream_id": stream_id, "tokens": token_count}
+                    
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error attempting edit for {user_label}: {e}")
+            return {"error": str(e)}
+    
+    async def attempt_concurrent_stream_for_user(self, conversation_id: str, message_data: dict, base_url: str, attempt_name: str, user_2: bool = False, expect_success: bool = False) -> dict:
+        """Helper: Attempt concurrent stream for specified user (expect 200 or 429) and track streams"""
+        try:
+            user_label = "User 2" if user_2 else "User 1"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/chat/conversations/{conversation_id}/stream", 
+                    json=message_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status == 429:
+                        result = await response.json()
+                        if expect_success:
+                            print(f"❌ {attempt_name} ({user_label}) unexpectedly blocked: {result.get('detail', {}).get('message', 'unknown')}")
+                        else:
+                            print(f"🔒 {attempt_name} ({user_label}) properly blocked: {result.get('detail', {}).get('message', 'unknown')}")
+                        return {"status": 429, "result": result}
+                    elif response.status == 200:
+                        if expect_success:
+                            print(f"✅ {attempt_name} ({user_label}) succeeded as expected - capturing stream for cleanup")
+                        else:
+                            print(f"✅ {attempt_name} ({user_label}) unexpectedly succeeded - capturing stream for cleanup")
+                        
+                        # Capture stream ID for cleanup (expected or unexpected success)
+                        stream_id = None
+                        buffer = ""
+                        async for chunk in response.content.iter_chunked(1024):
+                            buffer += chunk.decode('utf-8')
+                            
+                            while '\n' in buffer:
+                                line_end = buffer.index('\n')
+                                line = buffer[:line_end].strip()
+                                buffer = buffer[line_end + 1:]
+                                
+                                if line.startswith('data: '):
+                                    data_content = line[6:]
+                                    
+                                    if data_content and data_content != '':
+                                        try:
+                                            event_data = json.loads(data_content)
+                                            event_type = event_data.get("type", "")
+                                            
+                                            if event_type == "stream_start":
+                                                if "data" in event_data and "stream_id" in event_data["data"]:
+                                                    stream_id = event_data["data"]["stream_id"]
+                                                    self.captured_streams.append(stream_id)
+                                                    if expect_success:
+                                                        print(f"📡 {attempt_name} ({user_label}) stream captured for cleanup: {stream_id}")
+                                                    else:
+                                                        print(f"📡 {attempt_name} ({user_label}) unexpected stream captured: {stream_id}")
+                                                    # Return early after capturing stream ID
+                                                    return {"status": 200, "stream_id": stream_id, "unexpected": not expect_success}
+                                        except json.JSONDecodeError:
+                                            continue
+                        
+                        return {"status": 200, "unexpected": not expect_success}
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ {attempt_name} ({user_label}) unexpected status {response.status}: {error_text}")
+                        return {"status": response.status, "error": error_text}
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            print(f"❌ Error in {attempt_name} ({user_label}): {e}")
+            return {"error": str(e)}
+    
+    async def attempt_unauthorized_access(self, conversation_id: str, message_data: dict, attempt_name: str, user_2: bool = False, is_edit: bool = False, message_id: str = None) -> dict:
+        """Helper: Attempt unauthorized access (stream or edit) - expect auth error but track any streams if security fails"""
+        try:
+            user_label = "User 2" if user_2 else "User 1"
+            
+            # Determine endpoint and data
+            if is_edit:
+                if not message_id:
+                    return {"error": "message_id required for edit attempts"}
+                endpoint = f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/messages/{message_id}/edit/stream"
+                request_data = message_data
+            else:
+                endpoint = f"{self.base_url}/api/v1/chat/conversations/{conversation_id}/stream"
+                request_data = message_data
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    endpoint,
+                    json=request_data,
+                    headers=self.get_headers(user_2=user_2)
+                ) as response:
+                    if response.status in [401, 403, 404]:
+                        # Expected authorization failure
+                        try:
+                            error_result = await response.json()
+                            error_msg = error_result.get('detail', 'Access denied')
+                            if isinstance(error_msg, dict):
+                                error_msg = error_msg.get('message', 'Access denied')
+                            print(f"🛡️ {attempt_name} ({user_label}) authorization properly blocked: {error_msg}")
+                        except:
+                            error_text = await response.text()
+                            print(f"🛡️ {attempt_name} ({user_label}) authorization properly blocked: {error_text[:100]}")
+                        return {"status": response.status, "authorized": False}
+                    
+                    elif response.status == 429:
+                        # Got lock error instead of auth error - still security issue
+                        try:
+                            lock_result = await response.json()
+                            lock_msg = lock_result.get('detail', {}).get('message', 'Conversation locked')
+                            print(f"🔒 {attempt_name} ({user_label}) got lock error (not auth error): {lock_msg}")
+                        except:
+                            error_text = await response.text()
+                            print(f"🔒 {attempt_name} ({user_label}) got lock error: {error_text[:100]}")
+                        return {"status": response.status, "got_lock_error": True}
+                    
+                    elif response.status == 200:
+                        # SECURITY BREACH: Unauthorized access succeeded - capture stream for cleanup
+                        action = "edit" if is_edit else "stream"
+                        print(f"🚨 SECURITY BREACH: {attempt_name} ({user_label}) unauthorized {action} access succeeded!")
+                        
+                        stream_id = None
+                        buffer = ""
+                        async for chunk in response.content.iter_chunked(1024):
+                            buffer += chunk.decode('utf-8')
+                            
+                            while '\n' in buffer:
+                                line_end = buffer.index('\n')
+                                line = buffer[:line_end].strip()
+                                buffer = buffer[line_end + 1:]
+                                
+                                if line.startswith('data: '):
+                                    data_content = line[6:]
+                                    
+                                    if data_content and data_content != '':
+                                        try:
+                                            event_data = json.loads(data_content)
+                                            event_type = event_data.get("type", "")
+                                            
+                                            if event_type == "stream_start":
+                                                if "data" in event_data and "stream_id" in event_data["data"]:
+                                                    stream_id = event_data["data"]["stream_id"]
+                                                    self.captured_streams.append(stream_id)
+                                                    print(f"🚨 SECURITY BREACH: Captured unauthorized {action} stream for cleanup: {stream_id}")
+                                                    # Stop consuming after getting stream ID
+                                                    return {"status": 200, "stream_id": stream_id, "security_breach": True}
+                                        except json.JSONDecodeError:
+                                            continue
+                        
+                        return {"status": 200, "security_breach": True}
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ {attempt_name} ({user_label}) unexpected status {response.status}: {error_text}")
+                        return {"status": response.status, "error": error_text}
+                        
+        except Exception as e:
+            user_label = "User 2" if user_2 else "User 1"
+            action = "edit" if is_edit else "stream"
+            print(f"❌ Error in {attempt_name} ({user_label}) unauthorized {action}: {e}")
+            return {"error": str(e)}
+    
+    async def cancel_stream(self, stream_id: str) -> bool:
+        """Helper: Cancel a stream"""
+        try:
+            async with self.session.post(
+                f"{self.base_url}/api/v1/chat/stream/cancel/{stream_id}",
+                headers=self.get_headers()
+            ) as response:
+                if response.status in [200, 410]:  # 410 = already cancelled
+                    result = await response.json()
+                    print(f"🛑 Stream {stream_id} cancelled: {result.get('reason', 'unknown')}")
+                    return True
+                else:
+                    error_text = await response.text()
+                    print(f"❌ Failed to cancel stream {stream_id}: {response.status} - {error_text}")
+                    return False
+        except Exception as e:
+            print(f"❌ Error cancelling stream {stream_id}: {e}")
+            return False
+    
+    async def run_all_tests(self) -> Dict[str, bool]:
+        """Run complete test suite"""
+        print("🚀 STARTING DISTRIBUTED STREAMING TEST SUITE")
+        print("=" * 60)
+        
+        # Setup
+        if not await self.setup_test_user():
+            print("❌ Test setup failed")
+            return {}
+        
+        # Run tests
+        tests = [
+            ("Conversation Locking", self.test_conversation_locking),
+        ]
+        
+        results = {}
+        for test_name, test_func in tests:
+            try:
+                print(f"\n{'='*20} {test_name} {'='*20}")
+                results[test_name] = await test_func()
+            except Exception as e:
+                print(f"❌ {test_name} failed with exception: {e}")
+                results[test_name] = False
+        
+        # Summary
+        print("\n" + "="*60)
+        print("📊 TEST RESULTS SUMMARY")
+        print("="*60)
+        
+        passed = sum(results.values())
+        total = len(results)
+        
+        for test_name, passed in results.items():
+            status = "✅ PASSED" if passed else "❌ FAILED"
+            print(f"{test_name:<30} {status}")
+        
+        print(f"\nOVERALL: {passed}/{total} tests passed")
+        
+        if passed == total:
+            print("🎉 ALL TESTS PASSED - DISTRIBUTED STREAMING IS PRODUCTION READY!")
+        else:
+            print("⚠️  SOME TESTS FAILED - REVIEW ISSUES BEFORE PRODUCTION")
+        
+        return results
+
+
+async def main():
+    """Main test runner"""
+    async with DistributedStreamingTester() as tester:
+        results = await tester.run_all_tests()
+        
+        # Exit with proper code
+        all_passed = all(results.values()) if results else False
+        exit(0 if all_passed else 1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

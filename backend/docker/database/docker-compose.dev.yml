@@ -1,0 +1,326 @@
+version: '3.9'
+name: 'app_db_dev'
+
+# File-based secrets for database credentials (unchanged)
+secrets:
+  postgres_password:
+    file: ./secrets/dev/postgres_password.txt
+  neo4j_auth:
+    file: ./secrets/dev/neo4j_auth.txt
+  minio_user:
+    file: ./secrets/dev/minio_user.txt
+  minio_password:
+    file: ./secrets/dev/minio_password.txt
+
+# Unified development network
+networks:
+  dev-network:
+    driver: bridge
+    name: dev-network
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_dev
+    restart: unless-stopped
+    
+    # Security context - never run as root
+    user: "999:999"  # postgres user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Secrets-based authentication
+    environment:
+      POSTGRES_USER: app_dev_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: app_dev_db
+      # Development PostgreSQL settings (verbose logging)
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
+      POSTGRES_LOG_MIN_DURATION_STATEMENT: 1000
+      POSTGRES_LOG_STATEMENT: all
+      POSTGRES_LOG_LINE_PREFIX: '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+    
+    secrets:
+      - postgres_password
+      
+    # Development-specific port mapping (5433 to avoid conflicts with local postgres)
+    ports:
+      - "5433:5432"
+      
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+      - ./backups/dev:/backups
+      
+    networks:
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Database not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=database" 
+      - "com.app.component=postgres"
+      - "com.app.backup.enable=true"
+      
+    # Structured logging with rotation
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=dev,service=postgres"
+        
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_dev_user -d app_dev_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  redis:
+    image: redis:7
+    container_name: redis_dev
+    restart: unless-stopped
+    
+    # Security context
+    user: "999:999"  # redis user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Redis without password authentication for development
+    command: >
+      sh -c '
+        redis-server 
+        --appendonly yes 
+        --appendfsync everysec
+        --maxmemory 128M
+        --maxmemory-policy allkeys-lru
+        --save 900 1
+        --save 300 10  
+        --save 60 10000
+      '
+      
+    # Development-specific port mapping (6380 to avoid conflicts with local redis)
+    ports:
+      - "6380:6379"
+      
+    volumes:
+      - redisdata_dev:/data
+      
+    networks:
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Cache not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=cache"
+      - "com.app.component=redis"
+      - "com.app.backup.enable=true"
+      
+    # Structured logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=dev,service=redis"
+        
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  neo4j:
+    image: neo4j:5.19
+    container_name: neo4j_dev
+    restart: unless-stopped
+    
+    # Security context
+    user: "7474:7474"  # neo4j user
+    security_opt:
+      - no-new-privileges:true
+      
+    # Simple environment-based authentication (from secrets folder)
+    environment:
+      NEO4J_AUTH: "neo4j/YOUR_DEV_NEO4J_PASSWORD"
+      
+    # Development-specific port mapping (custom ports to avoid conflicts with local neo4j)
+    ports:
+      - "7475:7474"   # HTTP Browser
+      - "7688:7687"   # Bolt Driver
+      
+    volumes:
+      - neo4jdata_dev:/data
+      - neo4jlogs_dev:/logs
+      
+    networks:
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Graph database not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=graph_database"
+      - "com.app.component=neo4j"
+      - "com.app.backup.enable=true"
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=dev,service=neo4j"
+        
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell 'RETURN 1;' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    container_name: qdrant_dev
+    restart: unless-stopped
+      
+    # Development-specific port mapping (custom ports to avoid conflicts with local qdrant)
+    ports:
+      - "6335:6333"  # HTTP API
+      - "6336:6334"  # gRPC API
+      
+    environment:
+      QDRANT__SERVICE__HOST: 0.0.0.0
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: INFO
+      
+    volumes:
+      - qdrantdata_dev:/qdrant/storage
+      
+    networks:
+      - dev-network  # Unified network
+      
+    # Traefik labels - NOT exposed externally (internal service)
+    labels:
+      - "traefik.enable=false"  # SECURITY: Vector database not exposed
+      - "com.app.environment=dev"
+      - "com.app.service=vector_database"
+      - "com.app.component=qdrant"
+      - "com.app.backup.enable=true"
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=dev,service=qdrant"
+        
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/health || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    container_name: minio_dev
+    restart: unless-stopped
+      
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
+      MINIO_DEFAULT_BUCKETS: app-files-dev
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:9003
+      
+    secrets:
+      - minio_user
+      - minio_password
+      
+    # Development-specific port mapping (9002 -> 9000 for external access)
+    ports:
+      - "9002:9000"  # API port
+      - "9003:9001"  # Console port
+      
+    volumes:
+      - minio_data_dev:/data
+      
+    networks:
+      - dev-network  # Unified network
+      
+    command: server /data --console-address ":9001"
+    
+    # Traefik labels - Direct routing for presigned URLs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`localhost`)"
+      - "traefik.http.routers.minio.entrypoints=files"  # Port 9000
+
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.docker.network=dev-network"
+      - "traefik.http.routers.minio.tls=true"
+      # Metadata labels
+      - "com.app.environment=dev"
+      - "com.app.service=object_storage"
+      - "com.app.component=minio"
+      - "com.app.backup.enable=true"
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "environment=dev,service=minio"
+        
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+
+# Development environment volumes with consistent naming
+volumes:
+  pgdata_dev:
+    driver: local
+    name: pgdata_dev
+    labels:
+      - "com.app.environment=dev"
+      - "com.app.data-type=database"
+      
+  redisdata_dev:
+    driver: local
+    name: redisdata_dev
+    labels:
+      - "com.app.environment=dev"
+      - "com.app.data-type=cache"
+      
+  neo4jdata_dev:
+    driver: local
+    name: neo4jdata_dev
+    labels:
+      - "com.app.environment=dev"
+      - "com.app.data-type=graph_database"
+      
+  neo4jlogs_dev:
+    driver: local
+    name: neo4jlogs_dev
+    labels:
+      - "com.app.environment=dev"
+      - "com.app.data-type=graph_logs"
+      
+  qdrantdata_dev:
+    driver: local
+    name: qdrantdata_dev
+    labels:
+      - "com.app.environment=dev"
+      - "com.app.data-type=vector_database"
+      
+  minio_data_dev:
+    driver: local
+    name: minio_data_dev
+    labels:
+      - "com.app.environment=dev"
+      - "com.app.data-type=object_storage"

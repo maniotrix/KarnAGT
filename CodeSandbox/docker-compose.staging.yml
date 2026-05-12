@@ -1,0 +1,54 @@
+version: '3.8'
+
+# Unified staging network - created by database compose
+networks:
+  staging-network:
+    name: staging-network
+    external: true
+
+services:
+  codesandbox:
+    container_name: codesandbox-staging
+    build: 
+      context: .
+      dockerfile: Dockerfile.staging  # Use staging dockerfile for staging
+      args:
+        CS_USER: code_sandbox
+    networks:
+      - staging-network  # Unified network
+    environment:
+      - NODE_ENV=staging
+    labels:
+      # SECURITY: No public Traefik exposure - internal access only
+      - "traefik.enable=false"
+      # Metadata labels
+      - "com.app.environment=staging"
+      - "com.app.service=code_execution"
+      - "com.app.component=codesandbox"
+      - "com.app.access=internal-only"
+    # No volume mounts for staging - code is baked into image like prod
+    # Staging logging configuration (pre-production testing)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "150m"
+        max-file: "4"
+        labels: "environment=staging,service=codesandbox"
+        compress: "true"
+    # Resource limits - optimized for 30s execution workload
+    deploy:
+      resources:
+        limits:
+          cpus: '1.2'          # Allow burst for kernel creation and code execution
+          memory: 1G           # Sufficient for short executions + kernel overhead
+        reservations:
+          cpus: '0.25'         # Reserve for FastAPI server baseline
+          memory: 512M         # Reserve for server baseline
+    
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

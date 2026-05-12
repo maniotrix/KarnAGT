@@ -1,0 +1,345 @@
+Original Messages - Conversation: ac70e87f-6f96-40d0-bfac-f5d71e45b67a
+Title: New Chat
+Total Messages: 42
+Total Tokens: 2540
+================================================================================
+
+Message  1 | user      |    1 tokens | 2025-06-05 14:21:23.715969
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Message  2 | assistant |    9 tokens | 2025-06-05 14:21:23.759069
+--------------------------------------------------------------------------------
+Hello! How can I assist you today?
+
+================================================================================
+
+Message  3 | user      |    5 tokens | 2025-06-05 14:21:38.780169
+--------------------------------------------------------------------------------
+what is your name?"
+
+================================================================================
+
+Message  4 | assistant |   26 tokens | 2025-06-05 14:21:38.804076
+--------------------------------------------------------------------------------
+I’m an AI assistant created by OpenAI, and you can call me whatever you like! How can I help you today?
+
+================================================================================
+
+Message  5 | user      |    9 tokens | 2025-06-05 14:22:04.428134
+--------------------------------------------------------------------------------
+what messges already I sent to you?
+
+================================================================================
+
+Message  6 | assistant |   52 tokens | 2025-06-05 14:22:04.449920
+--------------------------------------------------------------------------------
+You've sent the following messages so far:
+
+1. "hi"
+2. "what is your name?"
+3. "what messges already I sent to you?"
+
+If there's anything else you'd like to know or discuss, feel free to ask!
+
+================================================================================
+
+Message  7 | user      |    6 tokens | 2025-06-05 14:22:27.310651
+--------------------------------------------------------------------------------
+what else should I ask?
+
+================================================================================
+
+Message  8 | assistant |   56 tokens | 2025-06-05 14:22:27.331778
+--------------------------------------------------------------------------------
+You can ask about:
+
+- Current events or news
+- Help with a specific topic or subject
+- Problem-solving or creative brainstorming
+- Learning a new skill
+- Recommendations for books, movies, or music
+
+Whatever you’re curious about, I’m here to help!
+
+================================================================================
+
+Message  9 | user      |    3 tokens | 2025-06-05 14:25:43.049854
+--------------------------------------------------------------------------------
+current evernts
+
+================================================================================
+
+Message 10 | assistant |  692 tokens | 2025-06-05 14:25:43.070417
+--------------------------------------------------------------------------------
+Here are some recent global events as of June 5, 2025:
+
+**International Trade and Tariffs**
+
+- **U.S. Tariff Policies:** President Donald Trump's evolving tariff policies have significantly impacted global financial markets, with over $34 billion in lost sales and increased expenses reported. Key upcoming events include:
+  - **June 5 and 9, 2025:** Responses are due in a U.S. federal appeals court case concerning the reinstatement of most tariffs.
+  - **June 15-17, 2025:** The G7 Leaders' Summit in Canada, where tariffs will be a major discussion topic.
+  - **July 8, 2025:** "Liberation Day" tariffs are set to take effect after a 90-day suspension, potentially affecting imports from multiple countries. ([reuters.com](https://www.reuters.com/world/us/key-events-dates-track-trumps-tariff-saga-unfolds-2025-05-30/?utm_source=openai))
+
+**Security Measures for Major Events**
+
+- **Washington, D.C.:** The city is enhancing security measures in preparation for major summer events, including WorldPride festivities, the U.S. Army's 250th anniversary parade on June 14, and FIFA Club World Cup matches at Audi Field. Authorities report no credible threats but emphasize increased police presence and collaboration with surrounding jurisdictions. ([axios.com](https://www.axios.com/local/washington-dc/2025/05/29/worldpride-dc-police-security-mayor-bowser?utm_source=openai))
+
+**Global Leadership and Political Events**
+
+- **NATO Summit:** The 2025 NATO Summit is scheduled to take place in The Hague, Netherlands, from June 24–26. This will be the first summit led by new NATO Secretary General Mark Rutte, focusing on defense funding and membership status for current and future members. ([en.wikipedia.org](https://en.wikipedia.org/wiki/2025_The_Hague_NATO_summit?utm_source=openai))
+
+- **South Korea:** Lee Jae-myung was elected president on June 3, 2025, following the impeachment of former President Yoon Suk Yeol. Lee was inaugurated on June 4 and nominated MP Kim Min-seok as prime minister. ([en.wikipedia.org](https://en.wikipedia.org/wiki/2025_in_South_Korea?utm_source=openai))
+
+**Environmental Initiatives**
+
+- **World Environment Day:** Saudi Arabia, in collaboration with the United Nations Environment Programme (UNEP), is hosting World Environment Day on June 5, 2025. The event focuses on global environmental issues and sustainable development. ([arabnews.com](https://www.arabnews.com/node/2522036/saudi-arabia?utm_source=openai))
+
+**Upcoming Events**
+
+- **News and Documentary Emmy Awards:** The 46th News and Documentary Emmy Awards are scheduled for June 25 and 26, 2025, at Palladium Times Square in New York City. The ceremonies will honor the best in American news and documentary programming from 2024. ([en.wikipedia.org](https://en.wikipedia.org/wiki/46th_News_and_Documentary_Emmy_Awards?utm_source=openai))
+
+Please note that the global situation is continually evolving. For the most current information, refer to reputable news sources. 
+
+================================================================================
+
+Message 11 | user      |    5 tokens | 2025-06-05 14:29:06.828545
+--------------------------------------------------------------------------------
+latestt fifa news
+
+================================================================================
+
+Message 12 | assistant |  858 tokens | 2025-06-05 14:29:06.849691
+--------------------------------------------------------------------------------
+Here are the latest developments in FIFA as of June 5, 2025:
+
+**FIFA Club World Cup 2025**
+
+- **Inaugural Tournament in the U.S.:** FIFA's revamped Club World Cup is set to commence on June 14, 2025, in the United States, featuring 32 teams competing across 12 venues. This tournament aims to transform global club football, with a projected $2 billion in revenue and a $1 billion prize pool, including a $125 million reward for the champion. Despite securing a last-minute $1 billion TV deal with DAZN, the event faces challenges such as ticket sales, player fatigue, and controversial qualification criteria. Notably, Inter Miami received a disputed tournament spot as the host nation representative over MLS champions LA Galaxy, sparking claims of favoritism toward Lionel Messi's team. ([reuters.com](https://www.reuters.com/sports/soccer/fifas-inaugural-club-world-cup-set-kick-off-us-amid-challenges-2025-06-02/?utm_source=openai))
+
+- **Ticket Price Reductions:** FIFA has significantly reduced ticket prices for the June 14 opener of the FIFA Club World Cup, hosted by Inter Miami at Hard Rock Stadium in Miami Gardens, Florida. Despite featuring superstar Lionel Messi and Inter Miami facing Egypt's Al-Ahly, tens of thousands of the stadium's 65,326 seats remain unsold. The cheapest tickets, which initially cost $349 after December’s tournament draw, have dropped to as low as $55 on Ticketmaster. ([reuters.com](https://www.reuters.com/sports/soccer/report-fifa-slashes-prices-inter-miamis-cwc-opener-2025-06-04/?utm_source=openai))
+
+**Women's World Cup Expansion**
+
+- **48-Team Format Approved:** FIFA has approved the expansion of the Women's World Cup from 32 to 48 teams starting with the 2031 edition. This change was ratified during a virtual FIFA Council meeting. The expanded format will feature 12 groups, increasing the number of matches from 64 to 104 and extending the tournament by one week, aligning the structure with the men's World Cup from 2026. ([reuters.com](https://www.reuters.com/sports/soccer/fifa-approves-48-team-womens-world-cup-2031-edition-2025-05-09/?utm_source=openai))
+
+**Future World Cup Hosts**
+
+- **2030 World Cup:** The 2030 FIFA World Cup will be held jointly by Spain, Portugal, and Morocco, with celebratory matches in Uruguay, Argentina, and Paraguay to commemorate the tournament's centenary. This event will mark the first time the competition spans three continents. ([reuters.com](https://www.reuters.com/sports/soccer/morocco-spain-portugal-confirmed-2030-world-cup-hosts-2034-edition-awarded-saudi-2024-12-11/?utm_source=openai))
+
+- **2034 World Cup:** Saudi Arabia has been awarded the 2034 FIFA World Cup, making it the second Middle Eastern country to host the tournament following Qatar in 2022. ([reuters.com](https://www.reuters.com/sports/soccer/morocco-spain-portugal-confirmed-2030-world-cup-hosts-2034-edition-awarded-saudi-2024-12-11/?utm_source=openai))
+
+**FIFA Esports Initiatives**
+
+- **FIFAe World Cup Featuring Rocket League:** The 2024 FIFAe World Cup featuring Rocket League was held in Riyadh, Saudi Arabia, from December 5 to 8, 2024. This marked the first edition of the FIFAe World Cup played on Rocket League, with 16 teams competing for a total prize pool of $250,000. ([en.wikipedia.org](https://en.wikipedia.org/wiki/2024_FIFAe_World_Cup_featuring_Rocket_League?utm_source=openai))
+
+Please note that the global football landscape is continually evolving. For the most current information, refer to reputable news sources. 
+
+================================================================================
+
+Message 13 | user      |    1 tokens | 2025-06-05 14:33:04.867655
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Message 14 | assistant |   10 tokens | 2025-06-05 14:33:04.891629
+--------------------------------------------------------------------------------
+Hello again! How can I assist you today?
+
+================================================================================
+
+Message 15 | user      |    1 tokens | 2025-06-05 14:37:53.801746
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Message 16 | assistant |   13 tokens | 2025-06-05 14:37:53.831942
+--------------------------------------------------------------------------------
+Hi there! What would you like to talk about or ask?
+
+================================================================================
+
+Message 17 | user      |    1 tokens | 2025-06-05 14:38:05.891838
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Message 18 | assistant |   18 tokens | 2025-06-05 14:38:05.914415
+--------------------------------------------------------------------------------
+Hello! If you have any questions or need assistance, feel free to let me know.
+
+================================================================================
+
+Message 19 | user      |    2 tokens | 2025-06-05 14:40:02.500554
+--------------------------------------------------------------------------------
+hi again
+
+================================================================================
+
+Message 20 | assistant |   10 tokens | 2025-06-05 14:40:02.531578
+--------------------------------------------------------------------------------
+Hi again! How can I help you today?
+
+================================================================================
+
+Message 21 | user      |    3 tokens | 2025-06-05 14:40:25.399197
+--------------------------------------------------------------------------------
+hi 2
+
+================================================================================
+
+Message 22 | assistant |    8 tokens | 2025-06-05 14:40:25.429148
+--------------------------------------------------------------------------------
+Hi! What's on your mind?
+
+================================================================================
+
+Message 23 | user      |    2 tokens | 2025-06-05 14:41:56.622933
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Message 24 | assistant |   10 tokens | 2025-06-05 14:41:56.651272
+--------------------------------------------------------------------------------
+¡Hola! ¿Cómo puedo ayudarte hoy?
+
+================================================================================
+
+Message 25 | user      |    2 tokens | 2025-06-05 14:44:11.135883
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Message 26 | assistant |   10 tokens | 2025-06-05 14:44:11.177245
+--------------------------------------------------------------------------------
+¡Hola! ¿Cómo puedo ayudarte hoy?
+
+================================================================================
+
+Message 27 | user      |    2 tokens | 2025-06-05 14:46:09.978057
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Message 28 | assistant |   11 tokens | 2025-06-05 14:46:10.021243
+--------------------------------------------------------------------------------
+¡Hola! ¿En qué puedo ayudarte hoy?
+
+================================================================================
+
+Message 29 | user      |    4 tokens | 2025-06-05 14:47:23.133980
+--------------------------------------------------------------------------------
+Hi what datet
+
+================================================================================
+
+Message 30 | assistant |   31 tokens | 2025-06-05 14:47:23.163710
+--------------------------------------------------------------------------------
+It looks like your message is incomplete. Could you please clarify what you mean by "what datet"? Are you asking for the current date and time?
+
+================================================================================
+
+Message 31 | user      |    3 tokens | 2025-06-05 14:47:35.016194
+--------------------------------------------------------------------------------
+current datet
+
+================================================================================
+
+Message 32 | assistant |   21 tokens | 2025-06-05 14:47:35.052427
+--------------------------------------------------------------------------------
+The current date and time is October 3, 2023. How else can I assist you?
+
+================================================================================
+
+Message 33 | user      |    1 tokens | 2025-06-05 14:52:15.648990
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Message 34 | assistant |    9 tokens | 2025-06-05 14:52:15.688367
+--------------------------------------------------------------------------------
+Hello! How can I assist you today?
+
+================================================================================
+
+Message 35 | user      |    2 tokens | 2025-06-05 14:52:27.088849
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Message 36 | assistant |   10 tokens | 2025-06-05 14:52:27.121976
+--------------------------------------------------------------------------------
+¡Hola! ¿Cómo puedo ayudarte hoy?
+
+================================================================================
+
+Message 37 | user      |    8 tokens | 2025-06-05 15:11:15.470561
+--------------------------------------------------------------------------------
+telll me everything we discussed so far
+
+================================================================================
+
+Message 38 | assistant |   37 tokens | 2025-06-05 15:11:15.521659
+--------------------------------------------------------------------------------
+I don't have access to past interactions or discussions. However, I can help with fresh questions or topics you'd like to discuss. Let me know how I can assist you today!
+
+================================================================================
+
+Message 39 | user      |    1 tokens | 2025-06-07 03:48:08.071483
+--------------------------------------------------------------------------------
+hello
+
+================================================================================
+
+Message 40 | assistant |    9 tokens | 2025-06-07 03:48:08.108310
+--------------------------------------------------------------------------------
+Hello! How can I assist you today?
+
+================================================================================
+
+Message 41 | user      |    4 tokens | 2025-06-07 03:49:27.916163
+--------------------------------------------------------------------------------
+tell me latest news
+
+================================================================================
+
+Message 42 | assistant |  574 tokens | 2025-06-07 03:49:27.947622
+--------------------------------------------------------------------------------
+Here are the latest news updates as of June 7, 2025:
+
+**International News:**
+
+- **Pakistan and India Agree to Immediate Ceasefire:** After escalating tensions, Pakistan and India have reached an immediate ceasefire agreement. Pakistani Prime Minister Shehbaz Sharif confirmed the pact and expressed gratitude to the nation, allies, and global mediators for their roles in facilitating the ceasefire. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+- **UN Chief Welcomes Ceasefire:** United Nations Secretary-General António Guterres welcomed the ceasefire between Pakistan and India, expressing hope that it will foster conditions to address longstanding issues between the two countries. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+**Regional News:**
+
+- **Pakistan Resumes Hajj Flights:** Following the ceasefire, Pakistan has resumed Hajj flights. Special flights have been arranged to transport 1,100 affected pilgrims to Saudi Arabia, with arrangements underway for the remaining 1,190 pilgrims. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+- **India Targets Sheikh Zayed International Airport:** India conducted an attack on Sheikh Zayed International Airport in Rahim Yar Khan, causing structural damage. The airport, built in 1933 and named after the late UAE President, symbolizes Pakistan-UAE friendship. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+**Economic News:**
+
+- **Bullish Trend Returns to Pakistan Stock Exchange:** The Pakistan Stock Exchange (PSX) experienced a significant surge, with the KSE-100 Index soaring to an intraday high of 114,250.59 points, gaining 2,924.02 points, or 2.62%. Global market trends played a key role in lifting investor sentiment. ([geo.tv](https://www.geo.tv/?utm_source=openai))
+
+- **Indian Markets Lose $83 Billion Amid Pakistan Tensions:** Indian markets faced a substantial loss of $83 billion as tensions with Pakistan spooked investors. Twelve of the 13 major sectoral indexes ended the week in the red. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+**Health News:**
+
+- **Karachi Sees Spike in Lung Disease Linked to Pigeon Allergens:** Karachi has reported a significant increase in cases of lung disease associated with airborne pigeon allergens. Weekly cases have climbed from 1–2 to over 20, raising concerns among health officials. ([samaa.tv](https://www.samaa.tv/feeds/latest-news?utm_source=openai))
+
+Please note that news developments are continually evolving. For the most current information, refer to reputable news sources. 
+
+================================================================================
+

@@ -1,0 +1,185 @@
+{
+  "project_name": "app-frontend",
+  "description": "Application Frontend Docker Environment Configuration with Traefik Integration",
+  "environments": {
+    "dev": {
+      "compose_file": "docker-compose.dev.yml",
+      "dockerfile": "Dockerfile.dev", 
+      "service_name": "app-frontend-dev",
+      "description": "Development environment with hot reload and volume mounts",
+      "network": "dev-network",
+      "domain": "localhost",
+      "ssl_mode": "self-signed"
+    },
+    "staging": {
+      "compose_file": "docker-compose.staging.yml",
+      "dockerfile": "Dockerfile.staging",
+      "service_name": "app-frontend-staging", 
+      "description": "Staging environment for pre-production testing",
+      "network": "staging-network",
+      "domain": "staging.myappdomain.com",
+      "ssl_mode": "letsencrypt"
+    },
+    "prod": {
+      "compose_file": "docker-compose.prod.yml",
+      "dockerfile": "Dockerfile.prod",
+      "service_name": "app-frontend-prod", 
+      "description": "Production environment with optimized build and performance",
+      "network": "prod-network",
+      "domain": "myappdomain.com",
+      "ssl_mode": "letsencrypt"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "dockerfile": "Dockerfile_aws.prod",
+      "service_name": "app-frontend-prod", 
+      "description": "AWS EC2 production environment with EBS volumes",
+      "network": "prod_aws_network",
+      "domain": "karnagt.com",
+      "ssl_mode": "letsencrypt"
+    }
+  },
+  "default_environment": "dev",
+  "traefik": {
+    "enabled": true,
+    "routing_strategy": "host_based",
+    "priority": 1,
+    "security": {
+      "exposed_by_default": false,
+      "security_headers": true,
+      "ssl_redirect": true
+    },
+    "routing": {
+      "dev": "Host(`localhost`) && !PathPrefix(`/api`)",
+      "staging": "Host(`staging.myappdomain.com`)",
+      "prod": "Host(`myappdomain.com`)"
+    }
+  },
+  "service": {
+    "internal_port": 3000,
+    "health_check": "/",
+    "description": "React frontend application served via Traefik"
+  },
+  "build": {
+    "versions": {
+      "node": "20.18.0",
+      "nginx": "1.25.3",
+      "alpine": "alpine"
+    },
+    "target": {
+      "dev": "development",
+      "staging": "production",
+      "prod": "production"
+    },
+    "args": {
+      "dev": {
+        "VITE_API_URL": "https://localhost",
+        "NODE_ENV": "development",
+        "FRONTEND_USER": "app_frontend_dev"
+      },
+      "staging": {
+        "VITE_API_URL": "https://api-staging.myappdomain.com",
+        "NODE_ENV": "production",
+        "FRONTEND_USER": "app_frontend_staging"
+      },
+      "prod": {
+        "VITE_API_URL": "https://api.myappdomain.com", 
+        "NODE_ENV": "production",
+        "FRONTEND_USER": "app_frontend_prod"
+      },
+      "prod_aws": {
+        "VITE_API_URL": "https://api.karnagt.com", 
+        "NODE_ENV": "production",
+        "FRONTEND_USER": "app_frontend_prod"
+      }
+    }
+  },
+  "dependencies": {
+    "required_networks": {
+      "dev": "dev-network",
+      "staging": "staging-network",
+      "prod": "prod-network",
+      "prod_aws": "prod_aws_network"
+    },
+    "created_by": {
+      "dev": "Database services (db_manager.py)",
+      "staging": "Database services (db_manager.py)",
+      "prod": "Database services (db_manager.py)",
+      "prod_aws": "Database services (db_manager.py)"
+    },
+    "startup_order": ["database", "codesandbox", "backend", "frontend"]
+  },
+  "settings": {
+    "docker_compose_timeout": 300,
+    "build_timeout": 600,
+    "startup_wait_time": 10,
+    "health_check_timeout": 120,
+    "network_isolation": true,
+    "resource_limits": {
+      "memory": "512m",
+      "cpu": "0.5"
+    }
+  },
+  "optimizations": {
+    "multi_stage_builds": true,
+    "layer_caching": true,
+    "dockerignore_enabled": true,
+    "security_non_root": true,
+    "version_pinning": true,
+    "unified_nginx_config": true
+  },
+  "compatibility": {
+    "docker_version_min": "20.10.0",
+    "docker_compose_version_min": "2.0.0",
+    "node_lts_version": "20.18.0",
+    "local_dev_tested": ["Windows", "macOS", "Linux"]
+  },
+  "logging": {
+    "frontend_console_logs": {
+      "dev": "enabled",
+      "staging": "disabled",
+      "prod": "disabled"
+    },
+    "docker_container_logs": {
+      "driver": "json-file",
+      "max_size": "10m",
+      "max_file": "3"
+    },
+    "nginx_access_logs": {
+      "dev": "enabled",
+      "staging": "limited",
+      "prod": "limited"
+    }
+  },
+  "context_validation": {
+    "description": "Docker context validation rules for deployment safety",
+    "enabled_environments": ["prod_aws"],
+    "prod_aws": {
+      "validation_level": "strict",
+      "blocked_contexts": ["default", "desktop-linux"],
+      "allowed_context_patterns": [
+        "aws-*",
+        "*-aws-*", 
+        "*-prod*",
+        "*prod*",
+        "*-ec2-*",
+        "*ec2*"
+      ],
+      "aws_detection_enabled": true,
+      "countdown_seconds": 8,
+      "error_messages": {
+        "blocked_context": "Context '{context}' is blocked for {environment} frontend deployments for security reasons",
+        "disallowed_pattern": "Context '{context}' doesn't match allowed patterns for {environment} frontend",
+        "aws_warning": "Context '{context}' doesn't appear to be AWS-related. Expected: aws, prod, production, or ec2 indicators"
+      },
+      "deployment_instructions": [
+        "Create AWS-specific Docker context:",
+        "  docker context create aws-prod --docker \"host=ssh://ec2-user@YOUR-IP\"",
+        "  docker context use aws-prod",
+        "",
+        "Or deploy directly on AWS instance:",
+        "  ssh -i key.pem ec2-user@YOUR-IP"
+      ]
+    }
+  }
+}

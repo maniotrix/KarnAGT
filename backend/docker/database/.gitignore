@@ -1,0 +1,131 @@
+# 🔐 Database Infrastructure - Git Ignore Rules
+# Smart security: Allow dev secrets (generic), protect staging/prod secrets (secure)
+#
+# Strategy:
+# ✅ Development secrets -> COMMITTED (generic passwords for instant team setup)
+# ❌ Staging secrets -> IGNORED (secure passwords, environment-specific)  
+# ❌ Production secrets -> IGNORED (ultra-secure passwords, never committed)
+
+# ====================================
+# 🚨 CRITICAL: Secrets & Credentials
+# ====================================
+
+# Production & Staging secrets (NEVER commit these!)
+secrets/staging/
+secrets/prod/
+# secrets/prod_aws/ # REMOVED: Need to track AWS production secrets for deployment
+
+# Allow development secrets (generic creds for easy setup)
+!secrets/dev/
+!secrets/dev/*
+
+# Keep directory structure
+!secrets/.gitkeep
+
+# Environment files with sensitive data (if any are created) - REMOVED for AWS deployment
+# .env
+# .env.*
+# *.env
+
+# ====================================
+# 💾 Database Data & Backups  
+# ====================================
+
+# All database backups (can be large and sensitive)
+backups/
+!backups/.gitkeep
+
+# Database dumps and exports
+*.sql
+*.dump
+*.rdb
+*.cypher
+*.tar.gz
+*_backup_*
+*_export_*
+*_restore_*
+
+# ====================================
+# 📊 Logs & Temporary Files
+# ====================================
+
+# Container logs
+*.log
+logs/
+*.out
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ====================================
+# 🔧 Development & Runtime Files
+# ====================================
+
+# Python cache (if any scripts generate cache)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ====================================
+# 📁 Optional: Custom Configurations
+# ====================================
+
+# Uncomment these if you want to ignore custom configs
+# (Currently they're commented out in compose files anyway)
+# config/*/postgresql.conf
+# config/*/redis.conf  
+# config/*/neo4j.conf
+# config/*/qdrant_config.yaml
+# config/*/minio_policy.json
+
+# But keep the directory structure
+!config/
+!config/*/
+!config/*/.gitkeep
+
+# ====================================
+# 🐳 Docker Runtime Files
+# ====================================
+
+# Docker runtime files (if any are generated)
+.docker/
+docker-compose.override.yml
+
+# ====================================
+# 📋 Allow Essential Files
+# ====================================
+
+# Make sure these important files are always tracked
+!README.md
+!*.md
+!db_manager.py
+!db_config.json
+!docker-compose*.yml
+!scripts/
+!scripts/*.sh
+!init-scripts/
+!init-scripts/*.sql
+
+# Placeholder files to maintain directory structure
+!.gitkeep
+!.gitignore

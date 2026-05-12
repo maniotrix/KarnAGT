@@ -1,0 +1,224 @@
+Built Context - Conversation: ac70e87f-6f96-40d0-bfac-f5d71e45b67a
+Token Limit: 1500
+Test Message: Can you help me with one more Python question about decorators?
+Total Context Messages: 32
+Total Context Tokens: 986
+Has Summary: Yes
+================================================================================
+
+Context  1 | ⚙️ system    |  156 tokens | 📝 SUMMARY
+--------------------------------------------------------------------------------
+Previous conversation summary: The conversation began with a casual greeting and progressed to the user inquiring about the assistant's name and previous messages sent. The assistant summarized these messages and suggested various topics for discussion. The user then asked about current events, prompting the assistant to provide updates on international trade and tariffs, security measures for upcoming events, political developments, and environmental initiatives as of June 2025. Following this, the user requested the latest FIFA news, leading to a summary of the upcoming FIFA Club World Cup in the U.S., ticket price reductions, the expansion of the Women's World Cup to 48 teams, and future World Cup hosts for 2030 and 2034. Key points included challenges facing the Club World Cup and the FIFAe World Cup on Rocket League.
+
+================================================================================
+
+Context  2 | 👤 user      |    1 tokens
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Context  3 | 🤖 assistant |   10 tokens
+--------------------------------------------------------------------------------
+Hello again! How can I assist you today?
+
+================================================================================
+
+Context  4 | 👤 user      |    1 tokens
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Context  5 | 🤖 assistant |   13 tokens
+--------------------------------------------------------------------------------
+Hi there! What would you like to talk about or ask?
+
+================================================================================
+
+Context  6 | 👤 user      |    1 tokens
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Context  7 | 🤖 assistant |   18 tokens
+--------------------------------------------------------------------------------
+Hello! If you have any questions or need assistance, feel free to let me know.
+
+================================================================================
+
+Context  8 | 👤 user      |    2 tokens
+--------------------------------------------------------------------------------
+hi again
+
+================================================================================
+
+Context  9 | 🤖 assistant |   10 tokens
+--------------------------------------------------------------------------------
+Hi again! How can I help you today?
+
+================================================================================
+
+Context 10 | 👤 user      |    3 tokens
+--------------------------------------------------------------------------------
+hi 2
+
+================================================================================
+
+Context 11 | 🤖 assistant |    8 tokens
+--------------------------------------------------------------------------------
+Hi! What's on your mind?
+
+================================================================================
+
+Context 12 | 👤 user      |    2 tokens
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Context 13 | 🤖 assistant |   10 tokens
+--------------------------------------------------------------------------------
+¡Hola! ¿Cómo puedo ayudarte hoy?
+
+================================================================================
+
+Context 14 | 👤 user      |    2 tokens
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Context 15 | 🤖 assistant |   10 tokens
+--------------------------------------------------------------------------------
+¡Hola! ¿Cómo puedo ayudarte hoy?
+
+================================================================================
+
+Context 16 | 👤 user      |    2 tokens
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Context 17 | 🤖 assistant |   11 tokens
+--------------------------------------------------------------------------------
+¡Hola! ¿En qué puedo ayudarte hoy?
+
+================================================================================
+
+Context 18 | 👤 user      |    4 tokens
+--------------------------------------------------------------------------------
+Hi what datet
+
+================================================================================
+
+Context 19 | 🤖 assistant |   31 tokens
+--------------------------------------------------------------------------------
+It looks like your message is incomplete. Could you please clarify what you mean by "what datet"? Are you asking for the current date and time?
+
+================================================================================
+
+Context 20 | 👤 user      |    3 tokens
+--------------------------------------------------------------------------------
+current datet
+
+================================================================================
+
+Context 21 | 🤖 assistant |   21 tokens
+--------------------------------------------------------------------------------
+The current date and time is October 3, 2023. How else can I assist you?
+
+================================================================================
+
+Context 22 | 👤 user      |    1 tokens
+--------------------------------------------------------------------------------
+hi
+
+================================================================================
+
+Context 23 | 🤖 assistant |    9 tokens
+--------------------------------------------------------------------------------
+Hello! How can I assist you today?
+
+================================================================================
+
+Context 24 | 👤 user      |    2 tokens
+--------------------------------------------------------------------------------
+hola
+
+================================================================================
+
+Context 25 | 🤖 assistant |   10 tokens
+--------------------------------------------------------------------------------
+¡Hola! ¿Cómo puedo ayudarte hoy?
+
+================================================================================
+
+Context 26 | 👤 user      |    8 tokens
+--------------------------------------------------------------------------------
+telll me everything we discussed so far
+
+================================================================================
+
+Context 27 | 🤖 assistant |   37 tokens
+--------------------------------------------------------------------------------
+I don't have access to past interactions or discussions. However, I can help with fresh questions or topics you'd like to discuss. Let me know how I can assist you today!
+
+================================================================================
+
+Context 28 | 👤 user      |    1 tokens
+--------------------------------------------------------------------------------
+hello
+
+================================================================================
+
+Context 29 | 🤖 assistant |    9 tokens
+--------------------------------------------------------------------------------
+Hello! How can I assist you today?
+
+================================================================================
+
+Context 30 | 👤 user      |    4 tokens
+--------------------------------------------------------------------------------
+tell me latest news
+
+================================================================================
+
+Context 31 | 🤖 assistant |  574 tokens
+--------------------------------------------------------------------------------
+Here are the latest news updates as of June 7, 2025:
+
+**International News:**
+
+- **Pakistan and India Agree to Immediate Ceasefire:** After escalating tensions, Pakistan and India have reached an immediate ceasefire agreement. Pakistani Prime Minister Shehbaz Sharif confirmed the pact and expressed gratitude to the nation, allies, and global mediators for their roles in facilitating the ceasefire. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+- **UN Chief Welcomes Ceasefire:** United Nations Secretary-General António Guterres welcomed the ceasefire between Pakistan and India, expressing hope that it will foster conditions to address longstanding issues between the two countries. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+**Regional News:**
+
+- **Pakistan Resumes Hajj Flights:** Following the ceasefire, Pakistan has resumed Hajj flights. Special flights have been arranged to transport 1,100 affected pilgrims to Saudi Arabia, with arrangements underway for the remaining 1,190 pilgrims. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+- **India Targets Sheikh Zayed International Airport:** India conducted an attack on Sheikh Zayed International Airport in Rahim Yar Khan, causing structural damage. The airport, built in 1933 and named after the late UAE President, symbolizes Pakistan-UAE friendship. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+**Economic News:**
+
+- **Bullish Trend Returns to Pakistan Stock Exchange:** The Pakistan Stock Exchange (PSX) experienced a significant surge, with the KSE-100 Index soaring to an intraday high of 114,250.59 points, gaining 2,924.02 points, or 2.62%. Global market trends played a key role in lifting investor sentiment. ([geo.tv](https://www.geo.tv/?utm_source=openai))
+
+- **Indian Markets Lose $83 Billion Amid Pakistan Tensions:** Indian markets faced a substantial loss of $83 billion as tensions with Pakistan spooked investors. Twelve of the 13 major sectoral indexes ended the week in the red. ([tribune.com.pk](https://tribune.com.pk/?utm_source=openai))
+
+**Health News:**
+
+- **Karachi Sees Spike in Lung Disease Linked to Pigeon Allergens:** Karachi has reported a significant increase in cases of lung disease associated with airborne pigeon allergens. Weekly cases have climbed from 1–2 to over 20, raising concerns among health officials. ([samaa.tv](https://www.samaa.tv/feeds/latest-news?utm_source=openai))
+
+Please note that news developments are continually evolving. For the most current information, refer to reputable news sources. 
+
+================================================================================
+
+Context 32 | 👤 user      |   12 tokens
+--------------------------------------------------------------------------------
+Can you help me with one more Python question about decorators?
+
+================================================================================
+

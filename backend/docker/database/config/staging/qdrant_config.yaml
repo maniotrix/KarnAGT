@@ -1,0 +1,79 @@
+# Qdrant Staging Configuration
+# Production-like settings with moderate resources
+
+service:
+  host: 0.0.0.0
+  http_port: 6333
+  grpc_port: 6334
+  
+storage:
+  # Storage path inside container
+  storage_path: /qdrant/storage
+  
+  # Snapshots configuration
+  snapshots_path: /qdrant/snapshots
+  
+  # Performance settings (staging)
+  performance:
+    max_search_threads: 4
+    max_optimization_threads: 2
+    
+  # Memory settings (staging)
+  hnsw_config:
+    m: 16
+    ef_construct: 200
+    full_scan_threshold: 10000
+    
+  # Indexing settings
+  wal_config:
+    wal_capacity_mb: 64
+    wal_segments_ahead: 1
+    
+log_level: WARN
+
+telemetry_disabled: true
+
+cluster:
+  enabled: false
+
+# Staging-specific settings
+debug: false
+enable_cors: false
+
+# API settings
+api:
+  # Consider enabling API key authentication in staging
+  enable_api_key: false
+  
+  # CORS settings for staging
+  cors:
+    allow_any_origin: false
+    allow_credentials: false
+    
+# Timeout settings
+timeout:
+  # Default request timeout in seconds
+  default: 60
+  
+# Performance settings
+service:
+  max_request_size_mb: 32
+  max_workers: 0  # Auto-detect based on CPU cores
+  
+# Storage optimization
+storage:
+  # Enable background optimization
+  optimizers:
+    deleted_threshold: 0.2
+    vacuum_min_vector_number: 1000
+    default_segment_number: 0
+  
+  # Memory mapping
+  mmap_threshold: 1000000
+  
+  # Quantization settings (for memory efficiency)
+  quantization:
+    scalar_quantization:
+      type: int8
+      quantile: 0.99
+      always_ram: false

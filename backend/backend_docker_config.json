@@ -1,0 +1,119 @@
+{
+  "project_name": "app-backend",
+  "description": "Application Backend Docker Environment Configuration with Traefik Integration",
+  "environments": {
+    "dev": {
+      "compose_file": "docker-compose.dev.yml",
+      "dockerfile": "Dockerfile.dev",
+      "env_file": ".env.docker.app.dev",
+      "service_name": "app-backend-dev",
+      "description": "Development environment with hot reload and debug logging",
+      "network": "dev-network",
+      "domain": "localhost",
+      "ssl_mode": "self-signed"
+    },
+    "staging": {
+      "compose_file": "docker-compose.staging.yml",
+      "dockerfile": "Dockerfile.staging",
+      "env_file": ".env.docker.app.staging",
+      "service_name": "app-backend-staging",
+      "description": "Staging environment for pre-production testing",
+      "network": "staging-network",
+      "domain": "api-staging.yourdomain.com",
+      "ssl_mode": "letsencrypt"
+    },
+    "prod": {
+      "compose_file": "docker-compose.prod.yml",
+      "dockerfile": "Dockerfile.prod",
+      "env_file": ".env.docker.app.prod",
+      "service_name": "app-backend-prod",
+      "description": "Production environment with optimized performance",
+      "network": "prod-network",
+      "domain": "api.yourdomain.com",
+      "ssl_mode": "letsencrypt"
+    },
+    "prod_aws": {
+      "compose_file": "docker-compose-prod-aws.yml",
+      "dockerfile": "Dockerfile_aws.prod",
+      "env_file": ".env.docker.app.prod_aws",
+      "service_name": "app-backend-prod",
+      "description": "AWS EC2 production environment with EBS volumes",
+      "network": "prod_aws_network",
+      "domain": "api.karnagt.com",
+      "ssl_mode": "letsencrypt"
+    }
+  },
+  "default_environment": "dev",
+  "traefik": {
+    "enabled": true,
+    "version": "v3.0",
+    "security": {
+      "exposed_by_default": false,
+      "dashboard_enabled": false,
+      "docker_socket_readonly": true,
+      "security_headers": true
+    },
+    "ports": {
+      "http": 80,
+      "https": 443,
+      "api": 8000,
+      "files": 9000,
+      "dashboard": 8080
+    },
+    "ssl": {
+      "redirect_http_to_https": true,
+      "hsts_enabled": true,
+      "letsencrypt_email": "admin@karnagt.com"
+    }
+  },
+  "services": {
+    "backend": {
+      "internal_port": 8000,
+      "path_prefix": "/api",
+      "health_check": "/api/v1/health"
+    },
+    "minio": {
+      "internal_port": 9000,
+      "path_prefix": "/files",
+      "service_name": "minio"
+    }
+  },
+  "settings": {
+    "docker_compose_timeout": 300,
+    "build_timeout": 600,
+    "startup_wait_time": 10,
+    "health_check_timeout": 120,
+    "network_isolation": true
+  },
+  "context_validation": {
+    "description": "Docker context validation rules for deployment safety",
+    "enabled_environments": ["prod_aws"],
+    "prod_aws": {
+      "validation_level": "strict",
+      "blocked_contexts": ["default", "desktop-linux"],
+      "allowed_context_patterns": [
+        "aws-*",
+        "*-aws-*", 
+        "*-prod*",
+        "*prod*",
+        "*-ec2-*",
+        "*ec2*"
+      ],
+      "aws_detection_enabled": true,
+      "countdown_seconds": 8,
+      "error_messages": {
+        "blocked_context": "Context '{context}' is blocked for {environment} backend deployments for security reasons",
+        "disallowed_pattern": "Context '{context}' doesn't match allowed patterns for {environment} backend",
+        "aws_warning": "Context '{context}' doesn't appear to be AWS-related. Expected: aws, prod, production, or ec2 indicators"
+      },
+      "deployment_instructions": [
+        "Create AWS-specific Docker context:",
+        "  docker context create aws-prod --docker \"host=ssh://ec2-user@YOUR-IP\"",
+        "  docker context use aws-prod",
+        "",
+        "Or deploy directly on AWS instance:",
+        "  ssh -i key.pem ec2-user@YOUR-IP"
+      ]
+    }
+  }
+}
